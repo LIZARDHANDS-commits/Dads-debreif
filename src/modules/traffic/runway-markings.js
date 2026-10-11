@@ -8,7 +8,8 @@
 // The shapes are plain quadrilaterals in map feet (x east, y north), so they have no pixels to blur.
 
 import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21 } from './airfield.js';
-import { AIRFIELD_SURFACE } from './airfield-surface.js';
+import { AIRFIELD_SURFACE, SURFACE_FRAMES } from './airfield-surface.js';
+import { holdScreenWidth, trackScreen } from './min-width3d.js';
 
 /** How far the painted centreline sits left of the drawn one (looking down 29L), ft: 3 at the 29L end, 0 at 11R (photo). */
 const SHIFT_AT_29L_FT = 3;
@@ -101,14 +102,14 @@ function frame(a, b, shiftAtA = 0) {
 
 /** Drawing helpers that push onto `shapes`. */
 function pens(shapes) {
-  const quad = (color, place, s0, s1, n0, n1) => shapes.push({ color, pts: [place(s0, n0), place(s1, n0), place(s1, n1), place(s0, n1)] });
+  const quad = (color, place, s0, s1, n0, n1) => shapes.push({ color, w: Math.min(Math.abs(s1 - s0), Math.abs(n1 - n0)), pts: [place(s0, n0), place(s1, n0), place(s1, n1), place(s0, n1)] });
   /** A straight stroke of width w from (s0, n0) to (s1, n1), as a quadrilateral with square ends. */
   const stroke = (color, place, s0, n0, s1, n1, w) => {
     const l = Math.hypot(s1 - s0, n1 - n0) || 1;
     const ts = (s1 - s0) / l, tn = (n1 - n0) / l, h = w / 2;
     const ps = -tn * h, pn = ts * h; // side
     const es = ts * h, en = tn * h; // square end
-    shapes.push({ color, pts: [place(s0 - es + ps, n0 - en + pn), place(s1 + es + ps, n1 + en + pn), place(s1 + es - ps, n1 + en - pn), place(s0 - es - ps, n0 - en - pn)] });
+    shapes.push({ color, w, pts: [place(s0 - es + ps, n0 - en + pn), place(s1 + es + ps, n1 + en + pn), place(s1 + es - ps, n1 + en - pn), place(s0 - es - ps, n0 - en - pn)] });
   };
   /** A white rectangle with a black outline OUTLINE_FT wide drawn under it. */
   const outlinedQuad = (place, s0, s1, n0, n1) => {
@@ -141,10 +142,8 @@ function paintRunway(shapes, { a, b, shiftAtA = 0, barA, barB, ends, centreline 
   const { len, place: at } = frame(a, b, shiftAtA);
   const { quad, stroke, outlinedQuad, text } = pens(shapes);
   const bB = barB(len);
-  // The grey runway under the paint: bar to bar, out to the side stripes' outer edges, first so everything else draws over it.
+  // The runway surface itself is the textured pavement (airfield-surface.js, TR-136); this draws only its paint.
   const P0 = ends[0].layout;
-  const edgeFt = EDGE_STRIPE.centreFt + EDGE_STRIPE.widthFt / 2 + OUTLINE_FT;
-  quad('asphalt', at, barA - P0.bar.to, bB - P0.bar.from, -edgeFt, edgeFt);
 
   const places = [(s, n) => at(barA + s, n), (s, n) => at(bB - s, -n)];
   ends.forEach(({ letter, number, layout: P }, e) => {
@@ -164,7 +163,6 @@ function paintRunway(shapes, { a, b, shiftAtA = 0, barA, barB, ends, centreline 
     // Yellow chevrons on the pad before the bar: two arms from each apex, cut to the pad. The pad itself in the runway's grey
     // (TR-128; Patrick, 10 Oct: "and the chevroned area before the runway threshold").
     const C = P.chevrons;
-    quad('asphalt', place, C.padFrom, P.bar.from, -P.bar.halfWidth, P.bar.halfWidth);
     for (const apex of C.apexes) {
       const t0 = Math.max(0, apex - C.padTo), t1 = Math.min(apex - C.padFrom, C.maxAcross / C.slope);
       if (t1 <= t0) continue;
@@ -266,7 +264,7 @@ function runwayBoxes() {
     return { ...f, a, half, lo: -padFt, hi: f.len + padFt };
   };
   return {
-    holdFor: [box(THRESHOLD_29L, DEPARTURE_END_29L, 80, 250), box(THRESHOLD_29R, DEPARTURE_END_29R, 80, 250)],
+    holdFor: [{ ...box(THRESHOLD_29L, DEPARTURE_END_29L, 80, 250), id: '29L' }, { ...box(THRESHOLD_29R, DEPARTURE_END_29R, 80, 250), id: '29R' }],
     clip: [box(THRESHOLD_29L, DEPARTURE_END_29L, 80, 10), box(THRESHOLD_29R, DEPARTURE_END_29R, 80, 40), box(RUNWAY_03, RUNWAY_21, 52, 0)],
   };
 }
@@ -282,7 +280,8 @@ const onRunway = (boxes, x, y) => boxes.some((r) => {
 
 
 
-function paintTaxiways(shapes) {
+/** Paints the taxiways onto `shapes`; each holding position is also pushed onto `holds` (see holdingPositions). */
+function paintTaxiways(shapes, holds = []) {
   const { holdFor, clip } = runwayBoxes();
   for (const tw of TAXIWAYS) {
     for (let k = 1; k < tw.pts.length; k++) {
@@ -309,7 +308,11 @@ function paintTaxiways(shapes) {
           const p = f.place(t, 0);
           const { s, n } = local(r, p.x, p.y);
           const inside = s >= r.lo && s <= r.hi && Math.abs(n) < HOLD_FROM_CENTRELINE_FT;
-          if (prev !== null && inside !== prev) holdLine(shapes, f.place, inside ? t - 1 : t, tw.widthFt / 2, inside ? -1 : 1);
+          if (prev !== null && inside !== prev) {
+            const at = inside ? t - 1 : t, away = inside ? -1 : 1;
+            holdLine(shapes, f.place, at, tw.widthFt / 2, away);
+            holds.push({ ...f.place(at, 0), ux: away * f.ux, uy: away * f.uy, halfWidth: tw.widthFt / 2, taxiway: tw.id, runway: r.id });
+          }
           prev = inside;
         }
       }
@@ -318,7 +321,7 @@ function paintTaxiways(shapes) {
 }
 
 /**
- * The paint as filled shapes: [{ color: 'asphalt' | 'fresh' | 'black' | 'white' | 'yellow', pts: [{ x, y }, ...] }], each a convex quadrilateral in map ft.
+ * The paint as filled shapes: [{ color: 'black' | 'white' | 'yellow', pts: [{ x, y }, ...] }], each a convex quadrilateral in map ft.
  */
 export function runwayMarkingPolygons() {
   const shapes = [];
@@ -360,52 +363,216 @@ export function runwayMarkingPolygons() {
 }
 
 /**
- * The colours, bottom first: the runway's and taxiways' grey (the stand-in ground's runway grey before TR-107), the outlines' black,
- * white, and the pad chevrons' yellow (photo).
+ * Every runway-holding position (TR-141, for the signs): { x, y } on the taxiway's (or 03/21's) centreline, (ux, uy) the unit
+ * direction to the holding side (away from the runway), halfWidth of the pavement, taxiway (its label, or '03-21') and runway
+ * ('29L' or '29R', the one it holds short of).
  */
-const PAINT = Object.freeze({ asphalt: '#262b30', black: '#141414', white: '#f2f2ee', yellow: '#e9c349' });
-/** Each colour's place in the drawing order: the grey first, then the outlines, then the paint. */
-const ORDER = Object.freeze({ asphalt: -0.6, black: -0.55, white: -0.5, yellow: -0.5 });
+export function holdingPositions() {
+  const holds = [];
+  paintTaxiways([], holds);
+  const r = frame(RUNWAY_03, RUNWAY_21);
+  const lines = [{ id: '29L', a: THRESHOLD_29L, b: DEPARTURE_END_29L }, { id: '29R', a: THRESHOLD_29R, b: DEPARTURE_END_29R }];
+  const offLine = (p, { a, b }) => Math.abs((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) / Math.hypot(b.x - a.x, b.y - a.y);
+  for (const { s, away } of PAINT_0321.holds) {
+    const p = r.place(s, 0);
+    const runway = lines.reduce((best, l) => (offLine(p, l) < offLine(p, best) ? l : best)).id;
+    holds.push({ ...p, ux: away * r.ux, uy: away * r.uy, halfWidth: PAINT_0321.halfWidth, taxiway: '03-21', runway });
+  }
+  return holds;
+}
 
 /**
- * The paint as a three.js group of four flat meshes (the grey runway, black outlines, white and yellow), at height 0; the 3D view lifts it to just over
- * the photo. It draws after the ground photos and before everything else.
+ * Each paved runway's line, its ends' designators and its threshold bars, ft along it from `a` (for the lights, TR-141): barA
+ * before or past `a`, barB past `b`. halfWidth is the paint's edge stripe, ft from the centreline.
  */
-export function createRunwayMarkings(THREE) {
-  const group = new THREE.Group();
-  group.name = 'runway-markings';
-  const shapes = runwayMarkingPolygons();
-  // The traced paved surface (TR-129) as triangles, drawn with the runways' grey.
-  const surface = [];
-  for (const { outer, holes } of AIRFIELD_SURFACE) {
+export const RUNWAY_ENDS = Object.freeze([
+  Object.freeze({ ids: Object.freeze(['29L', '11R']), a: THRESHOLD_29L, b: DEPARTURE_END_29L, barA: BAR_29L_FT, barBPast: BAR_11R_PAST_END_FT, edgeFt: EDGE_STRIPE.centreFt }),
+  Object.freeze({ ids: Object.freeze(['29R', '11L']), a: THRESHOLD_29R, b: DEPARTURE_END_29R, barA: BAR_29R_FT, barBPast: BAR_11L_PAST_END_FT, edgeFt: EDGE_STRIPE.centreFt }),
+]);
+/** The aiming point's start, ft past each threshold bar (END_PAINT; Patrick, 10 Oct: "those white strips are 1000 feet"). */
+export const AIM_FROM_FT = END_PAINT.aim.from;
+
+/** The paint's colours, bottom first: the outlines' black, white, and the pad chevrons' yellow (photo). */
+const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#ffd23a' }); // yellow brightened (Patrick, 10 Oct; TR-138)
+/** Each layer's place in the drawing order: the pavement, the tyre rubber, then the outlines, then the paint. */
+const ORDER = Object.freeze({ pavement: -0.62, rubber: -0.58, black: -0.55, white: -0.5, yellow: -0.5 });
+
+/** The pavement textures (tools/airfield/make-textures.py, TR-136), each tiling over its frame's `tile` ft. */
+const TEXTURES = Object.freeze({
+  cracked: 'media/traffic-textures/cracked.jpg', // continuous concrete, cracked (TR-137)
+  blocks: 'media/traffic-textures/blocks.jpg', // square slabs: the runways' threshold zones only
+  asphalt: 'media/traffic-textures/asphalt.jpg',
+});
+/** Each texture's colour before it loads. */
+const FLAT = Object.freeze({ cracked: '#c4bfb1', blocks: '#c4bfb1', asphalt: '#6e6e70' });
+/** Tyre rubber down each runway's centreline from 300 to 3,000 ft past each threshold, 40 ft wide (estimates, from the photo of 29L). */
+const RUBBER = Object.freeze({ from: 300, to: 3000, width: 40, tileAlong: 400, file: 'media/traffic-textures/rubber.png' });
+
+const mediaBase = () => (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
+
+/** Loads a texture onto a material when it comes (browser only), then shows it. */
+function loadTexture(THREE, file, material, onLoad) {
+  if (typeof globalThis.Image === 'undefined') return;
+  new THREE.TextureLoader().load(`${mediaBase()}${file}`, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.anisotropy = 16; // three.js holds it to what the graphics card does
+    material.map = texture;
+    onLoad?.(material);
+    material.needsUpdate = true;
+  });
+}
+
+/**
+ * The paved surface (TR-136): each area triangulated and laid with its frame's texture, its slab joints running along the frame's
+ * line, tinted by the frame; one mesh per material. Until a texture loads the area shows a flat colour close to it.
+ */
+function surfaceMeshes(THREE) {
+  const byMat = Object.fromEntries(Object.keys(TEXTURES).map((k) => [k, { pos: [], uv: [], col: [] }]));
+  for (const { f, outer, holes } of AIRFIELD_SURFACE) {
+    const F = SURFACE_FRAMES[f];
+    const out = byMat[F.mat];
+    const c = Math.cos(F.ang), s = Math.sin(F.ang);
     const ring = outer.map(([x, y]) => new THREE.Vector2(x, y));
     const holeRings = holes.map((h) => h.map(([x, y]) => new THREE.Vector2(x, y)));
     const tris = THREE.ShapeUtils.triangulateShape(ring, holeRings); // turns the rings round in place: index them afterwards
     const all = [...ring, ...holeRings.flat()];
-    for (const tri of tris) for (const k of tri) surface.push(all[k].x, all[k].y);
+    for (const tri of tris) {
+      for (const k of tri) {
+        const { x, y } = all[k];
+        const dx = x - F.ox, dy = y - F.oy;
+        out.pos.push(x, y, 0);
+        // Each area's pattern shifted along its joints by its own amount, so neighbouring areas don't line up (TR-138).
+        out.uv.push((dx * c + dy * s) / F.tile + ((f * 0.618) % 1), (-dx * s + dy * c) / F.tile);
+        out.col.push(F.tint, F.tint, F.tint);
+      }
+    }
   }
+  const meshes = [];
+  for (const [mat, { pos, uv, col }] of Object.entries(byMat)) {
+    if (!pos.length) continue;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
+    const material = brighterFarOff(new THREE.MeshBasicMaterial({ color: FLAT[mat], vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+    loadTexture(THREE, TEXTURES[mat], material, (m) => m.color.set('#ffffff'));
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `airfield-${mat}`;
+    mesh.renderOrder = ORDER.pavement;
+    meshes.push(mesh);
+  }
+  return meshes;
+}
+
+/** Tyre rubber on each runway: a strip from RUBBER.from to RUBBER.to past each threshold, its texture running along the runway. */
+function rubberMesh(THREE) {
+  const pos = [], uv = [];
+  for (const [a, b] of [[THRESHOLD_29L, DEPARTURE_END_29L], [THRESHOLD_29R, DEPARTURE_END_29R]]) {
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len, nx = -uy, ny = ux;
+    const h = RUBBER.width / 2;
+    const P = (s, n) => [a.x + ux * s + nx * n, a.y + uy * s + ny * n, 0];
+    for (const [s0, s1] of [[RUBBER.from, RUBBER.to], [len - RUBBER.to, len - RUBBER.from]]) {
+      const corners = [P(s0, -h), P(s1, -h), P(s1, h), P(s0, h)];
+      const cuv = [[s0 / RUBBER.tileAlong, 0], [s1 / RUBBER.tileAlong, 0], [s1 / RUBBER.tileAlong, 1], [s0 / RUBBER.tileAlong, 1]];
+      for (const k of [0, 1, 2, 0, 2, 3]) {
+        pos.push(...corners[k]);
+        uv.push(...cuv[k]);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  const material = new THREE.MeshBasicMaterial({ color: '#1a1a1a', transparent: true, opacity: 0, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  loadTexture(THREE, RUBBER.file, material, (m) => { m.opacity = 0.4; }); // the texture's alpha is the rubber
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'runway-rubber';
+  mesh.renderOrder = ORDER.rubber;
+  return mesh;
+}
+
+/**
+ * Seeing the runway at range (TR-146; Patrick, 11 Oct: "the runways are harder to see than in IRL as well as the numbers"; "keep the
+ * edge stripes, centreline and numbers solid past about 2 NM ... Up close nothing changes"). A screen resolves about a third of what
+ * the eye does, so far off a 3 ft stripe covers a fraction of a pixel. Each white and yellow stripe is pushed out across its narrow
+ * side just enough to stay PAINT_MIN_PX wide on screen, up to PAINT_GROW_MAX times its real width; up close it is never touched.
+ * Past that cap it fades as before (TR-137: Patrick, 10 Oct: "from far back the pixelated lines along the sides of the runway are rather
+ * distracting"), so it still never flickers. Each stripe carries its narrow width (stripeW, ft) and, per corner, the way out across it
+ * (growDir). PAINT_MIN_PX 0 gives the old look. Both numbers are estimates, set by eye. The shader is min-width3d.js's.
+ */
+const PAINT_MIN_PX = 1.5;
+const PAINT_GROW_MAX = 6;
+
+/**
+ * The pavement a little brighter far off (TR-146): from PAVE_BRIGHT.fromFt it brightens to PAVE_BRIGHT.gain more by PAVE_BRIGHT.toFt
+ * (about 2 NM), so the runways stand out from the grass at range the way sunlit concrete does; up close nothing changes. Estimates.
+ */
+const PAVE_BRIGHT = Object.freeze({ fromFt: 3000, toFt: 12000, gain: 0.15 });
+function brighterFarOff(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+varying float vCamDist;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vCamDist = distance((modelMatrix * vec4(transformed, 1.0)).xyz, cameraPosition);`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying float vCamDist;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+diffuseColor.rgb *= 1.0 + ${PAVE_BRIGHT.gain.toFixed(3)} * smoothstep(${PAVE_BRIGHT.fromFt.toFixed(1)}, ${PAVE_BRIGHT.toFt.toFixed(1)}, vCamDist);`);
+  };
+  material.customProgramCacheKey = () => 'pavement-brighter-far-off';
+  return material;
+}
+
+/**
+ * The airfield as a three.js group at height 0 (the 3D view lifts it to just over the photo): the textured pavement, the tyre rubber,
+ * and the paint (black outlines, white, yellow). It draws after the ground photos and before everything else.
+ */
+export function createRunwayMarkings(THREE) {
+  const group = new THREE.Group();
+  group.name = 'runway-markings';
+  for (const m of surfaceMeshes(THREE)) group.add(m);
+  group.add(rubberMesh(THREE));
+  const shapes = runwayMarkingPolygons();
   for (const color of Object.keys(PAINT)) {
     const mine = shapes.filter((s) => s.color === color);
-    const extra = color === 'asphalt' ? surface.length / 2 : 0;
-    const pos = new Float32Array((mine.length * 6 + extra) * 3);
-    let i = 0;
-    for (const { pts } of mine) {
+    const pos = new Float32Array(mine.length * 6 * 3);
+    const widths = new Float32Array(mine.length * 6);
+    const grow = new Float32Array(mine.length * 6 * 2);
+    let i = 0, j = 0, g = 0;
+    for (const { pts, w } of mine) {
+      // Each corner's way out across the stripe's narrow side: away from the corner across from it.
+      const len = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+      const pair = len(pts[1], pts[2]) <= len(pts[0], pts[1]) ? [3, 2, 1, 0] : [1, 0, 3, 2];
+      const dir = pts.map((p, k) => {
+        const q = pts[pair[k]];
+        const l = len(q, p) || 1;
+        return [(p.x - q.x) / l, (p.y - q.y) / l];
+      });
       for (const k of [0, 1, 2, 0, 2, 3]) {
         pos[i++] = pts[k].x;
         pos[i++] = pts[k].y;
         pos[i++] = 0;
+        widths[j++] = w ?? 10;
+        grow[g++] = dir[k][0];
+        grow[g++] = dir[k][1];
       }
-    }
-    for (let j = 0; j < extra; j++) {
-      pos[i++] = surface[2 * j];
-      pos[i++] = surface[2 * j + 1];
-      pos[i++] = 0;
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geometry.setAttribute('stripeW', new THREE.BufferAttribute(widths, 1));
+    geometry.setAttribute('growDir', new THREE.BufferAttribute(grow, 2));
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
     const material = new THREE.MeshBasicMaterial({ color: PAINT[color], transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    // The yellow lines stay bright at range (Patrick: "brighten the yellow lines"); white and yellow hold their width far off; the black
+    // outlines don't (they would only smudge).
+    holdScreenWidth(material, { floor: color === 'yellow' ? 0.8 : 0.15, minPx: color === 'black' ? 0 : PAINT_MIN_PX, maxGrow: PAINT_GROW_MAX });
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.onBeforeRender = trackScreen(THREE);
     mesh.renderOrder = ORDER[color];
     group.add(mesh);
   }
@@ -417,6 +584,7 @@ export function disposeRunwayMarkings(group) {
   if (!group) return;
   for (const mesh of group.children) {
     mesh.geometry?.dispose?.();
+    mesh.material?.map?.dispose?.();
     mesh.material?.dispose?.();
   }
   group.removeFromParent?.();

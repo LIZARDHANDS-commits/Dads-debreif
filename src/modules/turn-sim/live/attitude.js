@@ -8,6 +8,7 @@
 // bank are Euler angles: straight up or down they turn over by 180° together, which is the same attitude, so the 3D
 // view (rotation heading, pitch, bank) draws it without a jump. Roll rate is measured on the aircraft itself (how fast
 // the up vector tilts toward the left wing), so it has no jump there either.
+import { DEG } from '../../../core/angles.js';
 import { attitudeDegFromClimb } from '../../../core/t6-performance.js';
 import { G_FTPS2 } from '../../../core/units.js';
 
@@ -23,7 +24,6 @@ export const unit3 = (a) => {
 };
 /** The part of `a` square to the unit vector `n`. */
 export const perp3 = (a, n) => sub3(a, scale3(n, dot3(a, n)));
-const DEG = Math.PI / 180;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The left wing's direction for a nose and an up (x forward, y left, z up: left = up × nose). */
@@ -34,7 +34,7 @@ export const leftOf = (nose, up) => cross3(up, nose);
  * path's angle above the horizon and bank (degrees, left wing down positive) measured from wings level with the nose
  * where it is. Straight up or down the heading comes from the up vector (the belly points back along the old heading).
  */
-export function eulerOf(nose, up) {
+function eulerOf(nose, up) {
   const horiz = Math.hypot(nose.x, nose.y);
   const pitchFpDeg = Math.atan2(nose.z, horiz) / DEG;
   const h = horiz > 1e-9 ? Math.atan2(nose.y, nose.x) : Math.atan2(-up.y * Math.sign(nose.z), -up.x * Math.sign(nose.z));

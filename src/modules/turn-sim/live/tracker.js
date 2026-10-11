@@ -6,19 +6,20 @@
 // kinematic-line rule covers; until step 1 it lived in transitions.js. Its numbers are tuning.js TRACKER (all estimates:
 // they shape how smoothly the wingman flies, not where the formations are). Its phase defaults are here; the leg recipes that call it
 // (slide, stopAt, dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) live in recipes.js.
-import { bankDegFromTurnRate } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { bankDegFromTurnRate, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, copyAircraft, smoothLegSec, heightAt, SMOOTHER_PEAK } from './flight.js';
-import { relativeTo, unit, DEG } from './manoeuvres.js';
+import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK } from './flight.js';
+import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
-import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB, lineKiasNow } from './tuning.js';
-import { fixedLine, FW_LIMITS } from './slots.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, lineKiasNow } from './tuning.js';
+import { FW_BAND, LANE } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
 import { G_RULE } from './rates.js';
 import { isLeadInCanopy } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
+import { rideAim, rideClosure, rideHeightAsSpeed, lineAltOf } from './ride.js';
 
 // The one pilot model's step (pilot.js, clean-up step 5, TS-141) is used here and re-exported for the files that read it from here.
 export { setKias, stepCommanded, climbCostKtps, isLeadInCanopy };
@@ -53,107 +54,13 @@ function refPoint(R, Rprev, ref, world, refTurn = true) {
 }
 
 /**
- * The ride (Step 7): the turning rejoin's line flown in Lead's frame, where it stands still (Patrick 8 Oct 20:49).
- * Off the line by `cross`, #2 asks to close on it at cross / rideCrossTauSec (no more than rideCrossMaxFtps), across it in
- * Lead's frame; the rest of his own speed goes up the line toward Lead. Only at the end is that turned into a world velocity
- * (the frame's own velocity at #2's place, Lead's speed plus ω × r, plus the relative one) and so a heading. Closure is
- * measured at #2 in Lead's frame, never as Lead's speed plus something. State (established, latched) lives in `ref`, which
- * is the run's own.
+ * The one kind of phase with its own aim and closure (refactor step 3): the ride down a rejoin line (ride.js), the turning
+ * rejoin's and, with Lead not turning, the straight-ahead rejoin's (step 5 retired the older line law, line.js). Every other
+ * phase is a slot phase, flown by aimOf and closureOf below.
  */
-function rideAim(ph, L, Lprev, ref, W) {
-  const TR = TURNING_REJOIN;
-  const line = ph.line ?? fixedLine(ph.lineDeg ?? TR.lineDeg, ph.side ?? -1);
-  const rel = relativeTo(L, W);
-  const { along, cross } = line.at(rel);
-  const f = unit(L.headingRad);
-  const l = { x: -f.y, y: f.x };
-  const toW = (v) => ({ x: v.fwd * f.x + v.left * l.x, y: v.fwd * f.y + v.left * l.y });
-  const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
-  const rx = W.xFt - L.xFt;
-  const ry = W.yFt - L.yFt;
-  // The frame's velocity at #2's place: what he would fly to sit still on Lead's canopy.
-  const vfx = L.tasFtps * f.x - omegaL * ry;
-  const vfy = L.tasFtps * f.y + omegaL * rx;
-  const wx = W.tasFtps * Math.cos(W.headingRad);
-  const wy = W.tasFtps * Math.sin(W.headingRad);
-  const nW = toW(line.nrm); // across the line, positive ahead of it (hot)
-  const mW = toW({ fwd: -line.u.fwd, left: -line.u.left }); // up the line, toward Lead
-  const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; // d(cross)/dt in Lead's frame
-  const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; // up the line, ft/s
-  const st = (ref.ride ??= { established: false });
-  const maxDrift = ph.driftFtps ?? TR.rideDriftFtps; // Patrick G2, 10 ft/s, ruled again 10 Oct 20:00Z (it was 40 on every rejoin ride)
-  if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= maxDrift) {
-    st.established = true;
-    st.establishedRange = Math.hypot(rx, ry);
-  }
-
-  // Where he aims, in Lead's frame (it stands still there): a point on the line rideLeadFt further up it than his own place,
-  // but not closer to Lead than the capture point until he is established, so he joins the line well back (Patrick G1:
-  // established by 1,500 ft). Far off the line that points him mostly across it; as he nears it, along it, so he comes onto it
-  // along it. His own speed sets how fast he moves that way: |vf + λ·d| = V, solved for λ.
-  st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, along < 0 ? (ph.captureAlongFt ?? TR.rideCaptureAlongFt) : Math.max(along, 0));
-  const leadFt = ph.leadFt ?? TR.rideLeadFt;
-  const windowFt = ph.windowFt ?? TR.windowFarFt;
-  const carrotWindowFt = ph.carrotWindowFt ?? windowFt;
-  const carrotAlong = Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(st.established ? carrotWindowFt : st.captureAlong, along - leadFt));
-  const dAlong = carrotAlong - along; // < 0: up the line
-  const dLen = Math.hypot(dAlong, cross) || 1;
-  // direction in world axes: dAlong along u (outward), -cross along nrm
-  const uW = { x: -mW.x, y: -mW.y };
-  const d = { x: (dAlong * uW.x - cross * nW.x) / dLen, y: (dAlong * uW.y - cross * nW.y) / dLen };
-  const V = W.tasFtps;
-  const bd = vfx * d.x + vfy * d.y;
-  const disc = bd * bd - (vfx * vfx + vfy * vfy) + V * V;
-  let lam = disc >= 0 ? Math.max(0, -bd + Math.sqrt(disc)) : 0;
-  let dvx = disc >= 0 ? vfx + lam * d.x : V * d.x;
-  let dvy = disc >= 0 ? vfy + lam * d.y : V * d.y;
-  // He closes on the line no faster than he can stop on it: across it at most √(2·a·|cross|) (a = rideStopFtps2). Until he
-  // is established, the rest of his speed goes up or down the line, whichever brings him to the capture point (a hot start
-  // falls back down it, as an HTRJ gets colder); once established, up it (|vf + c·n + a·m| = V, solved for a).
-  const cMax = Math.sqrt(2 * (ph.stopFtps2 ?? TR.rideStopFtps2) * Math.abs(cross));
-  const cNow = (dvx - vfx) * nW.x + (dvy - vfy) * nW.y;
-  if (Math.abs(cNow) > cMax || !st.established) {
-    let c = st.established ? Math.sign(cNow) * Math.min(Math.abs(cNow), cMax) : -Math.sign(cross) * Math.min(cMax, Math.abs(cross) / (ph.settleSec ?? TR.rideSettleSec));
-    const aWant = st.established ? Infinity : (along - st.captureAlong) / (ph.alongTauSec ?? TR.rideAlongTauSec);
-    // Across the line he can close no faster than his own speed allows (|vf + c·n + a·m| = V has a root only while
-    // |vf·n + c| <= V, n and m being square to each other): c is held inside that, smoothly. Until 10 Oct a loop shrank it by
-    // 0.7 up to six times, and each step it changed count jumped c by 30%, which rolled #2 left and right while he closed on
-    // the line from far off.
-    const vfn = vfx * nW.x + vfy * nW.y;
-    const cRoom = TR.rideCrossShare * V; // short of all of it, so some speed is left along the line
-    c = Math.max(-cRoom - vfn, Math.min(cRoom - vfn, c));
-    const base = { x: vfx + c * nW.x, y: vfy + c * nW.y };
-    const bm = base.x * mW.x + base.y * mW.y;
-    const disc2 = bm * bm - (base.x * base.x + base.y * base.y) + V * V;
-    if (disc2 >= 0) {
-      const a1 = -bm + Math.sqrt(disc2);
-      const a2 = -bm - Math.sqrt(disc2);
-      const a = Math.abs(a1 - aWant) <= Math.abs(a2 - aWant) ? a1 : a2;
-      dvx = base.x + a * mW.x;
-      dvy = base.y + a * mW.y;
-      lam = -1; // flagged in the trace: the (c, a) form is flying
-    }
-  }
-  const r = Math.hypot(rx, ry);
-  const across = Math.abs(rel.left);
-  const back = -rel.fwd;
-  const sweep = Math.atan2(back, Math.max(across, 1e-6)) * (180 / Math.PI);
-  const correctSide = ph.side == null || (ph.side > 0 ? rel.left > 50 : rel.left < -50);
-  // In the cone the sim flies (slots.js FW_LIMITS, 450-1,250 ft, 25-65°; until 10 Oct its own 450-1,500 ft copy).
-  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= FW_LIMITS.rangeFt[0] && r <= FW_LIMITS.rangeFt[1] && sweep >= FW_LIMITS.sweepDeg[0] && sweep <= FW_LIMITS.sweepDeg[1];
-  if (inFwCone && !st.established) {
-    st.established = true;
-    st.establishedRange = r;
-  }
-  const arrived = (st.established && along <= windowFt) || inFwCone;
-  const px = W.xFt + dvx;
-  const py = W.yFt + dvy;
-  return {
-    px, py, vpx: vfx, vpy: vfy, ex: dvx, ey: dvy, d: Math.hypot(dvx, dvy), arrived,
-    along, cross, drift, closing, established: st.established, psiWant: Math.atan2(dvy, dvx), rangeFt: r,
-    slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 },
-  };
-}
+const KINDS = Object.freeze({
+  ride: Object.freeze({ aim: rideAim, closure: rideClosure }),
+});
 
 /**
  * Calculates the target aim point and its velocity in world coordinates (refPoint plus phase goal,
@@ -163,51 +70,16 @@ function aimOf(ph, L, Lprev, ref, W, t) {
   const T = TRACKER;
   const GAIN = T.gain;
 
-  if (ph.kind === 'ride') return rideAim(ph, L, Lprev, ref, W);
-
-  if (ph.kind === 'line') {
-    const rel = relativeTo(L, W);
-    const line = ph.line ?? fixedLine(ph.lineDeg ?? 45, ph.side ?? -1);
-    const geo = line.at(rel);
-    const along = geo.along;
-    const cross = geo.cross;
-    const approachDeg = ph.approachDeg ?? 45;
-    const aimFt = ph.aimFt ?? 500;
-    const chi = approachDeg * DEG * (2 / Math.PI) * Math.atan(Math.abs(cross) / aimFt);
-    const wayFwd = -line.u.fwd * Math.cos(chi) - Math.sign(cross) * line.nrm.fwd * Math.sin(chi);
-    const wayLeft = -line.u.left * Math.cos(chi) - Math.sign(cross) * line.nrm.left * Math.sin(chi);
-
-    const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
-    const l = { x: -f.y, y: f.x };
-    const dWorld = { x: wayFwd * f.x + wayLeft * l.x, y: wayFwd * f.y + wayLeft * l.y };
-    const dAim = Math.max(150, Math.min(800, along));
-    const px = W.xFt + dWorld.x * dAim;
-    const py = W.yFt + dWorld.y * dAim;
-    const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
-    const dx = L.xFt - W.xFt;
-    const dy = L.yFt - W.yFt;
-    const r = Math.hypot(dx, dy);
-    const vfx = L.tasFtps * f.x + omegaL * dy;
-    const vfy = L.tasFtps * f.y - omegaL * dx;
-    const ex = px - W.xFt;
-    const ey = py - W.yFt;
-    const d = Math.hypot(ex, ey);
-    const onLine = Math.abs(cross) <= (ph.captureFt ?? 150);
-    const inCone = (ph.coneEase || ph.isFw)
-      ? (r <= 1200 && onLine && along <= 1200)
-      : false;
-    const reachedDecision = onLine && along <= (ph.decisionFt ?? 750);
-    const arrived = inCone || reachedDecision;
-    return { px, py, vpx: vfx, vpy: vfy, vfx, vfy, ex, ey, d, arrived, along, cross, dWorld, omegaL, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
-  }
-
+  const kind = KINDS[ph.kind];
+  if (kind) return kind.aim(ph, L, Lprev, ref, W);
 
   // The reference slot moves toward the phase's slot at the phase's rates. A phase with a `goal` (a goal-seeking phase,
   // the fighting wing turns of TS-55) works out its slot afresh every step from where Lead and #2 are.
   // On Lead's wing plane (TS-181) the slot is in it, as holdInPlane holds it: its step down tilts with Lead's bank, so in
   // his turn the place sits a little further in, horizontally, as well as stepped down (slotAltOf).
   const slot = planeSlot(ph, L, ph.goal ? ph.goal(L, W, t) : ph.slot);
-  for (const [axis, v, target, rate] of [['f', 'vf', slot.fwd, ph.fwdRate], ['l', 'vl', slot.left, ph.latRate]]) {
+  const axes = [['f', 'vf', slot.fwd, ph.fwdRate], ['l', 'vl', slot.left, ph.latRate]].filter(([axis]) => !ph.alongFrom || axis === (ph.alongLead ?? 'f'));
+  for (const [axis, v, target, rate] of axes) {
     if (!Number.isFinite(rate)) {
       ref[axis] = target;
       ref[v] = 0;
@@ -215,7 +87,8 @@ function aimOf(ph, L, Lprev, ref, W, t) {
       const dist = target - ref[axis];
       const accelShare = ph.refAccelShare ?? (ph.targetBankDeg != null ? 0.6 : T.refAccelShare);
       const accel = rate * accelShare;
-      const maxV = Math.sqrt(Math.max(0, 2 * accel * Math.abs(dist)));
+      // Along the line he starts taking the rate off alongLagSec early, as a pilot leads the power (it answers late).
+      const maxV = Math.sqrt(Math.max(0, 2 * accel * (Math.abs(dist) - (ph.alongFrom ? (ph.alongLagSec ?? 0) * Math.abs(ref[v]) : 0))));
       const wantRaw = Math.sign(dist) * Math.min(rate, Math.abs(dist) * (ph.targetBankDeg != null ? 1.5 : GAIN.refRate));
       const want = Math.sign(dist) * Math.min(Math.abs(wantRaw), maxV);
       const step = accel * STEP_SEC;
@@ -227,6 +100,26 @@ function aimOf(ph, L, Lprev, ref, W, t) {
         ref[v] = 0;
       }
     }
+  }
+  // Up or down the spinner-wingtip line between two slots (alongFrom: the one he leaves; Patrick 11 Oct 2026 06:24Z: "crack
+  // off some power to set a rate, increase a bit to catch that rate, and bank away to maintain the line, then add power to
+  // stabilize in position"): power moves the place fore and aft at the phase's rate, and across it is wherever the line is
+  // at #2's own fore and aft place, so his bank keeps him on the line however his speed comes and goes. Until V2.261 the
+  // two went at their own rates, and the quicker bank took him out ahead of the line before the power caught up.
+  if (ph.alongFrom) {
+    const a = planeSlot(ph, L, ph.alongFrom);
+    const rel = relativeTo(L, W);
+    // The leading axis (alongLead: 'f', power, down the line; 'l', bank, up it) moves at the phase's rate; the other is
+    // wherever the line is at #2's own place on the leading one, and moves as he does, so he leads on the side behind the line.
+    const [lead, other] = ph.alongLead === 'l' ? [['left', 'l', 'vl'], ['fwd', 'f', 'vf']] : [['fwd', 'f', 'vf'], ['left', 'l', 'vl']];
+    const span = slot[lead[0]] - a[lead[0]];
+    const slope = Math.abs(span) > 1e-6 ? (slot[other[0]] - a[other[0]]) / span : 0;
+    // A little past the end he stays on the line's extension, so a small overrun comes back along it with no snap across.
+    const k = Math.abs(span) > 1e-6 ? Math.max(0, Math.min(1.2, (rel[lead[0]] - a[lead[0]]) / span)) : 1;
+    const dh = W.headingRad - L.headingRad;
+    const own = lead[0] === 'fwd' ? W.tasFtps * Math.cos(dh) - L.tasFtps : W.tasFtps * Math.sin(dh);
+    ref[other[1]] = a[other[0]] + k * (slot[other[0]] - a[other[0]]);
+    ref[other[2]] = k > 0 && k < 1.2 ? slope * own : 0;
   }
   const arrived = ph.goal
     ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt)
@@ -271,53 +164,8 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT, pclMaxActiv
   const GAIN = T.gain;
   const ratio = W.tasFtps / W.kias;
 
-  if (ph.kind === 'ride') {
-    // The speed is held (Patrick 8 Oct 20:16); the geometry takes the closure out. The steering is rideAim's.
-    const floor = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const rNow = aim.rangeFt ?? Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
-    const inAnticipation = Boolean(ph.isFw || ph.toFw) && rNow <= 1000;
-    const lineTargetKias = inAnticipation
-      ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
-      : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
-          ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias)
-          : (ph.rideKias ?? TURNING_REJOIN.rideKias));
-    const kiasCmd = (pclMaxActive || ph.rejoin || aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt))
-      ? Math.max(floor, lineTargetKias)
-      : floor;
-    return { pullX: 0, pullY: 0, vdx: aim.ex, vdy: aim.ey, speed: W.tasFtps, psiCmd: aim.psiWant, kiasCmd };
-  }
-
-  if (ph.kind === 'line') {
-    const room = Math.max(0, (aim.along ?? 0) - (ph.decisionFt ?? 750));
-    const closeFtps = typeof ph.arriveFtps === 'function' ? ph.arriveFtps(W) : (ph.arriveFtps ?? 20 * KT_TO_FTPS);
-    const slowFtps2 = ph.slowFtps2 ?? TURNING_REJOIN.slowFtps2;
-    let wantClosure = Math.sqrt(closeFtps * closeFtps + 2 * slowFtps2 * room);
-    
-    // De-rate along-track closure when off the line to prevent cutting the corner (intercept geometry first)
-    const captureFt = ph.captureFt ?? 150;
-    if (Math.abs(aim.cross) > captureFt) {
-      const excess = Math.abs(aim.cross) - captureFt;
-      const derate = Math.max(0, 1 - excess / (ph.aimFt ?? 500));
-      wantClosure *= derate;
-    }
-
-    const omegaL = aim.omegaL ?? 0;
-    let psiCmd;
-    if (Math.abs(omegaL) < 1e-4) {
-      psiCmd = Math.atan2(aim.dWorld.y, aim.dWorld.x);
-    } else {
-      const ad = aim.vfx * aim.dWorld.x + aim.vfy * aim.dWorld.y;
-      const disc = ad * ad - (aim.vfx * aim.vfx + aim.vfy * aim.vfy) + W.tasFtps * W.tasFtps;
-      const lam = disc >= 0 ? Math.max(0, Math.sqrt(disc) - ad) : 0;
-      psiCmd = disc >= 0 ? Math.atan2(aim.vfy + lam * aim.dWorld.y, aim.vfx + lam * aim.dWorld.x) : Math.atan2(aim.dWorld.y, aim.dWorld.x);
-    }
-    const over = ph.overtakeKt != null ? ph.overtakeKt : 20;
-    const floorKias = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const kiasCmd = Math.max(floorKias, Math.min(L.kias + over, (L.tasFtps + wantClosure) / ratio));
-    return { pullX: 0, pullY: 0, vdx: W.tasFtps * Math.cos(psiCmd), vdy: W.tasFtps * Math.sin(psiCmd), speed: W.tasFtps, psiCmd, kiasCmd };
-  }
-
-
+  const kind = KINDS[ph.kind];
+  if (kind) return kind.closure(ph, L, W, aim, pclMaxActive);
 
   const { ex, ey, d, vpx, vpy } = aim;
   let pullX;
@@ -376,8 +224,8 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   headingState.psiCmdPrev = cmd;
   headingState.omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - headingState.omegaFf);
 
-  const isRejoinKind = ph.kind === 'line' || ph.kind === 'ride';
-  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'ride' ? TURNING_REJOIN.rideHeadingTauSec : 4)) : null;
+  const isRejoinKind = ph.kind === 'ride';
+  const tauSec = isRejoinKind ? (ph.tauSec ?? TURNING_REJOIN.rideHeadingTauSec) : null;
   const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
@@ -392,7 +240,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   if (easing) {
     const leadBank = L.bankDeg ?? 0;
     const targetCap = Math.max(Math.abs(leadBank) + 5, 25);
-    const dFar = ph.coneEaseFarFt ?? 1200;
+    const dFar = ph.coneEaseFarFt ?? FW_BAND.easeFarFt;
     const dNear = ph.decisionFt ?? 750;
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
     cap = targetCap + frac * (cap - targetCap);
@@ -423,7 +271,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   }
   if (easing) {
     const leadBank = L.bankDeg ?? 0;
-    const dFar = ph.coneEaseFarFt ?? 1200;
+    const dFar = ph.coneEaseFarFt ?? FW_BAND.easeFarFt;
     const dNear = ph.decisionFt ?? 750;
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
     bank = leadBank + frac * (bank - leadBank);
@@ -478,6 +326,10 @@ function zoomRoomFtps(L, W) {
  */
 function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, energyIntent, heightState = null, t = 0, aCmdOwn = null }) {
   const T = TRACKER;
+  // High on a rejoin line the height still to come down is speed to come (ride.js rideHeightAsSpeed, Patrick 11 Oct 09:10Z).
+  let highStage;
+  ({ kiasCmd, highStage } = rideHeightAsSpeed(ph, L, W, kiasCmd, cone));
+  if (highStage && stageOwn == null) stageOwn = highStage;
   const GAIN = T.gain;
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
   // speed brake, card 03:33Z rule 4: "torque and speed brake first").
@@ -547,7 +399,9 @@ function slotAltOf(ph, L, W) {
 export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, zoomFtps, heightState }) {
   const explicitNow = Boolean(profile && (!Array.isArray(profile) || profile.some((leg) => t >= (leg.t0 ?? -Infinity) && t < (leg.t1 ?? Infinity) + 1e-9)));
   // In the capture, before he is on the line, the caller's own smooth leg to the line's height (or the vertical's) flies.
-  const capturing = ph.slopedAlt && !heightState.onLine && explicitNow;
+  // A phase may keep its own leg to the end (legThrough): close in he is on the line while still coming down it, and the
+  // line's law took over mid-leg with a 2.5 G stop and a 0.7-2.1 G wobble (Fable's v2299 flight, Fluid 4 to echelon).
+  const capturing = ph.slopedAlt && (!heightState.onLine || ph.legThrough) && explicitNow;
   if (!capturing && (ph.slopedAlt || (ph.wingPlane && ph.slot?.alt != null)) && L && W) {
     // The rejoin line's depth (SMM 12.24 para 58: "maintain the horizontal plane just slightly below lead"; EFIG p.374):
     // Lead held lineElevDeg above #2's horizon, never shallower than lineUpFt's 50 ft below him (Patrick 10 Oct 19:57Z,
@@ -557,12 +411,12 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const rangeFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt);
     // The angle is held from the end of the capture's own height leg, not only once the ride is established: until V2.234
     // the floor ruled in between, so far out he sat 50 ft low, not the 70-140 ft the 4° gives (Fable's V2.232 audit).
-    const depthFt = Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG));
-    const targetAlt = ph.slopedAlt ? (L.altAboveFt ?? 0) - depthFt : slotAltOf(ph, L, W);
+    // A phase may cap the depth (slopedMaxFt): the turning rejoin's reversal, so the 4° only ever brings him up (TS-182).
+    const targetAlt = ph.slopedAlt ? lineAltOf(ph, L, rangeFt) : slotAltOf(ph, L, W);
     const D = FW_BUBBLE;
     // One smooth change, stopping on the target as he gets there: on the line within heightG of level flight (TS-140), onto
     // the wing plane within planeEaseG (TS-126). Until V2.232 the line's was FW_BUBBLE's 1.9 g pull to a fixed 50 ft.
-    const pull = (ph.slopedAlt ? TR.heightG : TR.planeEaseG) * G_FTPS2;
+    const pull = (ph.slopedAlt ? (ph.heightG ?? TR.heightG) : TR.planeEaseG) * G_FTPS2;
     // Any pull up (a climb, or stopping a descent) stays inside the G rule's 5 G with the bank he has (TS-181): in the
     // capture's steep bank he holds his height, and comes up the 4° as he rolls out.
     const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
@@ -595,7 +449,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const coneUpFt = coneUpFtNow();
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-    const stayBelow = Boolean((isRejoin && range3DFt < 2000) || ph.coneEnergy || ph.stepDown);
+    const stayBelow = Boolean((isRejoin && range3DFt < LANE.belowRangeFt) || ph.coneEnergy || ph.stepDown);
     const topFt = stayBelow ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
     const bottomFt = (L.altAboveFt ?? 0) - coneUpFt;
     const up = Math.max(0, topFt - W.altAboveFt);
@@ -651,7 +505,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
   if (target != null && Number.isFinite(target)) {
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-    if (isRejoin && range3DFt < 2000 && target > (L.altAboveFt ?? 0)) {
+    if (isRejoin && range3DFt < LANE.belowRangeFt && target > (L.altAboveFt ?? 0)) {
       target = Math.min(target, (L.altAboveFt ?? 0) - 10);
     }
     if (heightState.activeLeg && t >= heightState.activeLeg.t1 - 1e-9) {
@@ -682,6 +536,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
         t1: t + span,
         fromFt: W.altAboveFt,
         toFt: target,
+        v0Ftps: W.climbFtps ?? 0, // carries the climb he has: a leg from level here was a one-step -8 G (flight.js heightAt)
         ...(ph.dive && target < W.altAboveFt ? { dive: ph.dive } : {}),
         ...(ph.climb && target > W.altAboveFt ? { climb: ph.climb } : {}),
       };
@@ -729,7 +584,7 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   let newStoppedAt = stoppedAt;
 
   // Native handling for line and canopy-X phases
-  if (ph.kind === 'line' || ph.kind === 'ride') {
+  if (ph.kind === 'ride') {
     if (L && ph.side != null && !ph.allowAcross) {
       const rel = relativeTo(L, W);
       const r = Math.hypot(rel.fwd, rel.left, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
@@ -817,18 +672,18 @@ function isAligned(Lafter, W) {
  * durationSec, ranges, laneFwdFt, minBelowFt } (ranges and the lane are measured from the aircraft each phase flies off).
  * A phase with `closureFtps` flies the power profile (tuning.js CLOSURE, Patrick 04:58Z, 05:47Z, 05:54Z; clean-up step 2):
  * the closing speed is set and held at the closure rate and stopped from the stopping distance idle (or the slide's bank)
- * gives; the speed loop is the tracker's own (Patrick 06:24Z: test it as is first; the power technique of 06:13Z is the
- * line's, hand-over.js). Each point carries the power it was flown with ([bank, kias, power]) for the tags. Phases without
+ * gives; the speed loop is the tracker's own (Patrick 06:24Z: test it as is first; the power technique of 06:13Z is rates.js
+ * CLOSURE's). Each point carries the power it was flown with ([bank, kias, power]) for the tags. Phases without
  * it fly as before (the 4-ship's, until step 3).
  * Since step 2 also: `init` ({ accelKtps }) starts the speed loop at the acceleration the aircraft already has (since
- * step 5 every run starts its heading loop on his present turn and its roll from his bank), so a hand-over from a kinematic
- * line (hand-over.js) has no step in bank or speed; and
+ * step 5 every run starts its heading loop on his present turn and its roll from his bank), so a run that starts mid-move
+ * has no step in bank or speed; and
  * `stopWhenSettled` ends the run once #2 has settled on the last slot, without waiting for Lead to finish his plan (the
  * first pass of a run whose Lead rolls out once #2 is in).
  * Fighting wing energy with the cone (TS-96): on a phase with `coneAlt` and `closureFtps`, #2's height is flown here, not
  * from `profile`: the speed loop's slowing is taken first as a climb and its speeding up as a descent, inside the cone's
  * height (tuning.js FW_ENERGY), so the power moves only for what the height can't give. The heights flown come back as
- * `heightLeg` (a table leg, flight.js heightAt), for trackTwice to put in the profile.
+ * `heightLeg` (a table leg, flight.js heightAt), for trackPhases to put in the profile.
  * Since step 5 (TS-141) every step goes through the one pilot model (pilot.js: speed from the power at the G flown, one jerk
  * limit, power hysteresis, shaped roll), every point carries its power, and a `pursuit` may also ask for a slowing stage
  * (`slowStage`) and, on a phase with `pursuitEnds`, end the phase (`done`) or give up the run (`abort`). The result also
@@ -857,7 +712,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   // on the turn he already has; until step 5 only a hand-over (init) started this way.
   const headingState = {
     psiCmdPrev: null,
-    omegaFf: (G_FTPS2 * Math.tan((W.bankDeg * Math.PI) / 180)) / Math.max(W.tasFtps, 1),
+    omegaFf: turnRateFromBankRadPerSec(Math.max(W.tasFtps, 1), W.bankDeg),
   };
   const farFromFt = HAND_OVER_FT; // beyond the hand-over range a closure phase may close faster (odd starts only)
   let maxBank = 0;
@@ -874,8 +729,14 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   let aligning = false;
   let ok = false;
   let reentered = false; // a phase change re-reads the step it happened in, with no reference turn rate for it
-  let stoppedAt = null; // when #2 first came to a stop in a phase with `stopFtps` (a real stop: SMM 12.20 para 45)
-  let pclMaxActive = false;
+  // What each phase starts afresh (refactor step 3): created when the phase starts, read only while it flies.
+  //  - pclMaxActive: the phase's opening full power (initialPclMax) until he is on the line, at speed or near Lead;
+  //  - stoppedAt: when #2 first came to a stop in a phase with `stopFtps` (a real stop: SMM 12.20 para 45).
+  let phaseState = null;
+  // What the run carries from phase to phase, on purpose, as it flew at V2.304: `ref` (the reference slot, and ref.ride, the
+  // ride's established flag and capture point), `heightState` (the height leg under way, the cone energy's table, onLine)
+  // and `aligning`. Making these per phase changes the flying (a height leg or a cone climb would restart at every phase
+  // change), so it is left for the optimiser's work, where a changed trace is allowed.
   const heightState = {
     activeLeg: null,
     targetAlt: null,
@@ -895,23 +756,25 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     reentered = false;
     if (times[k].t0 === null) {
       times[k].t0 = t;
-      pclMaxActive = Boolean(ph.initialPclMax);
+      phaseState = { pclMaxActive: Boolean(ph.initialPclMax), stoppedAt: null };
     }
 
     // 1. Aim: target aim point and its velocity in world coordinates
     const aim = aimOf(ph, L, Lprev, ref, W, t);
     const gateOpen = t >= (ph.holdUntil ?? -Infinity) - 1e-9;
 
-    if (pclMaxActive) {
+    if (phaseState.pclMaxActive) {
       const onLine = (aim.cross != null && Math.abs(aim.cross) <= (ph.captureFt ?? 150)) ||
                      (aim.bXDeg != null && Math.abs(aim.bearingDeg - aim.bXDeg) <= 5.0);
       const speedCeil = Math.max(235, (ph.lineKias ?? lineKiasNow()) + 15);
       const atSpeed = W.kias >= speedCeil;
       const rNow = Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
-      const nearLimitFt = (ph.isFw || ph.toFw) ? 1000 : 1500;
-      const nearLead = (aim.along != null && aim.along >= 0 && aim.along <= nearLimitFt) || rNow <= nearLimitFt;
+      const nearLimitFt = (ph.isFw || ph.toFw) ? FW_BAND.rangeFt[1] : 1500;
+      // On Lead's six with Lead not turning (ph.straight, the straight-ahead rejoin) full power holds until he is on the line
+      // (Patrick 5 Oct 08:40Z): abeam Lead he is near the line's start but far from Lead.
+      const nearLead = !ph.straight && ((aim.along != null && aim.along >= 0 && aim.along <= nearLimitFt) || rNow <= nearLimitFt);
       if (onLine || atSpeed || nearLead) {
-        pclMaxActive = false;
+        phaseState.pclMaxActive = false;
       }
     }
 
@@ -933,8 +796,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const heightDone = !heightState.activeLeg && (targetAlt == null || Math.abs(targetAlt - W.altAboveFt) <= TRACKER.height.minChangeFt);
 
       // 5. In position, settled/steady, and phase completion
-      const inPos = isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK: times[k], heightDone });
-      stoppedAt = inPos.stoppedAt;
+      const inPos = isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt: phaseState.stoppedAt, timesK: times[k], heightDone });
+      phaseState.stoppedAt = inPos.stoppedAt;
       if (inPos.abort) break;
       if (inPos.done) {
         times[k].t1 = t;
@@ -942,13 +805,13 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         break;
       }
       if (inPos.advance) {
-        stoppedAt = null;
         times[k].t1 = t;
         headingState.psiCmdPrev = null;
         k++;
         const next = phases[k];
         const R2 = recOf(next);
-        if (ph.kind === 'line' || ph.kind === 'ride') {
+        // handOverHere: a pursuit phase ending where the next slot leg takes over (turning-rejoin.js frozenPhase).
+        if (ph.kind === 'ride' || ph.handOverHere) {
           const L2 = R2.at(m);
           const relNow = relativeTo(L2, W);
           Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });
@@ -990,7 +853,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       own = asked?.keepBase ? null : asked;
       stageOwn = own?.slowStage ?? null;
       stepProfileOwn = own?.stepProfile ?? null;
-      energyIntentOwn = pclMaxActive ? 'gain' : (own?.energyIntent ?? ph.energyIntent ?? null);
+      energyIntentOwn = phaseState.pclMaxActive ? 'gain' : (own?.energyIntent ?? ph.energyIntent ?? null);
 
       if (own) {
         psiCmd = own.psiCmd;
@@ -998,7 +861,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         bankOwn = own.bankDeg ?? null;
       } else {
         // 2. Closure: commanded closing speed and slot-law steering
-        const closure = closureOf(ph, L, W, aim, blockFt, farFromFt, pclMaxActive);
+        const closure = closureOf(ph, L, W, aim, blockFt, farFromFt, phaseState.pclMaxActive);
         psiCmd = closure.psiCmd;
         kiasCmd = closure.kiasCmd;
       }
@@ -1016,7 +879,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       t,
       aCmdOwn: own?.aCmd ?? null,
     });
-    const kias = power.kias;
 
     // 5. Height: explicit profile, cone energy, or slot altitude evolution
     const height = heightOf(ph, L, W, STEP_SEC, profile, {
@@ -1024,7 +886,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     });
 
     const stepProfile = stepProfileOwn ?? height.stepProfile ?? (heightState.activeLeg ? [heightState.activeLeg] : profile);
-    const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel);
+    const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel, ph.roll);
     heightState.table.alt.push(W.altAboveFt);
     heightState.table.climb.push(W.climbFtps);
     heightState.table.nz.push(W.nz);
@@ -1054,7 +916,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // Doctrinal canopy line-of-sight check (SMM 12.24 & 16.20)
     const inCanopy = isLeadInCanopy(Lafter, W);
     if (!inCanopy) {
-      if (range3D < 1200) {
+      if (range3D < LANE.canopyRangeFt) {
         blindSecInside1200 += STEP_SEC;
         if (isRejoin) canopyOk = false; // inside 1,200 ft canopy "X" lock violated
       }
@@ -1131,10 +993,10 @@ export function phase(slot, over = {}) {
 }
 
 /**
- * The tracker run (previously two passes, now a single pass where #2's height is flown in the same pass
- * as bank and speed). Returns { run, profile }.
+ * One tracker run (runTracker) and the height profile it flew: the run's own height leg first, then any profile it was
+ * given. Returns { run, profile }.
  */
-export function trackTwice({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
+export function trackPhases({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
   const run = runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec, init, stopWhenSettled });
   return { run, profile: run.heightLeg ? [run.heightLeg, ...(run.profile ?? [])] : (run.profile ?? []) };
 }

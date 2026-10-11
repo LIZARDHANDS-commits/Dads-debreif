@@ -29,12 +29,13 @@
 // 11:08Z-11:09Z (200 KIAS outside line abreast, Lead turns into #2, speed only in
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
-import { wholeDegree, turnSeg, DEG } from './manoeuvres.js';
+import { DEG } from '../../../core/angles.js';
+import { wholeDegree, turnSeg } from './manoeuvres.js';
 import { classify, judge } from './judge.js';
-import { trackTwice, PLAN_MAX_SEC } from './tracker.js';
+import { trackPhases, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, LANE, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, closureNow, rejoinClosureNow } from './tuning.js';
-import { onClosure } from './hand-over.js';
+import { onClosure } from './closures.js';
 import { leadTurnInto, trackTail } from './lead-turn-in.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { legsFor } from './recipes.js';
@@ -74,7 +75,8 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   if (!FORMATIONS[to]) return { ok: false, reason: `There is no formation called ${to}.` };
   const from = classify([lead, wing]);
   const lastSide = options.lastSide ?? -1;
-  const sCur = from.side || lastSide;
+  // From trail after a break (TS-175) #2's side is the echelon side he broke from, for the SARJ as for the TRJ (TS-174).
+  const sCur = (from.key === 'other' && options.trailSide) || from.side || lastSide;
   const want = options.side ?? 'keep';
   const sTo = sideFor(to, want, sCur);
   if (from.key === to && (to === 'astern' || sTo === sCur)) return { ok: false, reason: `Already in ${FORMATIONS[to].label.toLowerCase()}.` };
@@ -84,14 +86,18 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const rejoinKind = fromLab && to !== 'lab' ? (rejoinOpt === 'straight' || from.key === 'other' ? 'straight' : 'into') : 'none';
   // Away (TS-174) is the turning rejoin's own: the tracker here would fly Lead into #2, so it stays out of the race.
   // From trail after a break (TS-175) a TRJ press is the turning rejoin's too; this one would fly a straight-ahead rejoin.
-  if (options.trailSide && from.key === 'other' && rejoinOpt === 'into') return { ok: false, reason: 'No turning rejoin from this trail. Try SARJ.' };
+  if (options.trailSide && from.key === 'other' && rejoinOpt === 'into' && to !== 'lab') return { ok: false, reason: 'No turning rejoin from this trail. Try SARJ.' };
   if (options.turn === 'away' && (rejoinKind === 'into' || (from.key === 'fw' && to !== 'fw'))) {
     return { ok: false, reason: 'No turning rejoin with Lead turning away from here. Try Into.' };
   }
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
   // Every leg on the power profile at the Rates choice's closure, a rejoin's up to route (clean-up step 2, TS-65; Patrick
   // 05:46Z, 05:47Z, 05:54Z, 06:09Z).
-  const phases = onClosure(legsFor(from.key, sCur, to, sTo, spacingFt));
+  // From trail after a break (TS-175) #2 is on Lead's six already: the SARJ starts as from fighting wing (line up on the six
+  // and close), not with a rejoin out to the cone first, which had him close to 590 ft, drop back to 990 and come in again
+  // (Fable's v2272 flight).
+  const legsFrom = options.trailSide && from.key === 'other' && to !== 'lab' && to !== 'fw' ? 'fw' : from.key;
+  const phases = onClosure(legsFor(legsFrom, sCur, to, sTo, spacingFt));
   if (!phases.length) return { ok: false, reason: 'Nothing to change.' };
   if (options.overtakeKias !== undefined || options.bankCapDeg !== undefined) {
     for (const p of phases) {
@@ -129,16 +135,16 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
     let fallback = null;
     for (const turnDeg of REJOIN.turnAnglesDeg) {
       const leadSegs = [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * turnDeg * DEG), sCur, REJOIN.leadBankDeg)];
-      const attempt = { ...trackTwiceOffLead(lead, wing, leadSegs, t0, phases, blockFt), turnDeg };
+      const attempt = { ...trackPhasesOffLead(lead, wing, leadSegs, t0, phases, blockFt), turnDeg };
       if (finished(attempt) && laneOk(attempt)) {
         best = attempt;
         break;
       }
       if (!fallback && finished(attempt)) fallback = attempt;
     }
-    best ??= fallback ?? { ...trackTwiceOffLead(lead, wing, [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * REJOIN.turnAnglesDeg[0] * DEG), sCur, REJOIN.leadBankDeg)], t0, phases, blockFt), turnDeg: REJOIN.turnAnglesDeg[0] };
+    best ??= fallback ?? { ...trackPhasesOffLead(lead, wing, [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * REJOIN.turnAnglesDeg[0] * DEG), sCur, REJOIN.leadBankDeg)], t0, phases, blockFt), turnDeg: REJOIN.turnAnglesDeg[0] };
   } else if (!best) {
-    best = { ...trackTwiceOffLead(lead, wing, speedSegs, t0, phases, blockFt), turnDeg: 0 };
+    best = { ...trackPhasesOffLead(lead, wing, speedSegs, t0, phases, blockFt), turnDeg: 0 };
   }
   best.judged = judgeEnd(best);
   best.good = finished(best);
@@ -187,7 +193,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
 }
 
 /** Two passes of the tracker: the first learns the leg times, the second flies with #2's height profile built from them. */
-function trackTwiceOffLead(lead, wing, leadSegs, t0, phases, blockFt) {
+function trackPhasesOffLead(lead, wing, leadSegs, t0, phases, blockFt) {
   const refs = { [lead.id]: recordFlight(lead, { segments: leadSegs }, t0) };
-  return { leadSegs, ...trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: true }) };
+  return { leadSegs, ...trackPhases({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: true }) };
 }

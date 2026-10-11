@@ -16,8 +16,9 @@
 // the centre when he is stretched or outside the circle and a lag angle away from it when he is tight. The tracker's own
 // heading and speed loops, bank cap and flight step fly the command (tracker.js, a phase with `pursuit`), so the path is
 // recorded and replayed like every other 2-ship move. Numbers: tuning.js FW_PURSUIT (estimates unless a page is named).
+import { DEG } from '../../../core/angles.js';
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
-import { DEG } from './manoeuvres.js';
+
 import { FW_PURSUIT, FW_BUBBLE } from './tuning.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));

@@ -112,3 +112,15 @@ Dad found a free T-6 Texan II model ("Beechcraft T6 Texan II" by helijah on Sket
 ## Optimiser slices 8 and 9: score table and Nelder-Mead polish (Antigravity, 7-9 Oct 2026)
 
 A 13-term score table that prices any flight plan in seconds (by the book, unrestricted, traded) on the pilot card, and a "Polish" switch running a small Nelder-Mead search over about 26 knots (bank, G, throttle, boards, duration) seeded from the winning technique, raced by the chooser. Task 0 first retires the `setKias` speed override in `replay.js` so every candidate flies the same physics. Not started. The plan and to-do list are archived (`archive/tasks/plan.md`, `archive/tasks/todo.md`, `archive/tasks/optimizer-slices-8-9-plan.md`, `archive/tasks/optimizer-slices-8-9-todo.md`). Step 9 of plan.md assesses it beside the two optimiser routes before anything is built.
+
+## Rough spots left for later (Patrick 11 Oct 2026 10:36Z: "If they can't be smooth then just make it work and flag for later")
+
+Each of these ends in position, slot spacing kept, but is not smooth yet (from Fable's flights of V2.294 to V2.301 and the Formation thread's probes at V2.304). For the refactor or a later round.
+
+- **Element from fighting wing** (4-ship turning rejoin): #3 and #4 start 760-1,200 ft behind on the outside and cross Lead's six to the inside line close in, at 0.5-0.7 G with 36-81°/s rolls. A formation roll rate there left them unable to settle (two failed fixes). Asked Patrick on a card (10:30Z) whether, from fighting wing only, they should stay outside and close straight to two lengths behind Lead (SMM 16.34 para 94).
+- **Fluid 4, #2 at the decision point**: one bank swing of about 20° at up to 60°/s and 2.0 G for about 1 s, then a 0.8 G dip, as he arrives still coming down from his 300 ft stack.
+- **Far-out roll-ins** from Spread 4 and the offset box: 60-100°/s at 6,500-7,000 ft out.
+- **#2's first second** from fighting wing and Fluid 4: a roll of about 90°/s.
+- **Turning rejoin from 300 ft low**: 4.82 G in the pointing turn (above the 4.5 G ruling); from 500 ft low the least G is 0.56, in the pointing turn's roll-out about 2,000 ft out (Fable's v2303 flight).
+- **Straight-ahead rejoin from fighting wing, the vector**: on the six he is smooth (18° of bank, 1.05 G), but at the hand-over to the vector toward route, about 340 ft back, he flicks to 36-37° at up to 83°/s for about 1 s (route and line astern; 33° to echelon). V2.309 had the same kind of flick there (36°, 62°/s at 420 ft). Refactor step 5, V2.310.
+- **#4 in echelon right as Lead rolls out**: dips to 0.7 G, from fighting wing and from the offset box (Fable's v2303 flight; 0.75 or more on v2301).

@@ -6,11 +6,11 @@ This folder is the formation turn sim. From V2.6 it shows the first version of l
 
 ## Where it stands
 
-Live as a PROTOTYPE, Formation V2.102 on main. The Turn Sim review is done (4 Oct): Patrick chose a new flying core with planned, kinematically accurate paths, and approved the first version's spec (`spec.md` Part 1; decisions TS-35 to TS-49). The flying core is in `src/modules/turn-sim/live/`. The plan-mode code was retired in #407 (Patrick's yes, 5 Oct 01:36Z). Nothing since V2.91 has been flown by Patrick yet (as of 6 Oct).
+Live as a PROTOTYPE, V2.304 on main (11 Oct 2026). The flying core is in `src/modules/turn-sim/live/`. Formation's bug round closed at V2.304 (#820): the 2-ship and 4-ship turning rejoins fly to the SMM picture (TS-181 to TS-191), and the rough spots left for later are in `future.md`. Patrick flies after Fable's PASS on each renamed copy.
 
-The refactor plan's steps 1 to 5 are merged: V2.92 envelope gate (#495, TS-93); V2.93 one candidate shape, hot rejoin retired (#496, TS-94); V2.94 numbers register (#501, TS-95); V2.95 Smart wingman, fighting wing cone energy and move #2 in the band (#505, TS-96, TS-98); V2.96 events file (#506, TS-97). The four-ship rebuild, refactor PRs 6 to 8, is merged too: V2.97 close moves (#510, TS-99), V2.99 rejoins and the rejoin height fix (#515, TS-101), V2.101 opening out, `four-ship-moves.js` retired (#518, TS-99). Fable's fighting wing fixes in between: V2.98 fighting wing turns on pursuit curves (#512, TS-100) and V2.100 the fast side switch (#517, TS-102), which holds its spacing geometry first since V2.102 (#521). The refactor plan is complete.
+Now running: the refactor in `REFACTOR_HANDOVER_V2.304.md` (Fable's plan, Patrick agreed 11 Oct 10:49Z), six steps, one pull request each. Steps 1 to 4 are tidies proved by the same driver trace before and after; steps 1 to 4 are merged (V2.305 to V2.309); step 5 (the straight rejoin onto the ride, V2.310, TS-192) was built overnight on Patrick's order, its spec waiting on his yes; step 6 is the unsourced-numbers table. The earlier refactor (V2.92 to V2.101) and clean-up steps 1 to 5 (V2.155 to V2.161) are merged.
 
-How #2 is flown, in one line: every 2-ship change of formation is planned by the unified tracker (kinematic lines completely removed, TS-150), with doctrinal canopy and step-down gates enforced inside 2,000 ft and 1,200 ft (TS-151), the turning rejoin capturing the 45° X line without overshooting and displaying the 45° X guide line in bright green dashed (TS-152, TS-153, V2.198), and planned again at events (the section below, and `spec.md`). The Rates setting (Student, Instructor, AI) is under More.
+How #2 is flown, in one line: every 2-ship change of formation is planned by the tracker (`live/tracker.js`; the kinematic lines are gone, TS-150), with the canopy and step-down gates inside 2,000 ft and 1,200 ft (TS-151); the turning rejoin rides the 30° line in Lead's turning frame (`rideAim`, TS-181, TS-182) to the decision point and up into the slot; and the change is planned again at events (the section below, and `spec.md`). The straight-ahead rejoin rides Lead's six the same way with Lead not turning (TS-192). The Rates setting (Student, Instructor, AI) is under More.
 
 Where things live (TS-64, TS-95, TS-97): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, the numbers in `live/rates.js` (with the Rates experience profile, TS-141), `live/bands.js` and `live/moves.js` (with the one speed table, TS-141) (listed with sources in `numbers.md`; `live/tuning.js` only re-exports them), the tracker (the fallback for odd starts) in `live/tracker.js`, and the events that plan a change again in `live/events.js`.
 
@@ -70,20 +70,22 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `moves.js` | Each move's numbers: speeds, rejoins, lines, fighting wing turns, tracker, fluid, opening out, lag roll (TS-95) |
 | `tuning.js` | Re-exports `rates.js`, `bands.js` and `moves.js`; holds no numbers |
 | `move-in-band.js` | Moves #2 anywhere in the band when he is in position (TS-98) |
-| `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js`, `rolling-rejoin.js` | The planners the chooser tries |
-| `rejoin-law.js` | The one rejoin law both rejoins fly down the line to the decision point, and the one check for Lead's 3/9 line (clean-up step 4, TS-139) |
+| `turning-rejoin.js`, `straight-rejoin.js`, `lag-roll.js`, `rolling-rejoin.js`, `fw-pursuit.js`, `fw-switch.js` | The planners the chooser tries, and the fighting wing turn and side switch laws |
 | `pilot.js` | The one pilot model every held-command planner and the tracker fly through: speed from the power at the G flown, one jerk limit, power hysteresis, shaped roll (clean-up step 5, TS-141) |
-| `kinematic.js`, `kinematic-moves.js`, `line-moves.js`, `hand-over.js`, `tracker.js` | Lines, hand-overs and the tracker |
+| `tracker.js` | The tracker every move is flown by: the slot law, closure, heading, height and power, and the run (`runTracker`) that calls each phase's kind |
+| `ride.js` | The ride down a rejoin line in Lead's frame: the turning rejoin's, and with Lead not turning the straight rejoin's six (its aim, speed, the line's height and height counted as speed; refactor steps 3 and 5) |
+| `closures.js` | Each phase's closure rate and bank cap (`onClosure`), and the shared `fromStep` and `wingFromPose` (was `hand-over.js`) |
+| `kinematic.js` | Position tracks and poses shared by formation turns, fluid flight and the rejoins |
 | `replay.js` | Flying a planned move one step (the replayed bank track and pose track), the dry run, recorded flights and the speed segment (clean-up step 3, from `transitions.js`) |
 | `recipes.js` | The tracker's leg recipes for each move (slide, stop at a corner, close through route, rejoin, open out, drop back, sweep out, straight ahead) and `legsFor`, the legs from one formation to another (clean-up step 3, from `transitions.js`) |
-| `lead-turn-in.js` | Lead's turn into #2 in a turning rejoin, held until #2 is in, and the tracker's part behind it (clean-up step 3, from `hand-over.js`) |
+| `lead-turn-in.js` | Lead's turn into #2 in a turning rejoin, held until #2 is in, and the tracker's part behind it (clean-up step 3) |
 | `transitions.js` | The change limit, the words for a change, and `planGoTo`, the tracker-only planner kept as a fallback |
 | `fluid.js`, `fluid-lead.js`, `fluid-wing.js` | Fluid manoeuvring |
 | `four-ship.js`, `four-ship-card.js`, `g-warm.js` | The 4-ship's screen pieces |
 | `four-plan.js`, `four-legs.js`, `four-close.js`, `four-rejoin.js`, `four-open.js` | The 4-ship's moves on the 2-ship's planners (refactor PRs 6 to 8): the from-to graph, the legs, close moves, rejoins, opening out |
 | `errors.js` | Training errors and the Smart wingman (TS-52, TS-96) |
 
-Files not named here (`attitude.js`, `full-power.js`, `power.js`, `slow-down.js`, `formation-turns.js`, `manoeuvres.js`) are flight helpers and move builders; read the header of the one you need.
+Files not named here (`attitude.js`, `full-power.js`, `power.js`, `slow-down.js`, `formation-turns.js`, `offset-box-turns.js`, `manoeuvres.js`) are flight helpers and move builders; read the header of the one you need.
 
 ## Open questions
 

@@ -2,7 +2,8 @@
 // compass heading readout and G-warm's G flown against each call. Pure functions of what they are given; the session
 // (formation.js createFormation) and the screen (index.js, tags.js, four-ship-card.js) read them from here. They change
 // nothing about how the aircraft fly.
-import { MANOEUVRES, DEG } from './manoeuvres.js';
+import { DEG } from '../../../core/angles.js';
+import { MANOEUVRES } from './manoeuvres.js';
 import { G_WARM } from './g-warm.js';
 
 /** Compass heading (degrees, 000 to 359) from math radians. */

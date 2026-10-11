@@ -13,6 +13,9 @@
 //
 // Line numbers refer to original/shell.html unless a sub-page is named.
 
+/** Radians per degree: multiply degrees by it (the Formation Sim's one copy, refactor step 2). */
+export const DEG = Math.PI / 180;
+
 export function degToRad(deg) {
   return deg * Math.PI / 180;
 }

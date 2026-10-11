@@ -37,6 +37,10 @@ export const test = base.extend({
     // Traffic's photo layer (Esri World Imagery tiles).
     await page.route(/^https:\/\/services\.arcgisonline\.com\//, (route) =>
       route.fulfill({ status: 200, contentType: 'image/png', headers: CORS, body: ONE_PIXEL_PNG }));
+    // The real ground heights (AWS Terrarium elevation tiles, src/core/terrain-tiles.js) for Traffic's and the SOF's 3D
+    // ground: a transparent pixel decodes as no data, so the ground lies flat, the app's own fallback.
+    await page.route(/^https:\/\/s3\.amazonaws\.com\/elevation-tiles-prod\//, (route) =>
+      route.fulfill({ status: 200, contentType: 'image/png', headers: CORS, body: ONE_PIXEL_PNG }));
     await page.route(/^https:\/\/api\.met\.no\//, (route) =>
       route.fulfill({
         status: 200,

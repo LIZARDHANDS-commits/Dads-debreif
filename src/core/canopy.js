@@ -9,6 +9,14 @@
 import { degToRad } from './angles.js';
 
 /**
+ * The overshoot lane and the gates around Lead, one copy for this gate and the Formation Sim (moved from turn-sim
+ * live/slots.js in refactor step 2; SMM 12.27 para 65; Fable review step 1). A plan passes if #2 never gets more than
+ * marginFt ahead of his slot's fore and aft place while inside rangeFt of Lead (estimate); his height under Lead is
+ * measured inside belowRangeFt (the step-down gate); inside canopyRangeFt Lead stays in the canopy glass.
+ */
+export const LANE = Object.freeze({ marginFt: 100, rangeFt: 1000, belowRangeFt: 2000, canopyRangeFt: 1200 });
+
+/**
  * Calculates the 3D unit vector pointing straight out the canopy roof (cockpit upright axis).
  * @param {number} headingRad - Math heading radians (counter-clockwise from east, or 0 along x)
  * @param {number} pitchDeg - Pitch angle in degrees (nose up positive)
@@ -88,14 +96,14 @@ export function checkDoctrinalInvariants(lead, wing) {
   const rangeFt = Math.hypot(dx, dy, dz);
 
   // 1. Step-down check: inside 2,000 ft, Wing must be at or below Lead + 5 ft
-  const stepDownOk = rangeFt >= 2000 || dz <= 5.0;
+  const stepDownOk = rangeFt >= LANE.belowRangeFt || dz <= 5.0;
 
   // 2. Canopy check: inside 1,200 ft, Lead must remain in upper canopy glass
-  const canopyOk = rangeFt >= 1200 || isLeadInCanopy(lead, wing);
+  const canopyOk = rangeFt >= LANE.canopyRangeFt || isLeadInCanopy(lead, wing);
 
   // 3. 3/9 Line check: inside 1,000 ft, Wing must remain behind Lead's 3/9 line
   const fwd = dx * Math.cos(lead.headingRad) + dy * Math.sin(lead.headingRad);
-  const laneOk = rangeFt >= 1000 || fwd <= 0.0;
+  const laneOk = rangeFt >= LANE.rangeFt || fwd <= 0.0;
 
   let reason = null;
   if (!stepDownOk) reason = `Step-down violated: Wing is ${dz.toFixed(1)} ft above Lead inside ${rangeFt.toFixed(0)} ft range`;

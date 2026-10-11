@@ -1,10 +1,9 @@
-// Hand-overs and closure rates (tracker-only migration Slice 4; TS-65, TS-128). Kinematic lines have been removed;
-// this file holds the shared hand-over, closure phase mapping (onClosure), frame offsets (offSlotFt), pose application
-// (wingFromPose) and step slicing (fromStep) utilities used across 2-ship rejoins and formation transitions.
+// Each phase's closure rate and bank cap (onClosure; TS-65, TS-128), and two small helpers the planners share: a recorded
+// flight read from a later step (fromStep) and a wingman placed at a planned pose (wingFromPose). Was hand-over.js, from
+// when a kinematic line handed over to the tracker; there is no hand-over any more.
 // Numbers are tuning.js's.
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
-import { relativeTo } from './manoeuvres.js';
 import { applyPose } from './kinematic.js';
 import { WING_BANKS, closureNow, rejoinClosureNow } from './tuning.js';
 
@@ -17,7 +16,7 @@ const LONG_SLOT_FT = 300; // the close formations all sit inside about 150 ft (r
 // from the aircraft ... as long as it's realistic and smooth"; TS-128). A rejoin's legs keep their own rules (TS-75).
 export const FREE_MOVE_FT = 100;
 // The closure such a move is planned to: more than the T-6 reaches over these distances, so it is no cap (an estimate).
-export const FREE_CLOSURE_KT = 150;
+const FREE_CLOSURE_KT = 150;
 
 /**
  * The phases flown on the power profile at the Rates choice's closures (tracker.js closureFtps; Patrick 06:09Z, 06:11Z):
@@ -53,12 +52,6 @@ export function onClosure(phases, { closeIn: allCloseIn = false, rejoinBankDeg =
       ...(free ? { slowStage: p.slowStage ?? 'boards' } : {}),
     };
   });
-}
-
-/** How far #2 (world x, y) is from a slot ({ fwd, left }) in the frame of L, horizontally, feet. */
-export function offSlotFt(L, x, y, slot) {
-  const rel = relativeTo(L, { xFt: x, yFt: y });
-  return Math.hypot(rel.fwd - slot.fwd, rel.left - slot.left);
 }
 
 /** A recorded flight seen from step k on: at(n) is the original's at(n + k). */

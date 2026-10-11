@@ -18,9 +18,9 @@ import { REJOIN, STEADY } from './tuning.js';
  * aircraft off its plan today (no turbulence, Lead flies only what a press gives him), so it waits for a cause (Patrick
  * 21:44Z card "Build it anyway").
  */
-export const PICTURE_BREAK_FT = 100;
+const PICTURE_BREAK_FT = 100;
 /** After a re-plan for a broken picture that found nothing better, the next try waits this long (seconds, an estimate). */
-export const PICTURE_RETRY_SEC = 2;
+const PICTURE_RETRY_SEC = 2;
 
 /**
  * The events for one formation. ctx: { state, startChange(to, changeOptions, midLead), labelFor(key, dir) }, formation.js's.

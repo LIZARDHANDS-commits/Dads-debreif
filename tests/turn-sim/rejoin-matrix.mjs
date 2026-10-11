@@ -3,7 +3,7 @@ import { searchTurningRejoin } from '../../src/modules/turn-sim/live/turning-rej
 import { leadTurnInto } from '../../src/modules/turn-sim/live/lead-turn-in.js';
 import { recordFlight, speedSeg } from '../../src/modules/turn-sim/live/replay.js';
 import { REJOIN, KIAS_OUTSIDE_LAB } from '../../src/modules/turn-sim/live/tuning.js';
-import { trackTwice } from '../../src/modules/turn-sim/live/tracker.js';
+import { trackPhases } from '../../src/modules/turn-sim/live/tracker.js';
 
 import { slotsFor } from '../../src/modules/turn-sim/live/slots.js';
 

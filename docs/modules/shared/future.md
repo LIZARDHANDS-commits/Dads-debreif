@@ -18,3 +18,7 @@ Ideas for the shared parts (flight core, app frame, weather, airfields, storage,
 ## Tooling
 
 - Update Playwright (the browser-test tool) past 1.56; 1.63 fails the two offline tests in tests/e2e/offline.spec.js (page doesn't load from its offline copy), so find what changed first (PR #162, closed 4 Oct).
+
+## Cockpit (shared 3D)
+
+- **Live sun shadows in the cockpit** (Patrick, 11 Oct 2026 10:33Z, "Future the dynamic shadows"): shadows of the bows, glareshield and canopy frame that move across the cockpit as the aircraft turns, behind a switch because they cost frame rate. The baked soft shadows from the Blender cockpit file (V2.306) stay as they are and don't move.

@@ -20,7 +20,7 @@
 // any other: "from here" reads where the error put #2 (until V2.93 the hot rejoin, hot-rejoin.js, flew it on its own).
 // The chooser changes no flight physics and no planner: it only picks between them.
 // What re-plans when (the press, the hand-over, the decision point, the picture breaking: spec F1 and F11 as reworded by
-// TS-76) is formation.js's and hand-over.js's; this file only chooses.
+// TS-76) is formation.js's and closures.js's; this file only chooses.
 import { pairSlot, LANE, sideFor } from './slots.js';
 import { relativeTo } from './manoeuvres.js';
 import { G_RULE_BANK_DEG, HAND_OVER_FT } from './tuning.js';
@@ -103,7 +103,7 @@ export function roughness(wingPlan) {
  * `fallback` marks the tracker alone on a long move (rule 2 above). maxG is the plan's own when it gives one (the lag roll's
  * pull), else the level-turn G of its steepest bank.
  */
-export function candidateOf(name, plan, to, spacingFt, t0, wingId, fallback = false) {
+function candidateOf(name, plan, to, spacingFt, t0, wingId, fallback = false) {
   const slotFwd = Math.max(0, pairSlot(to, plan.side || plan.fromSide || -1, spacingFt)?.fwd ?? 0);
   const inBand = plan.judged?.inBand ?? true;
   const laneOk = (plan.laneFwdFt ?? -Infinity) <= slotFwd + LANE.marginFt; // the overshoot lane (slots.js LANE)
@@ -117,7 +117,7 @@ export function candidateOf(name, plan, to, spacingFt, t0, wingId, fallback = fa
 }
 
 /** How far #2 is from the slot he is going to, in Lead's frame, horizontally (feet). */
-export function rangeToSlotFt(pair, to, options = {}) {
+function rangeToSlotFt(pair, to, options = {}) {
   const [lead, wing] = pair;
   const rel = relativeTo(lead, wing);
   const s = Math.sign(rel.left) || options.lastSide || -1;
@@ -128,7 +128,7 @@ export function rangeToSlotFt(pair, to, options = {}) {
 }
 
 /** The scoreboard's order: the checks, then a technique before the fallback, then the G rule, then quickest, then smoothest within TIE_SEC. */
-export function compareCandidates(a, b) {
+function compareCandidates(a, b) {
   if (a.passes !== b.passes) return a.passes ? -1 : 1;
   if (a.fallback !== b.fallback) return a.fallback ? 1 : -1;
   if (a.gRuleOk !== b.gRuleOk) return a.gRuleOk ? -1 : 1;
@@ -151,6 +151,8 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const wing = pair[1];
   const spacingFt = options.spacingFt ?? 6000;
   const auto = (options.rejoin ?? 'into') === 'auto';
+  // From trail after a break (TS-175) TRJ + roll flies as the plain turning rejoin: Lead is ahead, there is nothing to roll for.
+  if (options.trailSide && options.rejoin === ROLLING_REJOIN_KIND) options = { ...options, rejoin: 'into' };
   const roll = options.rejoin === ROLLING_REJOIN_KIND;
   const mid = options.mid ?? null;
   const lag = to === LAG_ROLL_KEY;

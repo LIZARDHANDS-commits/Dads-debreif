@@ -256,6 +256,7 @@ export function createCameraBar({
       hintLine.append(
         kbd('C'), ' Center \u00a0',
         kbd('P'), ' Rwy 29L \u00a0',
+        kbd('Shift'), ' Zoom \u00a0', // held (Patrick, 11 Oct 03:53Z)
         kbd('['), '/', kbd(']'), ' Target \u00a0·\u00a0 Drag turns head'
       );
     } else if (camState.mount === 'chase') {
@@ -291,7 +292,11 @@ export function createCameraBar({
       }
     },
     setCamera(nextState) {
-      camState = { ...camState, ...nextState };
+      // The 3D view calls this every frame: only a real change rebuilds the buttons, or a click while the sim runs lands
+      // on a button already replaced and is lost (Patrick, 11 Oct 04:03Z: Rwy 29L did nothing in the cockpit).
+      const next = { ...camState, ...nextState };
+      if (['mount', 'preset', 'aim', 'seat'].every((k) => next[k] === camState[k])) return;
+      camState = next;
       syncUi();
     },
     setView(id) {
