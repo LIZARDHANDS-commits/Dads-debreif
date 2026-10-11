@@ -61,9 +61,10 @@ export const EYE_BELOW_HELMET_FT = 0.09;
  */
 export const FRONT_SEAT_RAISE_FT = 2 / 12;
 /**
- * The student's eye in the front seat (the default front eye), feet: 2.06 ft ahead of the model's origin (13.2 ft behind
- * the spinner tip) and 2.07 ft above the spinner's axis, the T-6A-1 side drawing's raised FRONT_SEAT_RAISE_FT (ALL-31;
- * was 1.4 ft and 2.14 ft, then 1.9 ft up until V2.238).
+ * The student's eye in the front seat (the default front eye), feet: 3.0 ft ahead of the model's origin (12.3 ft behind
+ * the spinner tip) and 2.07 ft above the spinner's axis, the T-6A-1 side drawing's front pilot (re-read on a full copy,
+ * 11 Oct 2026; the model's CT156_SEAT_X) raised FRONT_SEAT_RAISE_FT (ALL-31; was 1.4 ft and 2.14 ft, then 1.9 ft up
+ * until V2.238, then 2.06 ft ahead until the front cockpit moved 11 in forward, Patrick 11 Oct 2026 07:39Z).
  */
 export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
 
@@ -138,7 +139,10 @@ export const ARCH_FT = Object.freeze({
  * cockpit frames; from the seat that made the top of the panel far too wide and Patrick put it back (11 Oct 2026
  * 07:06Z: "you made the panel way too wide at the top. it looked more accurate and better in v 2.263"). Estimates.
  */
-const COAMING_EDGE_X = 4.19;
+// The front cockpit moved 0.95 ft forward with the front seat (Patrick, 11 Oct 2026 07:39Z, "whole cockpit 11 in
+// (except the bow)"): the coaming's edge was 4.19 ft and the glareshield's fore end 5.87 ft; both keep their distance
+// from the eye.
+const COAMING_EDGE_X = 5.14;
 const OVERHANG_FT = 0.25;
 export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
 
@@ -153,7 +157,7 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.
  * its aft edge with the three lamps on it, just deep enough to cover the EADI's top from the eye (Patrick's seat rule,
  * 11 Oct 2026; about 0.15 ft, lipDrop's estimate before). Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
  */
-export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 5.87, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
+export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 6.82, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
 /**
  * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
  * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
@@ -175,18 +179,18 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
  */
 export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29, lampPitch: 0.069, aheadOfEdge: 0.15, y: 0.74, yRear: 0.62, clear: 0.01 });
 /**
- * The standby compass at the coaming's right corner, feet: a dark bowl 0.13 ft (1.6 in) across and 0.12 ft tall
- * hanging under a square flange 0.17 ft (2 in) across, its light housing under the bowl, the card 0.055 ft tall
+ * The standby compass at the coaming's right corner, feet: a dark bowl 0.18 ft (2.2 in) across and 0.16 ft tall
+ * hanging under a square flange 0.27 ft (3.2 in) across, its light housing under the bowl, the card 0.075 ft tall
  * showing through a window 110° round facing aft, turned by the heading (update(hud)). It stands on a short post
  * 0.1 ft ahead of the coaming's aft edge and 0.84 ft right of the middle (0.8 ft on the rear hump), with a thin arm
  * from its flange out to the bow's leg beside it, as Patrick's cockpit frame shows it (11 Oct 2026, "fix the
- * compass": hanging on the bow's right leg at the glareshield's corner). Its size is the T-6A-1 panel diagram's
- * again, a touch bigger: the first try at the corner, 1.5 times that with a 3 in flange and a bracket plate (V2.264),
- * filled the corner as a block, Patrick's screenshot 11 Oct 06:52Z ("isn't this a regression?"); before V2.264 it
+ * compass": hanging on the bow's right leg at the glareshield's corner, about 1.5 times the T-6A-1 panel diagram's
+ * size, with a plate 0.06 ft wide out to the leg). V2.266 shrank it to the diagram's size after Patrick's 06:52Z
+ * screenshot; he then preferred this size (07:20Z "your compass was better") and it came back. Before V2.264 it
  * stood 0.22 ft ahead of the edge and 0.55 ft right of the middle, a place estimated off Dad's pictures. Sizes and
  * places estimates off the frame; the rear seat's is unseen.
  */
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, bowlTall: 0.12, flange: 0.17, light: 0.05, post: 0.03, cardTall: 0.055, windowDeg: 110, aheadOfEdge: 0.1, y: -0.84, yRear: -0.8, armWide: 0.02 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.09, bowlTall: 0.16, flange: 0.27, light: 0.06, post: 0.03, cardTall: 0.075, windowDeg: 110, aheadOfEdge: 0.1, y: -0.84, yRear: -0.8, armWide: 0.06 });
 
 /** The rear cockpit's panel, feet: face 0.7 ft aft of the origin, 0.7 to 1.75 ft up, 2.2 ft across (estimates). */
 export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
@@ -194,9 +198,10 @@ export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, wi
  * The rear coaming, feet (TS-157): the big moulded hump over the front seat's back that the rear panel sits under
  * (Dad's pictures 27 and 29), its aft edge along the rear panel's outline at 1.9 ft with the grab rail on it, rising
  * 0.16 ft over the first 38 % of its length and widening to the canopy, then falling 0.41 ft onto the front seat's back
- * (0.93 ft ahead of the origin; 0.36 ft until ALL-31 moved the front seat 0.57 ft forward). Estimates.
+ * (1.88 ft ahead of the origin; 0.36 ft until ALL-31 moved the front seat 0.57 ft forward, 0.93 ft until it moved 0.95 ft
+ * more, 11 Oct 2026). Estimates.
  */
-export const REAR_HUMP_FT = Object.freeze({ aftX: REAR_PANEL_FT.x - 0.1, foreX: 0.93, top: 1.9, rise: 0.16, peakT: 0.38, foreDrop: 0.25, lipDrop: 0.15, skirt: 0.12, topGrow: 0.35, sideGrow: 0.2, dropGrow: 0.35 });
+export const REAR_HUMP_FT = Object.freeze({ aftX: REAR_PANEL_FT.x - 0.1, foreX: 1.88, top: 1.9, rise: 0.16, peakT: 0.38, foreDrop: 0.25, lipDrop: 0.15, skirt: 0.12, topGrow: 0.35, sideGrow: 0.2, dropGrow: 0.35 });
 
 /**
  * The seats and their cockpits, feet (estimates off Dad's reference pictures; the seat back's frame is the model's).
@@ -1169,11 +1174,9 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const arc = chaikin([...top.slice(1).reverse(), ...top.slice(1).map(([y, z]) => [-y, z])].map(([y, z]) => [xr, y, z]), 2);
     put(tubeThrough(THREE, arc, 0.04, 48, { smooth: true, radial: 7 }), SLOT.rail);
   }
-  // The air vents at the panel's upper corners.
-  for (const s of [1, -1]) {
-    const z = zOf(0.906), y = s * Math.min(ts.side - 0.05, glassHalfWidthFt(z, p.x - 0.1, 0.16));
-    ventParts(THREE, p.x - 0.12, y, z, put, SLOT);
-  }
+  // The air vents at the panel's upper corners (ventParts) are not drawn: from the seat they read as black boxes
+  // either side of the glareshield, and Patrick's own cockpit frame shows only a small louvred wedge at the left
+  // corner (Patrick, 11 Oct 2026 07:23Z: "just get rid of those vents for now").
 
   // The AOA indexer on the coaming's left and the standby compass on its right (AETCMAN 11-248 Fig 2.7, Fig 5.3, TS-156;
   // the rear one on the hump, Dad's picture 27). All unlit.
