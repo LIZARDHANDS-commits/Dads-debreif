@@ -47,6 +47,9 @@ export const WING_DOWN = Object.freeze({
   sideForcePerRad: 0.6, wingAreaSqFt: 175.3, blendSec: 3, onLineFt: 300, onLineDeg: 20,
   fromOutFt: (0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT + -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT)) / 2,
   toOutFt: -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT),
+  /** The window's speed, KIAS (Pattern 1's point 12), where the side-force balance sets the bank for each degree of crab. */
+  refKias: 110,
+  get bankPerCrab() { return slipBankDeg(10, this.refKias) / 10; },
 });
 
 /**
@@ -359,7 +362,7 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     rateRadPerSec = (wrapDeg180(headingThere(a.distFt + aheadFt) - headingThere(a.distFt - aheadFt)) * Math.PI / 180) / (2 * ATTITUDE_HALF_SEC);
   }
   // In the slip the upwind wing is down; on the wheels the wings are level (SMM 4.12 para 26: the upwind wheel first).
-  const slipBank = onWheels ? 0 : wd * slipBankDeg(wt.crabDeg, a.iasKt);
+  const slipBank = onWheels ? 0 : wd * WING_DOWN.bankPerCrab * wt.crabDeg;
   a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec) + slipBank;
   const roll = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL, tasFtps, a.iasKt);
   a.bankDeg = Math.abs(roll.bankDeg) < 1e-9 ? 0 : roll.bankDeg;
