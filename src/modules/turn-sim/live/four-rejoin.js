@@ -217,7 +217,7 @@ const BOX_LINE_LOW_FT = { 3: 150, 4: 250 }; // how far below Lead each rides it,
 // number 1's turn circle"), setting the line's 210 KIAS this far beyond his point on it: on the 35° line (TS-181) #4, 9,600 ft
 // out, could not gain on Lead's turn at 210 (estimates).
 const BOX_LINE_FAR_KIAS = 260;
-const BOX_LINE_EASE_FT = 1500;
+const BOX_LINE_EASE_FT = 4500; // from 1,500 (V2.232): #3 and #4 arrived 15-25 kt hot and swung wide (Fable's V2.232 audit; estimate)
 const onBoxLine = (c, id, s, alongFt = BOX_LINE_FT) => phase(place(c, 0, 0, -BOX_LINE_LOW_FT[id]), { kind: 'ride', track: 1, lineDeg: TURNING_REJOIN.lineDeg, side: s, captureAlongFt: alongFt + 500, windowFt: alongFt, carrotWindowFt: alongFt, bankCapDeg: G_RULE_BANK_DEG, floorKias: KIAS_OUTSIDE_LAB, rideKias: BOX_LINE_FAR_KIAS, easeFromFt: alongFt + BOX_LINE_EASE_FT, easeKias: TURNING_REJOIN.rideKias, rejoin: true });
 
 /** A wingman's legs with the offset box's rejoin line in front (onBoxLine). */
