@@ -413,7 +413,7 @@ function arrivedStep(longRec, n0, wing, tail, slot) {
  * The whole rejoin as a single continuous tracker phase sequence: line intercept, canopy-X (or fighting wing
  * cone arrival with coneEase bank-matching), into close-in/cone phases with zero stitched handovers.
  */
-export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, maxWhenLow = true, limitSec = Infinity, holdSec = null, point = false }) {
+export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, maxWhenLow = true, limitSec = Infinity, holdSec = null, point = false, element = null }) {
   const TR = TURNING_REJOIN;
   const onX = to !== 'fw' && xLaw;
   // From the decision point into route and echelon on his own side, the way is a place moving in Lead's banked wing plane
@@ -440,10 +440,11 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   // 250-100 ft window until V2.248). Lead stays frozen in the windscreen, growing, until there.
   const xDecisionFt = Math.abs(pairSlot('route', s, spacingFt).left) / Math.cos(TR.lineDeg * DEG);
 
-  const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(upFt, TR.heightG)) : 0;
-  const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(wing.altAboveFt + upFt - lineFt, TR.heightG)) : 0;
+  const heightG = element?.heightG ?? TR.heightG;
+  const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(upFt, heightG)) : 0;
+  const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(wing.altAboveFt + upFt - lineFt, heightG)) : 0;
   const dropFt = wing.altAboveFt - lineFt;
-  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, TR.heightG));
+  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, heightG));
   const heightLeg = (sec) => {
     if (upFt > 0) {
       const tUp = t0 + (sec * upSec) / steadySec;
@@ -556,6 +557,8 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       side: s,
       captureFt: TR.captureFt,
       bankCapDeg, // the search's: a medium bank first, 5 G a flag he stays inside (TS-182), the aircraft's own limits last (Patrick 6 Oct 04:07Z "there is NO LIMIT on bank angle in formation")
+      // The 4-ship element (four-rejoin.js elementTurning): far down the line at full power, his height gentler.
+      ...(element ? { far: element.far, heightG: element.heightG } : {}),
       roll: crossIn ? TR.pointRoll : undefined, // Away, crossing Lead's six onto the line, quick but smooth (at the aircraft's own rate he never captured it); otherwise the aircraft's own roll, as before TS-182 (a formation rate here pulled 6 G from fighting wing)
       windowFt: xDecisionFt,
       carrotWindowFt: xDecisionFt,
@@ -826,7 +829,7 @@ export function inLeadsPlane(wing, plan, leadRec, t0, from, steps, easeSec, targ
  * planTo }. hot: from line abreast. vertical: false leaves out the vertical; verticalMinG: the least G a vertical may push to
  * (the 4-ship's #2, who starts on his stack; none for the 2-ship). Returns flyTurningRejoinWith's result with { overtakeKt, lowFloor, aimFt, bankCapDeg, upFt }, or null.
  */
-export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot, vertical = true, verticalMinG = null, xLaw = true, crossIn = false, trail = false }) {
+export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot, vertical = true, verticalMinG = null, xLaw = true, crossIn = false, trail = false, element = null }) {
   // How far ahead down the line he aims: the one that brings him in soonest (Patrick 08:20Z: "find a way to make the most
   // efficient": smaller inputs for longer, or larger for shorter).
   // A medium bank first; more, up to the G rule, only when no medium-bank rejoin keeps him behind Lead's 3/9 line.
@@ -866,7 +869,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
                 const limitSec = bestEst && best ? best.durationSec - BETTER_BY_SEC : Infinity;
                 // From line abreast the SMM's start first (pointing turn, wings level, reversal; TS-182), else the capture alone
                 // (V2.245's, Patrick 04:10Z: "If that doesn't work we can stick to what we had").
-                const fly = (point) => flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec: 0, allowAcross, crossIn, maxWhenLow, limitSec, point });
+                const fly = (point) => flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec: 0, allowAcross, crossIn, maxWhenLow, limitSec, point, element });
                 const pointing = hot && xLaw && (!crossIn || trail);
                 const flown = (pointing && fly(trail ? 'frozen' : true)) || fly(false);
                 if (flown) {
@@ -889,7 +892,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
               if (!best && hot && xLaw) {
                 for (const hardSec of TURNING_REJOIN.hardPullsSec) {
                   const aimFt = aims[0];
-                  const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, crossIn, maxWhenLow, limitSec: Infinity });
+                  const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, crossIn, maxWhenLow, limitSec: Infinity, element });
                   if (flown) {
                     const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
                     const est = flown.part?.rideEstablished !== false;
@@ -925,7 +928,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
       const limitSec = best.durationSec - (best.part?.rideEstablished === false ? 0 : BETTER_BY_SEC);
-      const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, crossIn, maxWhenLow: best.maxWhenLow, limitSec, point: best.point });
+      const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, crossIn, maxWhenLow: best.maxWhenLow, limitSec, point: best.point, element });
       const laneOk = flown ? (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt : false;
       if (flown && laneOk && flown.part?.stepDownOk !== false && flown.run?.stepDownOk !== false) {
         const est = flown.part?.rideEstablished !== false;

@@ -300,7 +300,9 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT, pclMaxActiv
     const inAnticipation = Boolean(ph.isFw || ph.toFw) && rNow <= 1000;
     const lineTargetKias = inAnticipation
       ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
-      : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
+      : ph.far && aim.along > ph.far.fromFt
+        ? ph.far.kias // the element far down the line (four-rejoin.js ELEMENT_FAR)
+        : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
           ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias)
           : (ph.rideKias ?? TURNING_REJOIN.rideKias));
     const kiasCmd = (pclMaxActive || ph.rejoin || aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt))

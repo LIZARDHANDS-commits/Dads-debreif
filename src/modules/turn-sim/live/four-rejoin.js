@@ -6,9 +6,11 @@
 // time"): Lead turns into #2 at the press at 30° of bank, slowing to 200 KIAS, and holds the turn until the last wingman is
 // in (lead-turn-in.js leadTurnInto; SMM 16.20 para 65b, Patrick 5 Oct 22:35Z). #2 flies the 2-ship's turning rejoin against
 // Lead's turn (turning-rejoin.js searchTurningRejoin, the same search and the same rules: 220 KIAS down the line, never
-// below 200 unless close in and hot, the whole cone to fighting wing). #3 and #4 close on the outside of Lead's turn, wait
-// behind their places, and come in one at a time (SMM 16.34 paras 95-96; AFM8 brief pp.19, 25): #3 once #2 is in, #4 once
-// #3 is, the stack kept as the separation (AFM8 brief p.18 item 6).
+// below 200 unless close in and hot, the whole cone to fighting wing). To finger and echelon #3 and #4 fly #2's same ride
+// on the place of the aircraft they join on (elementTurning, TS-188 draft; Patrick's card 11 Oct 2026 08:55Z "Rebuild on
+// #2's"), taking his cut-off line on the inside and coming in one at a time (SMM 16.34 paras 94-96). To fighting wing, and
+// where that ride does not plan, they close on the outside of Lead's turn, wait behind their places, and come in one at a
+// time (AFM8 brief pp.19, 25): #3 once #2 is in, #4 once #3 is, the stack kept as the separation (AFM8 brief p.18 item 6).
 //
 // Straight-ahead rejoins (M10, M12; SMM 16.34 paras 94-95, 16.15 para 38; AFM7 brief p.18 item 2, p.21): each closes in turn
 // through route, #2 first, #3 once #2 has route spacing, #4 once #3 has; the stack comes off as they close.
@@ -25,6 +27,7 @@ import { RATE_SETS, G_RULE_BANK_DEG, CLOSE_SHAPING } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
+import { slotInWorld } from './kinematic.js';
 import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT, fixedLine } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
@@ -88,26 +91,70 @@ function comeOffFirst(c, id, track) {
 }
 
 /**
+ * A place in Lead's banked frame as a recorded flight (TS-188 draft): Lead's flight moved to body { fwd, left, up } in his
+ * wing plane, on his heading and bank, at the speed that point has in his turn (v = vL + w x r, from its own track). #3 and
+ * #4 fly #2's turning rejoin against the place of the aircraft they join on, as #2 flies it against Lead. Null body: Lead.
+ */
+function placeRec(rec, body) {
+  if (!body) return rec;
+  const states = [];
+  const where = (n) => slotInWorld(rec.at(n), body.fwd, body.left, body.up, 1);
+  return {
+    t0: rec.t0,
+    at(n) {
+      if (states[n]) return states[n];
+      const L = rec.at(n);
+      const p = where(n);
+      const q = where(n + 1);
+      const tasFtps = Math.hypot(q.x - p.x, q.y - p.y) / STEP_SEC;
+      states[n] = { ...L, xFt: p.x, yFt: p.y, altAboveFt: p.z, tasFtps, kias: (L.kias * tasFtps) / L.tasFtps };
+      return states[n];
+    },
+  };
+}
+
+/**
+ * #3's or #4's part of a turning rejoin (TS-188 draft): #2's ride (twoTurning) on the place of the aircraft he joins on,
+ * `slots[id].ref`, to echelon on that one's side of it. He takes #2's line on the inside of Lead's turn (side s), crossing
+ * behind Lead first when he starts on the outside (the Away's cross, crossIn); a place on the outside he reaches under the
+ * one ahead at the decision point, as #2 reaches the far echelon. The tracker legs (w.phases) fly it when no ride plans.
+ */
+// Far down the line the element closes at full power (Patrick 5 Oct 05:34Z: "3 and 4 immediately go full power and towards
+// number 1's turn circle"), at the offset box line's 260 KIAS, easing to the ride's 210 from this far up it (as BOX_LINE_EASE_FT;
+// estimates). At the ride's 210 all the way #4 took 240 s to join from Spread 4.
+// His height to the line within ELEMENT.heightG of level flight, not #2's 1 g: climbing off his stack at 1 g he pushed to
+// 0 G (estimate).
+const ELEMENT = Object.freeze({ far: Object.freeze({ kias: 260, fromFt: 4500 }), heightG: 0.5 });
+function elementTurning(c, into, s, slots, w) {
+  const { ref } = slots[w.id];
+  const body = ref === 1 ? null : (({ fwd, left, alt }) => ({ fwd, left, up: alt }))(inLeadFrame(slots, ref));
+  const crossIn = relativeTo(c.start[0], c.by.get(w.id)).left * s < 0;
+  return { ...w, fly: twoTurning(c, into, s, 'echelon', Math.sign(slots[w.id].left), false, crossIn, true, body, ELEMENT) };
+}
+
+/**
  * #2's part of a turning rejoin to `to` on side sTo: the 2-ship's turning rejoin against Lead's turn. The 2-ship's search
  * (turning-rejoin.js searchTurningRejoin, Lead rolling out once #2 is in) picks how he flies it and when he is in, once;
  * that rejoin is then flown against Lead's turn as the four fly it (flyTurningRejoinWith): in flyLeg's first pass Lead turning on, in
  * its second Lead's real flight, rolling out once the last wingman is in. hot: from line abreast. Null (his tracker legs
  * fly it) when no turning rejoin plans from here.
  */
-function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot) {
+function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot, body = null, element = null) {
   let pick;
   return ({ wing, recs, t0 }) => {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
+    // The element (body given) flies it on the place of the aircraft he joins on, in Lead's banked frame (placeRec).
+    const on = body ? { longRec: placeRec(into.longRec, body), planTo: (n, roll) => { const lp = into.planTo(n, roll); return { ...lp, rec: placeRec(lp.rec, body) }; } } : into;
     // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
     // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
     // He flies the 2-ship's X to the 250-100 ft window (TS-106, Lead fixed on the canopy): on the line law from line abreast
     // he ran 170 ft ahead of Lead's 3/9 line close in (V2.223 test), and from fighting wing to finger he ran up abeam route,
     // dropped back 110 ft and passed 30 ft from #3 waiting behind Lead (V2.228). From Fluid 4 he keeps the line law to
     // route (xLaw false): the X from there put him 20 ft behind Lead's tail.
-    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw, crossIn }) ?? false;
+    pick ??= searchTurningRejoin({ ...args, into: on, hot, verticalMinG: VERTICAL_MIN_G, xLaw, crossIn, element }) ?? false;
     if (!pick) return null;
-    const rec = recs[1];
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn, point: pick.point });
+    const rec = placeRec(recs[1], body);
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn, point: pick.point, element });
     if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
@@ -312,7 +359,7 @@ export function turningToFinger(start, t0, opts, s, from, sTo = s) {
     // Each ends in Lead's wing plane, and Lead rolls out gently once all are in it (TS-126, TS-127), at the route roll-out's
     // 8°/s so #4, 90 ft out, rises with the plane without the 0.6 G push of the echelon turn's 30°/s (Fable's v2276 flight).
     const inPlane = (w) => ({ ...w, plane: true });
-    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.routeRoll }, wings: [inPlane(two), inPlane(smoothRoll(from, wing(3, 2))), inPlane(smoothRoll(from, wing(4, 3)))] };
+    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.routeRoll }, wings: [inPlane(two), ...[[3, 2], [4, 3]].map(([id, g]) => inPlane(elementTurning(c, into, s, fin, smoothRoll(from, wing(id, g)))))] };
   }]);
 }
 
@@ -349,7 +396,7 @@ export function turningToEchelon(start, t0, opts, s, from, sTo = s) {
       },
     });
     const inPlane = (w) => ({ ...w, plane: true });
-    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.routeRoll }, wings: [inPlane(two), inPlane(smoothRoll(from, wing(3, 2))), inPlane(smoothRoll(from, wing(4, 3)))], how: sTo === s ? 'turning rejoin straight into echelon' : 'turning rejoin into echelon on the outside, #2 under Lead at the decision point' };
+    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.routeRoll }, wings: [inPlane(two), ...[[3, 2], [4, 3]].map(([id, g]) => inPlane(elementTurning(c, into, s, ech4, smoothRoll(from, wing(id, g)))))], how: sTo === s ? 'turning rejoin straight into echelon' : 'turning rejoin into echelon on the outside, #2 under Lead at the decision point' };
   }]);
 }
 
