@@ -288,6 +288,8 @@ function mount(root, app) {
     // The ground the tracks recorded (DB-26): Chase and Cockpit stand on it, and the "From the tracks" ground setting.
     ground: () => groundNow(),
     setCamera: (patch) => layout.update(patch),
+    // The "Terrain and satellite" ground's status and credit lines (DB-27).
+    onTerrain: (state) => ui.setTerrain(state),
     // three.js couldn't load (offline on a first visit) or there's no WebGL 2: say so and stay in 2D (D141).
     onUnavailable: (message) => {
       ui.setViewMessage(message);
