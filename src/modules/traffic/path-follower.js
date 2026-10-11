@@ -43,9 +43,12 @@ const PITCH_EASE = Object.freeze({ maxRateDps: 10, maxAccelDps2: 20 });
  * centreline counts as on final are estimates. Drawn heading and bank only: the ground track, the glide path and the
  * speeds don't change. The NFM's limit is 25 kt across (p.5-12), flagged elsewhere, never a wall here.
  */
+/** The window, feet out from the 29L threshold: 3/4 NM before the base of the numbers (Patrick). */
+const WINDOW_OUT_FT = 0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT;
+
 export const WING_DOWN = Object.freeze({
   sideForcePerRad: 0.6, wingAreaSqFt: 175.3, blendSec: 3, onLineFt: 300, onLineDeg: 20,
-  fromOutFt: (0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT + -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT)) / 2,
+  fromOutFt: (WINDOW_OUT_FT - (NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT)) / 2,
   /** The window's speed, KIAS (Pattern 1's point 12), where the side-force balance sets the bank for each degree of crab. */
   refKias: 110,
   get bankPerCrab() { return slipBankDeg(10, this.refKias) / 10; },
@@ -423,6 +426,13 @@ function resolveAircraftConfig(a, p, route) {
   if (ph === 'downwind') {
     if (isSi) return 'Gear + T/O flap';
     return kt < 147 ? 'Gear + T/O flap' : 'Clean';
+  }
+  // A straight-in (spec 4.14 item 3, Patrick's list 4 Oct 22:53Z): clean until on its base, gear and take-off flap on
+  // base, landing flap inside the window (SMM 4.16 para 36, 4.6 para 9, 4.8 para 13); the same rule as behaviour.js.
+  if (isSi && ph === 'initial' && p) {
+    const outFt = (a.x - THRESHOLD_29L.x) * RWY_OUT.x + (a.y - THRESHOLD_29L.y) * RWY_OUT.y;
+    if (p.seg >= 1 && outFt <= WINDOW_OUT_FT) return 'Gear + landing flap';
+    return p.seg >= 1 ? 'Gear + T/O flap' : 'Clean';
   }
   if (ph === 'climb' || ph === 'touch_and_go') {
     if (alt <= THRESHOLD_DATA_ELEV_FT + 50) return 'Gear + T/O flap';
