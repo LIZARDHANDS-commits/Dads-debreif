@@ -75,7 +75,10 @@ export function createPilot(W, { accelKtps = 0 } = {}) {
 export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, climbKtps = null, extraSlowKtps = 0, snapKias = null, snapTol = 0 }) {
   const g = Math.max(1, Math.abs(W.g ?? 1));
   const climb = climbKtps ?? climbCostKtps(W, W.climbFtps ?? 0);
-  const aMax = fullPowerKtps(W.kias, blockFt, g) - climb;
+  // Full power pays for the climb he is flying whatever picked it (standard energy: dV/dt = g ((T - D) / W - sin climb)), so
+  // he never gains energy faster than full power gives. Until V2.351 a climb the cone picked was left out here (climbKtps 0),
+  // and the fast start into fighting wing climbed 30 ft/s at 5 G while slowing only as fast as level flight would.
+  const aMax = fullPowerKtps(W.kias, blockFt, g) - Math.max(climb, climbCostKtps(W, W.climbFtps ?? 0));
   const aMin = Math.min(7.95, slowKtps(top ?? 'power', W.kias, blockFt, g, floorThr) + climb + extraSlowKtps);
   const want = Math.max(-aMin, Math.min(aMax, aWant));
   const jerk = pilotJerkKtps2() * dt;
