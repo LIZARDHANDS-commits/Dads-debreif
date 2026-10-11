@@ -194,8 +194,9 @@ test('the SMM standards (D116, D114): sweep off the 3/9 line in degrees, #3 in t
   assert.deepEqual(text(at(-Math.tan((10.3 * Math.PI) / 180) * 5000, 7000)), ['AFT by under 1°', 'On parameters']);
   const row = readoutsAt(at(-1500, 7000), T(30), { standards: DEFAULT_STANDARDS }).formation[0];
   assert.ok(Math.abs(row.sweepDeg - 16.70) < 0.05, String(row.sweepDeg));
-  // V6's standards still say it in feet (± 250 ft of the 3/9 line).
-  assert.deepEqual(readoutsAt(at(-1500, 8000), T(30), { standards: V6_STANDARDS }).formation.map((r) => formationText(r).text),
+  // A spread standard set in feet (± 250 ft of the 3/9 line, a setting) says it in feet: 1,500 ft back is 1,250 ft past 250.
+  const feet = { ...DEFAULT_STANDARDS, spread: { on: true, minFt: 4000, maxFt: 6000, foreAftTolFt: 250 } };
+  assert.deepEqual(readoutsAt(at(-1500, 8000), T(30), { standards: feet }).formation.map((r) => formationText(r).text),
     ['AFT by 1,250 ft', 'On parameters']);
 });
 
@@ -211,8 +212,9 @@ test('the SMM lead standard (D115): 220 kt in the low block, 200 kt in the mid b
   assert.match(leadText(mid).text, /, on parameters \(target 200 kt, mid block\)$/);
   const slow = readoutsAt(lead(8000, 200), T(30), { standards: DEFAULT_STANDARDS }).lead;
   assert.match(leadText(slow).text, /, SLOW \(target 220 kt, low block\)$/);
-  // V6's one 200 kt target shows no block.
-  assert.equal(readoutsAt(lead(8000, 240), T(30), { standards: V6_STANDARDS }).lead.block, null);
+  // A single target speed (a setting, 200 kt for every block) shows no block.
+  const oneTarget = { ...DEFAULT_STANDARDS, lead: { on: true, targetKt: 200, speedTolKt: 10, targetG: 1.0, gTol: 0.2 } };
+  assert.equal(readoutsAt(lead(8000, 240), T(30), { standards: oneTarget }).lead.block, null);
 });
 
 // ── M1(a): no verdicts on the ground (verification M1; a judgement call logged for review) ──
@@ -298,12 +300,13 @@ test('Lead is judged from 6,000 ft to 15,500 ft and not outside them', () => {
   assert.equal(at(2790).labels, null); // the example flight's 19:44 descent
 });
 
-test('V6\'s one-target standard is gated by the same blocks; a standard that is off says nothing', () => {
+test('a single target speed is gated by the same blocks (Gen Book p.12); a standard that is off says nothing', () => {
   const at = (altFt, std) => readoutsAt(
     buildFlight({ 1: track('Lead', (t) => [240 * KT_TO_FTPS * t, 0], { altFt }) }), T(30), { standards: std },
   ).lead;
-  assert.equal(at(3000, V6_STANDARDS).notJudged, 'below the low block');
-  const off = { ...V6_STANDARDS, lead: { ...V6_STANDARDS.lead, on: false } };
+  const oneTarget = { ...DEFAULT_STANDARDS, lead: { on: true, targetKt: 200, speedTolKt: 10, targetG: 1.0, gTol: 0.2 } };
+  assert.equal(at(3000, oneTarget).notJudged, 'below the low block');
+  const off = { ...oneTarget, lead: { ...oneTarget.lead, on: false } };
   assert.equal(at(3000, off).notJudged, null);
   assert.doesNotMatch(leadText(at(3000, off)).text, /not judged/);
 });

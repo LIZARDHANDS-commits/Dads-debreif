@@ -1,5 +1,5 @@
 // Prints the code model's shape tables (src/ui-kit/ct156-model.js) as JSON, so the Blender build
-// (build_ct156.py) uses the very same numbers and the tables keep one copy. It reads the file's
+// (build_ct156_exterior.py) uses the very same numbers and the tables keep one copy. It reads the file's
 // "the shape" section as text and runs only that section: plain numbers and small helpers, no three.js.
 //
 //   node tools/blender/ct156-shape.mjs > ct156-shape.json

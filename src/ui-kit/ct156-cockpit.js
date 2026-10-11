@@ -39,7 +39,7 @@
 // own panel may differ.
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
-  CT156_TUB_FLOOR_FT, CT156_RAIL_FORE_X, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, setCockpitView,
+  CT156_TUB_FLOOR_FT, CT156_RAIL_FORE_X, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
 import { attachCockpitModel } from './ct156-cockpit-model.js';
@@ -2182,18 +2182,11 @@ function joinTextured(THREE, geoms) {
  * @param {{ doc?: Document }} [options]
  */
 /**
- * A fingerprint of a named part's pieces (their corners to a thousandth of a foot), so the Blender cockpit's part shows
- * only while it was built from the pieces the code draws now (ct156-cockpit-model.js): a cockpit change without a
- * rebuilt model file shows the code's part, never a stale one. pieces: [{ geometry }].
+ * A fingerprint of a named part's pieces, so the Blender cockpit's part shows only while it was built from the pieces the
+ * code draws now (ct156-cockpit-model.js): a cockpit change without a rebuilt model file shows the code's part, never a
+ * stale one. pieces: [{ geometry }]. The same fingerprint as the outside's (ct156-model.js ct156PiecesHash).
  */
-export function cockpitPiecesHash(pieces) {
-  let h = 2166136261;
-  for (const { geometry } of pieces) {
-    const a = geometry.attributes.position.array;
-    for (let i = 0; i < a.length; i++) h = Math.imul(h ^ (Math.round(a[i] * 1000) | 0), 16777619) >>> 0;
-  }
-  return h.toString(16);
-}
+export const cockpitPiecesHash = ct156PiecesHash;
 
 export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPieces = false } = {}) {
   const group = new THREE.Group();

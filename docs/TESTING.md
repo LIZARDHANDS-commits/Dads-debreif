@@ -33,6 +33,8 @@ The last column is history. The test trim (#398, Patrick's yes 5 Oct 05:15Z) cut
 
 Nothing is deleted or rewritten without Patrick's yes on the list. A test is never moved to Delete to turn main green: a failure that shows a real fault goes to the module's owner. **(Patrick, 11 Oct 2026 18:20Z.)**
 
+**G and handling in flight tests (Patrick, 11 Oct 2026):** above 5 G is a caution, logged and shown, never a fail. Above 7 G fails. Snappy or unrealistic roll rates or attitude changes fail, at a limit the test states with its reason. Aircraft touching or colliding fails. No test pins any other G number. **(Wording approved 11 Oct 2026 19:37Z.)**
+
 
 ## 2. What runs when
 

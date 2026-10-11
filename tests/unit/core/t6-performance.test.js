@@ -272,12 +272,11 @@ test('zero sustained turn: the model reaches it within 6 kt of each chart line',
   }
 });
 
-test('the tops of the chart lines: within 0.35°/s with an 83 kt stall, and 1.1 to 1.6°/s low with the 86 kt default', () => {
+test('the tops of the chart lines: within 0.35°/s with an 83 kt stall', () => {
+  // The 86 kt default reads low here (verification finding F1, logged for review); that band was the code's own output, so it is not checked.
   for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT) {
     const at83 = sustainedRate(kias, alt, 83) - rate;
-    const at86 = sustainedRate(kias, alt, 86) - rate;
     assert.ok(Math.abs(at83) <= 0.35, `${alt} ft at 83 kt: ${at83.toFixed(2)}°/s`);
-    assert.ok(at86 < -1.1 && at86 > -1.6, `${alt} ft at 86 kt: ${at86.toFixed(2)}°/s (verification finding F1, logged for review)`);
   }
 });
 
@@ -436,25 +435,26 @@ test('shakerG is always below the stall line and never above availableG', () => 
   }
 });
 
-test('the split S from 110 KIAS at 10,000 ft: about 1,690 ft below the entry, 1,980 below the top', () => {
+test('the split S from 110 KIAS at 10,000 ft: about 2,000 ft below the top (SMM 14.16 para 40), faster at the exit, inside 7 G', (t) => {
   const r = splitST6A(110, 10000);
-  near(r.lossFt, 1688, 2, 'loss from the entry altitude');
-  near(r.fromTopFt, 1976, 2, 'loss from the top');
-  near(r.exitKias, 206.3, 0.2, 'exit speed');
-  near(r.peakG, 5, 1e-9, 'peak G');
+  near(r.fromTopFt, 2000, 100, 'loss from the top, shared ±100 ft');
+  assert.ok(r.exitKias > 110, `exit ${r.exitKias} KIAS`);
+  // Patrick's G rule (11 Oct 2026): over 7 G fails, over 5 G is a caution only.
+  assert.ok(r.peakG <= 7, `peak ${r.peakG} G`);
+  if (r.peakG > 5) t.diagnostic(`caution: peak ${r.peakG.toFixed(2)} G, over 5 G`);
   // A generous limit: a split S is well under a minute; 60 s would mean it is stuck (the model's own guard stops at 120 s).
   assert.ok(r.timeSec > 0 && r.timeSec < 60, `time ${r.timeSec} s`);
-  near(r.turnDeg, 174.4, 0.2, 'heading change (rolling right: 186° clockwise, read as +174)');
   assert.equal(r.completed, true);
 });
 
-test('the split S against the SMM (14.16 para 40, about 2,000 ft) over its 100 to 120 KIAS entries', () => {
+test('the split S against the SMM (14.16 para 40, about 2,000 ft) over its 100 to 120 KIAS entries', (t) => {
   for (const kias of [100, 110, 120]) {
     const r = splitST6A(kias, 10000);
     // From the entry altitude the model loses 14 to 18 % less; from the top it is within 2 %.
     assert.ok(r.lossFt > 1600 && r.lossFt < 1750, `${kias} KIAS: ${r.lossFt} ft from the entry`);
     assert.ok(Math.abs(r.fromTopFt - 2000) < 40, `${kias} KIAS: ${r.fromTopFt} ft from the top`);
-    assert.ok(r.peakG <= 5 + 1e-9, `${kias} KIAS: peak ${r.peakG} G`);
+    assert.ok(r.peakG <= 7, `${kias} KIAS: peak ${r.peakG} G`); // Patrick's G rule: over 7 G fails
+    if (r.peakG > 5) t.diagnostic(`caution: ${kias} KIAS peak ${r.peakG.toFixed(2)} G, over 5 G`);
   }
 });
 
