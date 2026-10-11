@@ -157,13 +157,14 @@ export function believedEstimatedG(track, t, { gsKt, iasKt }) {
   return Number.isFinite(iasKt) && g > stallLimitG(iasKt) ? null : g;
 }
 
-/** "Smooth G" spacing, s: the three est. G values its median takes are a second apart, the GPS's fix rate (DB-Q4). */
+/** "Smooth G" spacing, s: the five est. G values its median takes are a second apart, the GPS's fix rate (DB-Q4). */
 export const SMOOTH_G_STEP_S = 1;
 
 /**
- * Est. G with the 3-point median (DB-Q4, Patrick 11 Oct 2026: a setting, off at first; the verdicts keep the raw G): the middle of the
- * believed est. G a second before, at and a second after t, so a one-second GPS blip goes and steps and steady turns stay. With fewer than
- * three of them known (a gap, the track's ends), the raw value at t. `sample(t)` gives { gsKt, iasKt } at a time, or null.
+ * Est. G with the 5-point median (DB-Q4, Patrick 11 Oct 2026: a setting, off at first; the verdicts keep the raw G; 5 points, not 3,
+ * so the bad fix's own second is fixed too): the middle of the believed est. G two seconds and one second before, at, and one and two
+ * seconds after t, so a one-second GPS blip goes and steps and steady turns stay, about a second later. With fewer than five of them
+ * known (a gap, the track's ends), the raw value at t. `sample(t)` gives { gsKt, iasKt } at a time, or null.
  */
 export function smoothedEstimatedG(track, t, sample) {
   const at = (u) => {
@@ -171,9 +172,9 @@ export function smoothedEstimatedG(track, t, sample) {
     return s ? believedEstimatedG(track, u, s) : null;
   };
   const now = at(t);
-  const three = [at(t - SMOOTH_G_STEP_S), now, at(t + SMOOTH_G_STEP_S)];
-  if (!three.every(Number.isFinite)) return now;
-  return three.sort((a, b) => a - b)[1];
+  const five = [-2, -1, 1, 2].map((k) => at(t + k * SMOOTH_G_STEP_S)).concat(now);
+  if (!five.every(Number.isFinite)) return now;
+  return five.sort((a, b) => a - b)[2];
 }
 
 /**
@@ -349,7 +350,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false, leadWind =
     const iasKt = tooFast ? null : windCorrected ? estIasWithWindKt(s.speedKt, heading[1], s.altFt, leadWind) : estIasKt(s.speedKt, s.altFt);
     let g = gAt(tr, t, { recorded: recordedG });
     if (g.source === 'estimated') g = { g: believedEstimatedG(tr, t, { gsKt: s.speedKt, iasKt }), source: 'estimated' };
-    // Shown G: the 3-point median when "Smooth G" is on (DB-Q4); gRaw stays for the verdicts.
+    // Shown G: the 5-point median when "Smooth G" is on (DB-Q4); gRaw stays for the verdicts.
     const gRaw = g.g;
     if (smoothG && g.source === 'estimated' && !tooFast) {
       const sampleFor = (u) => {
