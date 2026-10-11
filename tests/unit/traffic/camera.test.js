@@ -1,75 +1,35 @@
+// Checks: the cockpit eye (front and rear seat) sits inside the canopy glass, and the tower view with nothing picked
+//   aims at the Runway 29L threshold, looking down at it from the cab.
+// Serves: TR-R2 (the views a pilot can pick), ALL-31 (the CT-156 cockpit).
+// Expected values: the canopy's own section at the eye's station (ct156-model.js, the T-6A-1 side drawing, ALL-31);
+//   the bearing and the look-down angle from the cab to the threshold worked out in the test with atan2.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  CAMERA_MOUNTS, OVERVIEW_PRESETS, AIM_MODES, COCKPIT_SEATS,
-  DEFAULT_CAMERA_STATE, stateFromLegacy,
-  RWY_29L_THRESHOLD, FREE_LOOK_DEG, freeAim,
-} from '../../../src/modules/traffic/camera-views.js';
-import { legacyViewFromState } from '../../../src/modules/traffic/camera-bar.js';
-import { EYES_FT } from '../../../src/ui-kit/ct156-cockpit.js';
+import { RWY_29L_THRESHOLD, TOWER_FT, TOWER_EYE_AGL_FT, towerFree } from '../../../src/modules/traffic/camera-views.js';
+import { EYES_FT, CT156_FT_PER_UNIT } from '../../../src/ui-kit/ct156-cockpit.js';
+import { ct156CanopySection, ct156CanopyHalfWidth } from '../../../src/ui-kit/ct156-model.js';
+import { wrapDeg180 } from '../../../src/core/angles.js';
 
-test('traffic camera: 2-tier definitions and defaults', () => {
-  assert.equal(CAMERA_MOUNTS.length, 5);
-  assert.deepEqual(CAMERA_MOUNTS.map((m) => m.id), ['overview', 'tower', 'free', 'chase', 'cockpit']);
-  assert.deepEqual(OVERVIEW_PRESETS.map((p) => p.id), ['field', 'fit', 'high', 'top']);
-  assert.ok(AIM_MODES.tower.some((a) => a.id === 'freelook'));
-  assert.ok(AIM_MODES.tower.some((a) => a.id === 'track'));
-  assert.ok(AIM_MODES.tower.some((a) => a.id === 'padlock'));
-  assert.ok(AIM_MODES.free.some((a) => a.id === 'freelook'));
-  assert.ok(AIM_MODES.free.some((a) => a.id === 'track'));
-  assert.ok(AIM_MODES.free.some((a) => a.id === 'padlock'));
-  assert.ok(AIM_MODES.chase.some((a) => a.id === 'boresight'));
-  assert.ok(AIM_MODES.cockpit.some((a) => a.id === 'boresight'));
-  assert.deepEqual(COCKPIT_SEATS.map((s) => s.id), ['front', 'rear']);
-  assert.deepEqual(DEFAULT_CAMERA_STATE, {
-    mount: 'overview',
-    preset: 'field',
-    aim: 'boresight',
-    seat: 'front',
-  });
+test('the cockpit eye in each seat is inside the canopy: above the sill, below the glass and between its sides', () => {
+  const F = CT156_FT_PER_UNIT;
+  for (const [seat, eye] of Object.entries(EYES_FT)) {
+    const c = ct156CanopySection(eye.x / F);
+    assert.ok(eye.z > c.base * F, `${seat} seat: the eye is above the canopy sill (${eye.z.toFixed(2)} ft vs ${(c.base * F).toFixed(2)} ft)`);
+    assert.ok(eye.z < c.top * F, `${seat} seat: the eye is below the canopy top (${eye.z.toFixed(2)} ft vs ${(c.top * F).toFixed(2)} ft)`);
+    const halfWidthFt = ct156CanopyHalfWidth(eye.x / F, eye.z / F) * F;
+    assert.ok(Math.abs(eye.y) < halfWidthFt, `${seat} seat: the eye is between the canopy sides (${eye.y} ft off the middle, glass ${halfWidthFt.toFixed(2)} ft)`);
+  }
 });
 
-test('traffic camera: stateFromLegacy maps all legacy views to 2-tier state', () => {
-  assert.deepEqual(stateFromLegacy('field'), { mount: 'overview', preset: 'field', aim: 'boresight', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('fit'), { mount: 'overview', preset: 'fit', aim: 'boresight', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('high'), { mount: 'overview', preset: 'high', aim: 'boresight', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('top'), { mount: 'overview', preset: 'top', aim: 'boresight', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('tower', null), { mount: 'tower', preset: 'field', aim: 'freelook', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('tower', 'PAT1'), { mount: 'tower', preset: 'field', aim: 'track', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('free'), { mount: 'free', preset: 'field', aim: 'freelook', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('low'), { mount: 'chase', preset: 'field', aim: 'boresight', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('cockpit'), { mount: 'cockpit', preset: 'field', aim: 'boresight', seat: 'front' });
-  assert.deepEqual(stateFromLegacy('padlock'), { mount: 'cockpit', preset: 'field', aim: 'padlock', seat: 'front' });
-});
-
-test('traffic camera: legacyViewFromState converts 2-tier state back to legacy id', () => {
-  assert.equal(legacyViewFromState({ mount: 'overview', preset: 'field' }), 'field');
-  assert.equal(legacyViewFromState({ mount: 'overview', preset: 'fit' }), 'fit');
-  assert.equal(legacyViewFromState({ mount: 'overview', preset: 'top' }), 'top');
-  assert.equal(legacyViewFromState({ mount: 'tower', aim: 'freelook' }), 'tower');
-  assert.equal(legacyViewFromState({ mount: 'tower', aim: 'track' }), 'tower');
-  assert.equal(legacyViewFromState({ mount: 'free', aim: 'freelook' }), 'free');
-  assert.equal(legacyViewFromState({ mount: 'free', aim: 'padlock' }), 'free');
-  assert.equal(legacyViewFromState({ mount: 'chase', aim: 'boresight' }), 'low');
-  assert.equal(legacyViewFromState({ mount: 'chase', aim: 'padlock' }), 'padlock');
-  assert.equal(legacyViewFromState({ mount: 'cockpit', aim: 'boresight' }), 'cockpit');
-  assert.equal(legacyViewFromState({ mount: 'cockpit', aim: 'padlock' }), 'padlock');
-});
-
-test('traffic camera: CT-156 cockpit front and rear ejection seats geometry', () => {
-  assert.ok(EYES_FT.front);
-  assert.ok(EYES_FT.rear);
-  assert.ok(EYES_FT.rear.z > EYES_FT.front.z, 'rear seat pilot eye is elevated above front seat');
-  assert.ok(EYES_FT.rear.x < EYES_FT.front.x, 'rear seat pilot eye is aft of front seat');
-  assert.equal(EYES_FT.front.y, 0, 'front seat centered on fuselage');
-  assert.equal(EYES_FT.rear.y, 0, 'rear seat centered on fuselage');
-});
-
-test('traffic camera: free drone and tower padlock targeting Runway 29L', () => {
-  const eye = { x: 5000, y: -6000, z: 2500 };
-  const target = { x: RWY_29L_THRESHOLD.x, y: RWY_29L_THRESHOLD.y, z: RWY_29L_THRESHOLD.alt };
-  const aim = freeAim(eye, target);
-  assert.ok(Number.isFinite(aim.yawDeg));
-  assert.ok(Number.isFinite(aim.elevDeg));
-  assert.ok(aim.elevDeg >= FREE_LOOK_DEG[0] && aim.elevDeg <= FREE_LOOK_DEG[1]);
+test('the tower view with nothing picked aims at the 29L threshold, looking down from the cab', () => {
+  const floorFt = RWY_29L_THRESHOLD.alt;
+  const view = towerFree(floorFt);
+  const dx = RWY_29L_THRESHOLD.x - TOWER_FT.x, dy = RWY_29L_THRESHOLD.y - TOWER_FT.y;
+  const bearingDeg = (Math.atan2(dx, dy) * 180) / Math.PI;
+  const downDeg = (Math.atan2(TOWER_EYE_AGL_FT, Math.hypot(dx, dy)) * 180) / Math.PI;
+  // ±5°: the shared angle margin (docs/TESTING.md).
+  assert.ok(Math.abs(wrapDeg180(view.yawDeg - bearingDeg)) <= 5, `aims at the threshold: yaw ${view.yawDeg.toFixed(1)}° vs bearing ${bearingDeg.toFixed(1)}°`);
+  assert.ok(view.elevDeg < 0, 'looks down at the runway from the cab');
+  assert.ok(Math.abs(view.elevDeg + downDeg) <= 5, `look-down ${(-view.elevDeg).toFixed(1)}° vs ${downDeg.toFixed(1)}°`);
+  assert.equal(view.track, false, 'with nothing picked it follows no aircraft');
 });

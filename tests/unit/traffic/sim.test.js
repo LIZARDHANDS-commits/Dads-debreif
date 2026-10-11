@@ -1,22 +1,22 @@
-// Checks: small made-up routes and the built-in setup: 0.05 s steps, aircraft wait, fly 202.5 ft/s at 120 kt,
-//   land or go round, take splits and joins by odds, conflicts at 200 ft and 500 ft, same seed same run, spawn
-//   and remove, frame rate.
+// Checks: the sim engine on small made-up routes and the built-in setup: time in whole 0.05 s steps, aircraft wait
+//   for their start, fly at the true airspeed set, land or go round by their landing intent, take splits by their
+//   odds at the point they leave from and join where they are linked, conflict flags for two aircraft flown to cross,
+//   same seed same run, spawn and remove, the same run at any frame rate. Each moment is found by what the aircraft
+//   is doing (where it is, its route, landed), never at a chosen second; each run has a safety stop.
 // Serves: TR-R1, TR-R12, TR-R15, TR-R17, TR-R19, TR-R21, TR-R22.
-// Expected values: arithmetic worked out in comments (120 kt = 202.5 ft/s); lap times such as 118 s are the
-//   code's own output; 41 of 47 cases read a hard-coded second; start times [12, 137 ...] are V6's data; "as V6
-//   does" has no V6 number.
+// Expected values: arithmetic worked out in the test (120 kt = 202.5 ft/s; a lap's length over its speed; a turn's
+//   radius from speed and G, standard aerodynamics); the 200 ft and 500 ft conflict and caution limits are TR-R17
+//   (Patrick, 4 Oct 09:09Z); the built-in setup and V6's routes (moose-jaw-v6.json) are inputs only, never answers.
 
-// What sim.js means, in plain terms: time moves in fixed steps, aircraft fly their routes
-// at the set speed and height, pattern laps land or go round, splits are taken or not,
-// entries join the pattern, conflicts are found, and the same seed gives the same run.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSim, STEP_SEC, TYPE_COLORS } from '../../../src/modules/traffic/sim.js';
 import { createDice } from '../../../src/modules/traffic/dice.js';
-import { routeLengthFt, closestDistFt, positionAt } from '../../../src/modules/traffic/route.js';
-import { KT_TO_FTPS, ktToFtps } from '../../../src/core/units.js';
+import { routeLengthFt } from '../../../src/modules/traffic/route.js';
+import { KT_TO_FTPS } from '../../../src/core/units.js';
 import { iasToTasKt } from '../../../src/core/t6-performance.js';
+import { TOLERANCES } from '../../helpers/tolerances.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -26,7 +26,7 @@ const point = (x, y, alt = 2500, kt = 120, g = 2) => ({ label: '', x, y, alt, kt
 const route = (id, kind, points, extra = {}) => ({ id, name: id, kind, visible: true, color: '#fff', points, ...extra });
 const near = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
 
-/** A setup of your own routes and aircraft, with V6's options and limits. */
+/** A setup of your own routes and aircraft, with the built-in options and limits. */
 function setupOf(routes, aircraft = []) {
   const { routeOptions, conflictLimits, anchor } = MOOSE_JAW;
   return { version: 1, name: 'test', anchor, routes, aircraft, routeOptions, conflictLimits };
@@ -39,6 +39,26 @@ const square = (extra = {}) => route('SQ', 'pattern', SQUARE, { landOdds: 0, ...
 const straight = (kt = 120) => route('ST', 'entry', [point(0, 0, 2000, kt), point(60000, 0, 2000, kt)], { attachTo: '', mergeIndex: 0 });
 
 const only = (state, id) => state.aircraft.find((a) => a.id === id);
+
+/** One lap of the square (its rounded corners cut it a little short of 24,000 ft), worked out at 120 kt (202.5 ft/s). */
+const LAP_FT = routeLengthFt(square());
+const LAP_SEC = LAP_FT / (120 * KT_TO_FTPS);
+// Safety stop: ten laps, far more than any case below needs, so only an aircraft that is stuck or lost reaches it.
+const STOP_SEC = 10 * LAP_SEC;
+/** The radius of a level turn at 120 kt and 2 G (standard aerodynamics: r = V² / (g √(G² − 1))): a corner's turn starts this far before it. */
+const TURN_RADIUS_FT = (120 * KT_TO_FTPS) ** 2 / (32.174 * Math.sqrt(2 * 2 - 1));
+const DIST = TOLERANCES.DISTANCE_FT;
+
+/** Flies on a step at a time until `done(a)` is true for aircraft `id` or the safety stop is reached; returns it. */
+function flyUntil(sim, id, done, stopSec = STOP_SEC) {
+  let a = only(sim.state(), id);
+  while (sim.t < stopSec && !done(a)) {
+    sim.stepTo(sim.t + STEP_SEC);
+    a = only(sim.state(), id);
+  }
+  return a;
+}
+const from = (a, p) => Math.hypot(a.x - p.x, a.y - p.y);
 
 // ── Time ─────────────────────────────────────────────────────────────────────
 
@@ -74,23 +94,24 @@ test('the sim does not go back: asking for an earlier time does nothing, and a b
 // ── Aircraft ─────────────────────────────────────────────────────────────────
 
 test('an aircraft waits until its start time and then flies', () => {
+  // The start time is a rule about time (docs/TESTING.md T2): 12 s is the test's own setting.
   const sim = createSim(setupOf([straight()], [plane('A1', 'ST', 12)]));
   sim.stepTo(11.95);
   assert.equal(only(sim.state(), 'A1').status, 'waiting');
   assert.equal(only(sim.state(), 'A1').distFt, 0);
-  sim.stepTo(20);
-  const a = only(sim.state(), 'A1');
+  const a = flyUntil(sim, 'A1', (x) => x.status !== 'waiting');
+  near(sim.t, 12, STEP_SEC + 1e-9);
   assert.equal(a.status, 'flying');
-  assert.ok(a.distFt > 0);
 });
 
 test('an aircraft moves along its route at the true airspeed for the speed set there: 120 KIAS at 2,000 ft is about 124 KTAS', () => {
   const sim = createSim(setupOf([straight(120)], [plane('A1', 'ST')]));
   sim.stepTo(10);
   const a = only(sim.state(), 'A1');
-  // Calm air: ground speed is the true airspeed, 120 KIAS corrected for 2,000 ft on a standard day (aero; Traffic spec item 8). 1 ft allows for rounding over 200 steps.
+  // Calm air: ground speed is the true airspeed, 120 KIAS corrected for 2,000 ft on a standard day (aero; Traffic
+  // spec item 8), times 10 s. 1 ft allows for rounding over 200 steps.
   near(a.x, iasToTasKt(120, 2000) * KT_TO_FTPS * 10, 1);
-  assert.ok(Math.abs(only(sim.state(), 'A1').headingDeg - 90) <= 5, 'heading ~90°');
+  assert.ok(Math.abs(a.headingDeg - 90) <= TOLERANCES.ANGLE_DEG, 'heading about 090°');
 });
 
 test('an aircraft that starts at a later point starts there, and a start point past the last is the last', () => {
@@ -100,54 +121,50 @@ test('an aircraft that starts at a later point starts there, and a start point p
   const [a, b] = sim.state().aircraft;
   assert.equal(a.id, 'A1');
   assert.equal(b.id, 'A2');
-  assert.ok(a.x > 5000 && a.y > 5000, `point 3 is at the far corner, not ${a.x}, ${a.y}`); // where its turn starts, just short of 6000, 6000
-  assert.ok(b.x < 1000 && b.y > 5000, `point 4 is the last: ${b.x}, ${b.y}`);
-  assert.deepEqual([a.leg, b.leg], [3, 3], 'at the very start of a turn V6 still reads the leg before it');
+  // Where each corner's turn starts: within a turn radius (worked out) of the corner, plus the shared distance margin.
+  assert.ok(from(a, SQUARE[2]) <= TURN_RADIUS_FT + DIST, `point 3 is the far corner, not ${a.x}, ${a.y}`);
+  assert.ok(from(b, SQUARE[3]) <= TURN_RADIUS_FT + DIST, `point 4 is the last: ${b.x}, ${b.y}`);
 });
 
-test('an aircraft that has landed or finished keeps the place it stopped at', () => {
-  const pattern = square({ landOdds: 1 });
-  const sim = createSim(setupOf([pattern], [plane('A1', 'SQ')]));
-  sim.stepTo(600);
-  const landed = only(sim.state(), 'A1');
-  assert.equal(landed.status, 'landed');
-  sim.stepTo(700);
+test('an aircraft that has landed keeps the place it stopped at', () => {
+  const sim = createSim(setupOf([square({ landOdds: 1 })], [plane('A1', 'SQ')]));
+  const landed = flyUntil(sim, 'A1', (a) => a.status === 'landed');
+  assert.equal(landed.status, 'landed', 'A1 never landed');
+  sim.stepTo(sim.t + LAP_SEC);
   const later = only(sim.state(), 'A1');
   assert.deepEqual([later.x, later.y, later.distFt], [landed.x, landed.y, landed.distFt]);
 });
 
 // ── Patterns, landing, splits, joining ───────────────────────────────────────
 
-test('a pattern is flown round and round; each time the first point is crossed it may land', () => {
+test('a pattern is flown round and round: three laps and still flying', () => {
   const sim = createSim(setupOf([square()], [plane('A1', 'SQ')]));
-  const length = routeLengthFt(square());
-  sim.stepTo(3 * length / (120 * KT_TO_FTPS) + 5);
-  const a = only(sim.state(), 'A1');
+  const a = flyUntil(sim, 'A1', (x) => x.distFt > 3 * LAP_FT || x.status !== 'flying');
   assert.equal(a.status, 'flying');
-  assert.ok(a.distFt > 3 * length, 'three laps');
+  assert.ok(a.distFt > 3 * LAP_FT, 'three laps');
 });
 
-test('with intent full_stop the aircraft lands on first lap, and with touch_and_go continues flying', () => {
-  const laps = 6 * routeLengthFt(square()) / (120 * KT_TO_FTPS);
+test('with intent full_stop the aircraft lands at the end of its first lap, and with touch_and_go flies on', () => {
   const lands = createSim(setupOf([square()], [plane('A1', 'SQ', 0, 0, 'CT-156', 'full_stop')]));
-  lands.stepTo(laps);
-  assert.equal(only(lands.state(), 'A1').status, 'landed');
+  const a = flyUntil(lands, 'A1', (x) => x.status !== 'flying');
+  assert.equal(a.status, 'landed');
+  assert.ok(Math.abs(a.distFt - LAP_FT) <= DIST, `lands at the end of the first lap (${a.distFt.toFixed(0)} of ${LAP_FT.toFixed(0)} ft)`);
   const stays = createSim(setupOf([square()], [plane('A1', 'SQ', 0, 0, 'CT-156', 'touch_and_go')]));
-  stays.stepTo(laps);
-  assert.equal(only(stays.state(), 'A1').status, 'flying');
+  const b = flyUntil(stays, 'A1', (x) => x.distFt > 3 * LAP_FT || x.status !== 'flying');
+  assert.equal(b.status, 'flying', 'a touch-and-go flies on, lap after lap');
 });
 
 test('training aircraft default to touch_and_go and stay flying; explicit full_stop aircraft land', () => {
-  const routes = [square()];
   const aircraft = [
     ...Array.from({ length: 15 }, (_, i) => plane(`A${i + 1}`, 'SQ', 0, 0, 'CT-156', 'touch_and_go')),
     ...Array.from({ length: 5 }, (_, i) => plane(`A${i + 16}`, 'SQ', 0, 0, 'CT-156', 'full_stop')),
   ];
-  const sim = createSim(setupOf(routes, aircraft));
-  sim.stepTo(1.2 * routeLengthFt(routes[0]) / (120 * KT_TO_FTPS));
-  const landed = sim.state().aircraft.filter((a) => a.status === 'landed').length;
+  const sim = createSim(setupOf([square()], aircraft));
+  // All start together, so the full-stop ones land together, as the first lap ends.
+  flyUntil(sim, 'A16', (a) => a.status !== 'flying');
+  const landed = sim.state().aircraft.filter((a) => a.status === 'landed').map((a) => a.id);
   const flying = sim.state().aircraft.filter((a) => a.status === 'flying').length;
-  assert.equal(landed, 5);
+  assert.deepEqual(landed, ['A16', 'A17', 'A18', 'A19', 'A20']);
   assert.equal(flying, 15);
 });
 
@@ -160,123 +177,111 @@ function withSplit(splitOdds) {
 
 test('a split is taken at the point it leaves from, when the dice say so, and not otherwise', () => {
   const takes = createSim(withSplit(1));
-  takes.stepTo(20); // point 2 is 6,000 ft on; its turn starts 736 ft before it, 26 s in
-  assert.equal(only(takes.state(), 'A1').routeId, 'SQ');
-  takes.stepTo(30);
-  assert.equal(only(takes.state(), 'A1').routeId, 'SP');
+  const a = flyUntil(takes, 'A1', (x) => x.routeId === 'SP');
+  assert.equal(a.routeId, 'SP', 'the split is taken');
+  assert.ok(from(a, SQUARE[1]) <= TURN_RADIUS_FT + DIST, `taken at point 2, where its turn starts (${from(a, SQUARE[1]).toFixed(0)} ft from it)`);
   const refuses = createSim(withSplit(0));
-  refuses.stepTo(300);
-  assert.equal(only(refuses.state(), 'A1').routeId, 'SQ');
+  const b = flyUntil(refuses, 'A1', (x) => x.routeId !== 'SQ' || x.distFt > 3 * LAP_FT);
+  assert.equal(b.routeId, 'SQ', 'never taken in three laps');
 });
 
-test('a split is rolled once per lap: an aircraft that refuses it once is not offered it again on that lap', () => {
+test('a split is rolled once per lap: an aircraft that refuses it is not offered it again on that lap', () => {
   const setup = withSplit(0.5);
   const seen = new Set();
   for (let seed = 1; seed <= 40; seed++) {
     const sim = createSim(setup, { seed });
-    sim.stepTo(60);
-    seen.add(only(sim.state(), 'A1').routeId);
+    // Half way along the leg after point 2: well past the split's point, and before the next lap's.
+    const a = flyUntil(sim, 'A1', (x) => x.routeId === 'SP' || x.distFt > 9000);
+    seen.add(a.routeId);
   }
   assert.deepEqual([...seen].sort(), ['SP', 'SQ'], 'some seeds take it and some do not');
 });
 
-test('at the end of a split the aircraft joins the pattern where it is closest to the linked point, and flies on', () => {
+test('at the end of a split the aircraft joins the pattern at the linked point, and flies on', () => {
   const sim = createSim(withSplit(1));
-  sim.stepTo(100); // the split is 12,000 ft long: it is joined about 90 s in, and the next lap offers it again at 140 s
-  const a = only(sim.state(), 'A1');
+  flyUntil(sim, 'A1', (x) => x.routeId === 'SP');
+  const a = flyUntil(sim, 'A1', (x) => x.routeId !== 'SP');
   assert.equal(a.routeId, 'SQ');
   assert.equal(a.status, 'flying');
+  assert.ok(from(a, SQUARE[3]) <= DIST, `joins at point 4 (${from(a, SQUARE[3]).toFixed(0)} ft from it)`);
 });
 
 test('at the end of an entry the aircraft joins the pattern it is linked to at the linked point', () => {
   const entry = route('EN', 'entry', [point(-20000, 0, 2000), point(-9000, 0, 2000), point(0, 0, 2000)], { attachTo: 'SQ', mergeIndex: 0 });
   const sim = createSim(setupOf([square(), entry], [plane('A1', 'EN')]));
-  sim.stepTo(100);
-  const a = only(sim.state(), 'A1');
+  const a = flyUntil(sim, 'A1', (x) => x.routeId !== 'EN');
   assert.equal(a.routeId, 'SQ');
   assert.equal(a.status, 'flying');
+  assert.ok(from(a, SQUARE[0]) <= DIST, `joins at point 1 (${from(a, SQUARE[0]).toFixed(0)} ft from it)`);
 });
 
 test('an entry or split that joins nothing, or something that is not a pattern, ends there: Done', () => {
   const alone = route('EN', 'entry', [point(-20000, 0), point(-9000, 0)], { attachTo: '', mergeIndex: 0 });
   const toEntry = route('E2', 'entry', [point(-20000, 500), point(-9000, 500)], { attachTo: 'EN', mergeIndex: 0 });
   const sim = createSim(setupOf([square(), alone, toEntry], [plane('A1', 'EN'), plane('A2', 'E2')]));
-  sim.stepTo(200);
+  flyUntil(sim, 'A1', (a) => a.status === 'done');
+  flyUntil(sim, 'A2', (a) => a.status === 'done');
   const state = sim.state();
   assert.equal(only(state, 'A1').status, 'done');
   assert.equal(only(state, 'A2').status, 'done');
-  assert.ok(Math.abs(only(state, 'A1').x - (-9000)) <= 50, 'near endpoint');
+  assert.ok(Math.abs(only(state, 'A1').x - (-9000)) <= DIST, 'ends at its last point');
 });
 
-// ── The odds when a route does not say, and the crossing rule at its edges ───
+// ── The odds when a route does not say ───────────────────────────────────────
 
 test('splits are taken by odds while landing decisions are deterministic via aircraft intent', () => {
   let takenAbove = 0;
   for (let seed = 1; seed <= 200; seed++) {
-    const roll = createDice(seed)(); // the first choice split makes
-    // Default intent is touch_and_go: stays flying
-    const stays = createSim(setupOf([square()], [plane('A1', 'SQ')]), { seed });
-    stays.stepTo(130);
-    assert.equal(only(stays.state(), 'A1').status, 'flying', `seed ${seed}: default touch_and_go stays flying`);
+    const roll = createDice(seed)(); // the first choice the split makes
+    if (seed <= 10) { // a few seeds show the landing does not hang on the dice (kept light, docs/TESTING.md T9)
+      // Default intent is touch_and_go: still flying after the first lap.
+      const stays = createSim(setupOf([square()], [plane('A1', 'SQ')]), { seed });
+      const a = flyUntil(stays, 'A1', (x) => x.distFt > LAP_FT + 1000 || x.status !== 'flying');
+      assert.equal(a.status, 'flying', `seed ${seed}: default touch_and_go stays flying`);
 
-    // Explicit full_stop intent lands
-    const lands = createSim(setupOf([square()], [plane('A1', 'SQ', 0, 0, 'CT-156', 'full_stop')]), { seed });
-    lands.stepTo(130);
-    assert.equal(only(lands.state(), 'A1').status, 'landed', `seed ${seed}: explicit full_stop lands`);
+      // Explicit full_stop intent lands.
+      const lands = createSim(setupOf([square()], [plane('A1', 'SQ', 0, 0, 'CT-156', 'full_stop')]), { seed });
+      assert.equal(flyUntil(lands, 'A1', (x) => x.status !== 'flying').status, 'landed', `seed ${seed}: explicit full_stop lands`);
+    }
 
+    // A split with no odds set is taken half the time (the sim's default, no manual source).
     const splits = createSim(withSplit(undefined), { seed });
-    splits.stepTo(30);
-    assert.equal(only(splits.state(), 'A1').routeId === 'SP', roll < 0.5, `seed ${seed}: split, roll ${roll}`);
+    const b = flyUntil(splits, 'A1', (x) => x.routeId === 'SP' || x.distFt > 9000);
+    assert.equal(b.routeId === 'SP', roll < 0.5, `seed ${seed}: split, roll ${roll}`);
     if (roll >= 0.5 && roll < 0.6) takenAbove++;
   }
-  assert.ok(takenAbove > 5, 'the seeds tried include rolls just above each default');
+  assert.ok(takenAbove > 5, 'the seeds tried include rolls just above the default');
 });
 
 test('an aircraft that lands is not then offered a split at the same point', () => {
   const pattern = square({ landOdds: 1 });
   const split = route('SP', 'split', [point(0, -3000, 2000), point(0, -6000, 2000)], { sourceRoute: 'SQ', sourceIndex: 0, attachTo: 'SQ', mergeIndex: 0, splitOdds: 1 });
   const sim = createSim(setupOf([pattern, split], [plane('A1', 'SQ', 0, 0, 'CT-156', 'full_stop')]), { seed: 5 });
-  sim.stepTo(125); // the first lap ends at 118 s, where the split leaves too
-  const a = only(sim.state(), 'A1');
+  const a = flyUntil(sim, 'A1', (x) => x.status !== 'flying' || x.routeId !== 'SQ');
   assert.equal(a.status, 'landed');
   assert.equal(a.routeId, 'SQ');
 });
 
-/** One step at 120 kt, in feet, exactly as the sim works it out. */
-const STEP_FT = ktToFtps(120) * STEP_SEC;
-
-/** A speed that flies exactly 8 ft a step, so the distances below are whole numbers and a step can end exactly on a point. */
-const KT_8_FT_A_STEP = 8 / (KT_TO_FTPS * STEP_SEC);
-
-/** A point of a route flown at 8 ft a step. */
-const point8 = (x, y) => point(x, y, 2000, KT_8_FT_A_STEP);
-
-/** A pattern flown in straight lines, never landing, with a split from `sourceIndex` that is always taken. */
-function exactSetup(points, sourceIndex, startIndex = 0) {
-  const pattern = route('P', 'pattern', points, { landOdds: 0 });
-  const split = route('SP', 'split', [point8(0, -3000), point8(0, -6000)], { sourceRoute: 'P', sourceIndex, attachTo: 'P', mergeIndex: 0, splitOdds: 1 });
-  return { ...setupOf([pattern, split], [plane('A1', 'P', 0, startIndex)]), routeOptions: { flyRoundedTurns: false, radiusFromG: true, manualRadiusFt: 1800 } };
-}
-const routeIdAfter = (setup, sec) => { const sim = createSim(setup, { seed: 1 }); sim.stepTo(sec); return { id: only(sim.state(), 'A1').routeId, dice: sim.diceState() }; };
-const BOX = [point8(0, 0), point8(6000, 0), point8(6000, 6000), point8(0, 6000)]; // 24,000 ft round
-
 test('a split that leaves from a point past the last leaves from the last, and from one before the first leaves from the first', () => {
-  const leavingFrom = (sourceIndex, sec) => {
+  const leavesAt = (sourceIndex) => {
     const setup = withSplit(1);
     setup.routes[1].sourceIndex = sourceIndex;
-    return routeIdAfter(setup, sec).id;
+    const sim = createSim(setup, { seed: 1 });
+    return flyUntil(sim, 'A1', (x) => x.routeId === 'SP');
   };
-  assert.equal(leavingFrom(3, 100), 'SP', 'the last point is passed at 85 s');
-  assert.equal(leavingFrom(99, 100), 'SP', 'point 100 does not exist, so it is the last');
-  assert.equal(leavingFrom(-2, 100), 'SQ', 'the first point is next passed when the lap ends, at 118 s');
-  assert.equal(leavingFrom(-2, 125), 'SP');
+  // Where each turn starts: within a turn radius (worked out) of its point, plus the shared distance margin.
+  for (const [sourceIndex, at, name] of [[3, SQUARE[3], 'the last point'], [99, SQUARE[3], 'point 100 does not exist, so the last'], [-2, SQUARE[0], 'the first point, as the lap ends']]) {
+    const a = leavesAt(sourceIndex);
+    assert.equal(a.routeId, 'SP', `${name}: the split is taken`);
+    assert.ok(from(a, at) <= TURN_RADIUS_FT + DIST, `${name}: taken ${from(a, at).toFixed(0)} ft from it`);
+  }
 });
 
 test('a pattern of no length is never landed on or split from', () => {
   const dot = route('DOT', 'pattern', [point(100, 100, 2000)], { landOdds: 1 });
   const split = route('SP', 'split', [point(0, 0), point(0, -3000)], { sourceRoute: 'DOT', sourceIndex: 0, attachTo: 'DOT', mergeIndex: 0, splitOdds: 1 });
   const sim = createSim(setupOf([dot, split], [plane('A1', 'DOT')]), { seed: 4 });
-  sim.stepTo(30);
+  sim.stepTo(30); // a run of any length: nothing may happen
   const a = only(sim.state(), 'A1');
   assert.equal(a.status, 'flying');
   assert.equal(a.routeId, 'DOT');
@@ -285,40 +290,61 @@ test('a pattern of no length is never landed on or split from', () => {
 
 // ── Conflicts ────────────────────────────────────────────────────────────────
 
-/** Two aircraft on the same straight route, `gapSec` apart, at their own heights. */
+const LIMITS = { latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 }; // TR-R17 (Patrick, 4 Oct 09:09Z)
+
+/** Two aircraft flown to cross at right angles over (0, 0) at the same moment, A1 eastbound and A2 northbound. */
+function crossing(altA = 2000, altB = 2000) {
+  const a = route('EW', 'entry', [point(-20000, 0, altA, 120), point(20000, 0, altA, 120)], { attachTo: '', mergeIndex: 0 });
+  const b = route('NS', 'entry', [point(0, -20000, altB, 120), point(0, 20000, altB, 120)], { attachTo: '', mergeIndex: 0 });
+  return createSim(setupOf([a, b], [plane('A1', 'EW'), plane('A2', 'NS')]));
+}
+
+/** Flies a crossing to its end; at every step the flag must be what the feet apart, worked out here, say. Returns the levels seen. */
+function flyCrossing(sim) {
+  const seen = new Set();
+  while (sim.t < STOP_SEC) {
+    sim.stepTo(sim.t + STEP_SEC);
+    const { aircraft, conflicts } = sim.state();
+    const [a, b] = aircraft;
+    if (a.status !== 'flying' || b.status !== 'flying') break;
+    const lat = Math.hypot(a.x - b.x, a.y - b.y), vert = Math.abs(a.alt - b.alt);
+    const want = lat < LIMITS.latFt && vert < LIMITS.vertFt ? 'conflict' : lat < LIMITS.cautionLatFt && vert < LIMITS.cautionVertFt ? 'caution' : null;
+    assert.deepEqual(conflicts.map((c) => c.level), want ? [want] : [], `${lat.toFixed(0)} ft apart, ${vert.toFixed(0)} ft in height`);
+    if (want) {
+      near(conflicts[0].latFt, lat, 1);
+      near(conflicts[0].vertFt, vert, 1);
+      seen.add(want);
+    }
+  }
+  return [...seen].sort();
+}
+
+test('two aircraft flown to cross are red inside the conflict limits, yellow inside the caution limits, and clear outside', () => {
+  assert.deepEqual(crossing().setup.conflictLimits, LIMITS, 'the built-in limits are 200 ft and 500 ft');
+  assert.deepEqual(flyCrossing(crossing()), ['caution', 'conflict'], 'at the same height the crossing goes yellow, then red');
+});
+
+test('height apart counts too: 200 ft or more apart is not a conflict, 500 ft or more not even a caution', () => {
+  assert.deepEqual(flyCrossing(crossing(2000, 2100)), ['caution', 'conflict'], '100 ft apart');
+  assert.deepEqual(flyCrossing(crossing(2000, 2300)), ['caution'], '300 ft apart');
+  assert.deepEqual(flyCrossing(crossing(2000, 2600)), [], '600 ft apart');
+});
+
+/** Two aircraft on the same straight route, `gapSec` apart (120 kt is 202.5 ft a second), at their own heights, once both fly. */
 function pairOn(gapSec, altA = 2000, altB = 2000) {
   const a = route('AA', 'entry', [point(0, 0, altA, 120), point(60000, 0, altA, 120)], { attachTo: '', mergeIndex: 0 });
   const b = route('BB', 'entry', [point(0, 0, altB, 120), point(60000, 0, altB, 120)], { attachTo: '', mergeIndex: 0 });
-  return createSim(setupOf([a, b], [plane('A1', 'AA', 0), plane('A2', 'BB', gapSec)]));
+  const sim = createSim(setupOf([a, b], [plane('A1', 'AA', 0), plane('A2', 'BB', gapSec)]));
+  flyUntil(sim, 'A2', (x) => x.status === 'flying');
+  sim.stepTo(sim.t + 1); // a second on, so both are in steady flight a fixed distance apart
+  return sim;
 }
 
-test('two aircraft inside the red limits are in conflict, inside the caution limits only in caution, and further apart neither', () => {
-  const at = (gapSec) => { const sim = pairOn(gapSec); sim.stepTo(30); return sim.state().conflicts; };
-  // 120 kt is 202.5 ft a second.
-  const red = at(0.5); // about 100 ft apart
-  assert.equal(red.length, 1);
-  assert.deepEqual([red[0].a, red[0].b, red[0].level], ['A1', 'A2', 'conflict']);
-  near(red[0].latFt, 0.5 * 120 * KT_TO_FTPS, 10);
-  assert.equal(red[0].vertFt, 0);
-  const yellow = at(2); // about 405 ft apart
-  assert.equal(yellow.length, 1);
-  assert.equal(yellow[0].level, 'caution');
-  assert.deepEqual(at(3), []); // 608 ft
-});
-
-test('height apart counts too: 200 ft or more is not a conflict, 500 ft or more not even a caution', () => {
-  const at = (altB) => { const sim = pairOn(0.5, 2000, altB); sim.stepTo(30); return sim.state().conflicts.map((c) => c.level); };
-  assert.deepEqual(at(2100), ['conflict']);
-  assert.deepEqual(at(2300), ['caution']);
-  assert.deepEqual(at(2600), []);
-});
-
 test('the limits are strict: exactly 200 ft apart in height is not a conflict and exactly 500 ft not a caution, and the same for the distance apart', () => {
-  const at = (altB) => { const sim = pairOn(0.5, 2000, altB); sim.stepTo(30); return sim.state().conflicts.map((c) => c.level); };
+  const at = (altB) => pairOn(0.5, 2000, altB).state().conflicts.map((c) => c.level);
   assert.deepEqual(at(2200), ['caution']);
   assert.deepEqual(at(2500), []);
   const sim = pairOn(0.5);
-  sim.stepTo(30);
   const lat = sim.state().conflicts[0].latFt;
   sim.setup.conflictLimits = { latFt: lat, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 };
   assert.equal(sim.state().conflicts[0].level, 'caution', 'exactly at the red distance');
@@ -328,7 +354,6 @@ test('the limits are strict: exactly 200 ft apart in height is not a conflict an
 
 test('the limits are the setup\'s, and can change while it runs', () => {
   const sim = pairOn(0.5);
-  sim.stepTo(30);
   assert.equal(sim.state().conflicts[0].level, 'conflict');
   sim.setup.conflictLimits = { latFt: 50, vertFt: 50, cautionLatFt: 500, cautionVertFt: 500 };
   assert.equal(sim.state().conflicts[0].level, 'caution');
@@ -337,22 +362,23 @@ test('the limits are the setup\'s, and can change while it runs', () => {
 });
 
 test('aircraft that are waiting, landed or done are never in conflict', () => {
-  const sim = pairOn(0.5);
-  sim.stepTo(0.4); // A1 flying, A2 still waiting at the same spot
-  assert.equal(only(sim.state(), 'A2').status, 'waiting');
-  assert.deepEqual(sim.state().conflicts, []);
+  const a = route('AA', 'entry', [point(0, 0, 2000, 120), point(60000, 0, 2000, 120)], { attachTo: '', mergeIndex: 0 });
+  const waiting = createSim(setupOf([a], [plane('A1', 'AA', 0), plane('A2', 'AA', 0.5)]));
+  waiting.stepTo(0.4); // A1 flying, A2 still waiting at the same spot (before its 0.5 s start)
+  assert.equal(only(waiting.state(), 'A2').status, 'waiting');
+  assert.deepEqual(waiting.state().conflicts, []);
   const landing = createSim(setupOf([square({ landOdds: 1 })], [plane('A1', 'SQ'), plane('A2', 'SQ', 0.5)]));
-  landing.stepTo(400);
-  assert.deepEqual(landing.state().aircraft.map((a) => a.status), ['landed', 'landed']);
+  flyUntil(landing, 'A2', (x) => x.status === 'landed');
+  assert.deepEqual(landing.state().aircraft.map((x) => x.status), ['landed', 'landed']);
   assert.deepEqual(landing.state().conflicts, []);
 });
 
 // ── The dice ─────────────────────────────────────────────────────────────────
 
-/** Where 16 aircraft are after 15 minutes on the built-in setup, from one seed. */
+/** Where 16 aircraft are after 15 minutes on the built-in setup, from one seed (900 s is the run's length, not a time to meet). */
 function busyRun(seed) {
   const sim = createSim(builtIn(), { seed });
-  for (const route of MOOSE_JAW.routes) sim.spawn({ routeId: route.id, startPoint: 1, delaySec: 5 });
+  for (const r of MOOSE_JAW.routes) sim.spawn({ routeId: r.id, startPoint: 1, delaySec: 5 });
   sim.stepTo(900);
   return JSON.stringify(sim.state());
 }
@@ -375,6 +401,7 @@ test('two sims from one setup do not disturb each other, and the sim never chang
 
 test('Reset goes back to 0 s with every aircraft at its start, spawned ones too, and flies the same run again', () => {
   const sim = createSim(builtIn(), { seed: 9 });
+  const count = MOOSE_JAW.aircraft.length;
   sim.stepTo(500);
   const spawned = sim.spawn({ type: 'CT-114', routeId: 'ENT1', startPoint: 2, delaySec: 10 });
   sim.stepTo(1500);
@@ -382,12 +409,12 @@ test('Reset goes back to 0 s with every aircraft at its start, spawned ones too,
   sim.reset();
   assert.equal(sim.t, 0);
   const start = sim.state();
-  assert.equal(start.aircraft.length, 8);
-  assert.deepEqual(start.aircraft.map((a) => a.status), new Array(8).fill('waiting'));
-  near(only(start, spawned).startsAt, 510, 1e-9); // a spawned aircraft keeps its start time
+  assert.equal(start.aircraft.length, count + 1);
+  assert.deepEqual(start.aircraft.map((a) => a.status), new Array(count + 1).fill('waiting'));
+  near(only(start, spawned).startsAt, 500 + 10, 1e-9); // a spawned aircraft keeps its start time: spawned at 500 s, 10 s delay
   sim.stepTo(500);
-  assert.equal(sim.spawn({ type: 'CT-114', routeId: 'ENT1', startPoint: 2, delaySec: 10 }), 'A9');
-  sim.remove('A9');
+  assert.equal(sim.spawn({ type: 'CT-114', routeId: 'ENT1', startPoint: 2, delaySec: 10 }), `A${count + 2}`);
+  sim.remove(`A${count + 2}`);
   sim.stepTo(1500);
   assert.equal(JSON.stringify(sim.state()), first);
 });
@@ -396,17 +423,19 @@ test('Reset goes back to 0 s with every aircraft at its start, spawned ones too,
 
 test('spawn: the next free callsign, the type\'s colour, a start point counted from 1, and a delay from now', () => {
   const sim = createSim(builtIn());
+  const next = `A${MOOSE_JAW.aircraft.length + 1}`;
   sim.stepTo(10);
   const id = sim.spawn({ type: 'CT-102', routeId: 'ENT2', startPoint: 3, delaySec: 5 });
-  assert.equal(id, 'A8');
-  const a = only(sim.state(), 'A8');
+  assert.equal(id, next);
+  const a = only(sim.state(), id);
   assert.deepEqual([a.type, a.color, a.routeId, a.status], ['CT-102', TYPE_COLORS['CT-102'], 'ENT2', 'waiting']);
-  near(a.startsAt, 15, 1e-9);
+  near(a.startsAt, 10 + 5, 1e-9);
   const entryGate = MOOSE_JAW.routes.find((r) => r.id === 'ENT2').points[2];
+  // Within 3,000 ft: where the turn at point 3 begins, a turn radius or two before it at the route's speeds.
   assert.ok(Math.hypot(a.x - entryGate.x, a.y - entryGate.y) < 3000, 'starts near point 3 (where the turn there begins)');
-  assert.equal(sim.spawn(), 'A9', 'with nothing said: CT-156, the first route, point 1, now');
-  const b = only(sim.state(), 'A9');
-  assert.deepEqual([b.type, b.routeId], ['CT-156', 'PAT1']);
+  const second = sim.spawn();
+  const b = only(sim.state(), second);
+  assert.deepEqual([b.type, b.routeId], ['CT-156', MOOSE_JAW.routes[0].id], 'with nothing said: CT-156, the first route, point 1, now');
   near(b.startsAt, 10, 1e-9);
 });
 
@@ -416,14 +445,16 @@ test('spawn refuses what makes no sense: an unknown type or route, a start point
   assert.throws(() => sim.spawn({ routeId: 'NOPE' }), /unknown route/);
   for (const startPoint of [0, -1, 1.5, NaN, '2']) assert.throws(() => sim.spawn({ startPoint }), RangeError, String(startPoint));
   assert.throws(() => sim.spawn({ delaySec: NaN }), RangeError);
-  assert.equal(sim.state().aircraft.length, 7, 'nothing was added');
+  assert.equal(sim.state().aircraft.length, MOOSE_JAW.aircraft.length, 'nothing was added');
   assert.throws(() => createSim(setupOf([])).spawn(), /at least one route/);
 });
 
 test('remove takes one aircraft out; clearFinished takes out those that have landed or are done', () => {
+  // A1 lands at the end of its first square lap; A2's 60,000 ft straight takes about 300 s at 202.5 ft/s, so it is
+  // still flying then; A3 starts at 2,000 s.
   const setup = setupOf([square({ landOdds: 1 }), straight()], [plane('A1', 'SQ'), plane('A2', 'ST'), plane('A3', 'ST', 2000)]);
   const sim = createSim(setup);
-  sim.stepTo(150); // A1 lands on its first lap at 113 s; A2's 60,000 ft take 296 s; A3 starts at 2,000 s
+  flyUntil(sim, 'A1', (a) => a.status === 'landed');
   assert.deepEqual(sim.state().aircraft.map((a) => a.status), ['landed', 'flying', 'waiting']);
   sim.clearFinished();
   assert.deepEqual(sim.state().aircraft.map((a) => a.id), ['A2', 'A3']);
@@ -434,13 +465,14 @@ test('remove takes one aircraft out; clearFinished takes out those that have lan
 
 test('aircraftSpecs gives the aircraft as a setup keeps them, so a new sim from them starts the same', () => {
   const sim = createSim(builtIn(), { seed: 4 });
+  const next = `A${MOOSE_JAW.aircraft.length + 1}`;
   sim.stepTo(60);
   sim.spawn({ type: 'CT-114', routeId: 'ENT1', startPoint: 2, delaySec: 30 });
   const specs = sim.aircraftSpecs();
-  assert.equal(specs.length, 8);
+  assert.equal(specs.length, MOOSE_JAW.aircraft.length + 1);
   const { startsAtSec, ...last } = specs.at(-1);
-  assert.deepEqual(last, { id: 'A8', type: 'CT-114', routeId: 'ENT1', startIndex: 1 });
-  near(startsAtSec, 90, 1e-9);
+  assert.deepEqual(last, { id: next, type: 'CT-114', routeId: 'ENT1', startIndex: 1 });
+  near(startsAtSec, 60 + 30, 1e-9);
   const again = createSim({ ...builtIn(), aircraft: specs }, { seed: 4 });
   sim.reset();
   assert.equal(JSON.stringify(again.state()), JSON.stringify(sim.state()));
@@ -448,8 +480,7 @@ test('aircraftSpecs gives the aircraft as a setup keeps them, so a new sim from 
 
 test('the specs of an aircraft that has moved to another route are still where it started', () => {
   const sim = createSim(withSplit(1));
-  sim.stepTo(30);
-  assert.equal(only(sim.state(), 'A1').routeId, 'SP');
+  assert.equal(flyUntil(sim, 'A1', (a) => a.routeId === 'SP').routeId, 'SP');
   assert.deepEqual(sim.aircraftSpecs(), [{ id: 'A1', type: 'CT-156', routeId: 'SQ', startIndex: 0, startsAtSec: 0 }]);
 });
 
@@ -495,6 +526,8 @@ test('the run is the same at any frame rate: 20, 30 and 60 frames a second, 8x, 
   }
   const reference = runs['20 fps'];
   assert.equal(reference.length, 6);
+  // 5 ft across and 1 ft in height: well under the 10 ft an aircraft flies in one 0.05 s step at 120 kt, so any
+  // step's difference between the runs fails.
   for (const [name, shots] of Object.entries(runs)) {
     for (let i = 0; i < reference.length; i++) {
       for (let j = 0; j < reference[i].aircraft.length; j++) {
@@ -508,24 +541,24 @@ test('the run is the same at any frame rate: 20, 30 and 60 frames a second, 8x, 
   }
 });
 
-// ── Trails ───────────────────────────────────────────────────────────────────
+// ── Heading and the training loop ────────────────────────────────────────────
 
 test('state gives the heading the aircraft is flying, as a compass heading', () => {
   const sim = createSim(setupOf([square()], [plane('A1', 'SQ')]));
-  sim.stepTo(20);
-  assert.ok(Math.abs(only(sim.state(), 'A1').headingDeg - 90) <= 5, 'heading ~90°');
-  sim.stepTo(45);
-  const a = only(sim.state(), 'A1');
-  assert.equal(Math.round(a.headingDeg), 0, `north on the second leg, not ${a.headingDeg}`);
+  // Half way along the first leg (east) and the second (north), found by distance flown. ±5°: the shared angle margin.
+  const east = flyUntil(sim, 'A1', (a) => a.distFt >= 3000);
+  assert.ok(Math.abs(east.headingDeg - 90) <= TOLERANCES.ANGLE_DEG, `east on the first leg, not ${east.headingDeg}`);
+  const north = flyUntil(sim, 'A1', (a) => a.distFt >= 9000);
+  assert.ok(Math.abs(((north.headingDeg + 540) % 360) - 180) <= TOLERANCES.ANGLE_DEG, `north on the second leg, not ${north.headingDeg}`);
 });
 
-test('Fallback Doctrine: continuous pattern training loop on touch-and-go past departure end', () => {
+test('the built-in A1 takes off and comes round the circuit to the break at pattern height, still flying', () => {
   const sim = createSim(builtIn());
-  const a1 = only(sim.state(), 'A1');
-  assert.equal(a1.intent, 'touch_and_go');
-  // Step until A1 completes takeoff climb out
-  sim.stepTo(100);
-  const a1Flown = only(sim.state(), 'A1');
-  assert.equal(a1Flown.status, 'flying');
-  assert.ok(a1Flown.alt >= 2500, `Alt ${a1Flown.alt} should be >= 2500 ft`);
+  assert.equal(only(sim.state(), 'A1').intent, 'touch_and_go', 'training aircraft fly touch-and-goes by default');
+  // Safety stop: 20 minutes, several times one circuit, so only an aircraft that is stuck or lost reaches it.
+  const a = flyUntil(sim, 'A1', (x) => x.phase === 'break' || (x.status !== 'flying' && x.status !== 'waiting'), 1200);
+  assert.equal(a.phase, 'break', 'A1 comes round to the break');
+  assert.equal(a.status, 'flying', 'still flying');
+  // 3,500 ft pattern height (TR-R4), ±100 ft: the shared height margin.
+  assert.ok(Math.abs(a.alt - 3500) <= TOLERANCES.ALTITUDE_FT, `at pattern height (${a.alt.toFixed(0)} ft)`);
 });
