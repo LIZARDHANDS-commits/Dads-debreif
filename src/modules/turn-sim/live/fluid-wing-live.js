@@ -5,9 +5,8 @@
 // rate and onset for the speed, the stick shaker the one physical limit). He is not on a line. Each step a pilot law
 // reads the picture and asks for a lift, a roll and a power, as a pilot does:
 //
-//  - The path (EFIG p.391: "once in position maintain range by following lead's flight path (maintain lead's turn
-//    circle)"; "go to where lead was and do what lead did"): #2 flies Lead's own track, offset across to his side by the
-//    15° off Lead's tail (Patrick 4 Oct 22:28Z, "hold 15"), in whatever plane Lead's turn lies: a level turn, a loop,
+//  - The path (EFIG p.391: once in position, keep the range by following Lead's flight path, his turn circle): #2
+//    flies Lead's own track, offset across to his side by the 15° off Lead's tail (Patrick 4 Oct 22:28Z, "hold 15"), in whatever plane Lead's turn lies: a level turn, a loop,
 //    a wingover or the barrel roll. On Lead's path at Lead's power he has Lead's energy where Lead had it.
 //  - The pursuit: core liftTowardAim at the aim on that path about 1.5 s of flight ahead of him, at a gain of 2V over
 //    that distance, which flies the path's own curve (standard L1 guidance: the lateral acceleration 2V²/L sin η is
@@ -25,7 +24,7 @@
 //    top, lead from the top down, from Lead's own phase plus the time he has lost or gained on Lead's path; wider out of
 //    Lead's plane, not closer, where the range shrinks as Lead slows; on the outside of Lead's roll.
 //  - Power: MAX like Lead for all of fluid manoeuvring (Patrick 11 Oct 2026 22:32Z, "Both should be at max power for all
-//    of fluid maneuvering"; SMM 16.17 paras 42-43, "both aircraft maintain the same power setting"): the spacing is
+//    of fluid maneuvering"; SMM 16.17 paras 42-43: both on the same power): the spacing is
 //    flown by geometry alone, the entry included (Patrick 22:33Z and 22:55Z). While Lead holds a speed (Terminate) power flies his range, from Lead's new
 //    speed.
 //
