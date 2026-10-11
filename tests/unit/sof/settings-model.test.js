@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '../../../src/storage/store.js';
-import { SETTINGS_DEFAULTS, TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, snapLimits, createSofSettings } from '../../../src/modules/sof/settings-model.js';
+import { SETTINGS_DEFAULTS, TRIGGER_OPTIONS, BANNER_HINT, withTrigger, snapCeiling, snapVisibility, snapLimits, createSofSettings } from '../../../src/modules/sof/settings-model.js';
 
 const fresh = () => createSofSettings(createStore(null).scope('sof'));
 
@@ -138,37 +138,6 @@ test('the facade notifies subscribers with the cleaned values and resets to the 
   assert.deepEqual(seen, [2100]);
   settings.reset();
   assert.equal(settings.get().ceilingFt, 2000);
-});
-
-test('the traffic relay address starts empty, is kept as a string, and is dropped when it is not one or is too long', () => {
-  const settings = fresh();
-  assert.equal(settings.get().trafficRelay, '');
-  settings.update({ trafficRelay: 'https://relay.example.test' });
-  assert.equal(settings.get().trafficRelay, 'https://relay.example.test');
-  settings.update({ trafficRelay: 5 });
-  settings.update({ trafficRelay: 'https://x.test/' + 'a'.repeat(MAX_RELAY_CHARS) });
-  assert.equal(settings.get().trafficRelay, 'https://relay.example.test', 'a bad update changes nothing');
-  settings.reset();
-  assert.equal(settings.get().trafficRelay, '');
-});
-
-test('a stored relay address of the wrong type or too long is the default; spaces round it are trimmed on read but kept while typing', () => {
-  const store = createStore(null).scope('sof');
-  store.set('settings', { version: 1, values: { trafficRelay: 'x'.repeat(MAX_RELAY_CHARS + 1) } });
-  assert.equal(createSofSettings(store).get().trafficRelay, '');
-  const typed = createSofSettings(createStore(null).scope('sof'));
-  typed.update({ trafficRelay: '  https://relay.example.test ' });
-  assert.equal(typed.get().trafficRelay, 'https://relay.example.test');
-  assert.equal(typed.editing.get().trafficRelay, '  https://relay.example.test ');
-});
-
-test('only a good address counts as a relay: https, or http on localhost, the origin alone', () => {
-  for (const good of ['https://relay.example.test', 'https://traffic.someone.workers.dev', 'http://localhost:8787', 'http://127.0.0.1:8787', ' https://relay.example.test ']) {
-    assert.equal(relayAccepted(good), true, good);
-  }
-  for (const bad of ['', '   ', 'relay.example.test', 'http://relay.example.test', 'ftp://x.test', 'https://user:pw@x.test', 'https://x.test/traffic', 'https://x.test/?a=1', 'javascript:alert(1)', 'https://', null, undefined, 5]) {
-    assert.equal(relayAccepted(bad), false, String(bad));
-  }
 });
 
 test('the lightning radius is kept from 5 to 50 NM, whole numbers, for the control that is now live', () => {
