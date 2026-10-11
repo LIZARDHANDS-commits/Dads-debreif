@@ -93,7 +93,7 @@ def thick(xc, t):
 
 
 def cheat_z(x):
-    return -0.045 + (x - 0.48) * 0.0202
+    return -0.027  # level, as on Patrick's photo of 156102 (cheatZ)
 
 
 # ---------- the parameters (feet; null keeps the code tables) ----------
@@ -249,7 +249,7 @@ M = {
     'frame': material('frame', '#0c1017', 0.5),
     'blade': material('blade', '#0a0c10', 0.6),
     'tip': material('prop_tip', '#d2202c', 0.5),
-    'exhaust': material('exhaust', '#4a4d54', 0.45, 0.8),
+    'exhaust': material('exhaust', '#8a7a6c', 0.5, 0.6),
     'helmet': material('helmet', '#d4d8de', 0.35),
     'red': material('light_red', '#ff2b2b', emit=3),
     'green': material('light_green', '#2bff6a', emit=3),
@@ -304,19 +304,20 @@ verts += [(x, *canopy_point(canopy_at(x), math.pi * j / MC)) for j, x in enumera
 faces += [(centre, centre + 1 + j, centre + 2 + j) for j in range(MC)]
 mesh_object('fairing', verts, faces, M['navy'])
 
-# The cheat line: a thin white strip just off each side, nose number to tail.
-for side in (1, -1):
-    pts, faces = [], []
-    n = 64
-    for k in range(n + 1):
-        x = 0.395 + (-0.75 - 0.395) * k / n
-        zc = cheat_z(x)
-        for z in (zc + 0.0032, zc - 0.0032):
-            pts.append((x, side * fuse_surf(x, z), z))
-    for k in range(n):
-        p = 2 * k
-        faces.append((p, p + 1, p + 3, p + 2))
-    mesh_object(f'cheat_{side}', pts, faces, M['white'])
+# The cheat line: a white strip just off each side, nose number to tail, and a thin one ahead of the number under
+# the exhaust stack (cheatLine).
+for name, x0, x1, n, half, dz in (('cheat', 0.395, -0.75, 64, 0.0032, 0.0), ('cheat_nose', 0.552, 0.472, 8, 0.0016, -0.006)):
+    for side in (1, -1):
+        pts, faces = [], []
+        for k in range(n + 1):
+            x = x0 + (x1 - x0) * k / n
+            zc = cheat_z(x) + dz
+            for z in (zc + half, zc - half):
+                pts.append((x, side * fuse_surf(x, z), z))
+        for k in range(n):
+            p = 2 * k
+            faces.append((p, p + 1, p + 3, p + 2))
+        mesh_object(f'{name}_{side}', pts, faces, M['white'])
 
 # Wings (the code model's dihedral), tailplane, fin: smooth aerofoils with sharp trailing edges.
 for side, name in ((1, 'wing_left'), (-1, 'wing_right')):

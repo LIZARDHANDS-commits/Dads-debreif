@@ -171,8 +171,10 @@ function sillZ(x, halfWidth) {
   const c = Math.min(1, halfWidth / w) ** (n / 2);
   return zc + h * Math.sqrt(Math.max(1 - c * c, 0)) ** (2 / n);
 }
-// The cheat line's height along the fuselage: just below the canopy's sill at the nose, falling a little to the tail.
-const cheatZ = (x) => -0.045 + (x - 0.48) * 0.0202;
+// The cheat line's height along the fuselage: level, 0.6 ft under the spinner's axis, nose number to tail, as on
+// Patrick's side photo of 156102 (11 Oct 2026; measured against the dorsal's top and the belly; was 1.0 ft under the
+// axis at the nose falling to 1.6 ft at the tail, about 0.9 ft too low aft).
+const cheatZ = () => -0.027;
 
 // Wings: a low wing, its root's underside on the belly line (2.9 ft under the axis) and 8° dihedral on its chord, as the
 // T-6A-1 drawings show it (the front view of Figure 1-1-2: about 7° along the upper surface, 9.7° along the lower; the
@@ -781,21 +783,26 @@ function wingPatch(THREE, x, y, w, h, ax, ay, side, tilt) {
   return g;
 }
 
-// Cheat line: a thin white ribbon on both sides, nose to tail.
+// Cheat line: a white ribbon on both sides from just behind the nose number to the tail, and a thin one ahead of the
+// number, under the exhaust stack nearly to the spinner, a little lower (Patrick's photo of 156102).
 function cheatLine(THREE) {
   const pos = [], idx = [];
-  const N = 48, half = 0.0032;
-  const x0 = 0.395, x1 = -0.75; // from just behind the nose number to the tail (photo)
-  for (const side of [1, -1]) {
-    const base = pos.length / 3;
-    for (let k = 0; k <= N; k++) {
-      const x = x0 + ((x1 - x0) * k) / N;
-      const zc = cheatZ(x);
-      for (const z of [zc + half, zc - half]) pos.push(x, side * fuseSurf(x, z), z);
-    }
-    for (let k = 0; k < N; k++) {
-      const p = base + k * 2;
-      idx.push(p, p + 1, p + 2, p + 1, p + 3, p + 2);
+  const runs = [
+    { x0: 0.395, x1: -0.75, N: 48, half: 0.0032, z: cheatZ },
+    { x0: 0.552, x1: 0.472, N: 8, half: 0.0016, z: () => cheatZ() - 0.006 },
+  ];
+  for (const { x0, x1, N, half, z: zOf } of runs) {
+    for (const side of [1, -1]) {
+      const base = pos.length / 3;
+      for (let k = 0; k <= N; k++) {
+        const x = x0 + ((x1 - x0) * k) / N;
+        const zc = zOf(x);
+        for (const z of [zc + half, zc - half]) pos.push(x, side * fuseSurf(x, z), z);
+      }
+      for (let k = 0; k < N; k++) {
+        const p = base + k * 2;
+        idx.push(p, p + 1, p + 2, p + 1, p + 3, p + 2);
+      }
     }
   }
   const g = new THREE.BufferGeometry();
@@ -923,10 +930,11 @@ function buildKit(THREE) {
   const both = (make) => ({ 1: make(1), '-1': make(-1) });
   const decalGeo = {
     roundelSide: both((side) => patch(THREE, -0.333, cheatZ(-0.333), 0.05, 0.05, side, fuseSurf)),
-    canada: both((side) => patch(THREE, 0.194, -0.02, 0.085, 0.024, side, fuseSurf)),
-    triA: both((side) => patch(THREE, 0.082, -0.016, 0.022, 0.022, side, fuseSurf)),
-    triB: both((side) => patch(THREE, -0.151, -0.016, 0.022, 0.022, side, fuseSurf)),
-    triC: both((side) => patch(THREE, -0.033, -0.016, 0.015, 0.015, side, fuseSurf)),
+    // "Canada" and the rescue triangles just under the canopy's rail, as on Patrick's photo of 156102 (were 0.4 ft lower).
+    canada: both((side) => patch(THREE, 0.194, 0, 0.085, 0.024, side, fuseSurf)),
+    triA: both((side) => patch(THREE, 0.082, 0, 0.022, 0.022, side, fuseSurf)),
+    triB: both((side) => patch(THREE, -0.151, 0, 0.022, 0.022, side, fuseSurf)),
+    triC: both((side) => patch(THREE, -0.033, 0, 0.015, 0.015, side, fuseSurf)),
     nose: both((side) => patch(THREE, 0.425, cheatZ(0.425), 0.036, 0.045, side, fuseSurf)),
     // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
     // the fin above the tail cone (Patrick, 11 Oct 2026: "central on the vertical stab, not right on the edge"; was 0.03
@@ -956,7 +964,8 @@ function buildKit(THREE) {
     cheat: mat({ color: '#f1f4f8', roughness: 0.45, emissive: '#ffffff', emissiveIntensity: 0.3, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.2, envMapIntensity: 0.5 }),
     chrome: mat({ color: '#f2f5f8', roughness: 0.1, metalness: 1, envMap: env, envMapIntensity: 1.2 }),
-    exhaust: mat({ color: '#4a4d54', roughness: 0.45, metalness: 0.8, envMap: env, envMapIntensity: 0.6 }),
+    // Bare, heat-stained steel, as on Patrick's photo of 156102 (was a dark grey that read as paint).
+    exhaust: mat({ color: '#8a7a6c', roughness: 0.5, metalness: 0.6, envMap: env, envMapIntensity: 0.6 }),
     glass: mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two }),
     // The canopy seen from inside (setCockpitView): a faint clear tint, no reflections, so the sky shows through it.
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
