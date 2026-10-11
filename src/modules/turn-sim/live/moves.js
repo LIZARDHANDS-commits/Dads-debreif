@@ -42,15 +42,16 @@ export const REJOIN = Object.freeze({
  * The turning rejoin (V2.59, TS-68; flown as held bank and power since V2.63, TS-69; Patrick 5 Oct 07:14Z, card "Yes, as
  * written" 07:31Z, 07:32Z, 08:12Z-08:20Z): one rule for every turning rejoin, from line abreast (hot: #2 starts ahead of the
  * line and gets colder to reach it) or fighting wing (cold: he turns hotter to reach it). #2 gets onto the rejoin line, Lead
- * at his 10:30 or 1:30 with about half Lead's upper wing showing aft of the fin (Patrick: "where the tail and the wing make an
+ * at about his 11 o'clock or 1 o'clock with the fin two-thirds out along Lead's upper wing (TS-181) (Patrick: "where the tail and the wing make an
  * X"), on his own side, inside Lead's turn and slightly low; comes down it at Lead's speed plus the Rates overtake, taking it
  * out with power for the decision point (where the line reaches route's spacing); then he flows into route and on into the
  * slot in one motion (SMM 12.24 paras 56-58, Figs 12.14-12.15; 16.20 paras 65b-66). He goes behind Lead only in an overshoot.
  * The flying is turning-rejoin.js's; review turn-sim-review/rejoin-review-fable.md.
  */
 export const TURNING_REJOIN = Object.freeze({
-  lineDeg: 45, // the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point)
-  lineUpFt: -50, // #2's height on the line, below Lead, held level all the way up it: "maintain the horizontal plane just slightly below lead" (SMM 12.24 para 58); 50 ft Patrick's ruling (10 Oct 2026 19:57Z; TS-159's slope with Lead's bank retired)
+  lineDeg: 55, // the rejoin line, degrees behind Lead's 3/9 line: 35° off his tail, where Lead's fin crosses his upper wing about two-thirds of the way out and Lead sits at about 11 o'clock on the canopy (SMM 12.24 para 56, Fig 12.14 frame 3; Patrick 11 Oct 2026 00:03Z "let's start with 35"; TS-181). It was 45°, read from "Lead at 10:30", which put the fin on the wingtip
+  lineUpFt: -50, // #2's least depth below Lead on the line: "maintain the horizontal plane just slightly below lead" (SMM 12.24 para 58); 50 ft Patrick's ruling (10 Oct 2026 19:57Z; TS-159's slope with Lead's bank retired)
+  lineElevDeg: 4, // ...and further out he holds Lead this many degrees above his horizon, once on the line, never shallower than lineUpFt: about 140 ft below at 2,000 ft, 70 at 1,000, 50 ft from about 700 ft in (EFIG p.374 "place lead slightly above the horizon"; Patrick 10 Oct 2026 23:58Z; TS-181; the 4° an estimate to tune)
   aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
   approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
   bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
@@ -84,9 +85,11 @@ export const TURNING_REJOIN = Object.freeze({
   // Each is a window, so it is easy to fly to (Patrick 6 Oct 03:34Z: "lets make everything a 'window'").
   windowFarFt: 250, // he moves out to the line and up it to echelon anywhere from this far from Lead... (Patrick 6 Oct 03:32Z card, 03:34Z)
   windowNearFt: 100, // ...down to this far, the decision point (Patrick 02:30Z); not stable by here, he overshoots, only when nothing else works (03:35Z)
+  windowBankDeg: 15, // from the decision point up through route into the slot his bank stays within Lead's ±this, a small bank toward Lead with power for the closure, never a steep turn inside Lead's circle (SMM 12.24 CAUTION; Patrick 10 Oct 2026 23:54Z card "±15°, quicker"; TS-181; a reference, the figure Patrick's)
+  windowFtps: 15, // ...and out to route he moves at the station-change rate, about 9 kt (Patrick 10 Oct 2026 23:54Z card; TS-181; an estimate, Fable's trace C). From route into the slot it is the close moves' own (CLOSE_SHAPING)
   stableKt: Object.freeze([10, 20]), // his closure, range rate in knots, is stable in this window (Patrick 03:34Z: "10-20 knots at 100 feet"); the slowing aims at its middle, and slower is cold, not unstable
   stableShare: 1.5, // ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate)
-  xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 35-55° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)
+  xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 25-45° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)
   bearingTauSec: 6, // his bearing off Lead's tail comes onto the X over about this long (estimate, the design)
   hardPullsSec: Object.freeze([2, 4, 6, 8, 10, 12, 14, 16]), // hot, he may first pull this long at his most bank with idle and the boards, then hold the X (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max"; the times are estimates)
   xFromFt: 1200, // a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea")
@@ -121,7 +124,7 @@ export const TURNING_REJOIN = Object.freeze({
  */
 export const STRAIGHT_REJOIN = Object.freeze({
   lineArriveKt: 8, // he joins the line and flows up it closing at about this, slow enough to stop on the slot with power back, never stopping short of it (estimate)
-  lineFlowFt: 40, // he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate)
+  lineFlowFt: 20, // he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate; 40 until V2.232, when route at 3 wingspans, TS-181, left the line to echelon too short and he flowed in 6 ft ahead)
   cutsDeg: [30, 45, 60], // far off Lead's six line he heads across it at up to this angle to Lead's track; the one that brings him in soonest is flown (estimates: a bigger cut gets across sooner and falls back further)
   aimsFt: [300, 600, 1200], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
   lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)

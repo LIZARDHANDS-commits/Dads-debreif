@@ -162,7 +162,7 @@ export default {
           'div',
           { class: 'hero' },
           h('p', { class: 'eyebrow' }, 'Aviators webtool suite'),
-          h('h1', {}, 'OODA LOOP ', h('span', { class: 'version-badge' }, 'V2.231')),
+          h('h1', {}, 'OODA LOOP ', h('span', { class: 'version-badge' }, 'V2.232')),
           h('p', { class: 'lede' }, 'Debrief, formation, BFM, traffic and SOF tools for T-6 flying training. Open one below.'),
         ),
         h('div', { class: 'card-grid' }, cards.map((c) => c.card), aboutCard()),

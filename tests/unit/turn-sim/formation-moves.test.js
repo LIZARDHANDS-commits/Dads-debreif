@@ -111,6 +111,72 @@ test('the hot turning rejoin from the standard start: Lead turns into #2, #2 sta
   }
 });
 
+/**
+ * #2's canopy picture of Lead (Fable's TRJ review, report trj-sight-picture.md): `frac`, the share of Lead's upper wing
+ * showing aft of his fin, and `railDeg`, Lead's elevation in #2's banked frame (below about -10° he is under the canopy
+ * rail, an estimate of the T-6 view). T-6 arms: fin trailing edge 17 ft behind the wing's mid-chord, half span 16.7 ft, fin
+ * mid-height 3.5 ft above the wing (estimates from the 33.4 ft length and span).
+ */
+function canopyPicture(L, W) {
+  const rel = relativeTo(L, W);
+  const dAlt = W.altAboveFt - L.altAboveFt;
+  const r2 = relativeTo(W, L);
+  const phi = W.bankDeg * DEG;
+  const bl = r2.left * Math.cos(phi) + dAlt * Math.sin(phi);
+  const bu = r2.left * Math.sin(phi) - dAlt * Math.cos(phi);
+  const railDeg = Math.atan2(bu, Math.hypot(r2.fwd, bl)) / DEG;
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const v = [-rel.fwd, -rel.left, -dAlt];
+  const R = Math.hypot(...v);
+  const vu = v.map((c) => c / R);
+  const hn = Math.hypot(vu[1], vu[0]);
+  const hx = [-vu[1] / hn, vu[0] / hn, 0];
+  const pl = L.bankDeg * DEG;
+  const body = (x, y, z) => [x, y * Math.cos(pl) + z * Math.sin(pl), -y * Math.sin(pl) + z * Math.cos(pl)];
+  const u = (P) => Math.atan2(dot(P, hx), R + dot(P, vu));
+  const up = L.bankDeg > 0 ? -1 : L.bankDeg < 0 ? 1 : -Math.sign(rel.left); // the upper wing's side
+  const aft = Math.sign(u(body(-17, 0, 0)) - u(body(17, 0, 0))) || 1;
+  const fin = u(body(-17, 0, 3.5));
+  const root = u(body(-2, up * 1.5, -1));
+  const tip = u(body(-2, up * 16.7, -1));
+  const cut = Math.max(0, Math.min(1, (fin - root) / (tip - root)));
+  const g0 = (root - fin) * aft;
+  const g1 = (tip - fin) * aft;
+  const frac = g0 > 0 && g1 > 0 ? 1 : g0 <= 0 && g1 <= 0 ? 0 : g1 > 0 ? 1 - cut : cut;
+  return { frac, railDeg };
+}
+
+// TS-181 (Patrick 11 Oct 2026 00:03Z, 00:15Z; SMM 12.24 paras 56-58, Fig 12.14): what a pilot sees on the hot turning
+// rejoin to echelon from the standard start. On the line, Lead's fin crosses his upper wing with some of the wing showing
+// beyond it (para 56's "roughly half", Fig 12.14 frame 3's third: 0.2-0.6 of the wing aft of the fin, Fable's review), from
+// 1,000 ft (by then the capture from line abreast has put him on the line) to the window; from the window in, #2's bank
+// within Lead's ±15° (a flagged reference, Patrick 23:54Z; +5° margin, the shared table) and Lead never more than 5° under
+// the canopy rail (about -10°, an estimate, with the same margin); never over the G rule's 5 G (+0.5 G margin); and he
+// ends in echelon. No timing gate beyond the plan finishing.
+test('the hot turning rejoin to echelon flies the SMM picture: the fin on the upper wing, bank with Lead, Lead on the canopy, inside 5 G', () => {
+  const f = createFormation();
+  assert.equal(f.change('echelon'), 'started');
+  let inWindow = false;
+  let rideSeen = 0;
+  fly(f, 'hot rejoin to echelon', (_b, [lead, wing], t) => {
+    const l = link(lead, wing);
+    const pic = canopyPicture(lead, wing);
+    const at = `at ${t.toFixed(1)} s, ${l.range.toFixed(0)} ft`;
+    assert.ok(Math.abs(wing.g) <= 5.5, `${at}: #2 pulling ${wing.g.toFixed(1)} G`);
+    if (l.range <= 250) inWindow = true;
+    if (!inWindow && l.range <= 1000) {
+      rideSeen++;
+      assert.ok(pic.frac >= 0.2 && pic.frac <= 0.6, `${at}: ${pic.frac.toFixed(2)} of Lead's upper wing aft of the fin`);
+    }
+    if (inWindow) {
+      if (Math.abs(lead.bankDeg) > 5) assert.ok(Math.abs(wing.bankDeg - lead.bankDeg) <= 20, `${at}: #2's bank ${wing.bankDeg.toFixed(0)}° against Lead's ${lead.bankDeg.toFixed(0)}°`);
+      assert.ok(pic.railDeg >= -15, `${at}: Lead ${pic.railDeg.toFixed(0)}° in #2's canopy, under the rail`);
+    }
+  });
+  assert.ok(rideSeen > 0 && inWindow, 'he rode the line into the window');
+  assert.ok(inEchelon(link(...f.state.aircraft)), 'and ends in echelon');
+});
+
 test('in fighting wing the turn buttons turn the formation: #2 stays below Lead, inside the bank cap, and ends in the band', () => {
   for (const [key, dir] of [['delayed90', 1], ['delayed90', -1], ['check', 1], ['hook', -1], ['inPlace90', 1], ['delayed45', -1]]) {
     const f = createFormation();

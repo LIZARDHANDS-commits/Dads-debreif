@@ -56,7 +56,7 @@ function classifyLink(lead, wing) {
   if (range < N.closeRangeFt) {
     if (across < N.astern.maxAcrossFt && back > 0) return { key: 'astern', side: 0 };
     if (across < N.echelon.maxAcrossFt && rel.fwd < N.echelon.fwdFt[1] && rel.fwd > N.echelon.fwdFt[0]) return { key: 'echelon', side };
-    if (across <= (ROUTE_SPANS.max + N.route.extraSpans) * WINGSPAN_FT && rel.fwd < N.route.fwdFt[1] && rel.fwd > N.route.fwdFt[0]) return { key: 'route', side }; // route is on the spinner-to-wingtip line, about 143 ft back (TS-103)
+    if (across <= (ROUTE_SPANS.max + N.route.extraSpans) * WINGSPAN_FT && rel.fwd < N.route.fwdFt[1] && rel.fwd > N.route.fwdFt[0]) return { key: 'route', side }; // route is on the spinner-to-wingtip line, about 96 ft back (TS-181)
   }
   return { key: 'other', side };
 }
@@ -208,7 +208,7 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
     else if (downErr > C) labels.push('LOW');
     const within = `(±${C} ft)`;
     if (kind === 'echelon') numbers = `${ft(across)} out (${Math.abs(slot.left)} ${within}), ${ft(-rel.fwd)} back (${-slot.fwd} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
-    else if (kind === 'route') numbers = `${ft(across)} out (${Math.round(Math.abs(slot.left))} ${within}: ${ROUTE_SPANS.slot ?? 5} wingspans down the line from echelon), ${ft(-rel.fwd)} back (${Math.round(-slot.fwd)} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
+    else if (kind === 'route') numbers = `${ft(across)} out (${Math.round(Math.abs(slot.left))} ${within}: ${ROUTE_SPANS.slot} wingspans down the line from echelon), ${ft(-rel.fwd)} back (${Math.round(-slot.fwd)} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
     else numbers = `${ft(-rel.fwd - LENGTH_FT)} nose to tail (${Math.round(-slot.fwd - LENGTH_FT)} ${within}), ${ft(across)} off line, ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
   } else {
     throw new Error(`No link judgement called ${kind}`);
