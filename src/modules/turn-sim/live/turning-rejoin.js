@@ -483,7 +483,10 @@ const REJOIN_WAYS = Object.freeze({
     // Followed by fighting wing cone tracking
     tail: ({ lineFt, s, sTo, leastKias }, pointed) => [phase({ fwd: 0, left: 0, alt: lineFt }, {
       ...FW_FOLLOW,
-      ...(pointed ? { roll: TURNING_REJOIN.formRoll } : {}), // from trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272)
+      // From trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272). From line abreast, after the
+      // hard turn into the cone, the place he flies to speeds up with no corner and he eases onto Lead's heading with a small,
+      // early bank, so the roll-out has no kink and no rock through level (V2.335; Fable's V2.330 flight).
+      ...(pointed ? { roll: TURNING_REJOIN.formRoll } : { refJerkFtps3: TURNING_REJOIN.coneRefJerkFtps3, alignSec: TURNING_REJOIN.coneAlignSec, alignDoneDeg: TURNING_REJOIN.coneAlignDoneDeg }),
       isFw: true,
       side: sTo || s,
       goal: () => coneMiddle(sTo || s),
