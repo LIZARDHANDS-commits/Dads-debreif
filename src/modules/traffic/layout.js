@@ -13,6 +13,7 @@
 // data. All names go in as text (h, textContent), never as HTML.
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
+import { OSM_CREDIT } from './osm-features.js';
 
 export const SIMPLIFIED_NOTE = 'Simplified: aircraft fly their routes at set speeds, no avoiding action.';
 
@@ -57,6 +58,8 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
   const canvas = h('canvas', { class: 'traffic-map' });
   const hint = h('p', { class: 'traffic-hint', role: 'status', hidden: true });
   const credit = h('p', { class: 'traffic-credit', 'aria-live': 'polite', hidden: true }); // Esri's credit, or that the photo needs a connection
+  // The 3D view's roads and power lines are OpenStreetMap's, whose licence asks for this credit wherever they show (TR-144).
+  const credit3d = h('p', { class: 'traffic-credit', hidden: true }, OSM_CREDIT);
   // The 3D view: a box the size of the map for its canvases (made when 3D opens), the three camera buttons over
   // it, and a line for "Loading 3D…" or why 3D can't start (that one shows in 2D too, where the person stays).
   const stage3d = h('div', { class: 'traffic-3d', hidden: true });
@@ -77,7 +80,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     'section',
     { class: 'traffic-stage', 'aria-label': 'Map and playback' },
     bar.element,
-    h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, hint, credit, note3d),
+    h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, hint, credit, credit3d, note3d),
     // The "Simplified: ..." line under the map is gone (Patrick, 6 Oct: "get rid of the simplified aircraft line").
   );
 
@@ -186,6 +189,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
       canvas.hidden = view === '3d';
       stage3d.hidden = view !== '3d';
       credit.hidden = !photoText || view === '3d';
+      credit3d.hidden = view !== '3d';
     },
     /** A short line on the map ("Loading 3D…", "3D needs WebGL"), or '' for none. */
     setNote3d(text) {

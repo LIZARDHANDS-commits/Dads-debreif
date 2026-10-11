@@ -27,6 +27,7 @@ import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY_TOP_FT } from './scenery3d.js';
 import { createAirfieldFurniture, disposeAirfieldFurniture } from './furniture3d.js';
+import { createOsmFeatures, disposeOsmFeatures } from './osm3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
 import { createBaseBuildings, disposeBaseBuildings, BASE_BOX_FT } from './base-buildings3d.js';
@@ -752,6 +753,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       g.position.z = DEFAULT_FLOOR_FT + (heights ? heights.offsetAt(g.position.x, g.position.y) : 0);
     }
     furniture.userData.drape?.(heights); // the approach lights, off the flat airfield
+    osmFeatures.userData.drape?.(heights); // the roads and power lines
     // The shadow sheets lie on the same ground, a hair above it.
     for (const sheet of groundShadows.children) {
       const pos = sheet.geometry.attributes.position;
@@ -806,6 +808,9 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   root.add(landmarks);
   const windsocks = createWindsocks(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(windsocks);
+  // Roads and power lines from OpenStreetMap (TR-144)
+  const osmFeatures = createOsmFeatures(THREE, DEFAULT_FLOOR_FT);
+  root.add(osmFeatures);
 
   const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
   grid.rotation.x = Math.PI / 2; // GridHelper lies in X-Z; the ground here is X-Y
@@ -1346,6 +1351,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       }
       disposeBaseBuildings(baseBuildings);
       disposeAirfieldFurniture(furniture);
+      disposeOsmFeatures(osmFeatures);
       disposeLandmarks(landmarks);
       disposeWindsocks(windsocks);
       photoGeometry.dispose();
