@@ -189,11 +189,14 @@ function mount(root, app) {
    * The camera's centre and size: centred on the formation's centre of mass (every aircraft weighed the same; Patrick,
    * 5 Oct), and wide enough each way to hold the aircraft furthest from it, grown by the fit's margin (feet).
    */
-  const fitBox = () => {
-    const xs = state.aircraft.map((a) => a.xFt);
-    const ys = state.aircraft.map((a) => a.yFt);
+  // `s` is the state to frame: the sim's own (2D), or the 3D view's drawn one (drawState), so the 3D camera moves with the
+  // aircraft as they are drawn between steps instead of jumping a step at a time (TS-184; Patrick, 11 Oct: Chase then
+  // Freelook "is really jittery").
+  const fitBox = (s = state) => {
+    const xs = s.aircraft.map((a) => a.xFt);
+    const ys = s.aircraft.map((a) => a.yFt);
     const grow = 1 / (1 - 2 * FIT.marginShare);
-    const on = camAircraft(); // the Camera menu's choice: one aircraft, or the formation's centre of mass
+    const on = camAircraft(s); // the Camera menu's choice: one aircraft, or the formation's centre of mass
     const x = on ? on.xFt : xs.reduce((s, v) => s + v, 0) / xs.length;
     const y = on ? on.yFt : ys.reduce((s, v) => s + v, 0) / ys.length;
     const reach = (vs, c) => Math.max(...vs.map((v) => Math.abs(v - c)));
@@ -206,9 +209,9 @@ function mount(root, app) {
   };
   let zoomFactor2d = 1; // the person's wheel zoom on top of the 2D fit; Fit puts it back to 1
   /** The aircraft the Camera menu centres on, or null for the formation (or one this formation doesn't have). */
-  function camAircraft() {
+  function camAircraft(s = state) {
     const on = layout.get().camOn;
-    return on === 'formation' ? null : state.aircraft.find((a) => String(a.id) === on) ?? null;
+    return on === 'formation' ? null : s.aircraft.find((a) => String(a.id) === on) ?? null;
   }
   /** Who an aircraft padlocks: Lead watches #2, #4 his element lead #3, the others Lead. */
   const padlockOf = (id) => (id === 1 ? 2 : id === 4 ? 3 : 1);
@@ -242,10 +245,10 @@ function mount(root, app) {
       layout.update({ camLook: 'padlock' });
     }
   };
-  const fitBounds = () => {
-    const b = fitBox();
+  const fitBounds = (s = state) => {
+    const b = fitBox(s);
     // The height spread too (Patrick, 5 Oct: a loop took the formation off the top of the 3D picture); 2D ignores it.
-    const alts = state.aircraft.map((a) => a.altAboveFt ?? 0);
+    const alts = s.aircraft.map((a) => a.altAboveFt ?? 0);
     const spanZFt = (Math.max(...alts) - Math.min(...alts)) / (1 - 2 * FIT.marginShare);
     return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2, spanZFt };
   };
@@ -433,12 +436,13 @@ function mount(root, app) {
       instruments: instrumentsOf,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
-        const b = fitBox();
+        const drawn = drawState(); // where the aircraft are drawn, between steps (TS-184)
+        const b = fitBox(drawn);
         // and the formation's average height, so the camera stays on it through loops and wingovers (Patrick, 5 Oct)
-        const alts = state.aircraft.map((a) => a.altAboveFt ?? 0);
+        const alts = drawn.aircraft.map((a) => a.altAboveFt ?? 0);
         return { x: b.x, y: b.y, z: alts.reduce((t, v) => t + v, 0) / alts.length };
       },
-      fitBounds: () => (cameraPaused || freeCamera() || !layout.get().autoFit ? null : fitBounds()),
+      fitBounds: () => (cameraPaused || freeCamera() || !layout.get().autoFit ? null : fitBounds(drawState())),
       paint: () => layout.get().paint,
       bankSigns: () => ({}), // the live bank is already signed (left positive)
       colors: SHIP_COLORS,
