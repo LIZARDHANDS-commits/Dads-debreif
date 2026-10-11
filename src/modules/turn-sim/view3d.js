@@ -21,7 +21,7 @@ import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 
-/** The 3D ground's colour: wheat stubble (TS-183). It was a deep green, '#2a3327' (Patrick, 6 Oct); set that here to put it back. */
+/** The 3D ground's colour: wheat stubble (TS-189). It was a deep green, '#2a3327' (Patrick, 6 Oct); set that here to put it back. */
 const GROUND_COLOUR = '#b7a77a';
 import { EYE_OFFSET_FT } from './layout.js';
 
@@ -216,7 +216,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     scene.fog?.color.set(SKY_COLOURS.horizon);
     // The ground under the formation (Patrick, 6 Oct: "the sky is sky, the ground is ground"): a muted prairie plane with the
     // grid on it, following the camera; the sky shows toward the horizon and above. Darker (Patrick, 6 Oct: "better contrast against the ground"): a deep prairie green, so the ships' colours, the lines and the tags stand out.
-    // Wheat stubble since TS-183 (Patrick, 11 Oct: "Form sim's ground doesnt have enough contrast against the blue of the harvards";
+    // Wheat stubble since TS-189 (Patrick, 11 Oct: "Form sim's ground doesnt have enough contrast against the blue of the harvards";
     // card: option 3): the navy Harvards stand out on it, the lines and tags stay clear and the horizon stays crisp.
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS * 3, GRID_STEP_FT * GRID_CELLS * 3), new THREE.MeshBasicMaterial({ color: GROUND_COLOUR, fog: true }));
     scene.add(ground);
