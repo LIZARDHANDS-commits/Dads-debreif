@@ -296,7 +296,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     stopWhenSettled: true,
     maxSec: limitSec,
   });
-  if (!first.run.ok) { if (process.env.DBG) console.error('first not ok', to, first.run.durationSec?.toFixed(0), JSON.stringify(first.run.times?.map(x=>x.t1?.toFixed?.(0)))); return null; }
+  if (!first.run.ok) return null;
 
   const totalSteps = first.run.points.length;
   const approachEndTime = first.run.times[numApproachPhases - 1]?.t1;
@@ -330,7 +330,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     const holdSteps = Math.max(leadRemainingSteps, rel.length - 1);
     const poses = heldPoses(leadRecFromSettle, W_settled, rel, holdSteps);
 
-    if ((totalSteps + poses.length) * dt > limitSec) { if (process.env.DBG) console.error('limit', to); return null; }
+    if ((totalSteps + poses.length) * dt > limitSec) return null;
 
     wingSegments = [
       { kind: 'bankTrack', points: first.run.points },
@@ -371,7 +371,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       stopWhenSettled: false,
       maxSec: limitSec,
     });
-    if (!second.ok) { if (process.env.DBG) console.error('second not ok', to); return null; }
+    if (!second.ok) return null;
     run = second;
   }
 
@@ -399,7 +399,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     
     // Reject if it crosses Lead's six at all (Patrick's absolute rule)
     if (s * rel.left >= 0) onSide = true;
-    if (!allowAcross && onSide && s * rel.left < -50) { if (process.env.DBG) console.error('across', to); return null; }
+    if (!allowAcross && onSide && s * rel.left < -50) return null;
   }
   
   const lineKias = partPoints.length ? partPoints[partPoints.length - 1][1] : wing.kias;
