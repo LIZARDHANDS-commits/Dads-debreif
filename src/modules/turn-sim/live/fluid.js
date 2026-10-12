@@ -14,14 +14,13 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { WING, HOLD, closureNow } from './tuning.js';
-import { flyFluidStep } from './full-power.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
 import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
-import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, swapWanted, swapSide, wingValues } from './fluid-wing.js';
+import { startWing, nextWing, rawWingPoint, levelUpOf, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 import { startLiveWing, stepLiveWing } from './fluid-wing-live.js';
 
 const dt = STEP_SEC;
-/** Lead's path is kept planned this far ahead (it feeds #2's line and the dashed preview). */
+/** Lead's path is kept planned this far ahead (it feeds the swap cue's look-back and the dashed preview). */
 const AHEAD_STEPS = Math.round(20 / dt);
 /** Lead's path before the press is extended back this far (straight, as he was), so #2 can look back along it. */
 const SEED_STEPS = Math.round(WING.maxBehindSec / dt) + 20;
@@ -62,8 +61,8 @@ export const PURSUIT_WORDS = Object.freeze({ lag: 'LAG', pure: 'PURE', lead: 'LE
 
 /**
  * A new session from fighting wing. lead, wing: the live aircraft (flight.js) at the press; t0 the formation time.
- * opts: { blockFt, rangeFt, bank ('gentle' | 'medium' | 'steep'), wing ('planned', the default, or 'live': TS-194,
- * fluid-wing-live.js) }. Returns the session.
+ * opts: { blockFt, rangeFt, bank ('gentle' | 'medium' | 'steep') }. #2 is the live wingman (TS-194, fluid-wing-live.js;
+ * the only #2 since the planned wingman was retired, TS-199). Returns the session.
  */
 export function createFluidSession(lead, wing, t0, opts = {}) {
   const blockFt = opts.blockFt ?? 8000;
@@ -79,20 +78,13 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   let kNow = 0;
   let kMin = -SEED_STEPS;
   let kMax = 0;
-  // #2 at the press, as he is: wings at his bank, rolling at his rate.
-  const wb = (wing.bankDeg ?? 0) * DEG;
-  let wingState = { up: { x: -Math.sin(wb) * Math.sin(wing.headingRad), y: Math.sin(wb) * Math.cos(wing.headingRad), z: Math.cos(wb) }, rollDps: wing.rollRateDps ?? 0 };
   let queued = null; // { label, key }
   let ended = null; // the step Terminate finished on
   let endSeen = null; // the step Terminate's last step was flown on (the session ends once #2 has caught up too)
-  // #2 flies the planned line by energy and geometry (full-power.js flyFluidStep, TS-74, V2.69): held is his state (null
-  // before the first step), heldPrev his point a step ago, v0 his true airspeed at the press.
-  let held = null;
-  let heldPrev = null;
-  const v0 = wing.tasFtps ?? null;
-  // Live (TS-194): #2 is his own aircraft on the shared point mass, flown by the pilot law in fluid-wing-live.js.
-  const live = opts.wing === 'live';
-  let liveWs = live ? startLiveWing(wing, blockFt, { side, slot }) : null;
+  // #2 (TS-194): his own aircraft on the shared point mass, flown by the pilot law in fluid-wing-live.js. The planned
+  // wingman's point on Lead's path (fluid-wing.js) is still worked out beside it, as the swap cue only: its side-swap rule
+  // (TS-60) tells the live #2 when to cross behind Lead over the top (TS-199).
+  let liveWs = startLiveWing(wing, blockFt, { side, slot });
   let liveNow = null; // the last live step's result: his cue for now()
   /**
    * The entry's and terminate's blend times (V2.59; Patrick 5 Oct 04:59Z: "move quickly into fluid maneouvering or into
@@ -111,9 +103,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   const wing0 = startWing({ t: t0, side, rangeFt, slot });
   const man0 = { id: manId++, key: 'entry', label: 'Entry to fluid manoeuvring' };
   const entryPlanned = entry(-side, bankDegFor(bankValue)); // the entry turn away from #2 (Fig 12.20, turn away: he collapses into the cone)
-  // With the live wingman both go to MAX as soon as fluid manoeuvring starts (Patrick 11 Oct 2026 22:33Z): Lead's entry
-  // holds no speed, and #2 flies into position on geometry alone.
-  const entryCtl = live ? { ...entryPlanned, step: (st, mem, ctx) => ({ ...entryPlanned.step(st, mem, ctx), holdKias: undefined }) } : entryPlanned;
+  // Both go to MAX as soon as fluid manoeuvring starts (Patrick 11 Oct 2026 22:33Z): Lead's entry holds no speed, and #2
+  // flies into position on geometry alone.
+  const entryCtl = { ...entryPlanned, step: (st, mem, ctx) => ({ ...entryPlanned.step(st, mem, ctx), holdKias: undefined }) };
   const toEntry = (k, st, w, extra) => ({
     k, t: t0 + k * dt, st, wing: w,
     pos: { x: st.pm.x, y: st.pm.y, z: st.pm.z - blockFt }, vel: st.vel, accPerp: st.accPerp, levelUp: st.pm.up,
@@ -139,9 +131,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const st = stepLead(e.st, r);
     const t = t0 + (kMax + 1) * dt;
     let w = nextWing(e.wing, r.cue, t, rangeFt, blend);
-    // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
-    // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun. With the live
-    // wingman his side follows it (fluid-wing-live.js, ctx.side).
+    // The side swap (fluid-wing.js swapWanted): from where the swap cue's point is now and how it is drifting, worked out
+    // from what is already flown (its raw points up to this step), so a press of Lead's never changes a swap already begun.
+    // The live #2 follows its side (fluid-wing-live.js, ctx.side).
     if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
       const [p0, p1] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad];
       const h = SWAP_LOOK_STEPS * dt;
@@ -192,7 +184,6 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     if (!raws.has(k)) raws.set(k, rawWingPoint(E, k, kMin));
     return raws.get(k);
   };
-  const S = (k) => smoothPoint(R, k);
 
   /** The pose for Lead at step k (roll rate from the lift's turn either side). */
   function leadPose(k) {
@@ -228,9 +219,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
       case 'terminate': {
-        // A predictable turn: on the way Lead is already turning, or away from #2 if wings level (the live wingman's own
-        // side when he is live: he may have come out of the last manoeuvre on the other side, fluid-wing-live.js).
-        const way = Math.abs(tsBank) > 5 ? Math.sign(tsBank) : -((live && liveNow?.side) || at.wing.side);
+        // A predictable turn: on the way Lead is already turning, or away from #2 if wings level (his own side: he may have
+        // come out of the last manoeuvre on the other side, fluid-wing-live.js).
+        const way = Math.abs(tsBank) > 5 ? Math.sign(tsBank) : -(liveNow?.side || at.wing.side);
         return [terminate(way)];
       }
       default: throw new Error(`No fluid manoeuvre called ${key}`);
@@ -238,7 +229,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   }
 
   return {
-    /** For checks only: #2's raw point and Lead's planned step at step k. */
+    /** For checks only: the swap cue's raw point and Lead's planned step at step k. */
     debug: { R: (k) => R(k), E: (k) => E(k) },
     /** The step the session is on now (0 at the press). */
     get k() { return kNow; },
@@ -277,72 +268,39 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       queued = { key, label: key === 'sequence' ? label(key, dir) : man.label, startK: j };
       return 'queued';
     },
-    /** Flies one step: applies the planned poses to the two aircraft. */
+    /** Flies one step: Lead's planned pose, and one step of #2's own aircraft. */
     step(lead, wing) {
       kNow += 1;
       while (kMax < kNow + AHEAD_STEPS) generate();
       if (queued && kNow > queued.startK) queued = null;
       const lp = leadPose(kNow);
-      if (live) {
-        // #2 reads Lead as he is at the start of the step and flies one step of his own aircraft (fluid-wing-live.js):
-        // pure pursuit of Lead with lead and lag by the cues; his side is the planned wing's, swaps included.
-        const e = E(kNow);
-        const kg = kNow - 1;
-        liveNow = stepLiveWing(liveWs, { e: E(kg), t: e.t, rangeFt, blockFt, side: E(kg).wing.side });
-        liveWs = liveNow.ws;
-        if (e.end && endSeen === null) endSeen = kNow;
-        if (endSeen !== null && ended === null && (liveNow.settled || kNow - endSeen > HOLD.extraSec / dt)) ended = kNow;
-        const pose = liveNow.pose;
-        if (this.done) {
-          // Back to fighting wing: both straight and level, #2 parallel at Lead's speed, for flight.js to fly on.
-          Object.assign(lp, { bank: 0, roll: 0, climb: 0, g: 1 });
-          Object.assign(pose, { h: lp.h, bank: 0, att: 0, roll: 0, climb: 0, g: 1, kias: lp.kias, tas: lp.tas, pitch: lp.pitch });
-        }
-        applyPose(lead, lp);
-        applyPose(wing, { ...pose, power: liveNow.power, stretched: liveNow.rangeFt > FLUID.rangeFt.max });
-        lead.turning = !this.done;
-        wing.turning = !this.done;
-        return;
-      }
-      // #2 flies his planned line with real energy (TS-74, Patrick 16:42Z: "you use geometry"): MAX like Lead, his speed
-      // from his energy height, the range held by lag outside the line's turn and lead inside it, power off only where
-      // geometry can't take out his extra speed (full-power.js flyFluidStep). The point a step ahead is worked out from
-      // where he will be, not kept, so a press of Lead's is followed from where he is.
-      // While Lead is at MAX, #2 keeps MAX until he is within HOLD.bubbleMarginFt of the 500 ft bubble (power he takes off
-      // then can't be won back: Lead has none in hand); while Lead holds a speed (the entry and Terminate), power holds his place.
-      const ref = (k) => E(k).pos;
-      const aheadOk = (k) => (E(k).holdKias ? 0 : Math.max(0, rangeFt - FLUID.bubbleFt - HOLD.bubbleMarginFt));
-      const h1 = flyFluidStep(held, S, kNow, ref(kNow), blockFt, { v0, aheadOkFt: aheadOk(kNow) });
-      const h2 = flyFluidStep(h1.state, S, kNow + 1, ref(kNow + 1), blockFt, { aheadOkFt: aheadOk(kNow + 1) });
-      const before = held ? heldPrev : null;
-      const Sh = (k) => (k === kNow - 1 ? before ?? S(k) : k === kNow ? h1.p : h2.p);
-      const w = wingPose(Sh, kNow, wingState, blockFt);
-      wingState = w.state;
-      held = h1.state;
-      heldPrev = h1.p;
+      // #2 reads Lead as he is at the start of the step and flies one step of his own aircraft (fluid-wing-live.js):
+      // pure pursuit of Lead with lead and lag by the cues; his side is the swap cue's, swaps included.
       const e = E(kNow);
+      const kg = kNow - 1;
+      liveNow = stepLiveWing(liveWs, { e: E(kg), t: e.t, rangeFt, blockFt, side: E(kg).wing.side });
+      liveWs = liveNow.ws;
       if (e.end && endSeen === null) endSeen = kNow;
-      if (endSeen !== null && ended === null && (h1.settled || kNow - endSeen > HOLD.extraSec / dt)) ended = kNow;
+      if (endSeen !== null && ended === null && (liveNow.settled || kNow - endSeen > HOLD.extraSec / dt)) ended = kNow;
+      const pose = liveNow.pose;
       if (this.done) {
-        // Back to fighting wing: both straight and level, #2 exactly parallel at Lead's speed, for flight.js to fly on.
+        // Back to fighting wing: both straight and level, #2 parallel at Lead's speed, for flight.js to fly on.
         Object.assign(lp, { bank: 0, roll: 0, climb: 0, g: 1 });
-        Object.assign(w.pose, { h: lp.h, bank: 0, roll: 0, climb: 0, g: 1, kias: lp.kias, tas: lp.tas, pitch: lp.pitch });
+        Object.assign(pose, { h: lp.h, bank: 0, att: 0, roll: 0, climb: 0, g: 1, kias: lp.kias, tas: lp.tas, pitch: lp.pitch });
       }
-      // #2's tag shows the power he flies (MAX like Lead, SMM 16.17 para 43, unless he has taken it off); STRETCHED only
-      // past the 1,000 ft top of fluid's range (SMM 16.17 para 42; Patrick card 16:19Z "Smaller loop").
+      // #2's tag shows the power he flies; STRETCHED only past the 1,000 ft top of fluid's range (SMM 16.17 para 42).
       applyPose(lead, lp);
-      applyPose(wing, { ...w.pose, power: h1.power, stretched: len3(sub3(h1.p, e.pos)) > FLUID.rangeFt.max });
+      applyPose(wing, { ...pose, power: liveNow.power, stretched: liveNow.rangeFt > FLUID.rangeFt.max });
       lead.turning = !this.done;
       wing.turning = !this.done;
     },
     /**
      * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'swap' | 'entry' | 'back to fighting wing'),
-     * behindSec, speeds }. speeds: for the loop being flown, or the last one while Lead flies straight on after it,
+     * behindSec (always null: the live #2 is not on a line), speeds }. speeds: for the loop being flown, or the last one while Lead flies straight on after it,
      * { label, entryKias, exitKias (null until flown), book: { entryKias, exitKias, source } }; else null.
      */
     now() {
       const e = E(kNow);
-      const r = live ? null : R(kNow);
       const m = e.man.entryK !== undefined || FLUID_MOVES[e.man.key]?.speeds ? e.man : e.man.key === 'hold' ? e.lastMan : null;
       const book = m ? FLUID_MOVES[m.key]?.speeds : null;
       const speeds = book ? {
@@ -354,20 +312,17 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       return {
         speeds,
         key: e.man.key, label: e.man.label, phase: e.phase, manId: e.man.id,
-        wingCue: live ? liveNow?.cue ?? 'entry' : r.blend < 0.5 ? (e.man.key === 'terminate' || e.man.key === 'steady' ? 'back to fighting wing' : 'entry') : r.cue,
-        behindSec: live ? null : r.behindSec,
+        wingCue: liveNow?.cue ?? 'entry',
+        behindSec: null,
       };
     },
-    /** The paths still to fly, for the dashed preview: the next 15 s of both (what is planned so far; a press re-plans it). */
+    /** The path still to fly, for the dashed preview: Lead's next 15 s (what is planned so far; a press re-plans it). #2 has no path ahead: he flies it as he goes. */
     planned() {
       const pts = { 1: [], 2: [] };
       const until = Math.min(kMax - WING.smoothSteps, kNow + Math.round(15 / dt));
       for (let k = kNow; k <= until; k += 5) {
         const x = entries.get(k);
         pts[1].push([x.t, x.pos.x, x.pos.y, x.pos.z]);
-        if (live) continue; // the live #2 has no path ahead: he flies it as he goes
-        const p = R(k).p;
-        pts[2].push([x.t, p.x, p.y, p.z]);
       }
       return pts;
     },

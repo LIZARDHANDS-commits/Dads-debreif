@@ -1,31 +1,26 @@
-// #2 in fluid manoeuvring, the planned wingman (spec section 10.3, TS-57; Patrick 4 Oct 18:03Z: "Can we have it be a
-// setting? defaults to planned?"). #2 is a scripted position, worked out from Lead's planned path, never live physics.
+// The swap cue for #2 in fluid manoeuvring: the planned wingman's point on Lead's path, kept only for its side-swap rule
+// (TS-199, 12 Oct 2026). The planned wingman himself (TS-57, flown V2.17 to V2.382) is retired: #2 is the live wingman
+// (fluid-wing-live.js, TS-194), his own aircraft on the shared point mass. What stays is the point he used to fly, worked
+// out step by step beside Lead's planned path (fluid.js rawWingPoint), and the rule that reads its drift across Lead's
+// tail to say when #2 should cross to the other side behind Lead (swapWanted, swapSide; TS-60, Patrick 19:21Z and 22:28Z,
+// 5 Oct 2026). The live #2 follows that side (fluid.js step, ctx.side). Nothing here moves an aircraft any more.
 //
-// The rule a pilot flies (EFIG p.391: "go where Lead was and do what Lead did"): #2 flies along Lead's own path a few
-// seconds behind him, at the straight-line distance the setting asks (500-1,000 ft, default 600; Patrick's picks of
-// 19:20Z rows 3 and 4), with two offsets:
-//  - across, inside the cone and never straight behind (Patrick 19:21Z: "a lateral offset in case of overshoot, so they
-//    kind of hang out in the cone instead of directly behind"): 15° off Lead's CURRENT tail line on his side, in every
-//    turn and in the climb, descent and loop (Patrick 22:28Z: "lets go with hold 15"), inside the 30° half cone of
-//    Patrick's pick row 2. Where Lead was is turned about Lead onto that place (tailTurnAt), so turning into #2 or away
-//    from him both hold 15° once the turn is steady (going where Lead was gave about 25° and 5°). Across is measured in
-//    a frame that follows Lead's path but not his roll (design 5.2). From V2.19 he swaps sides behind Lead's tail when
-//    crossing gets him back to 15° sooner than staying put (swapWanted, swapSide).
+// The point (EFIG p.391: "go where Lead was and do what Lead did"): along Lead's own path a few seconds behind him, at
+// the straight-line distance the setting asks (500-1,000 ft, default 600; Patrick's picks of 19:20Z rows 3 and 4), with
+// two offsets:
+//  - across, inside the cone and never straight behind (Patrick 19:21Z): 15° off Lead's CURRENT tail line on his side, in
+//    every turn and in the climb, descent and loop (Patrick 22:28Z: "lets go with hold 15"), inside the 30° half cone of
+//    Patrick's pick row 2. Where Lead was is turned about Lead onto that place (tailTurnAt). Across is measured in a frame
+//    that follows Lead's path but not his roll (design 5.2). From V2.19 it swaps sides behind Lead's tail when crossing
+//    gets back to 15° sooner than staying put (swapWanted, swapSide).
 //  - in the plane Lead is turning in, the pursuit: outside Lead's path is lag, on it pure, inside lead (SMM 12.30 paras
-//    72-74; EFIG p.391: lead puts the path inside Lead's turn circle, lag outside). The offset is 10% of the range, an
-//    estimate, and scales with how hard Lead is turning (none when he flies straight).
-// Which one, when, is Lead's button's own cue (fluid-lead.js): in the baseline a new turn into #2 starts with lag (the
-// miss first), one away from him with lead (the collapse to his six), then pure (Fig 12.20). #2 uses the cue of the part
-// of Lead's path he is flying through, so he answers a turn a few seconds after Lead made it.
-//
-// In a loop (V2.18) #2's point on Lead's path is turned about Lead, in the loop's plane, toward a place set by the
-// loop's own schedule (loopPhi below: Patrick's rule, lag going up, fuselages as near parallel as positive G allows
-// crossing the horizon, lead coming down). The turn is zero at the loop's start and end, so nothing jumps there.
+//    72-74; EFIG p.391). The offset is 10% of the range, an estimate, and scales with how hard Lead is turning.
+// Which one, when, is Lead's button's own cue (fluid-lead.js). In a loop (V2.18) the point is turned about Lead in the
+// loop's plane toward a place set by the loop's own schedule (loopPhi below).
 //
 // Smoothness: the across offset changes on the septic step (no jump in rate, acceleration or jerk), the pursuit offset is
-// averaged over Lead's last seconds on a smooth bump; the position line is then smoothed over half a second either side,
-// shorter than the time behind Lead, so a new press of Lead never moves #2's next half second. Attitude, G and roll rate
-// come from the line itself (attitude.js), so they always agree with it.
+// averaged over Lead's last seconds on a smooth bump. The smoothed line and the pose read off it (smoothPoint, wingPose)
+// went with the planned wingman; the live #2's attitude is his own aircraft's.
 import { DEG } from '../../../core/angles.js';
 import { tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -484,60 +479,6 @@ function loopPoint(e, p) {
   const phi = phiPath + wrapAngle(place.phi - phiPath) * place.weight;
   const across = sub3(r, add3(scale3(nose, -back), scale3(up, -below)));
   return add3(add3(e.pos, across), add3(scale3(nose, -rho * Math.cos(phi)), scale3(up, -rho * Math.sin(phi))));
-}
-
-/** The smoothing weights: a Gaussian over ±smoothSteps (sigma a third of that), summing to 1. */
-const WEIGHTS = (() => {
-  const n = WING.smoothSteps;
-  const sigma = n / 3;
-  const w = [];
-  let sum = 0;
-  for (let j = -n; j <= n; j++) {
-    const x = Math.exp(-0.5 * (j / sigma) ** 2);
-    w.push(x);
-    sum += x;
-  }
-  return w.map((x) => x / sum);
-})();
-
-/** The smoothed point at step k from the raw points (R(k) returns { p }); needs R from k - smoothSteps to k + smoothSteps. */
-export function smoothPoint(R, k) {
-  const n = WING.smoothSteps;
-  let p = { x: 0, y: 0, z: 0 };
-  for (let j = -n; j <= n; j++) p = add3(p, scale3(R(k + j).p, WEIGHTS[j + n]));
-  return p;
-}
-
-/**
- * #2's pose at step k from the smoothed line S(k) (needs k-1..k+1): velocity and acceleration by central differences,
- * then the lift and G of a coordinated aircraft (attitude.js). The wings roll toward that lift at the pilot's roll rate
- * and roll acceleration at most (tuning.js ROLL, under the T-6A's at this speed, flight.js rollLimitAt), so a moment of near-zero G
- * never spins him: there the lift is too small to need the wings anywhere in particular. prev: the last step's
- * { up, rollDps } (null at the start). Returns { pose, state } with state for the next step.
- */
-export function wingPose(S, k, prev, blockFt) {
-  const p0 = S(k - 1);
-  const p1 = S(k);
-  const p2 = S(k + 1);
-  const vel = scale3(sub3(p2, p0), 1 / (2 * dt));
-  const acc = scale3(add3(sub3(p2, scale3(p1, 2)), p0), 1 / (dt * dt));
-  const nose = unit3(vel);
-  const base = unit3(perp3(prev?.up ?? { x: 0, y: 0, z: 1 }, nose));
-  const lift = liftOf(acc, nose, base);
-  let up = lift.up;
-  let roll = 0;
-  if (prev) {
-    const left = cross3(base, nose);
-    const want = Math.atan2(dot3(lift.up, left), dot3(lift.up, base)) / DEG;
-    const r = easeRoll(0, prev.rollDps, want, dt, rollLimitAt(len3(vel), ROLL));
-    const a = r.bankDeg * DEG;
-    up = unit3(add3(scale3(base, Math.cos(a)), scale3(left, Math.sin(a))));
-    roll = r.rollRateDps;
-  }
-  const g = dot3(add3(acc, { x: 0, y: 0, z: G_FTPS2 }), up) / G_FTPS2;
-  const kias = tasToIasKt(len3(vel) / KT_TO_FTPS, blockFt + p1.z);
-  const pose = poseOf3d({ x: p1.x, y: p1.y, altAbove: p1.z, vel, up, kias, g, rollDps: roll });
-  return { pose, state: { up, rollDps: roll } };
 }
 
 /** The level up for a path direction (core point-mass's convention, upright): for seeding Lead's past before the press. */
