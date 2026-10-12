@@ -135,6 +135,32 @@ export function drawnTurnDeg(a, b) {
 }
 
 /**
+ * The attitude the 3D view draws an aircraft at, { headingRad, pitchDeg, attitudeDeg } (the view's angles): its flight path
+ * (headingRad, and the climb from climbFtps over tasFtps), its wings at wingsDeg about that path (left wing down positive,
+ * the view's bank), and the nose tilted toward the lift by the angle of attack less the fuselage datum at its G (core
+ * attitudeDegFromClimb, the same pilot's picture as the rest of the sim), the tilt made in the aircraft's own frame. Wings
+ * level it is exactly the pitch the sim reads. Until 12 Oct 2026 the tilt was added to the Euler pitch, which reads over
+ * by 180° at the vertical: the nose jumped 4-9° in one step there in every loop (J1, the Formation architecture review).
+ * Drawing only: the heading, pitch and bank the sim flies and judges on are unchanged.
+ */
+export function drawnAttitudeOf(a, wingsDeg) {
+  const tas = Math.max(a.tasFtps ?? 0, 1);
+  const gam = Math.asin(Math.max(-1, Math.min(1, (a.climbFtps ?? 0) / tas)));
+  const h = a.headingRad;
+  const path = { x: Math.cos(gam) * Math.cos(h), y: Math.cos(gam) * Math.sin(h), z: Math.sin(gam) };
+  // The path's level up and left (eulerOf's frame), so the wings at wingsDeg give the up eulerOf would read back.
+  const levelUp = { x: -Math.sin(gam) * Math.cos(h), y: -Math.sin(gam) * Math.sin(h), z: Math.cos(gam) };
+  const levelLeft = { x: -Math.sin(h), y: Math.cos(h), z: 0 };
+  const phi = wingsDeg * DEG;
+  const up = add3(scale3(levelUp, Math.cos(phi)), scale3(levelLeft, Math.sin(phi)));
+  const tau = attitudeDegFromClimb(0, tas, a.kias, a.g ?? 1) * DEG;
+  const nose = add3(scale3(path, Math.cos(tau)), scale3(up, Math.sin(tau)));
+  const bodyUp = sub3(scale3(up, Math.cos(tau)), scale3(path, Math.sin(tau)));
+  const e = eulerOf(nose, bodyUp);
+  return { headingRad: e.h, pitchDeg: e.pitchFpDeg, attitudeDeg: e.bank };
+}
+
+/**
  * The attitude drawn a share f (0 to 1) of the way from step a to step b, each { headingRad, pitchDeg, attitudeDeg }: the
  * short way round as one rotation, read back as the view's angles. Of the two sets of angles for one attitude (h, p, bank)
  * and (h + 180°, 180° - p, bank + 180°), it returns the one nearer b's, so away from the vertical it is the plain blend.

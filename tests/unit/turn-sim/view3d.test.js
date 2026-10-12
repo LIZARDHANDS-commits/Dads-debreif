@@ -18,6 +18,7 @@ import {
   yawBehind, orbit, zoomBy, turnSign, aircraftPose, planeLengthFt, fitCamera, CAMERA_LIMITS, T6_LENGTH_FT, MIN_PLANE_PX, FLIGHT_ALT_FT,
   POV, HEAD,
 } from '../../../src/modules/turn-sim/view3d.js';
+import { attitudeDegFromClimb } from '../../../src/core/t6-performance.js';
 
 const THREE = await loadThree();
 const SIZE = { width: 800, height: 600 };
@@ -135,4 +136,30 @@ test('standardized camera limits, frustum clip, and head look match platform bas
   assert.equal(POV.nearInsideFt, 0.5);
   assert.deepEqual(HEAD.yawDeg, [-160, 160]);
   assert.deepEqual(HEAD.pitchDeg, [-85, 80]);
+});
+
+test('over the top of a loop the drawn nose turns no faster than the flight path (J1)', () => {
+  // A loop pulled wings level at a steady 3 G and 160 KIAS: the flight path pitches up through the vertical a degree a step
+  // (20°/s, an estimate for that loop). Past the vertical the angles read over (heading +180°, wings 180°), the same
+  // attitude (attitude.js eulerOf). An aircraft turning with its path turns the same amount every step (plain geometry);
+  // until 12 Oct 2026 the drawn nose jumped 4-9° in one step there, because the angle of attack's tilt was added to the
+  // Euler pitch and did not read over with it.
+  const stepDeg = 1;
+  const tas = 300;
+  const quat = (m) => new THREE.Quaternion().setFromEuler(new THREE.Euler(-m.bankRad, -m.pitchRad, m.headingRad, 'ZYX'));
+  let prev = null;
+  for (let p = 80; p <= 100; p += stepDeg) {
+    const over = p > 90;
+    const gamma = over ? 180 - p : p;
+    const a = { xFt: 0, yFt: 0, altAboveFt: 0, headingRad: over ? Math.PI : 0, climbFtps: tas * Math.sin(gamma * DEG), tasFtps: tas, kias: 160, g: 3, attitudeDeg: over ? 180 : 0, pitchDeg: 0 };
+    const q = quat(aircraftPose(a, 1).model);
+    if (prev) {
+      const turnedDeg = (2 * Math.acos(Math.min(1, Math.abs(prev.dot(q))))) / DEG;
+      assert.ok(turnedDeg < 1.5 * stepDeg, `at ${p}° of path pitch the drawn aircraft turned ${turnedDeg.toFixed(2)}° in one step`);
+    }
+    prev = q;
+  }
+  // Wings level the drawn pitch is the pitch the rest of the sim reads (core attitudeDegFromClimb).
+  const level = { xFt: 0, yFt: 0, headingRad: 0.3, climbFtps: 0, tasFtps: 371, kias: 220, g: 1, attitudeDeg: 0, pitchDeg: attitudeDegFromClimb(0, 371, 220, 1) };
+  near(aircraftPose(level, 1).model.pitchRad, level.pitchDeg * DEG, 1e-9);
 });
