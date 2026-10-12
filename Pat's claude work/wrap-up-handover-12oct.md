@@ -6,7 +6,7 @@ Where the whole tool stands at the end of the 12 Oct run, for whoever picks it u
 
 - **Version on main:** V2.387 (`08263f83`, #961). One version number for the whole tool, the one on the home screen.
 - **Site:** https://lizardhands-commits.github.io/Dads-debreif/. Patrick runs "Deploy to GitHub Pages" himself after a flyable merge.
-- **CI:** the one check. The SOF button-walk failure that kept main red earlier on 12 Oct was fixed by #958.
+- **CI:** the one check. Two failures kept main red during the run: the SOF button walk (fixed by #958) and a Formation hand-over smoothness unit test from V2.381 to V2.386 (fixed by #961). V2.387's final head merged before its CI finished, so main's own run on V2.387 is the check. The type check's three.js loader warnings are warning-only (Patrick, 10 Oct).
 
 ## What merged, V2.380 to V2.387 (11 to 12 Oct)
 
@@ -52,9 +52,9 @@ Every module keeps its ideas and rough spots in its own `future.md`. Counts are 
 
 ## Notes from each module
 
-**Traffic and core.** Read [AUDIT_HANDOVER_V2.387.md](../docs/modules/traffic/AUDIT_HANDOVER_V2.387.md) (#967): every audit verdict, the trace baseline `traffic-main-9aa2f041`, how Traffic pull requests are checked, and three rough spots (a join's climb has no excess-thrust cap, the window height is written in five places, the PFL circle radius is fixed in the code).
+**Traffic and core.** Every refactor step and flying change up to V2.383 was audited before merge and passed; V2.384 to V2.387 touched no Traffic, core or ui-kit flying file. Read [AUDIT_HANDOVER_V2.387.md](../docs/modules/traffic/AUDIT_HANDOVER_V2.387.md) (#967): every audit verdict, the trace baseline `traffic-main-9aa2f041`, how Traffic pull requests are checked, and three rough spots (a join's climb has no excess-thrust cap, the window height is written in five places, the PFL circle radius is fixed in the code).
 
-**Performance rebuild.** Branch `claude/project-thread-swv8zh`, handover `Pat's claude work/performance-rebuild/handover.md` on that branch. It is off main by Patrick's order and already takes in V2.387. Today's ruling: idle propeller drag is full up to 220 KIAS and gone by 250. Open: the gear-down orbit conflict, the climb above 20,000 ft, static thrust, and seven module fixes waiting for Patrick's go.
+**Performance rebuild.** Branch `claude/project-thread-swv8zh`, handover `Pat's claude work/performance-rebuild/handover.md` on that branch. It is off main by Patrick's order and already takes in V2.387. Its handover lists the module fixes for their owners and the open questions for Patrick; read it there rather than here. Today's ruling: idle propeller drag is full up to 220 KIAS and gone by 250.
 
 **Formation.** V2.387 (#961) merged on Patrick's word without a second Fable review. The hand-overs (line abreast to echelon, echelon to line abreast, fighting wing to route) re-fly roll lags of 1 s or less at the bank flown; longer roll-ins, such as #4's 5.65 s in the echelon hook, still fly the planned path. The two timings are estimates (`ROLLED_MAX_SEC` 1 s, `ROLLED_BLEND_SEC` 6 s), and the item stays on the Turn Sim future list until Patrick flies it (#966). Unseen: the 3D view and Patrick's flying. The Formation branch has no open work.
 
