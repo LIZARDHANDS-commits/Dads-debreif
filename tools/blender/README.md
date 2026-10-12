@@ -18,6 +18,8 @@ If a file is missing, or a part's shape has changed since it was built, the code
 
 Blender 4.2 LTS, the free official release from blender.org, run without its window.
 
+To look at the result, the render scripts in `render/` take pictures from the seats and outside, and from past versions (see `render/README.md`).
+
 ## Rebuild the outside
 
 Rebuild it after every change to the outside's shape in the code (ct156-model.js):

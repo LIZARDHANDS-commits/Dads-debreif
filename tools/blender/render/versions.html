@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>tl</title><style>html,body{margin:0}canvas{display:block}</style></head>
+<body><canvas id="c" width="1280" height="720"></canvas>
+<script type="module">
+import * as THREE from 'three';
+const M = await import('/src/ui-kit/ct156-model.js');
+let C = null; try { C = await import('/src/ui-kit/ct156-cockpit.js'); } catch (e) { window.cErr = String(e); }
+const F = 23.148;
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+function scene(bg) {
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(bg);
+  sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', 1.0));
+  const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(0.5, 0.9, 1.4); sc.add(sun, sun.target);
+  return sc;
+}
+let cache = {};
+function ship(withPit) {
+  const key = withPit ? 'pit' : 'out';
+  if (cache[key]) return cache[key];
+  const s = M.createCt156Model(THREE, { color: '#c03030', number: 1 });
+  let pit = null;
+  if (withPit && C) {
+    pit = C.createCt156Cockpit(THREE, { doc: document, seat: 'front' });
+    s.add(pit.group ?? pit);
+    M.setCockpitView?.(s, { seat: 'front' });
+    try { pit.update?.({ pitchDeg: 0, bankDeg: 0, altFt: 5000, g: 1, kias: 200, headingDeg: 90 }); } catch {}
+  }
+  return (cache[key] = { s, pit });
+}
+window.cpit = ({ from = null, at = null, yaw = 0, pitch = -9, fov = 70, w = 1280, h = 720 }) => {
+  const sc = scene('#bdae86'); const { s } = ship(true); sc.add(s); s.updateMatrixWorld(true);
+  renderer.setSize(w, h, false);
+  const e = C.EYES_FT?.front ?? C.EYE_FT;
+  const cam = new THREE.PerspectiveCamera(fov, w / h, 0.0005, 100); cam.up.set(0, 0, 1);
+  if (from) { cam.position.set(from[0] / F, from[1] / F, from[2] / F); cam.lookAt(at[0] / F, at[1] / F, at[2] / F); }
+  else { const p = pitch * Math.PI / 180; cam.position.set(e.x / F, e.y / F, e.z / F); const q = yaw * Math.PI / 180; cam.lookAt(e.x / F + Math.cos(p) * Math.cos(q), e.y / F + Math.cos(p) * Math.sin(q), e.z / F + Math.sin(p)); }
+  cam.updateMatrixWorld(true); window.last = { sc, cam }; renderer.render(sc, cam); return true;
+};
+// outside: ortho front/side/top, perspective iso; framed on the model's box
+window.out = ({ view, w = 1200, h = 800 }) => {
+  const sc = scene('#9fb8d6'); const { s } = ship(false); sc.add(s); s.updateMatrixWorld(true);
+  renderer.setSize(w, h, false);
+  const box = new THREE.Box3().setFromObject(s), c = box.getCenter(new THREE.Vector3()), z = box.getSize(new THREE.Vector3());
+  const a = w / h, half = view === 'top' ? 0.78 : 0.58; let cam;
+  if (view === 'iso') {
+    cam = new THREE.PerspectiveCamera(30, a, 0.001, 100);
+    cam.position.set(c.x + 2.0, c.y + 2.0, c.z + 1.3); cam.fov = 26; cam.updateProjectionMatrix();
+  } else {
+    cam = new THREE.OrthographicCamera(-half * a, half * a, half, -half, 0.001, 100);
+    if (view === 'front') cam.position.set(c.x + 5, c.y, c.z);
+    if (view === 'side') cam.position.set(c.x, c.y + 5, c.z);
+    if (view === 'top') { cam.position.set(c.x, c.y, c.z + 5); cam.up.set(0, 1, 0); }
+  }
+  if (view !== 'top') cam.up.set(0, 0, 1);
+  cam.lookAt(c); cam.updateMatrixWorld(true); window.last = { sc, cam }; renderer.render(sc, cam);
+  return { box: [box.min.toArray(), box.max.toArray()] };
+};
+window.close = ({ eye, at, fov = 30, w = 1800, h = 1200 }) => {
+  const sc = scene('#9fb8d6'); const { s } = ship(false); sc.add(s); s.updateMatrixWorld(true);
+  renderer.setSize(w, h, false);
+  const cam = new THREE.PerspectiveCamera(fov, w / h, 0.001, 100); cam.up.set(0, 0, 1);
+  cam.position.set(...eye); cam.lookAt(...at); cam.updateMatrixWorld(true);
+  window.last = { sc, cam }; renderer.render(sc, cam); return true;
+};
+window.rerender = () => { renderer.render(window.last.sc, window.last.cam); return true; };
+window.ready = true;
+</script></body></html>

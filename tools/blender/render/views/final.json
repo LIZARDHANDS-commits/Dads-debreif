@@ -1,0 +1,8 @@
+{"cpit": {
+ "f55": {"pitch": -10, "fov": 55, "w": 1600, "hgt": 900, "ground": true},
+ "f90": {"pitch": -10, "fov": 90, "w": 1600, "hgt": 900, "ground": true},
+ "rear55": {"pitch": -8, "fov": 55, "w": 1600, "hgt": 900, "ground": true, "seat": "rear"}
+},
+"surf": {
+ "seatQuarter": {"w": 1400, "h": 1000, "eye": [22, 9, 7], "at": [15, 0, 2.2], "fov": 30, "t": 0}
+}}
