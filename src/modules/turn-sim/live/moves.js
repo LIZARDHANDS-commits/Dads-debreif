@@ -435,13 +435,11 @@ export const TRACKER = Object.freeze({
   wrongSideFt: 50, // more than this past Lead's six is the wrong side; inside the step-down gate (LANE.belowRangeFt, 2,000 ft, TS-151) that drops the ride (about 1.5 wingspans, estimate; row 8)
 });
 
-// ---- fluid manoeuvring: #2's timings and numbers (from fluid-wing.js) ----------------------------------------------
+// ---- fluid manoeuvring: #2's timings and numbers ------------------------------------------------------------------
 
 /** #2's numbers. Sources beside each; "estimate" where none. */
 export const WING = Object.freeze({
-  pursuitShare: 0.1, // the lag or lead offset as a share of the range (estimate)
   latDeg: 15, // off Lead's tail, inside the 30° half cone (estimate; cone: Patrick 19:20Z row 2)
-  collapseSec: 6, // how long the collapse toward the six takes (estimate)
   rangeSec: 6, // how long a new distance setting takes to fly (estimate)
   // Entry and terminate: from the fighting wing slot into the cone and back. Since V2.59 the time is what the close-in
   // rate gives over that distance (fluid.js blendSecs; Patrick 5 Oct 04:59Z: "move quickly into fluid maneouvering or into
@@ -449,25 +447,9 @@ export const WING = Object.freeze({
   blendInSec: 10, // entry (estimate)
   blendOutSec: 12, // terminate (estimate)
   blendMinSec: 3, // no blend quicker than 3 s, however quick the rate (estimate)
-  smoothSteps: 10, // the position line is smoothed over 10 steps (0.5 s) either side (estimate)
-  maxBehindSec: 10, // the furthest back along Lead's path #2 can be
-  turnSec: 8, // the lag or lead offset is what the cue wanted over the last 8 s, averaged (estimate)
-  tailSec: 6, // the turn onto the place off Lead's current tail is averaged over the last 6 s (estimate; 3 s in V2.18)
-  headingSec: 3, // the fighting wing slot, while blending, turns with Lead's heading averaged over the last 3 s (estimate)
-  swapMinSec: 5, // the side swap takes no less than 5 s ... (estimate)
-  swapMaxSec: 12, // ... and no more than 12 s (estimate)
   swapAccelDps2: 2, // how quickly a wingman can stop a drift across the cone, 2°/s² (estimate)
   swapMarginDeg: 2, // the stop must be at least 2° past the tail line before he swaps, so he doesn't flick on a line (estimate)
   swapGuardSec: 4, // no new swap for 4 s after one ends (estimate)
-  // Opening the range in the wingovers' and barrel roll's pulls (Patrick card 5 Oct 01:01Z, "Open his path"; SMM 16.17
-  // para 44's 5 G as an aim, not a wall; TS-60 amendment): on Lead's path at a long distance #2 has to speed up at the
-  // bottom of each pull to keep the distance, which takes him past 5 G. Instead he flies no faster along Lead's path than
-  // keeps him near openGAim, letting the distance open, then closes back to the setting.
-  openGAim: 4.5, // the G he aims to stay under while the range opens: 0.5 G inside the 5 G aim for the turn's own share (estimate)
-  openFadeSec: 2, // the opening is allowed only in those manoeuvres, faded in and out over 2 s (estimate)
-  closeShare: 0.08, // closing back he flies at most 8% faster along Lead's path than Lead did there (about 15-20 KIAS; estimate) ...
-  closeSec: 4, // ... and the last of it dies away over about 4 s (estimate)
-  openSoft: 0.005, // how softly the opening hands over to the closing (the smooth maximum's width; estimate)
 });
 
 // ---- held to full power (from full-power.js) -----------------------------------------------------------------------
@@ -478,32 +460,18 @@ export const WING = Object.freeze({
  *    (10 ft, or 5% of his range from the aircraft he flies off if more), so a close wingman shows it at a few feet and a
  *    fighting wing one at a few tens.
  *  overtakeKias: closing back up he keeps at most this overtake, the middle of EFIG p.374's 10-20 KIAS.
- *  closeDecelFtps2: and plans to take it off at about this (about 0.6 kt/s, power back: well inside slow-down.js's
- *    power stage), so he arrives without overshooting.
- *  gain, jerkFtps3: how quickly he follows the speed he wants (1/s) and changes his acceleration (POWER.jerkKtps2, the
- *    torque's 0.2 s; about 1 kt/s² until V2.119).
+ *  jerkFtps3: how quickly he changes his acceleration (POWER.jerkKtps2, the torque's 0.2 s; about 1 kt/s² until V2.119).
  *  extraSec: the longest he may take to close up after the planned line ends (a guard only).
  */
 export const HOLD = Object.freeze({
   stretchMinFt: 10,
   stretchShare: 0.05,
   overtakeKias: 15,
-  closeDecelFtps2: 1,
-  gain: 0.6,
   jerkFtps3: POWER_JERK_KTPS2 * KT_TO_FTPS,
   extraSec: 120,
-  // Cutting inside when behind in fluid manoeuvring (V2.59, Patrick card 5 Oct 04:53Z "Geometry: cut inside"):
-  cutShare: 0.25, // the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate)
-  cutSec: 4, // how long moving into or out of the offset takes (estimate)
-  cutMinCurvPerFt: 1 / 20000, // a line straighter than a 20,000 ft radius has no inside to cut (estimate)
-  // #2 in fluid manoeuvring by energy and geometry (TS-74, V2.69; full-power.js flyFluidStep). cutShare, cutSec and
-  // cutMinCurvPerFt above are his lag and lead offset too, either side of the line.
+  // #2 in fluid manoeuvring (TS-74, V2.69):
   lookSec: 2, // he sets his lag or lead for the gap he will have in about 2 s at the closure he has (estimate)
   bubbleMarginFt: 50, // with Lead at MAX, #2 takes power off only within about 50 ft of the 500 ft bubble (estimate)
-  offsetAccFtps2: 10, // and moves with at most about 0.3 G of its own, so the lag or lead adds little to the G he pulls (estimate)
-  aimSec: 1, // and the offset's aim is eased over about 1 s, so a new turn or a reversal never jerks his G (estimate)
-  powerSec: POWER.torqueSec, // the torque's full travel, 0 to 100%, takes about 0.2 s; the boards are instant (Patrick 6 Oct 03:17Z, 03:18Z, TS-108; 2 s, an estimate, until V2.119)
-  floorKias: 70, // his speed is never shown below 70 KIAS, a guard only: the planned line keeps him well above it (estimate)
 });
 
 /**
