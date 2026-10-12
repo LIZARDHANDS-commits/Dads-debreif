@@ -37,7 +37,7 @@
 //
 // Units: feet, seconds, x east, y north, z up; Lead's positions are heights above the block (fluid.js), #2's point mass
 // is absolute (as Lead's st.pm). Every number with no manual or ruling beside it is an estimate and says so.
-import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
+import { liftTowardAim } from '../../../core/point-mass.js';
 import { shakerG, availableG } from '../../../core/t6-performance.js';
 import { DEG } from '../../../core/angles.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
@@ -70,7 +70,8 @@ export const LIVE = Object.freeze({
   severitySec: 2, // ... and follows his turn over about 2 s, none to full, so a quick roll-in of Lead's moves #2's picture smoothly, never in a step (estimate; smooth hands)
   turnSenseSec: 0.5, // #2's sense of Lead's turn (its direction and size) follows Lead's turning acceleration with about half a second of lag (estimate) ...
   turnHeldG: 0.1, // ... and below 0.1 G of it the last turn's direction and plane are held, so a straight Lead never leaves him a direction from noise (estimate)
-  circleSec: 4, // in a turn the side offset in Lead's plane eases away over about 4 s, so #2 settles onto Lead's circle, and back over 4 s as Lead rolls out (estimate; Patrick 12 Oct 2026 01:39Z: "maintain 500 feet in the turn then accept getting a bit further away as we seep out to our 'offset' position")
+  circleSec: 4, // in a turn into him the side offset in Lead's plane eases away over about 4 s (circleInsideSec below), so #2 settles onto Lead's circle; on the outside of a turn it holds, so he stays on the route offset off Lead's tail, never dead astern (Patrick 12 Oct 2026 04:14Z: "at times it seems like we're flying directly at lead instead of the route position"). The 4 s is an estimate; Patrick 01:39Z: "maintain 500 feet in the turn then accept getting a bit further away as we seep out to our 'offset' position"
+  circleBackSec: 12, // in Terminate the offset comes back as Lead rolls out over about 12 s, the slot slide's own pace (estimate), so the roll-out never jumps the aim across
   circleInsideSec: 8, // ... but with the offset on the inside of Lead's turn (Lead turning into him) over about 8 s, so Lead's turn brings the circle to him and he rolls in later and shallower instead of rolling away first (estimate; Patrick 12 Oct 2026 03:10Z: he turns away only when the turn would bring him inside 500 ft)
   bubbleShare: -1, // inside the 500 ft bubble the aim goes to full lag (spec section 9; SMM 16.17 para 44c)
   l1Sec: 2.5, // the pursuit gain is 2V over the distance to the aim, or over about 2.5 s of flight if the aim is nearer (estimate): standard L1 guidance, soft enough that a roll-in of Lead's is followed, not snatched at
@@ -79,6 +80,8 @@ export const LIVE = Object.freeze({
   minG: 0.5, // never below 0.5 G on the lift he has (as Lead's push, 2 CFFTS Orders B2 ch 8 para 1a; 0.5 an estimate)
   normalG: G_RULE.normalG, // SMM 16.17 para 44a; Gen Book p.11 (flagged, the normal ceiling)
   acrossDps: 3, // how fast his place moves across the tail (the entry): 3°/s, 30° in about 10 s (estimate)
+  openDeg: 25, // tight with Lead straight his place opens across toward the edge of the fluid cone, 30° off the tail (SMM 16.17 para 42) less the shared 5° margin, so he is judged in position all the way; measured on V2.380 from 500 ft at 55° off the tail: opening to 45° (the middle of the fighting wing cone) keeps him 485 ft at the closest but parks him at 32°, out of the fluid cone; 25° goes through 429 ft (flagged TIGHT) and settles 519 ft at 24°, in position, with the fewest bank reversals (estimate) ...
+  openUpFt: 100, // ... and up to about 100 ft above Lead (estimate: "use the cone as required", Patrick 5 Oct 2026 23:02Z), a longer path with power at MAX
   slotSideDeg: 2, // near Lead's tail Terminate takes the side he is heading for once more than 2° past it (estimate) ...
   slotAcrossDps: 1.5, // in Terminate his place flows across to the fighting wing slot at 1.5°/s (estimate), a gentle slide out while Lead flies straight
   rangeFtps: 60, // how fast his place moves in or out (a new distance, the entry, Terminate): estimate
@@ -89,24 +92,6 @@ export const LIVE = Object.freeze({
   wordShare: Object.freeze({ on: 0.35, off: 0.15 }), // LAG or LEAD shows past 35% of the cap and goes under 15%, so the word doesn't flicker (estimate)
   settleKt: 2, // Terminate ends with him in the fighting wing band and within 2 kt of Lead (spec section 9)
 });
-
-/**
- * The point mass measures bank from a level up (core upFrom), which spins round the nose when the nose passes near the
- * vertical a little off the plane (a loop flown slightly tilted). Holding the bank number through that spin would be a
- * real roll, so after each step the bank is re-read against the new up to keep his lift where it was: his wings don't move
- * because the reference did. Lead's own step is unchanged; this is #2's.
- */
-function carryBank(prev, next) {
-  const carried = unit3(perp3(prev.pm.up, next.nose));
-  const spin = Math.atan2(dot3(cross3(carried, next.pm.up), next.nose), dot3(carried, next.pm.up));
-  if (Math.abs(spin) < 1e-9) return next;
-  const bankDeg = next.bank - spin / DEG;
-  const b = bankDeg * DEG;
-  const right = cross3(next.nose, next.pm.up);
-  const bodyUp = unit3(add3(scale3(next.pm.up, Math.cos(b)), scale3(right, Math.sin(b))));
-  const accPerp = perp3(sub3(scale3(bodyUp, next.g * G_FTPS2), { x: 0, y: 0, z: G_FTPS2 }), next.nose);
-  return { ...next, bank: ((bankDeg + 540) % 360) - 180, bodyUp, accPerp };
-}
 
 /**
  * The left of Lead's path frame, where the side offset lies: level (square to his nose and the vertical) with Lead upright
@@ -205,8 +190,12 @@ export function stepLiveWing(ws, ctx) {
     plane = unit3(cross3(nose, turnAcc));
   }
   const turning = Math.min(1, len3(turnAcc) / (LIVE.severityG * G_FTPS2));
+  const toSlotNow = e.cue?.blend === 0;
   const severity = Math.min(turning, toward(ws.severity ?? 0, turning, 1 / LIVE.severitySec));
-  const circle = toward(ws.circle ?? 0, turning, 1 / LIVE.circleSec);
+  // In Terminate the offset comes back as Lead rolls out at the slot's own pace (circleBackSec), not the 4 s of a manoeuvre,
+  // so the aim moves across no faster than the place does. Measured on V2.379: the roll-out wag (bank +28 to -20 to +25
+  // in 3 s on V2.378) is gone after the barrel roll but still there in most runs, so it stays on the list (future.md).
+  const circle = toward(ws.circle ?? 0, turning, 1 / (toSlotNow && turning < (ws.circle ?? 0) ? LIVE.circleBackSec : LIVE.circleSec));
   const circleIn = toward(ws.circleIn ?? 0, turning, 1 / LIVE.circleInsideSec);
   const inBubble = rangeFt < FW_BAND.bubbleFt;
   const holding = Boolean(e.holdKias);
@@ -233,9 +222,16 @@ export function stepLiveWing(ws, ctx) {
       : Math.abs(driftFt) > rangeFt * Math.sin(LIVE.slotSideDeg * DEG) ? Math.sign(driftFt) : side);
   }
   if (toSlot) side = slotSide;
+  // Tight with Lead straight (the entry from a close fighting wing, or Lead level between manoeuvres) there is no turn to
+  // lag on and power is MAX for both, so he opens out by geometry: his place moves across toward the cone's middle and a
+  // little above Lead, a longer path, and comes back to the route offset as the range comes back (Patrick 5 Oct 2026 23:02Z,
+  // "Use the cone as required, power as a last resort"; his 12 Oct 04:14Z debrief: "when we enter into FM the range should
+  // be 500, it starts at like 3-something").
+  const wantRange = toSlot ? ws.slot.rangeFt : Math.max(FW_BAND.bubbleFt, ctx.rangeFt - LIVE.turnInFt);
+  const tightStraight = toSlot ? 0 : (1 - turning) * Math.max(0, Math.min(1, (wantRange - (rangeFt - closureFtps * LIVE.lookSec)) / Math.max(wantRange - FW_BAND.bubbleFt, 1)));
   const want = toSlot
-    ? { rangeFt: ws.slot.rangeFt, acrossDeg: side * ws.slot.acrossDeg, alt: ws.slot.alt }
-    : { rangeFt: Math.max(FW_BAND.bubbleFt, ctx.rangeFt - LIVE.turnInFt), acrossDeg: side * LIVE.sideDeg, alt: 0 };
+    ? { rangeFt: wantRange, acrossDeg: side * ws.slot.acrossDeg, alt: ws.slot.alt }
+    : { rangeFt: wantRange, acrossDeg: side * (LIVE.sideDeg + (LIVE.openDeg - LIVE.sideDeg) * tightStraight), alt: LIVE.openUpFt * tightStraight };
   // Terminate: Lead flies straight and level, so his place flows across to the fighting wing slot from the press (Patrick
   // 12 Oct 2026 04:01Z).
   const place = {
@@ -261,7 +257,8 @@ export function stepLiveWing(ws, ctx) {
   const wantFt = Math.max(place.rangeFt, 1);
   let shareWanted = bias + (LIVE.kR * (rangeFt - wantFt)) / wantFt - (LIVE.kC * closureFtps * LIVE.lookSec) / wantFt;
   if (inBubble) shareWanted = Math.min(shareWanted, LIVE.bubbleShare);
-  // While Lead holds a speed (Terminate) power flies his place, so geometry comes in only as lag.
+  // While Lead holds a speed (Terminate) power flies his place, so geometry comes in only as lag (a lead there was tried
+  // and wagged him at Lead's roll-out).
   if (holding) shareWanted = Math.min(0, shareWanted);
   const share = Math.max(-1, Math.min(1, shareWanted)) * severity;
   // Lead (nose in front of him, SMM 12.30 para 72) moves the point toward the inside of Lead's turn, square to #2's line of
@@ -274,9 +271,11 @@ export function stepLiveWing(ws, ctx) {
   // ---- the aim: Lead, moved in front of or behind him, offset to #2's side (and up to Terminate's slot height) ----
   // The side offset is fixed, set at the entry (Patrick 12 Oct 2026 01:39Z, "the small offset"; 02:45Z "that part is
   // good"), in Lead's path frame, so it holds through a loop, a wingover or a roll.
-  // In a turn the part of it in Lead's plane eases away (circle), so he settles onto Lead's circle, and eases back as the
-  // turn eases (Terminate's slot offset included, never in a step); out of the
-  // plane (beside a loop) it holds.
+  // With the offset on the inside of Lead's turn (Lead turning into him) the part of it in Lead's plane eases away
+  // (circleIn), so Lead's turn brings the circle to him and he settles onto it; on the outside it holds, so through a turn
+  // away from him he stays on the route offset off Lead's tail, never dead astern on Lead's circle (Patrick 12 Oct 2026
+  // 04:14Z: "at times it seems like we're flying directly at lead instead of the route position"). Out of the plane
+  // (beside a loop) it holds too.
   let sideVec = scale3(left, place.rangeFt * Math.sin(place.acrossDeg * DEG));
   let insideTurn = false;
   if (plane) {
@@ -284,7 +283,8 @@ export function stepLiveWing(ws, ctx) {
     const out = scale3(nTurn, dot3(sideVec, nTurn));
     const inPlane = sub3(sideVec, out);
     insideTurn = dot3(inPlane, turnDir) > 0;
-    sideVec = add3(out, scale3(inPlane, 1 - (insideTurn ? circleIn : circle)));
+    if (insideTurn) sideVec = add3(out, scale3(inPlane, 1 - circleIn));
+    else if (toSlot) sideVec = add3(out, scale3(inPlane, 1 - circle)); // Terminate: he flows to the slot on Lead's gentle turn, not the route offset
   }
   const aim = add3(add3(add3(L, scale3(ahead, offFt)), sideVec), scale3(Z, place.alt));
   const toAim = sub3(aim, pw);
@@ -304,7 +304,6 @@ export function stepLiveWing(ws, ctx) {
   const cap = Math.min(shakerG(st.kias), inBubble ? availableG(st.kias) : Math.min(LIVE.normalG, (e.st?.g ?? 1) + LIVE.overLeadG));
   const mag = len3(lift);
   if (mag > cap) lift = scale3(lift, cap / mag);
-  const { g, bankRad } = gAndBankForLift(lift, vHat, st.pm.up, st.bank * DEG);
 
   // ---- power ----
   let holdKias;
@@ -318,7 +317,11 @@ export function stepLiveWing(ws, ctx) {
   // Otherwise MAX, as Lead: both at max power for all of fluid manoeuvring (Patrick 11 Oct 2026 22:32Z), the spacing
   // flown by lag, pure and lead alone.
 
-  const next = carryBank(st, stepLead(st, { g, bank: bankRad / DEG, holdKias }));
+  // The lift goes to the step as a vector: the step reads it into a G and a bank against each half step's own up and
+  // carries the bank through the step (fluid-lead.js stepLead, carryBank), so his wings move only when the lift wanted
+  // moves, never because the level reference spun round his nose at the vertical (the loop stutter, Patrick 12 Oct 2026
+  // 04:14Z).
+  const next = stepLead(st, { lift, holdKias });
   const pose = poseOf3d({
     x: next.pm.x, y: next.pm.y, altAbove: next.pm.z - blockFt, vel: next.vel, up: next.bodyUp,
     kias: next.kias, g: next.g, rollDps: -next.rollRate,
