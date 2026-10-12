@@ -162,9 +162,14 @@ export const ARCH_FT = Object.freeze({
 // from the eye. Then the coaming's aft edge moved 5 in aft, to 1.68 ft (20.2 in) ahead of the front eye, and the face
 // to 4.9 in ahead of that edge at its bottom, leaning back 5° so its top is 6.1 in ahead (Patrick, 12 Oct 2026; it was
 // upright, OVERHANG_FT 3 in ahead). x is the face's station at its bottom edge, leanDeg its lean (top forward).
+// The face is 1.2 in higher, so the grab rail's lower edge meets the EADI's case and the lip under the rail goes
+// (Patrick, 12 Oct 2026, "panel up 1.2 in", the rail kept where it was; it was 0.22 to 1.48 ft up). Its outline now
+// has the rail's shoulders 2.4 in higher and its top 1 in wider (shoulderV 0.595, topFrac 0.435; were 0.52 and 0.38),
+// so the rail runs 12.6 in out each side, straight in at about 43 degrees to a flat top 11 in across (Patrick,
+// 12 Oct 2026; it was 13.2 in out, curving in at about 48 degrees to a top 10 in across).
 const COAMING_EDGE_X = CT156_COAMING_CROWNS_FT.front[0][0];
 const FACE_AHEAD_FT = 0.41;
-export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + FACE_AHEAD_FT, leanDeg: 5, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.52, topFrac: 0.38 });
+export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + FACE_AHEAD_FT, leanDeg: 5, top: 1.58, bottom: 0.32, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.595, topFrac: 0.435 });
 
 /**
  * The front coaming (glareshield), feet (TS-157): a moulded near-black hood over the panel, its aft edge following the
@@ -186,8 +191,11 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + FACE_AHEAD_FT, leanD
 const FRONT_CROWN = CT156_COAMING_CROWNS_FT.front;
 export const GLARESHIELD_FT = Object.freeze({
   crown: FRONT_CROWN, aftX: FRONT_CROWN[0][0], foreX: FRONT_CROWN[FRONT_CROWN.length - 1][0], top: FRONT_CROWN[0][1], foreTop: FRONT_CROWN[FRONT_CROWN.length - 1][1],
-  lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1, railOut: -0.05, cheeks: true,
+  lipDrop: 0, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1, railOut: -0.1, diagPow: 1, cheeks: true,
 });
+// Since the panel came up 1.2 in (Patrick, 12 Oct 2026) the rail's lower edge meets the EADI's case, so no lip hangs
+// under it (lipDrop was worked out from the eye to just cover the EADI's top, about 0.15 ft) and the three lamps sit on
+// the rail; its sides run 0.1 ft inside the panel's edge (railOut, was 0.05) and its diagonals are straight (diagPow).
 /**
  * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
  * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
@@ -263,7 +271,11 @@ export const SEAT_FT = Object.freeze({
   console: { aft: 0.6, inner: 0.82, outer: 1.3, top: -0.45 },
   floorZ: CT156_TUB_FLOOR_FT, // the tub's floor (ct156-model.js)
   stick: { x: 2.2, tiltDeg: 8, height: 1.65 },
-  knee: { inner: 0.24, outer: 0.8, belowPanel: 0.15, r: 0.17, depth: 0.5 }, // the knee wells under the panel
+  // The knee wells under the panel: their tops at the main face's bottom (0.02 ft under it), 0.88 ft out, their top
+  // corners 0.25 ft round, edged with a rolled trim 0.025 ft round (Patrick, 12 Oct 2026, and his lower panel photo;
+  // were 0.15 ft under it, 0.8 ft out, 0.17 ft round, no trim). Where a well is wider than the console's inner edge,
+  // its outer side stops on the console's top.
+  knee: { inner: 0.24, outer: 0.88, belowPanel: 0.02, r: 0.25, depth: 0.5, trim: 0.025 },
 });
 /** The canopy's side frames inside the glass, feet: 0.3 ft up from the sill, a fastener every 0.3 ft (estimates). */
 export const SIDE_FRAME_FT = Object.freeze({ height: 0.3, thick: 0.06, pitch: 0.3 });
@@ -1338,8 +1350,9 @@ function drawStaticPanel(ctx, width, height, instruments, faceW, faceH) {
 function drawLowerPanel(ctx, width, height) {
   ctx.fillStyle = PANEL_GREY;
   ctx.fillRect(0, 0, width, height);
-  const LW = LOWER_PANEL_FT.halfWidth, z0 = SEAT_FT.floorZ, z1 = PANEL_FT.bottom;
-  const X = (y) => ((LW - y) / (2 * LW)) * width, Z = (z) => ((z1 - z) / (z1 - z0)) * height;
+  const LW = LOWER_PANEL_FT.halfWidth, z0 = SEAT_FT.floorZ, z1 = PANEL_FT.bottom, up = z1 - LOWER_PANEL_FT.laidOutAt;
+  // Each place rises with the panel (`up`), except the floor itself.
+  const X = (y) => ((LW - y) / (2 * LW)) * width, Z = (z) => ((z1 - (z === z0 ? z0 : z + up)) / (z1 - z0)) * height;
   const R = (ft) => (ft / (2 * LW)) * width; // a length across, pixels
   const rect = (yl, yr, zt, zb, fill) => { ctx.fillStyle = fill; ctx.fillRect(X(yl), Z(zt), X(yr) - X(yl), Z(zb) - Z(zt)); };
   const dot = (y, z, r, fill) => { ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(X(y), Z(z), R(r), 0, Math.PI * 2); ctx.fill(); };
@@ -1611,7 +1624,7 @@ function hoodHalf(h, ts, x) {
   const pts = [[0, crown], [topY, crown]];
   for (let k = 1; k <= 6; k++) {
     const s = k / 6;
-    pts.push([lerp(topY, sideY, s), crown - drop * s ** 1.15]);
+    pts.push([lerp(topY, sideY, s), crown - drop * s ** (h.diagPow ?? 1.15)]);
   }
   pts.push([sideY + 0.01, crown - drop - h.skirt]);
   return pts;
@@ -1633,10 +1646,11 @@ function cheekHalf(h, ts, x) {
   return Array.from({ length: 7 }, (_, k) => insideGlass(x, lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + bulge * Math.sin((Math.PI * k) / 6)));
 }
 /**
- * The lower panel's half-width, feet: out to 1.25 ft each side, as the front panel layout shows it below the
- * main face (measured at the main face's scale; until 11 Oct 2026 as wide as the main face).
+ * The lower panel's half-width, feet: as wide as the main face (1.15 ft) at its top, flaring out to 1.27 ft over the
+ * first 0.43 ft down and then straight to the consoles (Patrick, 12 Oct 2026; it was 1.25 ft all the way down). Its
+ * picture's places were laid out with the main face's bottom 0.22 ft up (`laidOutAt`); they rise with the panel.
  */
-const LOWER_PANEL_FT = Object.freeze({ halfWidth: 1.25 });
+const LOWER_PANEL_FT = Object.freeze({ halfWidth: 1.27, top: 1.15, flare: 0.43, laidOutAt: 0.22 });
 /** A coaming's surface height at (x, y), feet (for standing things on it), on its sides too where it has them. */
 function hoodZ(h, ts, x, y) {
   const top = hoodTopZ(h, ts, x, y);
@@ -1805,16 +1819,6 @@ function ventParts(THREE, x, y, z, put, SLOT) {
   for (let k = 0; k < 4; k++) put(turn(box(THREE, -0.05, -0.04, -0.11, 0.11, -0.055 + k * 0.037, -0.045 + k * 0.037)), SLOT.black);
 }
 
-/**
- * How far a coaming's lip hangs below its crown at the aft edge so that, seen from `eye`, its bottom edge just covers
- * the EADI's frame down to its screen's top on the panel behind it (feet; Patrick's marks, 11 Oct 2026).
- */
-function lipToCover(h, eye, p, zOf, faceW, faceH) {
-  const e = PANEL_INSTRUMENTS.find((i) => i.kind === 'eadi');
-  const top = zOf(e.v) + outerFt(e, faceW, faceH).h / 2, x = p.x - 0.03;
-  return h.top - (eye.z + ((top - eye.z) * (h.aftX - eye.x)) / (x - eye.x));
-}
-
 // Material slots for the joined solid parts.
 const SLOT = Object.freeze({
   grey: 0, black: 1, rail: 2, red: 3, mirror: 4, knob: 5, lampRed: 6, lampAmber: 7, lampGreen: 8, band: 9, seat: 10,
@@ -1868,12 +1872,17 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   const k = S.knee, c = S.console, floor = S.floorZ;
   const wellTop = p.bottom - k.belowPanel;
   const right = archOutline(-k.inner, -k.outer, floor, wellTop, k.r), left = archOutline(k.outer, k.inner, floor, wellTop, k.r);
-  const LW = Math.max(ts.side, LOWER_PANEL_FT.halfWidth);
+  const overConsole = k.outer > c.inner;
+  if (overConsole) { right[right.length - 1][1] = c.top; left[0][1] = c.top; }
+  const LP = LOWER_PANEL_FT, LW = Math.max(ts.side, LP.halfWidth), LT = Math.min(LP.top, LW);
+  const step = (s) => (overConsole ? [] : s > 0 ? [[c.inner, floor], [c.inner, c.top]] : [[-c.inner, c.top], [-c.inner, floor]]);
   const outline = [
-    [LW, p.bottom], [-LW, p.bottom], [-LW, c.top], [-c.inner, c.top], [-c.inner, floor],
-    ...right.slice().reverse(), ...left.slice().reverse(), [c.inner, floor], [c.inner, c.top], [LW, c.top],
+    [LT, p.bottom], [-LT, p.bottom], [-LW, p.bottom - LP.flare], [-LW, c.top], ...step(-1),
+    ...right.slice().reverse(), ...left.slice().reverse(), ...step(1), [LW, c.top], [LW, p.bottom - LP.flare],
   ];
   lower.push(flatAft(THREE, p.x + 0.002, outline, { y0: LW, y1: -LW, z0: floor, z1: p.bottom }));
+  // The knee wells' rolled trim, round each well's edge from foot to foot.
+  for (const arch of [left, right]) put(tubeThrough(THREE, arch.map(([y, z]) => [p.x - 0.002, y, z]), k.trim, 48, { radial: 6 }), SLOT.dark);
   // The knee wells' dark recesses, with the rudder pedals in them.
   for (const arch of [left, right]) {
     const ys = arch.map(([y]) => y);
@@ -1912,16 +1921,16 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
       put(flatAft(THREE, h.aftX + 0.002, [...edge, ...hood.slice(1).reverse()].map(([y, z]) => [side * y, z])), SLOT.black);
     }
   }
-  // The front lip hangs just far enough to cover the EADI frame's top from the eye (Patrick, 11 Oct 2026: pilots raise
-  // the seat until the surface under the three lamps just covers the EADI's top); the rear hump keeps its own.
-  const lipDrop = front ? lipToCover(h, eye, p, zOf, faceW, faceH) : h.lipDrop;
-  put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -lipDrop)], { closed: false }), SLOT.black);
+  // The rear hump's lip under its aft edge; the front coaming has none since its panel came up (GLARESHIELD_FT).
+  const lipDrop = h.lipDrop;
+  if (lipDrop > 0) put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -lipDrop)], { closed: false }), SLOT.black);
   // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7): the
   // panel layout's master warning panel, MASTER WARN red on the left, MASTER CAUTION amber in the
   // middle and FIRE red on the right (was amber). Centred over the EADI, 1.4 in apart on a strip
   // about 4.8 in across (Patrick, 11 Oct 2026: "the three lights above the eadi are misaligned"; V2.289 had them where
   // the figure draws them, off the middle, and until then 1.9 in apart on a 10 in strip; front seat).
-  const lx = h.aftX - 0.003, lz = h.top - lipDrop / 2 - 0.015;
+  // In the front seat they sit on the grab rail, just aft of its middle (Patrick, 12 Oct 2026); in the rear on the lip.
+  const lx = front ? h.aftX - RIM_FT.aftOfGlareshield - RIM_FT.r + 0.004 : h.aftX - 0.003, lz = front ? h.top : h.top - lipDrop / 2 - 0.015;
   const strip = front ? [0.2, -0.2] : [0.42, -0.42];
   const lamps = front ? [[0.12, SLOT.lampRed], [0, SLOT.lampAmber], [-0.12, SLOT.lampRed]] : [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampRed]];
   put(box(THREE, lx - 0.006, lx, strip[1], strip[0], lz - 0.045, lz + 0.045), SLOT.knob);
