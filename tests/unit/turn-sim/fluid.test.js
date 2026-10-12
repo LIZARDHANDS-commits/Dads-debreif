@@ -27,6 +27,7 @@ import { TOLERANCES } from '../../helpers/tolerances.js';
 import { T6A_ROLL } from '../../../src/core/t6-performance.js';
 
 const BUBBLE_FT = 500; // SMM 16.17 para 44c; Gen Book p.11
+const LIVE_FLOOR_FT = 400; // the live wingman: 500 (Patrick 12 Oct 2026 01:53Z) less the shared ±100 ft margin
 const CONE_HALF_DEG = 30; // Patrick 19:20Z row 2
 const HOLD_DEG = 15; // Patrick 22:28Z ("lets go with hold 15")
 const SET_FT = 600; // Patrick 19:20Z row 3 (the default)
@@ -56,9 +57,10 @@ function fly(f, sec, watch) {
 /**
  * What is always true in fluid manoeuvring, once #2 is in it (after the entry's blend, before Terminate's): G positive
  * for both, no G jumps (shared ±0.5 G a step), roll within 90°/s (TS-37), #2 outside the 500 ft bubble (SMM 16.17 para
- * 44c) and behind Lead's 3/9 line (aspect under 90°: never in front of him). Returns a watcher for fly().
+ * 44c; floorFt, when given, for the live wingman) and behind Lead's 3/9 line (aspect under 90°: never in front of him).
+ * Returns a watcher for fly().
  */
-function alwaysTrue(failures) {
+function alwaysTrue(failures, floorFt = BUBBLE_FT) {
   return (f, before) => {
     const now = f.state.fluid.session.now();
     const [lead, wing] = f.state.aircraft;
@@ -69,7 +71,7 @@ function alwaysTrue(failures) {
     }
     if (now.wingCue === 'entry' || now.wingCue === 'back to fighting wing') return;
     const r = f.state.fluid.readouts;
-    if (r.rangeFt < BUBBLE_FT) failures.push(`inside the bubble, ${Math.round(r.rangeFt)} ft`);
+    if (r.rangeFt < floorFt) failures.push(`inside ${floorFt} ft, ${Math.round(r.rangeFt)} ft`);
     if (r.aspectDeg >= 90) failures.push(`#2 ahead of Lead's 3/9 line, aspect ${Math.round(r.aspectDeg)}°`);
   };
 }
@@ -401,12 +403,14 @@ test('Live #2 (TS-194): in a steady level turn he sits on Lead\'s circle inside 
   // inside the cone (30° either side of the tail, Patrick 19:20Z row 2) and in the good part of the distance, 500-750 ft
   // (SMM 16.17 paras 42 and 44c; Patrick row 3), with what is always true in fluid (positive G, no jumps, roll within
   // 90°/s, outside the bubble, behind the 3/9 line); then Terminate ends in the fighting wing band. 30 s for the entry,
-  // 30 s for the turn to steady and 2 minutes for Terminate are generous limits.
+  // 30 s for the turn to steady and 2 minutes for Terminate are generous limits. Live, "dont be closer than 500" (Patrick
+  // 12 Oct 2026 01:53Z) is flagged on screen under 500 ft; this check fails under 400 ft, 500 less the shared ±100 ft margin
+  // (docs/TESTING.md).
   const f = inFightingWing();
   f.setFluid({ wing: 'live' });
   assert.equal(f.change('fluid'), 'started');
   const failures = [];
-  const watch = alwaysTrue(failures);
+  const watch = alwaysTrue(failures, LIVE_FLOOR_FT);
   fly(f, 30, watch);
   assert.equal(f.pressFluid('levelTurn', 1), 'started');
   fly(f, 30, watch);

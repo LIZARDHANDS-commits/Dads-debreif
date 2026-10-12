@@ -84,6 +84,7 @@ export const LEAD = Object.freeze({
   loopVerticalDeg: 80, // "until the aircraft approaches the vertical" (SMM 7.5 para 11): 80° is an estimate
   loopPullOutDeg: 330, // where Lead stops holding the pitch rate and pulls out to level (an estimate)
   setupMaxPitchDeg: 10, // the speed set-up's nose down or up before the loop (an estimate)
+  loopWaitSec: 3, // in the standard sequence Lead holds wings level for 3 s after the 360 before the loop's pull, so #2 has rolled out (Patrick 12 Oct 2026 01:50Z, "1 just waits for 2 to roll out of the turn before he begins his loop"): 3 s is an estimate, #2 levels about 1.5 s after Lead
   setupLimitSec: 60, // a guard only: after a minute of set-up the loop starts at whatever speed (an estimate)
   wingoverKias: 230, // "approximately 230 KIAS" (SMM 16.17 para 47)
   wingoverG: 3, // "approximately 3 G" (SMM 16.17 para 47); the cloverleaf's pull, 2.5-3.5 G (SMM Table 7.1; EFIG p.137 about 3 G)
@@ -444,7 +445,7 @@ function loopMode(alphaRad) {
  * The loop (SMM 7.5 paras 10-13, Fig 7.2): the speed set-up, a 3.5 G wings-level pull to near the vertical, the nose
  * kept moving at a constant rate over the top and down, the pull-out to level. Never cut short (a press waits for it).
  */
-export function loop() {
+export function loop({ waitSec = 0 } = {}) {
   return {
     key: 'loop',
     label: 'Loop',
@@ -454,6 +455,8 @@ export function loop() {
       if (mem.stage === 'setup') {
         const s = speedSetUp(st, mem, LEAD.loopEntryKias);
         if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        // waitSec (the sequence): wings level at least that long from the loop's start before the pull.
+        if (mem.setupSec < waitSec) return { g: gForClimb(st, 0), bank: 0, phase: 'wings level, #2 rolling out', cue: { mode: 'pure', latDeg: 15 }, done: false };
         mem.stage = 'pull';
         mem.n0 = unit3({ x: st.nose.x, y: st.nose.y, z: 0 });
         mem.alpha = 0;
@@ -595,12 +598,12 @@ function barrelPath(h0, dir) {
 
 /**
  * The standard sequence's parts (SMM 16.17 para 42), in its order: a level turn dir (+1 left) at bankDeg for 360°
- * (Patrick 01:03Z; #2 sets his spacing in it), a loop, two wingovers rolling dir first, a barrel roll dir.
+ * (Patrick 01:03Z; #2 sets his spacing in it), a loop after LEAD.loopWaitSec wings level, two wingovers rolling dir first, a barrel roll dir.
  */
 export function sequenceParts(dir, bankDeg) {
   return [
     levelTurn(dir, bankDeg, { turnDeg: 360, label: `Level turn ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°, 360°` }),
-    loop(),
+    loop({ waitSec: LEAD.loopWaitSec }),
     wingovers(dir),
     barrelRoll(dir),
   ];
