@@ -22,6 +22,9 @@ import bmesh
 import bpy
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bake_device import use_bake_device  # noqa: E402  the graphics card when there is one
+
 argv = sys.argv[sys.argv.index('--') + 1:]
 pieces_path, shape_path, out_path = argv[:3]
 out_dir = os.path.dirname(os.path.abspath(out_path))
@@ -96,7 +99,7 @@ for name in UNBAKED:
 
 scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
-scene.cycles.device = 'CPU'
+use_bake_device(scene)
 scene.world = bpy.data.worlds.new('world')
 scene.world.light_settings.distance = AO_DISTANCE_FT * U
 
@@ -371,6 +374,7 @@ def save_grey(name, values, size):
     k = AO_SIZE // size
     v = values.reshape(size, k, size, k).mean(axis=(1, 3)) if k > 1 else values
     img = bpy.data.images.new(name, size, size)
+    img.colorspace_settings.name = 'Non-Color'  # data, not colour: Blender 5 otherwise saves these sRGB values as linear, much darker
     px = np.ones((size, size, 4), dtype=np.float32)
     px[..., 0] = px[..., 1] = px[..., 2] = np.clip(v, 0, 1)
     img.pixels.foreach_set(px.ravel())
