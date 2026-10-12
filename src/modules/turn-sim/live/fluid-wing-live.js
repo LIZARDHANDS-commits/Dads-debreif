@@ -57,6 +57,8 @@ export const LIVE = Object.freeze({
   ffSec: 0.3, // Lead's pull is read about 0.3 s ahead of the point he is abeam, so his roll catches up with it (estimate: the T-6A's roll ramp)
   corrOmega: 0.3, // back onto Lead's path and his side of it as a critically damped follow at 0.3 per second, about a 3 s time constant (estimate; Fable's 0.5 left a held lag too little room to open the range) ...
   corrMaxG: 0.3, // ... at no more than 0.3 G (estimate): a 100 ft error closes in about 8 s
+  lagDepthFt: 150, // at full lag the correction holds him 150 ft outside Lead's circle or loop, at full lead as far inside (estimate, Fable's v3.1; to tune between 100 and 250) ...
+  depthFadeG: Object.freeze([0.1, 0.3]), // ... fading back to Lead's path as Lead's pull falls from 0.3 to 0.1 G (estimate)
   farFt: 300, // over about 300 ft off the path (the entry, after a Terminate) he points back at it instead (estimate) ...
   farBlendFt: 100, // ... blended in over 100 ft (estimate)
   l1Sec: 1.5, // he aims at the point of Lead's path about 1.5 s of flight ahead of him (estimate): the gain 2V/L1 flies the path's own curve (standard L1 guidance); shorter and the roll's lag sets him weaving
@@ -285,7 +287,17 @@ export function stepLiveWing(ws, ctx) {
   // part of a lag he carries into the loop fades this way, slowly (Patrick 01:01Z card, "Keep it, fade slowly").
   const e0 = ctx.E(j0);
   const n0 = unit3(e0.vel);
-  const err = perp3(sub3(add3(e0.pos, offAt(j0)), pw), n0);
+  const errPath = perp3(sub3(add3(e0.pos, offAt(j0)), pw), n0);
+  // The depth of Lead's turn (along his pull there: outside or inside his circle or loop) is left to the pull share: there
+  // the correction holds him lagShareFt outside at full lag and as far inside at full lead, not on the path (Fable's v3.1,
+  // 12 Oct 2026 01:30Z). As Lead's pull falls away (rolling out, wings level) this fades to the plain error, so when Lead
+  // levels the depth he wants is already none and nothing jumps.
+  const pull0 = e0.accPerp;
+  const pull0G = len3(pull0) / G_FTPS2;
+  const depthOn = Math.max(0, Math.min(1, (pull0G - LIVE.depthFadeG[0]) / (LIVE.depthFadeG[1] - LIVE.depthFadeG[0])));
+  const inward = depthOn > 0 ? scale3(pull0, 1 / len3(pull0)) : { x: 0, y: 0, z: 0 };
+  const depthWant = -share * LIVE.lagDepthFt * depthOn; // feet outside Lead's turn: lag (share -1) outside, lead inside
+  const err = sub3(errPath, scale3(inward, depthWant));
   const errRate = ws.err ? scale3(sub3(err, ws.err), 1 / dt) : { x: 0, y: 0, z: 0 };
   const om = LIVE.corrOmega;
   let aCorr = perp3(add3(scale3(err, om * om), scale3(errRate, 2 * om)), vHat);
@@ -298,7 +310,8 @@ export function stepLiveWing(ws, ctx) {
   // The aim: the first point of the path at least L1 ahead of him (further when he is well off it, so he cuts back at a
   // gentle angle); past Lead's present, on along his nose. Core's pursuit lift at the path-following gain (2V over L1).
   const pathAt = (j) => add3(ctx.E(j).pos, offAt(j));
-  const offPathFt = len3(err);
+  // Measured to the side and in height only, never in the depth the share sets.
+  const offPathFt = len3(sub3(errPath, scale3(inward, dot3(errPath, inward) * depthOn)));
   const l1 = Math.max(LIVE.l1MinFt, st.V * LIVE.l1Sec, offPathFt / Math.sin(LIVE.interceptDeg * DEG));
   let A = null;
   let prevP = pathAt(j0);
