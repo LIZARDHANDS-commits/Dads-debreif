@@ -4,7 +4,7 @@
 // vent at each upper corner; the lower panel with its centre pedestal, knee wells and landing gear handle; the side
 // consoles (power lever, flap lever, striped handles, knobs); the stick in its boot; the rudder pedals; the ejection
 // seat with its cushions, harness, headbox, canopy breakers, yellow and black seat handle and green oxygen hose. Round
-// the canopy: the forward bow's channel with its row of studs and its two curved mirrors, the canopy's side frames with
+// the canopy: the forward bow's I-section with its studs and its two curved mirrors, the canopy's side frames with
 // their rows of fasteners, and the inter-cockpit arch with its fasteners and the clear
 // inter-cockpit shield. The rear cockpit's panel sits under a big moulded hump over the front seat's back, with its own
 // grab rails, AOA indexer and compass. The canopy glass, the round bow tubes, the sill rails, the seat backs' frames,
@@ -120,19 +120,22 @@ export const FORWARD_BOW_FT = Object.freeze({
   glassInset: 0.01,
   bandDepth: 0.13,
   tubeR: 0,
-  channel: Object.freeze({ deep: 0.08, lip: 0.025, back: 0.02 }),
-  studs: Object.freeze({ n: 25, r: 0.01, head: 0.017, len: 0.05 }),
+  section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.07, innerT: 0.02 }),
+  studs: Object.freeze({ n: 25, r: 0.014, h: 0.012 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
   footFillet: null,
 });
-// Its section is a channel open aft, as Patrick's reference picture of the cockpit draws it (Patrick, 12 Oct 2026,
-// "Construction only", and "this side should be thinner?"): `bandDepth` (1.6 in) from the glass inward, `channel.deep`
-// (1 in) fore and aft, its two silver lips `channel.lip` thick and its back `channel.back` thick, with a dark recess
-// between the lips and a row of `studs` along it standing out of the back, and its legs running straight down into
-// the canopy's lower frame (footFillet null). Sizes are estimates off that picture and Fig 3.5's band. Before: a T, an
-// aft face 1 in deep with a flange 3 in forward along its inner edge (12 Oct 2026, from Patrick's photos), a ring of
-// round holes, and a rounded join at each foot.
+// Its section is an I, as Patrick sketched it (Patrick, 12 Oct 2026, "It looks to me like it has a cross section
+// SOMETHING like this? not to scale?" and "the middle part goes out to a flange in both directions at the bottom?"): a
+// flange along the glass `section.outer` (1.9 in) fore and aft, a web down its middle `section.web` thick, and a flange
+// `section.inner` (0.8 in) fore and aft at the web's inner edge, `bandDepth` (1.6 in) from the glass inward ("this side
+// should be thinner?"), its aft face at bandX. A row of `studs` stands on the outer flange either side of the web, and the
+// web's aft face mid grey, so from the seat it reads as the light flanges with a shadowed groove between, as Patrick's
+// reference picture of the cockpit shows ("Construction only"). Its legs run straight down into the canopy's lower frame
+// (footFillet null). Sizes are estimates off his sketch, that picture and Fig 3.5's band. Before: a channel open aft
+// with one row of studs (12 Oct 2026); before that a T, an aft face 1 in deep with a flange 3 in forward along its inner
+// edge (from Patrick's photos), a ring of round holes, and a rounded join at each foot.
 
 /**
  * The inter-cockpit arch over the rear seat's panel, feet (TS-157): the model's centre frame hoop (CT156_FRAME_X[1],
@@ -1757,12 +1760,15 @@ function bandGeometries(THREE, b) {
   let band = null, tube = null;
   let recess = null;
   const studs = [];
-  if (b.channel) {
-    // A channel open aft: two lips from the aft face forward `deep`, one along the glass and one at the band's inner
-    // edge, joined by its back, all closed, so it keeps its size from any eye (Patrick, 12 Oct 2026, "the canopy rail
-    // gets thin as soon as I move my head"), with a dark recess just aft of the back and studs standing out of it.
-    const { deep, lip, back } = b.channel, d0 = b.glassInset, d1 = d0 + b.bandDepth, k = deep - back;
-    const ring = [[0, d0], [deep, d0], [deep, d1], [0, d1], [0, d1 - lip], [k, d1 - lip], [k, d0 + lip], [0, d0 + lip]];
+  if (b.section) {
+    // An I: a flange along the glass, a web down its middle and a flange at the web's inner edge, closed all round, so
+    // it keeps its size from any eye (Patrick, 12 Oct 2026, "the canopy rail gets thin as soon as I move my head").
+    // (dx, d): dx forward of the aft face, d inward from the glass.
+    const { outer: W, outerT, web, inner: I, innerT } = b.section, d0 = b.glassInset, d1 = d0 + b.bandDepth, c = W / 2;
+    const ring = [
+      [0, d0], [W, d0], [W, d0 + outerT], [c + web / 2, d0 + outerT], [c + web / 2, d1 - innerT], [c + I / 2, d1 - innerT],
+      [c + I / 2, d1], [c - I / 2, d1], [c - I / 2, d1 - innerT], [c - web / 2, d1 - innerT], [c - web / 2, d0 + outerT], [0, d0 + outerT],
+    ];
     const hoop = (dx) => {
       const x = b.bandX + dx, bs = ct156CanopySection(x / F).base * F;
       return ct156HoopPoints(x / F, n, 0, b.lean ?? 0).map(({ x: hx, y, z }) => {
@@ -1770,13 +1776,16 @@ function bandGeometries(THREE, b) {
         return (d) => [hx * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
       });
     };
-    const hoops = new Map([0, deep, k, k - 0.002].map((dx) => [dx, hoop(dx)]));
+    const rows = b.studs ? [(c - web / 2) / 2, W - (c - web / 2) / 2] : [];
+    const hoops = new Map([...ring.map(([dx]) => dx), c - web / 2 - 0.002, ...rows].map((dx) => [dx, hoop(dx)]));
     band = loft(THREE, pts.map((_, j) => ring.map(([dx, d]) => hoops.get(dx)[j](d))), { closed: true });
-    const rec = hoops.get(k - 0.002);
-    recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + lip)), pts.map((_, j) => rec[j](d1 - lip))], { closed: false });
-    // The studs: evenly spaced by length along the recess's middle line, half a spacing in from each sill.
-    if (b.studs) {
-      const { n: ns, r, head, len } = b.studs, mid = pts.map((_, j) => rec[j]((d0 + d1) / 2));
+    const rec = hoops.get(c - web / 2 - 0.002);
+    recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + outerT)), pts.map((_, j) => rec[j](d1 - innerT))], { closed: false });
+    // The studs: two rows on the outer flange's inner face, one each side of the web, evenly spaced by length, half a
+    // spacing in from each sill, each a short round head standing inward.
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const dx of rows) {
+      const { n: ns, r, h } = b.studs, line = hoops.get(dx), mid = pts.map((_, j) => line[j](d0 + outerT + h / 2));
       const along = [0];
       for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(...[0, 1, 2].map((i) => mid[j][i] - mid[j - 1][i])));
       const total = along[along.length - 1];
@@ -1786,8 +1795,10 @@ function bandGeometries(THREE, b) {
         while (j < along.length - 1 && along[j] < want) j++;
         const t = (want - along[j - 1]) / (along[j] - along[j - 1] || 1);
         const [x, y, z] = [0, 1, 2].map((i) => mid[j - 1][i] + (mid[j][i] - mid[j - 1][i]) * t);
-        studs.push(new THREE.CylinderGeometry(r, r, len, 10).rotateZ(Math.PI / 2).translate(x - len / 2, y, z));
-        studs.push(new THREE.CylinderGeometry(head, head, 0.012, 12).rotateZ(Math.PI / 2).translate(x - len, y, z));
+        const [, iy, iz] = line[j](1), [, oy, oz] = line[j](0);
+        const dir = new THREE.Vector3(0, iy - oy, iz - oz).normalize();
+        const g = new THREE.CylinderGeometry(r, r, h, 12).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir));
+        studs.push(g.translate(x, y, z));
       }
     }
   } else {
@@ -1822,7 +1833,7 @@ function bandGeometries(THREE, b) {
  */
 const BOW_MIRRORS = Object.freeze({ spans: Object.freeze([[0.18, 0.4], [0.6, 0.82]]), aft: 0.02 });
 // Since 12 Oct 2026 (Patrick's mirror photo) longer, each from about 10 and 2 o'clock up to near the crest with a short
-// gap between, round-ended (they were [0.22, 0.35] and [0.65, 0.78], square-ended). Since the bow became a channel (12 Oct 2026) 0.02 ft behind its aft face (was 0.04).
+// gap between, round-ended (they were [0.22, 0.35] and [0.65, 0.78], square-ended). Since the bow became solid (12 Oct 2026) 0.02 ft behind its aft face (was 0.04).
 
 /** One of the forward bow's curved mirrors between bow fractions t0 and t1 (BOW_MIRRORS), as { frame, face } (feet). */
 function bowMirrorGeometries(THREE, b, t0, t1) {
@@ -2675,7 +2686,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   card.texture.needsUpdate = true;
   add(joinTextured(THREE, cards), own(new THREE.MeshBasicMaterial({ map: card.texture, color: '#d0d0d0', side: THREE.DoubleSide, fog: false })));
 
-  // Round the canopy. The forward bow's light channel with its studs (FORWARD_BOW_FT), and its two curved chrome
+  // Round the canopy. The forward bow's light I-section with its studs (FORWARD_BOW_FT), and its two curved chrome
   // mirrors (BOW_MIRRORS).
   // The bow itself and the canopy rails are named parts like the seat's, so the Blender cockpit rounds and shades these
   // same pieces and its parts show only while their fingerprints match (ct156-cockpit-model.js, ALL-32). Until 12 Oct
@@ -2683,7 +2694,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const fb = bandGeometries(THREE, FORWARD_BOW_FT);
   const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }];
   if (fb.tube) bowParts.push({ geometry: fb.tube, materials: [SLOT.black] });
-  if (fb.recess) bowParts.push({ geometry: fb.recess, materials: [SLOT.dark] });
+  if (fb.recess) bowParts.push({ geometry: fb.recess, materials: [SLOT.frame] });
   for (const g of fb.studs ?? []) bowParts.push({ geometry: g, materials: [SLOT.metal] });
   bowParts.push(...bowFootParts(THREE).map(([geometry, slot]) => ({ geometry, materials: [slot] })));
   for (const g of fb.dots) bowParts.push({ geometry: g, materials: [SLOT.black] });
