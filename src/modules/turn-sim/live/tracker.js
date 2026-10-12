@@ -866,6 +866,15 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
           psiCmd = L.headingRad + ease.off;
         }
       }
+      if (ph.holdSettled) {
+        // Lining up he holds the place across Lead's heading he settled at, so the last of his turn toward Lead doesn't carry
+        // him out of the cone: from line abreast at the rejoin's 4.5 G he settled about 31° off Lead's tail and drifted to 28°
+        // as he lined up (V2.392-V2.407).
+        const rel = relativeTo(L, W);
+        headingState.heldLeft ??= rel.left;
+        const fix = -(rel.left - headingState.heldLeft) / (W.tasFtps * T.holdSettledSec);
+        psiCmd += Math.max(-T.holdSettledMaxRad, Math.min(T.holdSettledMaxRad, fix));
+      }
     } else {
       const last = k === phases.length - 1;
       const targetAlt = !ph.coneAlt && ph.slot?.alt != null && Number.isFinite(ph.slot.alt) ? slotAltOf(ph, L, W) : null;

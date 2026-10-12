@@ -497,6 +497,7 @@ const REJOIN_WAYS = Object.freeze({
       // 12 Oct 2026 09:01Z "rejoin to 4.5"): at the G rule's 5 G it held 5.0-5.25 G from 1,250 ft to 850 ft.
       bankCapDeg: Math.min(WING_BANKS.fwFollowBankCapDeg, bankDegFromG(TURNING_REJOIN.pointMaxG)),
       maxG: TURNING_REJOIN.pointMaxG, // ... his climb into the cone's height included (tracker.js pullUp)
+      holdSettled: true, // lining up, he holds the place he settled at (tracker.js)
       rejoin: true,
       floorKias: leastKias,
     })],
