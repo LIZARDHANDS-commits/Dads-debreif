@@ -110,8 +110,11 @@ test('every hand-over is smooth through speed changes and turning rejoins: posit
         const stepFt = x.tasFtps * STEP_SEC;
         const moved = Math.hypot(x.xFt - p.xFt, x.yFt - p.yFt);
         assert.ok(moved <= stepFt * 1.001 && moved >= 0.95 * stepFt, `${what}: moved ${moved.toFixed(1)} ft in a step`);
-        // The fastest the track can swing: the larger bank of the step (plus the 0.5° the roll can pass its target by).
-        const maxTurn = turnRateFromBankRadPerSec(x.tasFtps, Math.max(Math.abs(x.bankDeg), Math.abs(p.bankDeg)) + 0.5) * STEP_SEC;
+        // The fastest the track can swing: the larger bank of the step (plus the 0.5° the roll can pass its target by), and
+        // the larger pull (standard aerodynamics: turn rate = g nz tan(bank) / V, so a wingman held in Lead's plane who pulls
+        // more than 1 G turns faster at the same bank). Never less than a level turn's.
+        const nz = Math.max(1, x.nz ?? 1, p.nz ?? 1);
+        const maxTurn = nz * turnRateFromBankRadPerSec(x.tasFtps, Math.max(Math.abs(x.bankDeg), Math.abs(p.bankDeg)) + 0.5) * STEP_SEC;
         const dHeading = Math.abs(Math.atan2(Math.sin(x.headingRad - p.headingRad), Math.cos(x.headingRad - p.headingRad)));
         assert.ok(dHeading <= maxTurn + 1e-9, `${what}: track jumped`);
         assert.ok(Math.abs(x.bankDeg - p.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-9, `${what}: bank jumped`);
