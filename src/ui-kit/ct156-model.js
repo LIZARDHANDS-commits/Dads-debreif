@@ -386,14 +386,18 @@ const SPEED_BRAKE = Object.freeze({ x0: 0.66 - 16.0 / 23.148, length: 2.3 / 23.1
 // the Blender outside already outlines (build_ct156_exterior.py GEAR_DOORS_FT, the nose fairing split down its middle).
 // Each main gear: its leg door (on the leg, splayed out GEAR.legDoorSplayDeg when down, as the front view and the view
 // from below show) and an inboard door hinged on its inboard edge, hanging down while open (Patrick's photo of 104).
+// Patrick on the first renders (12 Oct 2026 02:48Z, his photos of 104 and 126): the inboard doors are not square, so
+// each is a D, its aft outboard corner rounded (aftCornerFt) round the folded wheel; the main legs are beefier; the
+// nose leg has more to it, so it carries a steering collar, a torque link ahead of it, a drag brace up and aft into
+// the bay and a mudguard over the tyre's aft top. Their sizes are read off those photos and the side view (estimates).
 const GEAR_SIT_DEG = 2.5;
 const GEAR = Object.freeze({
   groundFt: -5.35, // the main wheels' ground, feet under the spinner's axis
-  main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.82, tyreWFt: 0.45, legRFt: 0.11, pistonRFt: 0.075 }),
+  main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.82, tyreWFt: 0.45, legRFt: 0.2, pistonRFt: 0.13 }),
   legDoor: Object.freeze({ x0Ft: 13.45, x1Ft: 14.55, y0Ft: 2.3, y1Ft: 4.25 }),
-  inboardDoor: Object.freeze({ x0Ft: 12.9, x1Ft: 15.1, y0Ft: 0.45, y1Ft: 2.35 }),
+  inboardDoor: Object.freeze({ x0Ft: 12.9, x1Ft: 15.1, y0Ft: 0.45, y1Ft: 2.35, aftCornerFt: 1.0, foreCornerFt: 0.2 }),
   legDoorSplayDeg: 12,
-  nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.67, tyreWFt: 0.5, legRFt: 0.09, pistonRFt: 0.065, forkYFt: 0.31 }),
+  nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.67, tyreWFt: 0.5, legRFt: 0.12, pistonRFt: 0.085, collarRFt: 0.2, forkYFt: 0.31, linkFt: 0.45, guardFt: 0.08 }),
   noseDoor: Object.freeze({ x0Ft: 6.1, x1Ft: 10.0, halfFt: 0.36, openDeg: 85 }),
   doorThickFt: 0.03,
 });
@@ -925,6 +929,16 @@ function fairingBottomAt(x, y = 0) {
   return bellyAt(x) + sink - ((depth0 + (depth1 - depth0) * t) * ease + sink) * Math.sqrt(1 - c * c) ** (2 / 3);
 }
 
+/** The inboard door's outboard edge (feet out from the middle) at xFt feet behind the spinner's tip: a D, its corners
+ * rounded aftCornerFt aft and foreCornerFt forward. */
+function inboardDoorFarFt(xFt) {
+  const { x0Ft, x1Ft, y1Ft, aftCornerFt: R, foreCornerFt: r } = GEAR.inboardDoor;
+  const round = (c, d) => y1Ft - c + Math.sqrt(Math.max(0, c * c - d * d));
+  if (xFt > x1Ft - R) return round(R, xFt - (x1Ft - R));
+  if (xFt < x0Ft + r) return round(r, x0Ft + r - xFt);
+  return y1Ft;
+}
+
 let gearLayoutCache = null;
 /**
  * Where the gear's hinges and wheels are, model units, the left side (+y; the right is its mirror): the main leg's
@@ -1024,12 +1038,13 @@ function gearDoor(THREE, outer, inward, thick, place, nu = 8, nv = 6) {
   return meshOf(THREE, pos, idx, groups);
 }
 
-/** A dark patch just outside the skin over a door's opening, seen while the door is open (as the speed brake's well). */
-function gearWell(THREE, x0, x1, y0, y1, zAt, n = 8) {
+/** A dark patch just outside the skin over a door's opening, seen while the door is open (as the speed brake's well);
+ * span(x) its edges across. */
+function gearWell(THREE, x0, x1, span, zAt, n = 8) {
   const pos = [], idx = [];
   for (let i = 0; i <= n; i++) {
     for (let j = 0; j <= 2; j++) {
-      const x = x0 + ((x1 - x0) * i) / n, y = y0 + ((y1 - y0) * j) / 2;
+      const x = x0 + ((x1 - x0) * i) / n, [y0, y1] = span(x), y = y0 + ((y1 - y0) * j) / 2;
       pos.push(...wingBend([x, y, zAt(x, y) - 0.0004]));
     }
   }
@@ -1054,9 +1069,11 @@ function gearGeometries(THREE) {
   geo.gearMain = joinGeometries(THREE, [
     { geometry: gearRod(THREE, [0, 0, 0.1 * GFT], [0, 0, -0.56 * len], m.legRFt * GFT, 12), materials: [0] },
     { geometry: gearRod(THREE, [0, 0, -0.5 * len], [0, 0, -len], m.pistonRFt * GFT, 12), materials: [3] },
-    { geometry: gearRod(THREE, [0, 0, -len], [0, wheelY, -len], 0.07 * GFT, 10), materials: [0] },
-    { geometry: gearRod(THREE, [0, 0, -0.5 * len], [0.17 * GFT, 0, -0.7 * len], 0.025 * GFT, 6), materials: [0] },
-    { geometry: gearRod(THREE, [0.17 * GFT, 0, -0.7 * len], [0, 0, -0.92 * len], 0.025 * GFT, 6), materials: [0] },
+    { geometry: gearRod(THREE, [0, 0, -0.56 * len], [0, 0, -0.62 * len], (m.legRFt + 0.03) * GFT, 14), materials: [0] },
+    { geometry: gearRod(THREE, [0, -0.05 * GFT, -len], [0, wheelY, -len], 0.11 * GFT, 12), materials: [0] },
+    { geometry: gearRod(THREE, [0, 0, -len + 0.12 * GFT], [0, 0, -len - 0.12 * GFT], 0.13 * GFT, 12), materials: [0] },
+    { geometry: gearRod(THREE, [0.15 * GFT, 0, -0.55 * len], [0.32 * GFT, 0, -0.74 * len], 0.04 * GFT, 8), materials: [0] },
+    { geometry: gearRod(THREE, [0.32 * GFT, 0, -0.74 * len], [0.12 * GFT, 0, -0.93 * len], 0.04 * GFT, 8), materials: [0] },
     ...gearWheel(THREE, [0, wheelY, -len], m.tyreRFt, m.tyreWFt),
   ]);
   // Doors are drawn where they lie shut (on the skin) and moved into their hinge's frame.
@@ -1075,12 +1092,19 @@ function gearGeometries(THREE) {
   }, [0, 0, 1], t, intoLeg);
   const ih = L.inboardHinge;
   geo.gearInboardDoor = gearDoor(THREE, (u, v) => {
-    const x = gearX(ib.x0Ft + (ib.x1Ft - ib.x0Ft) * u), y = (ib.y0Ft + (ib.y1Ft - ib.y0Ft) * v) * GFT;
-    return under(x, y);
-  }, [0, 0, 1], t, ([x, y, z]) => [x, y - ih[1], z - ih[2]]);
+    const xFt = ib.x0Ft + (ib.x1Ft - ib.x0Ft) * Math.sin((Math.PI / 2) * u); // closer together aft, round the D
+    return under(gearX(xFt), (ib.y0Ft + (inboardDoorFarFt(xFt) - ib.y0Ft) * v) * GFT);
+  }, [0, 0, 1], t, ([x, y, z]) => [x, y - ih[1], z - ih[2]], 20, 6);
   // The nose leg, raked along its pivot-to-axle line: strut, piston, fork crown, two fork blades, axle, torque link.
   const A = L.noseAxle, at = (f, dx = 0, dy = 0) => [A[0] * f + dx, dy, A[2] * f];
-  const fy = n.forkYFt * GFT, crown = 0.8;
+  const fy = n.forkYFt * GFT, crown = 0.8, link = n.linkFt * GFT;
+  // The mudguard: a thin curved plate over the tyre's aft top, from the fork crown aft and down (the photo of 126).
+  const gR = (n.tyreRFt + n.guardFt) * GFT, gW = (n.tyreWFt / 2 + 0.06) * GFT, guard = [];
+  for (let k = 0; k < 6; k++) {
+    const a0 = Math.PI / 2 + (k / 6) * 1.1, a1 = Math.PI / 2 + ((k + 1) / 6) * 1.1;
+    const p = (a) => [A[0] - gR * Math.cos(a) * -1, 0, A[2] + gR * Math.sin(a)];
+    guard.push({ geometry: gearRod(THREE, [p(a0)[0], -gW, p(a0)[2]], [p(a0)[0], gW, p(a0)[2]], 0.025 * GFT, 4), materials: [0] });
+  }
   geo.gearNose = joinGeometries(THREE, [
     { geometry: gearRod(THREE, at(-0.04), at(0.5), n.legRFt * GFT, 12), materials: [0] },
     { geometry: gearRod(THREE, at(0.45), at(crown), n.pistonRFt * GFT, 12), materials: [3] },
@@ -1088,8 +1112,11 @@ function gearGeometries(THREE) {
     { geometry: gearRod(THREE, at(crown, 0, fy), at(1, 0, fy), 0.035 * GFT, 8), materials: [0] },
     { geometry: gearRod(THREE, at(crown, 0, -fy), at(1, 0, -fy), 0.035 * GFT, 8), materials: [0] },
     { geometry: gearRod(THREE, at(1, 0, -fy - 0.03 * GFT), at(1, 0, fy + 0.03 * GFT), 0.04 * GFT, 8), materials: [0] },
-    { geometry: gearRod(THREE, at(0.47), at(0.6, 0.15 * GFT), 0.022 * GFT, 6), materials: [0] },
-    { geometry: gearRod(THREE, at(0.6, 0.15 * GFT), at(0.76), 0.022 * GFT, 6), materials: [0] },
+    { geometry: gearRod(THREE, at(0.42), at(0.5), n.collarRFt * GFT, 14), materials: [0] },
+    { geometry: gearRod(THREE, at(0.2), at(0.42, link), 0.035 * GFT, 8), materials: [0] },
+    { geometry: gearRod(THREE, at(0.42, link), at(0.62), 0.035 * GFT, 8), materials: [0] },
+    { geometry: gearRod(THREE, at(0.05), at(-0.12, -0.55 * GFT), 0.04 * GFT, 8), materials: [0] },
+    ...guard,
     ...gearWheel(THREE, A, n.tyreRFt, n.tyreWFt),
   ]);
   const nh = L.noseHinge, half = nd.halfFt * GFT;
@@ -1102,10 +1129,10 @@ function gearGeometries(THREE) {
   for (const k of ['L', 'R']) {
     const s = k === 'L' ? 1 : -1;
     const ys = (a, b) => (s > 0 ? [a * GFT, b * GFT] : [-b * GFT, -a * GFT]);
-    geo[`gearLegWell${k}`] = gearWell(THREE, gearX(ld.x0Ft), gearX(ld.x1Ft), ...ys(ld.y0Ft, ld.y1Ft), wing);
-    geo[`gearInboardWell${k}`] = gearWell(THREE, gearX(ib.x0Ft), gearX(ib.x1Ft), ...ys(ib.y0Ft, ib.y1Ft), wing);
+    geo[`gearLegWell${k}`] = gearWell(THREE, gearX(ld.x0Ft), gearX(ld.x1Ft), () => ys(ld.y0Ft, ld.y1Ft), wing);
+    geo[`gearInboardWell${k}`] = gearWell(THREE, gearX(ib.x0Ft), gearX(ib.x1Ft), (x) => ys(ib.y0Ft, inboardDoorFarFt((0.66 - x) / GFT)), wing, 20);
   }
-  geo.gearNoseWell = gearWell(THREE, gearX(nd.x0Ft), gearX(nd.x1Ft), -half, half, (x) => fairingBottomAt(x));
+  geo.gearNoseWell = gearWell(THREE, gearX(nd.x0Ft), gearX(nd.x1Ft), () => [-half, half], (x) => fairingBottomAt(x));
   return geo;
 }
 
@@ -1816,14 +1843,26 @@ function buildKit(THREE) {
   geo.cheat = cheatLine(THREE);
   // Off Patrick's photo of 156102 (11 Oct 2026, marked; places and sizes measured on it, estimates): the air inlet on
   // each side of the cowl's top just ahead of the windscreen, a dark wedge 0.053 units (1.2 ft) long, deep at its aft
-  // end and running out forward.
-  geo.vent = joinGeometries(THREE, [{ geometry: new THREE.CircleGeometry(1, 20).scale(0.007, 0.016, 1).rotateY(Math.PI / 2).translate(CHIN[0] + CHIN[3] + 0.0005, 0, CHIN[2]), materials: [0] }, ...[1, -1].map((side) => ({
-    geometry: skinStrip(THREE, Array.from({ length: 7 }, (_, i) => {
-      const t = i / 6, x = 0.304 + 0.053 * t;
-      return [x, topAt(x) - 0.0045 - 0.0027 * t, topAt(x) - 0.0134 + 0.0044 * t];
+  // end and running out forward. Its aft end a rounded mouth about 0.3 ft deep and 0.4 ft long, and a second vent
+  // under the cheat line 7.9 to 8.5 ft behind the spinner's tip, about 0.45 ft deep, with a louvred strip of eight slats
+  // across the cheat line over it (Patrick, 12 Oct 2026 02:49Z, "add this vent", marked on his photo of 126; sizes off
+  // it, estimates).
+  const mouth = (t) => (t < 0.3 ? 0.013 * (0.55 + 0.45 * Math.sin((Math.PI / 2) * (t / 0.3))) : 0.0018 + 0.0112 * ((1 - t) / 0.7) ** 1.3);
+  const LOWER_VENT = { x0: 0.66 - 8.5 / 23.148, x1: 0.66 - 7.9 / 23.148, z0: -1.15 / 23.148, z1: -0.7 / 23.148, slats: 8 };
+  const proud = (x, z) => fuseSurf(x, z) + 0.0003; // over the cheat line
+  geo.vent = joinGeometries(THREE, [{ geometry: new THREE.CircleGeometry(1, 20).scale(0.007, 0.016, 1).rotateY(Math.PI / 2).translate(CHIN[0] + CHIN[3] + 0.0005, 0, CHIN[2]), materials: [0] }, ...[1, -1].flatMap((side) => [{
+    geometry: skinStrip(THREE, Array.from({ length: 13 }, (_, i) => {
+      const t = i / 12, x = 0.304 + 0.053 * t, top = topAt(x) - 0.0045 - 0.0027 * t;
+      return [x, top, top - mouth(t)];
     }), side),
     materials: [0],
-  }))]);
+  }, {
+    geometry: patch(THREE, (LOWER_VENT.x0 + LOWER_VENT.x1) / 2, (LOWER_VENT.z0 + LOWER_VENT.z1) / 2, LOWER_VENT.x1 - LOWER_VENT.x0, LOWER_VENT.z1 - LOWER_VENT.z0, side, fuseSurf),
+    materials: [0],
+  }, ...Array.from({ length: LOWER_VENT.slats }, (_, i) => ({
+    geometry: patch(THREE, LOWER_VENT.x0 + ((LOWER_VENT.x1 - LOWER_VENT.x0) * (i + 0.5)) / LOWER_VENT.slats, cheatZ(), 0.0012, 0.0075, side, proud),
+    materials: [0],
+  }))])]);
   // The antennas (TAS, BELLY_PADDLES, SMALL_ANTENNAS, MARKER_PLATE), the pitot probes on the wings (PITOT) and the
   // tie-down rings under them (TIE_DOWN): slot 0 light grey, 1 white (the aft paddle's foot), 2 dark (the TAS antenna's
   // blades, painted, as on Patrick's T-6C photo; the tie-down rings).

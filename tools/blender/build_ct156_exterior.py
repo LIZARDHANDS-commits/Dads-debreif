@@ -204,6 +204,9 @@ FLAP_HINGE = 0.79
 # inboard the leg's door lies from the hinge in to the wheel and the inboard door over the wheel. Sizes ESTIMATE.
 GEAR_DOORS_FT = ((13.45, 14.55, 2.3, 4.25), (12.9, 15.1, 0.45, 2.35))
 GEAR_DOOR_CORNER_FT = 0.3
+# The inboard door (the second) is a D, as the code model's (GEAR.inboardDoor; Patrick, 12 Oct 2026 02:48Z, "the
+# doors are not square"): its aft outboard corner rounded 1.0 ft, its forward outboard corner 0.2 ft (estimates).
+INBOARD_DOOR_CORNERS_FT = (1.0, 0.2)
 # The speed brake's outline under the belly: hinged 16.0 ft behind the tip, 2.3 ft long, 1.8 ft across (ESTIMATE; the
 # code model's SPEED_BRAKE, whose plate is drawn there).
 SPEED_BRAKE_FT = (16.0, 18.3, 0.9)
@@ -299,8 +302,16 @@ for sp in (S['WING_BREAK'], TIP_CAP):
     draw(wing, s - sp, x)
 # The gear doors and the speed brake, drawn on whatever faces down there (the wing's underside or the belly's).
 below = (air | fus) & (z < S['WING_Z'] - 0.004) & (x < ft_x(12.0)) & (x > ft_x(19.0))
-for f0, f1, a, b in GEAR_DOORS_FT:
-    oblong(below, (ft_x(f0), ft_x(f1)), x, (a * U, b * U), ay, GEAR_DOOR_CORNER_FT * U)
+f0, f1, a, b = GEAR_DOORS_FT[0]
+oblong(below, (ft_x(f0), ft_x(f1)), x, (a * U, b * U), ay, GEAR_DOOR_CORNER_FT * U)
+# The inboard door's D: a box whose corners each have their own radius (the hinge side's nearly square).
+f0, f1, a, b = GEAR_DOORS_FT[1]
+cu, cv = (ft_x(f0) + ft_x(f1)) / 2, (a + b) * U / 2
+hu, hv = abs(ft_x(f0) - ft_x(f1)) / 2, (b - a) * U / 2
+pu, pv = x - cu, ay - cv
+rad = np.where(pv > 0, np.where(pu < 0, INBOARD_DOOR_CORNERS_FT[0], INBOARD_DOOR_CORNERS_FT[1]), 0.02) * U
+qu, qv = np.abs(pu) - hu + rad, np.abs(pv) - hv + rad
+draw(below, np.hypot(qu.clip(0), qv.clip(0)) + np.minimum(np.maximum(qu, qv), 0) - rad)
 oblong(below, (ft_x(SPEED_BRAKE_FT[0]), ft_x(SPEED_BRAKE_FT[1])), x, (-SPEED_BRAKE_FT[2] * U, SPEED_BRAKE_FT[2] * U), y, 0.01)
 # The tailplane and elevators.
 half = abs(S['STAB'][0]['s'])
