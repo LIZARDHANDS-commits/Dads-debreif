@@ -12,7 +12,7 @@ const TREND_WORDS = Object.freeze({ worsening: 'Worsening', steady: 'Steady', im
 /** What a cause does, in the instructor's words, with "(estimate)" where any of its numbers is one. */
 function effectWords(kind) {
   const row = FAULT_EFFECTS[kind];
-  const notes = row.effects.map((e) => e.note).filter(Boolean);
+  const notes = [...new Set(row.effects.map((e) => e.note).filter(Boolean))];
   const estimate = row.effects.some((e) => e.source === 'estimate');
   return { text: notes.join('; '), estimate };
 }

@@ -20,7 +20,7 @@ Only what is here gets built. Patrick approved `spec.md` and EP-1 to EP-3 (relay
 - Built in V2.404, not yet seen by Patrick or Dad in the app. Every rate and threshold is an estimate, flagged "(estimate)" on the console. Its one test: `tests/unit/ep-tabletop/systems.test.js`.
 
 ## Step 4. Lights that flicker and the visual cues (Phase 2)
-- [ ] Flicker, a small cockpit shake, smoke haze and fire glow as overlays, cue words per fault, all applied by the instructor and only then seen by the student (EP-12). No 3D cues (future list).
+- [x] Flicker, a small cockpit shake, smoke haze and fire glow as overlays, cue words per fault, all applied by the instructor and only then seen by the student (EP-12). No 3D cues (future list). Built, not yet seen by Patrick or Dad in the app. Cue controls are a Cues section on the console; new causes "Smoke or fumes" and "Generator flickering". Every cue number is a picture choice (see the code README).
 
 ## Step 5. The aircraft flies the student's picks (Phase 3a)
 - [ ] The shared point mass flies each pick (EP-13); the engine-out case and Traffic's glide footprint move to core, no second copy. Waits on EP-Q5 (the flight approach).
