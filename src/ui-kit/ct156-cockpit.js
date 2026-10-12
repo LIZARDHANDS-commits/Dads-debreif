@@ -1591,14 +1591,15 @@ function hoodHalf(h, ts, x) {
  */
 function cheekHalf(h, ts, x) {
   const c = ct156CanopySection(x / F);
-  const [y0, z0] = hoodHalf(h, ts, x)[1];
+  const [y0, z0] = insideGlass(x, ...hoodHalf(h, ts, x)[1]);
   // Its outer edge just outside and under the glass's foot ahead of the sill rail (so no skin shows past it), and over
   // the rail (0.07 ft round) from 0.15 ft ahead of the rail's front end aft, so the rail runs in under it and its end
   // doesn't show (Patrick, 11 Oct 2026, the corner "still doesnt look quite right").
   const over = clamp01((CT156_RAIL_FORE_X * F + 0.45 - x) / 0.3);
-  const y1 = c.w * F + lerp(0.02, -0.07, over), z1 = c.base * F + lerp(-0.02, 0.08, over);
+  // Never inboard of the top's edge, where the windscreen narrows to its point, so the side doesn't fold back over the top.
+  const y1 = Math.max(y0, c.w * F + lerp(0.02, -0.07, over)), z1 = c.base * F + lerp(-0.02, 0.08, over);
   const bulge = 0.08 * clamp01((x - h.aftX) / 0.4); // none at the aft edge, so its end is a thin line, not a slab
-  return Array.from({ length: 7 }, (_, k) => [lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + bulge * Math.sin((Math.PI * k) / 6)]);
+  return Array.from({ length: 7 }, (_, k) => insideGlass(x, lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + bulge * Math.sin((Math.PI * k) / 6)));
 }
 /**
  * The lower panel's half-width, feet: out to 1.25 ft each side, as the front panel layout shows it below the
@@ -1626,9 +1627,19 @@ function hoodTopZ(h, ts, x, y) {
   }
   return half[half.length - 1][1];
 }
+/**
+ * A point of a coaming's outline at station x, [y, z] feet, kept inside the glass: where it would stand outside the
+ * glass, it drops onto the glass's foot instead of being pulled in towards the middle, so where the windscreen narrows
+ * to its point the coaming runs out under the windscreen's frame and the fuselage's top rather than folding into spikes
+ * (Patrick, 12 Oct 2026, "fix how the top of the glare shield ... interaction with the fusilage/canopy works").
+ */
+function insideGlass(x, y, z, inset = 0.04) {
+  if (y <= glassHalfWidthFt(z, x, inset)) return [y, z];
+  return [y, Math.min(z, ct156CanopySection(x / F).base * F - 0.01)];
+}
 /** A coaming's full section at x (left skirt over to right skirt), [x, y, z] feet, kept inside the glass, lowered by dz. */
 function hoodSection(h, ts, x, dz = 0) {
-  const half = hoodHalf(h, ts, x).map(([y, z]) => [Math.min(y, glassHalfWidthFt(z, x, 0.04)), z + dz]);
+  const half = hoodHalf(h, ts, x).map(([y, z]) => { const [cy, cz] = insideGlass(x, y, z); return [cy, cz + dz]; });
   return [...half.slice(1).reverse().map(([y, z]) => [x, y, z]), [x, 0, half[0][1]], ...half.slice(1).map(([y, z]) => [x, -y, z])];
 }
 
@@ -1851,9 +1862,10 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   }
 
   // The coaming (TS-157): the moulded hood and its lip, smooth-shaded.
-  const N = 14;
+  // Sections close together at the fore end, where the windscreen narrows fast and the coaming runs out under it.
+  const N = 30;
   const secs = [];
-  for (let i = 0; i <= N; i++) secs.push(hoodSection(h, ts, lerp(h.aftX, h.foreX, (i / N) ** 1.3)));
+  for (let i = 0; i <= N; i++) secs.push(hoodSection(h, ts, lerp(h.aftX, h.foreX, (i / N) ** 0.8)));
   put(loft(THREE, secs, { closed: false, smooth: true }), SLOT.black);
   // The front coaming's sides: its moulding sloping from the top's edge out and down to the canopy's sill at each
   // station, bulging 0.08 ft, outside the rail, so the narrow top leaves no gap onto the windscreen's foot or the
