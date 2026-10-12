@@ -330,9 +330,10 @@ test('the split S settings: roll left, roll rate, nose up, roll G, stall speed',
   const left = splitST6A(110, 10000, { rollLeft: true });
   near(left.lossFt, base.lossFt, 1e-6, 'a left roll loses the same');
   near(left.turnDeg, -base.turnDeg, 1e-6, 'a left roll mirrors the heading');
-  near(splitST6A(110, 10000, { noseUpDeg: 0 }).lossFt, 1996, 2, 'no nose-up');
-  near(splitST6A(110, 10000, { rollRateDegPerSec: 45 }).lossFt, 1681, 2, 'a 45°/s roll');
-  near(splitST6A(110, 10000, { rollG: 1 }).lossFt, 1675, 2, 'a 1 G roll');
+  // Patrick's card, 12 Oct 2026 06:31Z ("Rewrite"): pilot checks in place of the code's own earlier numbers.
+  assert.ok(splitST6A(110, 10000, { noseUpDeg: 0 }).lossFt > base.lossFt, 'no nose-up first loses more than 20° nose up');
+  near(splitST6A(110, 10000, { rollRateDegPerSec: 45 }).lossFt, base.lossFt, 100, 'a 45°/s roll: within the shared ±100 ft');
+  near(splitST6A(110, 10000, { rollG: 1 }).lossFt, base.lossFt, 100, 'a 1 G roll: within the shared ±100 ft');
   assert.ok(splitST6A(110, 10000, { stallKias: 83 }).lossFt < base.lossFt - 50, 'an 83 kt stall pulls harder');
 });
 
