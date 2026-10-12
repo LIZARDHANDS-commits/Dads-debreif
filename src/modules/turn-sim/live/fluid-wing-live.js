@@ -77,6 +77,7 @@ export const LIVE = Object.freeze({
   bubbleShare: -1, // inside the 500 ft bubble the aim goes to full lag (spec section 9; SMM 16.17 para 44c)
   handsFadeSec: 3, // ... and fades out over the first 3 s after the Terminate press (estimate), so it is for the press only
   handsSec: 1, // in Terminate the lift wanted is eased over about a second (estimate; spec section 10.11, "eased over about a second")
+  heightShare: 0.8, // how much of the offset eased off Lead's plane comes back as height above him in a turn (estimate; measured about 100 ft at 15° and 650 ft)
   l1Sec: 2.5, // the pursuit gain is 2V over the distance to the aim, or over about 2.5 s of flight if the aim is nearer (estimate): standard L1 guidance, soft enough that a roll-in of Lead's is followed, not snatched at
   overLeadG: 1.5, // he pulls no more than about 1.5 G over what Lead is pulling (estimate: a pilot matches Lead's pull and adds what the picture needs), the bubble excepted
   relevelPerSec: 0.5, // the side frame along Lead's path eases back to level at about 0.5 per second with Lead upright and his nose near the horizon, none inverted or near the vertical (estimate), so his side holds through a loop
@@ -321,6 +322,7 @@ export function stepLiveWing(ws, ctx) {
   // is the proposal on the list, waiting for Patrick. Out of the plane (beside a loop) the offset holds.
   let sideVec = scale3(left, place.rangeFt * Math.sin(place.acrossDeg * DEG));
   let insideTurn = false;
+  let heightWanted = 0;
   if (plane) {
     const nTurn = unit3(perp3(plane, nose));
     const out = scale3(nTurn, dot3(sideVec, nTurn));
@@ -328,7 +330,15 @@ export function stepLiveWing(ws, ctx) {
     insideTurn = dot3(inPlane, turnDir) > 0;
     if (insideTurn) sideVec = add3(out, scale3(inPlane, 1 - circleIn));
     else sideVec = add3(out, scale3(inPlane, 1 - circle)); // outside, and in Terminate: he settles onto Lead's circle (the slot's, in Terminate)
+    // Outside the turn the part of the offset that has eased off Lead's plane comes back as height above Lead on his
+    // circle: the route position kept as height in the cone, not flown at Lead (Patrick 12 Oct 2026 04:14Z "flying
+    // directly at lead instead of the route position"; his card 06:57Z "Height in the cone"). Measured in a steady 60°
+    // turn away: about 100 ft above, 11° off the tail, 690-700 ft, steady. Not in Terminate; it comes on and off at the
+    // place's own height rate, so the press does not drop him (measured: a step to 0.5 G there).
+    if (!insideTurn) heightWanted = toSlot || holding ? 0 : len3(inPlane) * circle * LIVE.heightShare;
   }
+  const heightFt = toward(ws.heightFt ?? 0, heightWanted, LIVE.altFtps);
+  sideVec = add3(sideVec, scale3(Z, heightFt));
   const aim = add3(add3(add3(L, scale3(ahead, offFt)), sideVec), scale3(Z, place.alt));
   const toAim = sub3(aim, pw);
 
@@ -402,7 +412,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, liftEased, holdSince, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
+    ws: { ...ws, st: next, liftEased, holdSince, heightFt, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
     pose,
     power,
     cue,
