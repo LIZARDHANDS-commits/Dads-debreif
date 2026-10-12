@@ -493,7 +493,10 @@ const REJOIN_WAYS = Object.freeze({
       coneAlt: true,
       coneEnergy: true,
       slowStage: 'power',
-      bankCapDeg: WING_BANKS.fwFollowBankCapDeg,
+      // The turn into the cone at the end of a turning rejoin stays inside the rejoin's 4.5 G too (TS-182, pointMaxG; Patrick
+      // 12 Oct 2026 09:01Z "rejoin to 4.5"): at the G rule's 5 G it held 5.0-5.25 G from 1,250 ft to 850 ft.
+      bankCapDeg: Math.min(WING_BANKS.fwFollowBankCapDeg, bankDegFromG(TURNING_REJOIN.pointMaxG)),
+      maxG: TURNING_REJOIN.pointMaxG, // ... his climb into the cone's height included (tracker.js pullUp)
       rejoin: true,
       floorKias: leastKias,
     })],
@@ -904,7 +907,9 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
           // "Inside 5 G, any bank"; TS-181), and the aircraft's own limit only when nothing plans within it.
           // A medium bank first (TURNING_REJOIN.bankCapDeg, 60°), then up to the G rule's 5 G, a flag he stays inside, never the
           // target (TS-182; the 5 G first until V2.248, TS-181), and the aircraft's own limit only when nothing plans within it.
-          for (const bankCapDeg of [TURNING_REJOIN.bankCapDeg, G_RULE_BANK_DEG, REJOIN.bankCapDeg]) {
+          // Into fighting wing the second cap is the rejoin's 4.5 G (TS-182, pointMaxG; Patrick 12 Oct 2026 09:01Z "rejoin to 4.5"),
+          // not the G rule's 5 G: the fastest pick there pulled 5.0 G for the hard turn onto the line.
+          for (const bankCapDeg of [TURNING_REJOIN.bankCapDeg, to === 'fw' ? bankDegFromG(TURNING_REJOIN.pointMaxG) : G_RULE_BANK_DEG, REJOIN.bankCapDeg]) {
             const aims = xLaw ? [TURNING_REJOIN.aimsFt[0]] : hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
             const common = { lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, allowAcross, crossIn, element };
             for (const aimFt of aims) {
