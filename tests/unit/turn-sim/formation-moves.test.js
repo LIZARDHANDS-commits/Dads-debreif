@@ -364,3 +364,36 @@ test('2-ship close formations turn with Lead: #2 rolls with him, stepped up on t
     }
   }
 });
+
+// TS-202: with "#2 in fighting wing" at Live, #2 flies Lead's fighting wing moves on the live wingman's law. Patrick's three
+// lines (12 Oct 2026 08:19Z) are the check, flown as he said them with no margin: the flight measured sits about 95 ft
+// inside each. Outside the 500 ft bubble, never stretched past 1,000 ft, and back in the cone once Lead rolls out (60 s is
+// a generous limit: he is back in about 10 s). The cone's height is 150 ft either side of Lead (TS-80), with the shared
+// 100 ft margin.
+test('with #2 on Live, a level turn into him and its reversal keep him between 500 and 1,000 ft, and he is back in the cone after Lead rolls out', () => {
+  const f = createFormation();
+  f.setFluid({ fwWing: 'live' });
+  f.change('fw', {});
+  for (let i = 0; i < CATCH_SEC / STEP_SEC && f.state.current; i++) f.step();
+  const into = Math.sign(relativeTo(...f.state.aircraft).left) || -1; // a level turn toward #2's side is into him
+  const watch = (what, sec) => {
+    for (let i = 0; i < sec / STEP_SEC; i++) {
+      f.step();
+      const l = link(...f.state.aircraft);
+      const r = Math.hypot(l.range, l.down);
+      assert.ok(r >= 500 && r <= 1000, `${what} at ${(i * STEP_SEC).toFixed(1)} s: #2 ${Math.round(r)} ft from Lead`);
+    }
+  };
+  assert.equal(f.pressFw('levelTurn', into), 'started');
+  watch('level turn into #2', 30);
+  assert.equal(f.pressFw('reversal'), 'started');
+  watch('reversal', 30);
+  assert.equal(f.pressFw('wingsLevel'), 'started');
+  let back = false;
+  for (let i = 0; i < 60 / STEP_SEC && !back; i++) {
+    f.step();
+    const l = link(...f.state.aircraft);
+    back = l.range >= 500 && l.range <= 1000 && l.sweep >= 25 && l.sweep <= 65 && Math.abs(l.down) <= 250;
+  }
+  assert.ok(back, 'after wings level #2 is back in the cone');
+});

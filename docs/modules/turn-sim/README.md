@@ -53,6 +53,7 @@ The plan's steps, in order: Step 1: the review (done); Step 2: the first version
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
 | `future.md` | Ideas not being built until Patrick moves them up |
 | `numbers.md` | Every flying number with its source; made by `tools/turn-sim-numbers.mjs`, not edited by hand |
+| `ARCHITECTURE_REVIEW_V2.388.md` | How Lead, the wingman's four pilots, planned and live flying, the rejoins and the tracker fit together at V2.388, their weak points, and the rough spots ranked with a proposed fix each (12 Oct 2026) |
 
 The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 

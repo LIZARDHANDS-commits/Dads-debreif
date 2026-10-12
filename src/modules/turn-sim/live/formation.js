@@ -23,6 +23,7 @@ import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFluid4Turn, planFwMove } from './formation-turns.js';
+import { planFwMoveLive } from './fw-live.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
@@ -44,6 +45,7 @@ export const LIVE_DEFAULTS = Object.freeze({
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
   fluidWing: /** @type {'planned' | 'live'} */ ('planned'), // how #2 is flown in fluid manoeuvring (TS-194): Planned until Live is flown and passed
+  fwWing: /** @type {'tracker' | 'live'} */ ('tracker'), // how #2 flies the 2-ship's fighting wing moves (TS-202): Tracker until Patrick has flown Live
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -579,7 +581,12 @@ export function createFormation(options = {}) {
       const c = state.current;
       if (c && !c.fwMove && c.change?.to !== 'fw') return refuse(`Wait for ${c.label} to finish.`);
       if (!c?.fwMove && whereNow().key !== 'fw') return refuse('These are fighting wing moves; change to fighting wing first.');
-      const plan = planFwMove(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank) });
+      // #2 on the tracker or, with the setting at Live, on the live wingman's law (fw-live.js, TS-202), carrying on his live
+      // state from the move being flown when there is one.
+      const live = opts.fwWing === 'live';
+      const ws0 = live && c?.fwLive ? c.fwLive[Math.round((state.tSec - c.startSec) / STEP_SEC) - 1] ?? null : null;
+      const fwOpts = { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank) };
+      const plan = live ? planFwMoveLive(state.aircraft, key, dir, state.tSec, { ...fwOpts, ws0 }) : planFwMove(state.aircraft, key, dir, state.tSec, fwOpts);
       if (!plan.ok) return refuse(plan.reason);
       state.plans = plan.plans;
       state.planned = {};
@@ -592,7 +599,7 @@ export function createFormation(options = {}) {
       const label = `${FW_MOVES[key].label}${FW_MOVES[key].sided ? (dir > 0 ? ' left' : ' right') : ''}`;
       state.current = {
         key: `fw:${key}`, dir: FW_MOVES[key].sided ? dir : 0, label, note: plan.note, firstId: null, shape: 'formation',
-        formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
+        formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, fwLive: plan.wsTrack ?? null, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
       };
       state.queued = null;
       state.judged = null;
@@ -624,6 +631,7 @@ export function createFormation(options = {}) {
      * (`wing`, the Planned or Live choice, went with the planned wingman, TS-199: #2 is the live wingman, TS-194.)
      */
     setFluid(next = {}) {
+      if (next.fwWing !== undefined) opts.fwWing = next.fwWing; // taken at the next fighting wing press (TS-202)
       if (next.rangeFt !== undefined) opts.fluidRangeFt = next.rangeFt;
       if (next.bank !== undefined) opts.fluidBank = next.bank;
       if (state.fluid) {
