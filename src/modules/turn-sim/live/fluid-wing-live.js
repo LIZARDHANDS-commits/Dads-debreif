@@ -82,6 +82,9 @@ export const LIVE = Object.freeze({
   normalG: G_RULE.normalG, // SMM 16.17 para 44a; Gen Book p.11 (flagged, the normal ceiling)
   acrossDps: 3, // how fast his place moves across the tail (the entry): 3°/s, 30° in about 10 s (estimate)
   openDeg: 25, // tight with Lead straight his place opens across toward the edge of the fluid cone, 30° off the tail (SMM 16.17 para 42) less the shared 5° margin, so he is judged in position all the way; measured on V2.380 from 500 ft at 55° off the tail: opening to 45° (the middle of the fighting wing cone) keeps him 485 ft at the closest but parks him at 32°, out of the fluid cone; 25° goes through 429 ft (flagged TIGHT) and settles 519 ft at 24°, in position, with the fewest bank reversals (estimate) ...
+  topSwapUpZ: 0.7, // the inverted top of a roll: Lead's canopy more than about 135° from upright (estimate) ...
+  topSwapRollDps: 20, // ... and still rolling through it, faster than 20°/s (estimate), so a held inverted pass is not a roll ...
+  topSwapTurn: 0.5, // ... with Lead pulling at least half the severity, about 1 G of turn (estimate)
   openUpFt: 100, // ... and up to about 100 ft above Lead (estimate: "use the cone as required", Patrick 5 Oct 2026 23:02Z), a longer path with power at MAX
   slotSideDeg: 2, // near Lead's tail Terminate takes the side he is heading for once more than 2° past it (estimate) ...
   slotAcrossDps: 1.5, // in Terminate his place flows across to the fighting wing slot at 1.5°/s (estimate), a gentle slide out while Lead flies straight
@@ -228,12 +231,20 @@ export function stepLiveWing(ws, ctx) {
   // (Patrick 5 Oct 2026 19:21Z: "to fix lead/lag spacing over the top"): in a level turn away his angle off the tail slides
   // toward Lead's six as he settles onto the circle, and that slide is not a crossing (measured V2.382: the rule without
   // this gate swapped him in the level turn and the reversal). With the gate the wingovers and the sequence swap where
-  // the planned cue did; in the barrel roll his way the crossing is only seen at the pull-out, so his aim flips late and
-  // he comes out stretched longer (1,113 ft, 21 s; the planned cue flipped at the inverted top by an accident of its
-  // frame). Two earlier flips (take the side crossed to; inverted with Lead rolling toward him) stretched the wingovers
-  // instead, so this stays and the barrel roll's exit is on the list (future.md) with its cause, the little lead and lag
-  // authority at Lead's 1.2 G on the way out.
+  // the planned cue did.
   const overTop = (e.st?.bodyUp?.z ?? 1) < 0 || Math.abs(nose.z) > 0.3;
+  // At the inverted top of a roll (Lead past about 135° of bank and still rolling: estimates) he takes the other side,
+  // his lead pursuit for the way down (Patrick 12 Oct 2026 05:54Z: the swap is "to get lead pursuit"; his card 06:18Z,
+  // "Cross early"). Measured on V2.382 in the barrel roll his way: on the inside of the roll he arrives at the top
+  // slower than Lead (3.4 G to Lead's 2.8 on the way up to stay behind him, 33 kt down), and waiting for his drift to
+  // show the crossing at the pull-out left him 1,113 ft back and stretched 21 s; taking the other side at the top ends it at
+  // 961 ft with no stretch, the other twelve runs unchanged. Crossing as Lead rolled in instead stretched both wingovers,
+  // and a floor under his lead and lag authority made it worse, so neither is in.
+  const invertedTop = (e.st?.bodyUp?.z ?? 1) < -LIVE.topSwapUpZ && Math.abs(e.st?.rollRate ?? 0) > LIVE.topSwapRollDps;
+  if (invertedTop && turning > LIVE.topSwapTurn && !toSlot && !entering && t >= swapUntil) {
+    side = -side;
+    swapUntil = t + WING.swapGuardSec;
+  }
   if (overTop && !toSlot && !entering && t >= swapUntil && aDot < 0) {
     const stopAt = side * latDeg - (aDot * aDot) / (2 * WING.swapAccelDps2);
     if (stopAt < -WING.swapMarginDeg) {
