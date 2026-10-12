@@ -223,7 +223,9 @@ export function createFormation(options = {}) {
       state.planned[a.id] = run.points;
       // The reset to speed after a tactical turn runs in the background (TS-204): the manoeuvre ends at the roll-out.
       const fg = p.segments.some((seg) => seg.background) ? dryRunT(a, { ...p, segments: p.segments.filter((seg) => !seg.background) }, state.tSec) : run;
-      endSec = Math.max(endSec, state.tSec + fg.durationSec);
+      // ... but not before a height leg still being flown (the crossing turns' miss) is done.
+      const profileEnd = p.profile?.length ? p.profile[p.profile.length - 1].t1 : 0;
+      endSec = Math.max(endSec, state.tSec + fg.durationSec, profileEnd);
     }
     state.current = {
       key,

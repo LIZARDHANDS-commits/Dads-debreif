@@ -420,7 +420,7 @@ export const TRACKER = Object.freeze({
   }),
   fwSettle: Object.freeze({
     marginFt: 20, // settled in fighting wing: inside FW_BAND (SMM 12.29 para 69, 500-1,000 ft) widened by this ... (estimate; row 5)
-    marginDeg: 0, // ... and its 30-60° sweep widened by this (estimate; row 5)
+    marginDeg: 2, // ... and its 30-60° sweep widened by this (estimate; row 5)
     aboveFt: 5, // no more than this above Lead ... (estimate; row 5)
     belowFt: 200, // ... nor this far below him (estimate; row 5)
     kt: 12, // speed within this of Lead's (estimate; row 5)
