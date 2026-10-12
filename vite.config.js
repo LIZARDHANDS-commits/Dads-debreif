@@ -41,4 +41,9 @@ export default defineConfig({
     target: 'es2022',
     rollupOptions: { input: { main: 'index.html' } },
   },
+  // The browser tests run on `vite preview`. Its CORS answer adds "Vary: Origin",
+  // which GitHub Pages doesn't send; with it, the service worker's kept copy of the
+  // main script never matches (that request carries an Origin header), so the
+  // offline tests would test a server the app is never published on.
+  preview: { cors: false },
 });
