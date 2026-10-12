@@ -2018,15 +2018,16 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // (Patrick, 11 Oct 2026: "the three lights above the eadi are misaligned"). Front seat (Patrick, 12 Oct 2026, from his
   // cockpit photo): tucked under the small lip, MASTER WARN and MASTER CAUTION two oblong lamps side by side in one
   // housing, FIRE a separate square box to their right. Each lamp: [y, slot, lens half-width, lens half-height].
-  const lx = h.aftX - 0.003, lz = front ? h.top - lipDrop - 0.035 : h.top - lipDrop / 2 - 0.015;
+  const lx = h.aftX - 0.003, lz = front ? h.top - lipDrop - 0.05 : h.top - lipDrop / 2 - 0.015;
   const lamps = front
-    ? [[0.21, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.22, SLOT.lampRed, 0.026, 0.026]]
+    ? [[0.19, SLOT.lampRed, 0.042, 0.034], [0, SLOT.lampAmber, 0.042, 0.034], [-0.25, SLOT.lampRed, 0.03, 0.037]]
     : [[0.16, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.16, SLOT.lampRed, 0.042, 0.025]];
   if (front) {
-    // On a grey strip across the panel's top under the lip, each in its own housing about 2.5 in apart, a small screw
+    // On a grey strip across the panel's top under the lip, each in its own housing, MASTER CAUTION 2.3 in from MASTER WARN and 3 in from FIRE, a small screw
     // either side of each oblong lamp (Patrick, 12 Oct 2026, "there is a grey surface the buttons are on" and "these
-    // are more spaced out"; sizes off his photo, scaled on the lamps' width; until then 1.3 in apart in one housing).
-    put(box(THREE, lx, lx + 0.012, -0.47, 0.5, lz - 0.048, h.top - lipDrop), SLOT.grey);
+    // are more spaced out"; sizes off his photo, scaled on the lamps' width; until then 1.3 in apart in one housing,
+    // the oblong lenses 1 x 0.6 in and FIRE 0.6 in square, now 1 x 0.8 in and 0.7 x 0.9 in).
+    put(box(THREE, lx, lx + 0.012, -0.47, 0.5, lz - 0.062, h.top - lipDrop), SLOT.grey);
     for (const [y, , hw, hh] of lamps) {
       const m = hw === hh ? 0.011 : 0.013;
       put(box(THREE, lx - 0.02, lx, y - hw - m, y + hw + m, lz - hh - m, lz + hh + m), SLOT.black);
@@ -2684,7 +2685,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   // The canopy's side frames with their fasteners (Dad's pictures 19, 21, 27) and the sill bands below them.
   const sf = sideFrameParts(THREE);
   const railParts = [];
-  for (const g of sf.frames) railParts.push({ geometry: g, materials: [SLOT.frame] });
+  for (const g of sf.frames) railParts.push({ geometry: g, materials: [SLOT.grey] }); // the cockpit's own grey (Patrick, 12 Oct 2026; was a lighter grey)
   for (const g of sf.nubs) railParts.push({ geometry: g, materials: [SLOT.dark] });
   for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.frame] });
   for (const [g, slot] of canopyHandleParts(THREE)) railParts.push({ geometry: g, materials: [slot] });

@@ -1,7 +1,7 @@
 // The T-6 as a CT-156 Harvard II (Moose Jaw, RCAF), drawn in code: a lofted fuselage, aerofoil wings and tail, glossy
 // paint and small CanvasTexture decals. Fine detail shows up close. From V2.329 the solid parts are swapped for the
 // Blender file built from these same shapes once it loads (ALL-33, "the outside from Blender" below); the code's shapes
-// stay the one source and show whenever the file doesn't. It imports only ui-kit's ct156-blender.js, and three.js is passed in
+// stay the one source and show whenever the file doesn't. It imports only ui-kit's ct156-blender.js and ct156-pilot.js, and three.js is passed in
 // (never imported here, so the home screen bundle stays free of it; see three-aircraft.js
 // `loadThree`). Spec: specs/SPEC-ui-kit.md, "3D aircraft (three.js, D138)".
 //
@@ -28,6 +28,7 @@
 // needs a document (a browser).
 
 import { aoShaded, loadAo, loadParts } from './ct156-blender.js';
+import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
 /** The paint setting every module offers: Paint: Harvard / Ship colours, Harvard the default. */
 export const PAINT_DEFAULT = 'harvard';
@@ -1956,88 +1957,12 @@ function skinStrip(THREE, rows, side, nz = 3) {
 }
 
 /**
- * The pilots' build, units (Patrick, 12 Oct 2026, "the pilots head/bodies need to look more like this picture", a side
- * view of two crew under the canopy: big pale helmets sitting low on broad shoulders): the helmet's radius (about 11.4 in
- * across; was 10.8 in), how far the neck, collar, shoulders, chest and harness are raised so the helmet sits on the
- * collar (about 1.7 in), the shoulders' half-width (about 18 in across; was 16) and where the arms hang from. Estimates
- * judged off the picture.
- */
-const PILOT = Object.freeze({ helmetR: 0.0205, raise: 0.006, shoulderHalf: 0.038, armOut: 0.035 });
-/**
- * A pilot in a seat, the helmet's centre at (x, 0, z), sitting up and looking ahead, built after a picture of
- * an aircrew in flying kit (Patrick, 11 Oct 2026 20:20Z: "better pilot models"; earlier: "o2 hose on the left ...
- * looking straight ahead"): the helmet with its visor housing on the front and ear cups at the sides, the dark visor
- * down, the oxygen mask with its straps to the helmet and its corrugated hose down the left of the chest to the
- * connector on the harness, the neck in the life preserver's collar, the flight suit's shoulders and chest under the
- * survival vest, the harness's shoulder straps and chest strap, and the arms: the right hand on the stick, the left on
- * the power lever. Slots: 0 helmet, 1 visor, 2 mask, 3 hose, 4 flight suit, 5 vest and collar, 6 harness, 7 gloves.
- * Sizes and colours estimates (a helmet about 11 in across, shoulders 17 in, the hands where the stick and the power
- * lever about are); the legs, under the cockpit's sill and behind the seats, are left out.
+ * A pilot in a seat, the helmet's centre at (x, 0, z): the parts from ct156-pilot.js (helmet, visor, mask, hose, flight
+ * suit, vest and collar, harness, gloves and the extra slots there) joined into one geometry, one group per slot of the
+ * `pilot` materials (built from CT156_PILOT_SLOTS).
  */
 function pilotGeometry(THREE, x, z) {
-  const P = (a, b, c) => new THREE.Vector3(x + a, b, z + c);
-  const shell = (g) => g.scale(1.08, 0.95, 1).translate(x, 0, z);
-  // A tapered round piece from a to b (offsets from the helmet's centre).
-  const limb = (a, b, r0, r1) => {
-    const A = P(...a), B = P(...b), d = B.clone().sub(A);
-    const g = new THREE.CylinderGeometry(r1, r0, d.length(), 10);
-    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
-    return g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
-  };
-  const joint = (c, r) => ellipsoid(THREE, x + c[0], c[1], z + c[2], r, r, r);
-  // A tube along the points; ribbed every other ring when `ribs`.
-  const tube = (pts, r, ribs) => {
-    const curve = new THREE.CatmullRomCurve3(pts.map((q) => P(...q)));
-    const n = ribs ? 40 : 16, g = new THREE.TubeGeometry(curve, n, r, 8, false);
-    if (ribs) {
-      const pos = g.attributes.position, v = new THREE.Vector3();
-      for (let i = 0; i <= n; i++) {
-        const c = curve.getPointAt(i / n), k = i % 2 ? 1.25 : 0.85;
-        for (let j = 0; j <= 8; j++) {
-          const m = i * 9 + j;
-          v.fromBufferAttribute(pos, m).sub(c).multiplyScalar(k).add(c);
-          pos.setXYZ(m, v.x, v.y, v.z);
-        }
-      }
-      g.computeVertexNormals();
-    }
-    return g;
-  };
-  const strap = (pts) => tube(pts.map(([a, b, c]) => [a, b, c + PILOT.raise]), 0.0017, false);
-  const arm = (side, hand) => [
-    { geometry: joint([-0.006, side * PILOT.armOut, -0.046 + PILOT.raise], 0.0098), materials: [4] },
-    { geometry: limb([-0.006, side * PILOT.armOut, -0.046 + PILOT.raise], [0.004, side * 0.036, -0.085], 0.0085, 0.0072), materials: [4] },
-    { geometry: joint([0.004, side * 0.036, -0.085], 0.0072), materials: [4] },
-    { geometry: limb([0.004, side * 0.036, -0.085], hand, 0.007, 0.0055), materials: [4] },
-    { geometry: ellipsoid(THREE, x + hand[0] + 0.004, hand[1], z + hand[2], 0.0065, 0.0045, 0.0055), materials: [7] },
-  ];
-  return joinGeometries(THREE, [
-    // Helmet, the visor housing's raised cover across its front and top, the ear cups.
-    { geometry: shell(new THREE.SphereGeometry(PILOT.helmetR, 18, 14)), materials: [0] },
-    { geometry: shell(new THREE.SphereGeometry(PILOT.helmetR + 0.0013, 18, 8, Math.PI - 0.95, 1.9, 0.35, 0.75).rotateX(Math.PI / 2)), materials: [0] },
-    ...[1, -1].map((sd) => ({ geometry: ellipsoid(THREE, x - 0.003, sd * (PILOT.helmetR - 0.001), z - 0.006, 0.0075, 0.004, 0.0085), materials: [0] })),
-    // The visor down, under the housing.
-    { geometry: shell(new THREE.SphereGeometry(PILOT.helmetR + 0.001, 16, 6, Math.PI - 1.0, 2.0, 1.1, 0.62).rotateX(Math.PI / 2)), materials: [1] },
-    // The mask, its valve and its straps back to the helmet's sides.
-    { geometry: ellipsoid(THREE, x + 0.0165, 0, z - 0.011, 0.0085, 0.0082, 0.0095), materials: [2] },
-    { geometry: limb([0.022, 0, -0.016], [0.026, 0, -0.019], 0.0035, 0.003), materials: [3] },
-    ...[1, -1].map((sd) => ({ geometry: limb([0.014, sd * 0.0075, -0.008], [0.001, sd * 0.019, -0.006], 0.0012, 0.0012), materials: [2] })),
-    // The hose: from the valve down the pilot's left to the connector on the harness.
-    { geometry: tube([[0.026, 0.0, -0.02], [0.024, 0.006, -0.032], [0.021, 0.014, -0.048], [0.019, 0.019, -0.064], [0.018, 0.016, -0.08], [0.019, 0.01, -0.09]], 0.0028, true), materials: [3] },
-    // Neck, the life preserver's collar round it, shoulders and chest in the flight suit, the vest over the chest.
-    { geometry: limb([-0.002, 0, -0.018], [-0.003, 0, -0.034 + PILOT.raise], 0.0072, 0.0068), materials: [4] },
-    { geometry: new THREE.TorusGeometry(0.0125, 0.0052, 8, 20).scale(1, 1.15, 0.6).translate(x - 0.002, 0, z - 0.032 + PILOT.raise), materials: [5] },
-    { geometry: ellipsoid(THREE, x - 0.006, 0, z - 0.044 + PILOT.raise, 0.016, PILOT.shoulderHalf, 0.012), materials: [4] },
-    { geometry: ellipsoid(THREE, x - 0.005, 0, z - 0.072 + PILOT.raise, 0.019, 0.029, 0.036), materials: [4] },
-    { geometry: ellipsoid(THREE, x - 0.002, 0, z - 0.07 + PILOT.raise, 0.0195, 0.0282, 0.031), materials: [5] },
-    // The harness: shoulder straps over the vest down to the buckle, and the chest strap across.
-    ...[1, -1].map((sd) => ({ geometry: strap([[-0.02, sd * 0.014, -0.04], [-0.007, sd * 0.015, -0.031], [0.012, sd * 0.014, -0.045], [0.017, sd * 0.011, -0.07], [0.018, sd * 0.006, -0.095]]), materials: [6] })),
-    { geometry: strap([[0.012, -0.022, -0.062], [0.0175, -0.01, -0.062], [0.0185, 0, -0.062], [0.0175, 0.01, -0.062], [0.012, 0.022, -0.062]]), materials: [6] },
-    { geometry: new THREE.BoxGeometry(0.003, 0.012, 0.008).translate(x + 0.0185, 0, z - 0.097), materials: [6] },
-    // Arms: the right hand on the stick, the left on the power lever.
-    ...arm(-1, [0.05, -0.006, -0.1]),
-    ...arm(1, [0.036, 0.036, -0.092]),
-  ]);
+  return joinGeometries(THREE, ct156PilotParts(THREE, x, z));
 }
 
 /** The canopy breakers on top of each ejection seat's headbox, units: their base radius, height and how far each is out
@@ -2377,18 +2302,14 @@ function buildKit(THREE) {
     tubFloor: mat({ color: '#26292c', roughness: 0.95, side: two }),
     // The walls medium grey like the panels since 12 Oct 2026 (Patrick's CT-156 cockpit photos; were '#2f3236').
     tubWall: mat({ color: '#5a5e63', roughness: 0.85, side: two }),
-    // The pilots (pilotGeometry): helmet, visor, mask, hose, flight suit, vest and collar, harness, gloves (colours
-    // estimates); and the seats' headboxes.
-    pilot: [
-      mat({ color: '#dde1e5', roughness: 0.35 }),
-      mat({ color: '#141920', roughness: 0.12, metalness: 0.5, envMap: env, envMapIntensity: 1, side: two }),
-      mat({ color: '#4c5348', roughness: 0.6 }),
-      mat({ color: '#2f3329', roughness: 0.7 }),
-      mat({ color: '#5e6648', roughness: 0.85 }),
-      mat({ color: '#454b36', roughness: 0.8 }),
-      mat({ color: '#2b2e27', roughness: 0.75 }),
-      mat({ color: '#33322c', roughness: 0.8 }),
-    ],
+    // The pilots (pilotGeometry): one material per slot of CT156_PILOT_SLOTS (helmet, visor, mask, hose, flight suit, vest and
+    // collar, harness, gloves, and the mask's grey-blue parts, black hardware, vest panel and skin; colours estimates);
+    // and the seats' headboxes.
+    pilot: CT156_PILOT_SLOTS.map((s) => mat({
+      color: s.color, roughness: s.roughness, metalness: s.metalness, side: s.side === 'double' ? two : THREE.FrontSide,
+      ...(s.env ? { envMap: env, envMapIntensity: s.env } : {}),
+      ...(s.opacity < 1 ? { transparent: true, opacity: s.opacity, depthWrite: false } : {}),
+    })),
     headbox: mat({ color: '#25282c', roughness: 0.6 }),
     // The outside glareshields: satin dark grey, a little lighter and glossier than the headboxes so they show through
     // the tinted glass (Patrick, 12 Oct 2026; they were the headboxes' colour). Shade an estimate.
