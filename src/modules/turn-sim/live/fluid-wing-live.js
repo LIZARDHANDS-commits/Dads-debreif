@@ -114,6 +114,8 @@ export const LIVE = Object.freeze({
   // ... and his aim is kept at least 1.5 s of flight ahead of him, so a lag that brings it back onto him never flips his
   // roll (the 4-ship's #3 rolled through inverted chasing an aim 80 ft away; estimate, measured 12 Oct 2026).
   fwAheadSec: 1.5,
+  fwOthersMarginFt: 100,
+  fwOthersGain: 2,
   fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
@@ -422,6 +424,22 @@ export function stepLiveWing(ws, ctx) {
     aim = add3(L, add3(add3(scale3(nose, aimRel.f), scale3(left, aimRel.l)), scale3(up, aimRel.u)));
   }
   let toAim = sub3(aim, pw);
+  // Fighting wing: he keeps out of everyone's bubble, not only his leader's (Patrick 12 Oct 2026 10:38Z, "all of the planes
+  // should use lead lag pure to respect the bubble"). Heading inside 500 ft of another aircraft in the next lookSec, he lags
+  // off him: his aim is moved away from that aircraft by what he would be short of 500 ft plus a margin (estimates).
+  let nearOther = false;
+  if (fw && ctx.others) {
+    for (const o of ctx.others) {
+      const d = sub3(pw, o.pos);
+      const rr = len3(d);
+      const closing = Math.max(0, -dot3(d, sub3(st.vel, o.vel)) / Math.max(rr, 1));
+      const shortFt = FW_BAND.bubbleFt + LIVE.fwOthersMarginFt - (rr - closing * LIVE.lookSec);
+      if (shortFt > 0) {
+        toAim = add3(toAim, scale3(d, (LIVE.fwOthersGain * shortFt) / Math.max(rr, 1)));
+        if (rr < FW_BAND.bubbleFt) nearOther = true;
+      }
+    }
+  }
   if (fw) {
     const shortFt = st.V * LIVE.fwAheadSec - dot3(toAim, st.nose);
     if (shortFt > 0) toAim = add3(toAim, scale3(st.nose, shortFt));
@@ -459,7 +477,7 @@ export function stepLiveWing(ws, ctx) {
   // The eased lift is carried through the manoeuvres too, so at the press the ease starts from the lift he was flying,
   // not from the first step's jump to the slot (measured: starting from that step held the jump and made the snap worse).
   const liftEased = lift;
-  const cap = Math.min(shakerG(st.kias), inBubble ? availableG(st.kias) : Math.min(LIVE.normalG, (e.st?.g ?? 1) + LIVE.overLeadG));
+  const cap = Math.min(shakerG(st.kias), inBubble || nearOther ? availableG(st.kias) : Math.min(LIVE.normalG, (e.st?.g ?? 1) + LIVE.overLeadG));
   const mag = len3(lift);
   if (mag > cap) lift = scale3(lift, cap / mag);
 
