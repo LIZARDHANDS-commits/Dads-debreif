@@ -4,7 +4,7 @@
 // vent at each upper corner; the lower panel with its centre pedestal, knee wells and landing gear handle; the side
 // consoles (power lever, flap lever, striped handles, knobs); the stick in its boot; the rudder pedals; the ejection
 // seat with its cushions, harness, headbox, canopy breakers, yellow and black seat handle and green oxygen hose. Round
-// the canopy: the forward bow's I-section with its studs and its two curved mirrors, the canopy's side frames with
+// the canopy: the forward bow's T section with its studs and flared feet and its two curved mirrors, the canopy's side frames with
 // their rows of fasteners, and the inter-cockpit arch with its fasteners and the clear
 // inter-cockpit shield. The rear cockpit's panel sits under a big moulded hump over the front seat's back, with its own
 // grab rails, AOA indexer and compass. The canopy glass, the round bow tubes, the sill rails, the seat backs' frames,
@@ -120,22 +120,25 @@ export const FORWARD_BOW_FT = Object.freeze({
   glassInset: 0.01,
   bandDepth: 0.13,
   tubeR: 0,
-  section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.07, innerT: 0.02 }),
+  section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0, innerT: 0 }),
+  foot: Object.freeze({ len: 0.45, rise: 0.45, plateT: 0.025 }),
   studs: Object.freeze({ n: 25, r: 0.014, h: 0.012 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
   footFillet: null,
 });
-// Its section is an I, as Patrick sketched it (Patrick, 12 Oct 2026, "It looks to me like it has a cross section
-// SOMETHING like this? not to scale?" and "the middle part goes out to a flange in both directions at the bottom?"): a
-// flange along the glass `section.outer` (1.9 in) fore and aft, a web down its middle `section.web` thick, and a flange
-// `section.inner` (0.8 in) fore and aft at the web's inner edge, `bandDepth` (1.6 in) from the glass inward ("this side
-// should be thinner?"), its aft face at bandX. A row of `studs` stands on the outer flange either side of the web, and the
-// web's aft face dark, so from the seat it reads as two flanges with a shadowed groove between, as Patrick's
-// reference picture of the cockpit shows ("Construction only"). Its legs run straight down into the canopy's lower frame
-// (footFillet null). Sizes are estimates off his sketch, that picture and Fig 3.5's band. Before: a channel open aft
-// with one row of studs (12 Oct 2026); before that a T, an aft face 1 in deep with a flange 3 in forward along its inner
-// edge (from Patrick's photos), a ring of round holes, and a rounded join at each foot.
+// Its section is a T, as Patrick sketched it (Patrick, 12 Oct 2026, "It looks to me like it has a cross section
+// SOMETHING like this? not to scale?"): a flange along the glass `section.outer` (1.9 in) fore and aft and a web down
+// its middle `section.web` thick, `bandDepth` (1.6 in) from the glass inward ("this side should be thinner?"), its aft
+// face at bandX (`section.inner` would add a flange along the web's inner edge; none). A row of `studs` stands on the
+// flange either side of the web, and the web's aft face is dark, so from the seat it reads as the flange with a
+// shadowed groove beside the web, as Patrick's reference picture of the cockpit shows ("Construction only"). At each
+// foot the web flares fore and aft over the leg's last `foot.rise` into a plate `foot.len` long on the sill ("the
+// middle part goes out to a flange in both directions at the bottom?", and his card "At the feet"). Sizes are
+// estimates off his sketch, that picture and Fig 3.5's band. Before: an I with a flange on the web's inner edge, and
+// before that a channel open aft with one row of studs (both 12 Oct 2026); before that a T, an aft face 1 in deep with
+// a flange 3 in forward along its inner edge (from Patrick's photos), a ring of round holes, and a rounded join at each
+// foot.
 
 /**
  * The inter-cockpit arch over the rear seat's panel, feet (TS-157): the model's centre frame hoop (CT156_FRAME_X[1],
@@ -1761,14 +1764,14 @@ function bandGeometries(THREE, b) {
   let recess = null;
   const studs = [];
   if (b.section) {
-    // An I: a flange along the glass, a web down its middle and a flange at the web's inner edge, closed all round, so
+    // A T (an I with `inner`): a flange along the glass, a web down its middle (and a flange at its inner edge), closed, so
     // it keeps its size from any eye (Patrick, 12 Oct 2026, "the canopy rail gets thin as soon as I move my head").
     // (dx, d): dx forward of the aft face, d inward from the glass.
     const { outer: W, outerT, web, inner: I, innerT } = b.section, d0 = b.glassInset, d1 = d0 + b.bandDepth, c = W / 2;
-    const ring = [
-      [0, d0], [W, d0], [W, d0 + outerT], [c + web / 2, d0 + outerT], [c + web / 2, d1 - innerT], [c + I / 2, d1 - innerT],
-      [c + I / 2, d1], [c - I / 2, d1], [c - I / 2, d1 - innerT], [c - web / 2, d1 - innerT], [c - web / 2, d0 + outerT], [0, d0 + outerT],
-    ];
+    const lower = I > web
+      ? [[c + web / 2, d1 - innerT], [c + I / 2, d1 - innerT], [c + I / 2, d1], [c - I / 2, d1], [c - I / 2, d1 - innerT], [c - web / 2, d1 - innerT]]
+      : [[c + web / 2, d1], [c - web / 2, d1]];
+    const ring = [[0, d0], [W, d0], [W, d0 + outerT], [c + web / 2, d0 + outerT], ...lower, [c - web / 2, d0 + outerT], [0, d0 + outerT]];
     const hoop = (dx) => {
       const x = b.bandX + dx, bs = ct156CanopySection(x / F).base * F;
       return ct156HoopPoints(x / F, n, 0, b.lean ?? 0).map(({ x: hx, y, z }) => {
@@ -1821,7 +1824,43 @@ function bandGeometries(THREE, b) {
       dots.push(new THREE.CircleGeometry(row.dia / 2, 16).rotateY(-Math.PI / 2).translate(x - 0.004, y, z));
     }
   }
-  return { band, dots, tube, recess, studs };
+  return { band, dots, tube, recess, studs, feet: b.foot ? bowFeet(THREE, b) : [] };
+}
+
+/**
+ * The forward bow's feet (FORWARD_BOW_FT.foot): on each side the web widening fore and aft over the leg's last
+ * `rise` (a concave curve, from the web's thickness to `len`), down onto a plate `len` long, as deep as the band, on
+ * the sill. Geometries, feet.
+ */
+function bowFeet(THREE, b) {
+  const { len, rise, plateT } = b.foot, { outer: W, outerT, web } = b.section, c = W / 2;
+  const d0 = b.glassInset + outerT, d1 = b.glassInset + b.bandDepth, n = 600, out = [];
+  // The hoop at fore-and-aft offset dx, as a function of (point index, inward distance).
+  const at = (dx) => {
+    const x = b.bandX + dx, bs = ct156CanopySection(x / F).base * F, pts = ct156HoopPoints(x / F, n, 0, b.lean ?? 0);
+    return { bs, pts, p: (j, d) => {
+      const { x: hx, y, z } = pts[j], dy = -y * F, dz = bs - z * F, l = Math.hypot(dy, dz) || 1;
+      return [hx * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
+    } };
+  };
+  const mid = at(c);
+  for (const s of [1, -1]) {
+    const idx = (k) => (s > 0 ? k : n - k);
+    const sections = [];
+    for (let k = 0; k <= n / 2; k++) {
+      const h = mid.pts[idx(k)].z * F - mid.bs;
+      const u = Math.min(1, h / rise), t = web + (len - web) * (1 - u) ** 2;
+      const fwd = at(c + t / 2), aft = at(c - t / 2);
+      sections.push([aft.p(idx(k), d0), fwd.p(idx(k), d0), fwd.p(idx(k), d1), aft.p(idx(k), d1)]);
+      if (u >= 1) break;
+    }
+    out.push(loft(THREE, sections, { closed: true }));
+    // The plate on the sill, under the flared web's foot.
+    const [fx, fy, fz] = mid.p(idx(0), b.glassInset), [, iy] = mid.p(idx(0), d1);
+    const yLo = Math.min(fy, iy), yHi = Math.max(fy, iy);
+    out.push(box(THREE, fx - len / 2, fx + len / 2, yLo, yHi, fz, fz + plateT));
+  }
+  return out;
 }
 
 /**
@@ -2690,7 +2729,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   card.texture.needsUpdate = true;
   add(joinTextured(THREE, cards), own(new THREE.MeshBasicMaterial({ map: card.texture, color: '#d0d0d0', side: THREE.DoubleSide, fog: false })));
 
-  // Round the canopy. The forward bow's light I-section with its studs (FORWARD_BOW_FT), and its two curved chrome
+  // Round the canopy. The forward bow's T section with its studs and flared feet (FORWARD_BOW_FT), and its two curved chrome
   // mirrors (BOW_MIRRORS).
   // The bow itself and the canopy rails are named parts like the seat's, so the Blender cockpit rounds and shades these
   // same pieces and its parts show only while their fingerprints match (ct156-cockpit-model.js, ALL-32). Until 12 Oct
@@ -2699,6 +2738,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }];
   if (fb.tube) bowParts.push({ geometry: fb.tube, materials: [SLOT.black] });
   if (fb.recess) bowParts.push({ geometry: fb.recess, materials: [SLOT.dark] });
+  for (const g of fb.feet) bowParts.push({ geometry: g, materials: [SLOT.band] });
   for (const g of fb.studs ?? []) bowParts.push({ geometry: g, materials: [SLOT.metal] });
   bowParts.push(...bowFootParts(THREE).map(([geometry, slot]) => ({ geometry, materials: [slot] })));
   for (const g of fb.dots) bowParts.push({ geometry: g, materials: [SLOT.black] });
