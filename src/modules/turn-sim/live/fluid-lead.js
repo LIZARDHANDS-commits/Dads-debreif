@@ -536,7 +536,7 @@ export function wingovers(dir) {
       const phase = mem.stage === 'exit' ? 'level' : `${first ? 'first' : 'second'} wingover, ${v < 0.25 ? 'nose up' : v < 0.5 ? 'to the top' : v < 0.75 ? 'nose down' : 'pulling up'}`;
       const done = mem.stage === 'exit' && level(st);
       // Through the wingovers #2 goes where Lead was and drifts in the cone (hold 0), back to 15° once level (Patrick 23:02Z).
-      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(v), latDeg: 15, hold: 0 };
+      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(v), latDeg: 15, hold: 0, over: v }; // over: how far through, for the live wingman's own breaks
       return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
@@ -580,7 +580,7 @@ export function barrelRoll(dir) {
       const phase = mem.stage === 'exit' ? 'level' : u < 0.25 ? 'pull and roll' : u < 0.5 ? 'to inverted' : u < 0.75 ? 'nose down' : 'back to the line';
       const done = mem.stage === 'exit' && level(st);
       // #2 like the loop (Patrick card 19:21Z), drifting in the cone, back to 15° once level (23:02Z).
-      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(u), latDeg: 15, hold: 0 };
+      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(u), latDeg: 15, hold: 0, over: u };
       return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };

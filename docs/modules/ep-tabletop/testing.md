@@ -2,7 +2,8 @@
 
 The policy is `../../TESTING.md`. This module adds:
 
-- The one light test when the scenario engine is built: a scenario's development changes the panel only when its time or step comes or the instructor applies it, and a pause stops the clock (what an instructor would recognise). Expected values come from the scenario itself.
+- The one light test, `tests/unit/ep-tabletop/scenario.test.js` (Step 1): a scenario's development changes the panel only when its time or step comes or the instructor applies it, and a pause stops the clock (what an instructor would recognise). Expected values come from the scenario itself.
+- The shared cockpit's `liveEngine` change is checked by picture, not by a test: the default cockpit rendered before and after the change is pixel for pixel the same (Step 1).
 - No test checks a checklist or boldface step: none is stored (EP-3).
 
 ## Sign-off checklist (in Dad's and Patrick's words; filled in when the spec is approved)
