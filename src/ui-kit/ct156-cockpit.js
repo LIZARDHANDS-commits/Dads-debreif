@@ -223,17 +223,29 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + FACE_AHEAD_FT, leanD
  * there just deep enough to cover the EADI's top, about 0.15 ft). Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
  * railOut: the grab rail's sides 0.05 ft inside the panel's edge, over its rim, where the front panel layout
  * draws them, 1.1 ft out from the middle (RIM_FT.sideOut, 0.05 ft outside it, until V2.289). cheeks: the
- * coaming's dark sides out to the canopy's sills behind the rail (Patrick, 11 Oct 2026, "Dark sides", from his CT-156
+ * coaming's sides down to the canopy's sills behind the rail (Patrick, 11 Oct 2026, "Dark sides", from his CT-156
  * cockpit photo; V2.289 left the windscreen's foot and the fuselage's inside showing past the narrower top). Since
- * 12 Oct 2026 the cheeks are one flat riveted panel each side in the cockpit's grey, its aft face coming down from the
- * rail to the sill (CHEEK_RIVETS_FT; Patrick, 12 Oct 2026, "Both, our grey", and "the edge of the glareshield needs to
- * come down and clean up the spot on the left"); until then black and bulging 0.08 ft, open underneath behind the rail.
+ * V2.408 they are the hood's own smooth black moulding, rounding out from its side and dropping straight to just under
+ * the sill, flush with the sill's inside edge (CHEEK_FT; Patrick, 12 Oct 2026, "The top of the instrument panel/ flare
+ * shield should all be smooth black and no sharp edges sticking", with his cockpit photos). From V2.396 to V2.407 a flat
+ * riveted panel each side in the cockpit's grey sloping out to the glass's foot, with a flat aft face down to the sill
+ * ("Both, our grey"); before that black and bulging 0.08 ft, open underneath behind the rail.
  */
 // Its crown since 12 Oct 2026: CT156_COAMING_CROWNS_FT.front (Patrick; from its aft edge, now 5 in further aft, at the
 // same height, easing down and then falling to 1.07 ft at 6.3 ft, under the windscreen's foot).
 const FRONT_CROWN = CT156_COAMING_CROWNS_FT.front;
-/** The front coaming's cheek rivets, feet: domed heads `r` in radius, `pitch` apart, `inset` in from the panel's edges. Estimates. */
-const CHEEK_RIVETS_FT = Object.freeze({ r: 0.012, pitch: 0.1, inset: 0.04 });
+/**
+ * The front coaming's sides' foot, feet: from the top's side each side rounds out `round` and drops straight down, its
+ * outer face `out` outside the panel's edge, flush with the inside of the sill beside the panel, to `below` under the
+ * sill's top.
+ * Estimates (Patrick, 12 Oct 2026, his cockpit photos: "the glare shield ends in a short vertical section that ends with
+ * its exterior flush with the inside of the sill and only just barely sticking below it").
+ */
+const CHEEK_FT = Object.freeze({ round: 0.06, below: 0.03, out: 0.01 });
+/** The front panel's back box stops this far under its shoulders, so it stays under the coaming's sides (feet, an estimate; its corners stood out past them beside the grab rail). */
+const PANEL_CORNER_CUT_FT = 0.08;
+/** The sill bands' inside edge, feet in from the canopy's foot. */
+const SILL_IN_FT = 0.2;
 /** How far the front seat's grey lamp strip shows under the grab rail, feet (0.66 in; Patrick, 12 Oct 2026; it hung 1.3 in under the rail). */
 const LAMP_STRIP_FT = 0.055;
 export const GLARESHIELD_FT = Object.freeze({
@@ -1721,24 +1733,37 @@ function hoodHalf(h, ts, x) {
   return pts;
 }
 /**
- * The front coaming's side at station x (GLARESHIELD_FT.cheeks), from its top's edge out and down to the canopy's
- * sill, bulging 0.08 ft: [y, z] feet, the left half.
+ * The front coaming's side at station x (GLARESHIELD_FT.cheeks), from the top's side (over its skirt) out round
+ * CHEEK_FT.round to just outside the panel's edge and straight down to just under the sill's top: [y, z] feet, the left
+ * half, always 7 points. Kept inside the glass, and under the top's side where the windscreen narrows ahead.
  */
 function cheekHalf(h, ts, x) {
   const c = ct156CanopySection(x / F);
-  // From the foot of the top's side skirt since 12 Oct 2026, so the side stays under the top and never shows beside it
-  // as a sliver (Patrick, 12 Oct 2026, "More clipping/needs to be smooth/merged"; it ran from the top's edge).
-  const [y0, z0] = insideGlass(x, ...hoodHalf(h, ts, x).at(-1));
-  // Its outer edge just outside and under the glass's foot ahead of the sill rail (so no skin shows past it), and over
-  // the rail (0.07 ft round) from 0.15 ft ahead of the rail's front end aft, so the rail runs in under it and its end
-  // doesn't show (Patrick, 11 Oct 2026, the corner "still doesnt look quite right").
-  // Since Patrick's 12 Oct 2026 note ("the edge of the glareshield needs to come down and clean up the spot on the
-  // left") it comes down to the glass's foot all along, over that rail too, so the rail's inside never shows beside
-  // the bow's foot (it stopped 0.07 ft inside the glass, 0.08 ft up, over the rail).
-  // Never inboard of the top's edge, where the windscreen narrows to its point, so the side doesn't fold back over the top.
-  const y1 = Math.max(y0, c.w * F + 0.02), z1 = c.base * F - 0.02;
-  const bulge = 0; // flat since 12 Oct 2026 ("Both, our grey"); it bulged 0.08 ft, none at the aft edge
-  return Array.from({ length: 7 }, (_, k) => insideGlass(x, lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + bulge * Math.sin((Math.PI * k) / 6)));
+  const [y0, z0] = insideGlass(x, ...hoodHalf(h, ts, x).at(-2));
+  const { round, below, out } = CHEEK_FT;
+  const yS = Math.max(y0, Math.min(ts.side + out, c.w * F - 0.04)), zB = Math.min(c.base * F - below, z0 - 0.02);
+  const r = Math.min(round, yS - y0, z0 - zB);
+  // Out level from the top's side, then a quarter round turning down onto the straight drop.
+  const arc = Array.from({ length: 5 }, (_, k) => {
+    const a = (k / 4) * (Math.PI / 2);
+    return [yS - r + r * Math.sin(a), z0 - r + r * Math.cos(a)];
+  });
+  return [[y0, z0], ...arc, [yS, zB]];
+}
+/**
+ * A panel's face outline, [y, z] feet: the tombstone. Given its coaming `h`, its shoulders and diagonals are kept
+ * `under` below the coaming's surface at the face's station (it leans), so no part of the face stands up through the
+ * hood or past its sides (Patrick, 12 Oct 2026, "Isn't this sticking over ? This grey ?"; the diagonals stood up to
+ * 1.2 in through the hood and the top corners out past its sides).
+ */
+function faceOutline(ts, p, h = null, under = 0.03) {
+  if (!h) return [[ts.side, p.bottom], [ts.side, ts.shoulderZ], [ts.top, p.top], [-ts.top, p.top], [-ts.side, ts.shoulderZ], [-ts.side, p.bottom]];
+  const lean = Math.tan(rad(p.leanDeg ?? 0)), n = 12;
+  const diag = Array.from({ length: n + 1 }, (_, k) => {
+    const y = lerp(ts.side, ts.top, k / n), z = lerp(ts.shoulderZ, p.top, k / n);
+    return [y, Math.min(z, hoodZ(h, ts, p.x + (z - p.bottom) * lean, y) - under)];
+  });
+  return [[ts.side, p.bottom], ...diag, ...diag.slice().reverse().map(([y, z]) => [-y, z]), [-ts.side, p.bottom]];
 }
 /**
  * The lower panel's half-width, feet: as wide as the main face (1.15 ft) at its top, flaring out to 1.27 ft over the
@@ -2058,7 +2083,7 @@ function sillGeometry(THREE) {
       // Out past the glass over the fuselage's cut edge, but only to the glass under the windscreen, where it would show
       // outside it (Patrick, 12 Oct 2026, "clean up the spot on the left").
       const out = x > xb ? 0.01 : 0.35;
-      sections.push([[x, s * (w + out), z], [x, s * (w - 0.2), z]]);
+      sections.push([[x, s * (w + out), z], [x, s * (w - SILL_IN_FT), z]]);
     }
     parts.push(loft(THREE, sections, { closed: false }));
   }
@@ -2122,7 +2147,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   const fx = (x) => x + dx; // a front-seat station moved to this seat
 
   // The panel's back and edges: a shallow black box behind the face, so it reads solid from any side.
-  put(box(THREE, p.x + 0.01, p.x + 0.12, -ts.side, ts.side, p.bottom, ts.shoulderZ), SLOT.black);
+  put(box(THREE, p.x + 0.01, p.x + 0.12, -ts.side, ts.side, p.bottom, ts.shoulderZ - (front ? PANEL_CORNER_CUT_FT : 0)), SLOT.black);
 
   // The lower panel (TS-157; Dad's pictures 17, 26): one face from the main face's bottom to the floor, the consoles'
   // fronts cut out of its sides and the two knee wells out of its foot, with the centre pedestal between them.
@@ -2164,36 +2189,16 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   const secs = [];
   for (let i = 0; i <= N; i++) secs.push(hoodSection(h, ts, lerp(h.aftX, h.foreX, (i / N) ** 0.8)));
   put(loft(THREE, secs, { closed: false, smooth: true }), SLOT.black);
-  // The front coaming's sides: its moulding sloping from the top's edge out and down to the canopy's sill at each
-  // station, bulging 0.08 ft, outside the rail, so the narrow top leaves no gap onto the windscreen's foot or the
-  // fuselage's inside
-  // (Patrick's CT-156 cockpit photo, 11 Oct 2026: the dark glareshield sweeps out to the sills behind the rim).
+  // The front coaming's sides: the hood's moulding carried on round and straight down to just under the sill at each
+  // station, closed on its inboard face, in the hood's black (CHEEK_FT), and capped at its aft end.
   if (h.cheeks) {
     for (const side of [1, -1]) {
-      const rows = secs.map((sec) => cheekHalf(h, ts, sec[0][0]).map(([y, z]) => [sec[0][0], side * y, z]));
-      put(loft(THREE, rows, { closed: false }), SLOT.grey);
-      // Its aft face, from the side's first section down to the sill, so nothing shows under the side's edge (it stopped
-      // at the side's edge, leaving the sill and the tub's wall showing under it).
-      const edge = rows[0].map(([, y, z]) => [Math.abs(y), z]);
-      const hood = hoodHalf(h, ts, h.aftX).slice(1);
-      const [yIn] = hood[hood.length - 1], zSill = edge[edge.length - 1][1];
-      put(flatAft(THREE, h.aftX + 0.002, [...edge, [yIn, zSill]].map(([y, z]) => [side * y, z])), SLOT.grey);
-      // Its rivets: a row along the side's edge and one down the rail's side, on the aft face.
-      const { r: rr, pitch, inset } = CHEEK_RIVETS_FT;
-      const lines = [edge.map(([y, z]) => [y - inset, z - inset]), [[yIn + inset, hood[hood.length - 1][1] - inset], [yIn + inset, zSill + inset]]];
-      for (const line of lines) {
-        const len = [0];
-        for (let i = 1; i < line.length; i++) len.push(len[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]));
-        const total = len[len.length - 1], count = Math.max(2, Math.round(total / pitch));
-        for (let q = 0; q <= count; q++) {
-          const want = (q / count) * total;
-          let i = 1;
-          while (i < line.length - 1 && len[i] < want) i++;
-          const t = (want - len[i - 1]) / (len[i] - len[i - 1] || 1), y = lerp(line[i - 1][0], line[i][0], t), z = lerp(line[i - 1][1], line[i][1], t);
-          if (z < zSill + inset * 0.9 || y < yIn + inset * 0.9 || y > edge[edge.length - 1][0] - inset * 0.9) continue;
-          put(new THREE.SphereGeometry(rr, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ(Math.PI / 2).translate(h.aftX + 0.001, side * y, z), SLOT.metal);
-        }
-      }
+      const rows = secs.map((sec) => {
+        const x = sec[0][0], half = cheekHalf(h, ts, x);
+        return [...half, [half[0][0], half[half.length - 1][1]]].map(([y, z]) => [x, side * y, z]);
+      });
+      put(loft(THREE, rows, { closed: true }), SLOT.black);
+      put(flatAft(THREE, h.aftX + 0.002, rows[0].map(([, y, z]) => [y, z])), SLOT.black);
     }
   }
   // The lip under the coaming's aft edge: a small one in the front seat, over the three lamps (Patrick, 12 Oct 2026,
@@ -2759,7 +2764,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     drawStaticPanel(pic.ctx, seat.width, height, PANEL_INSTRUMENTS, faceW, faceH);
     pic.texture.needsUpdate = true;
     const panelMat = own(new THREE.MeshBasicMaterial({ map: pic.texture, side: THREE.DoubleSide, fog: false }));
-    const outline = [[ts.side, p.bottom], [ts.side, ts.shoulderZ], [ts.top, p.top], [-ts.top, p.top], [-ts.side, ts.shoulderZ], [-ts.side, p.bottom]];
+    const outline = faceOutline(ts, p, seat.front ? seat.h : null);
     const face = add(leanWithFace(flatAft(THREE, p.x, outline, { y0: ts.side, y1: -ts.side, z0: p.bottom, z1: p.top }), p), panelMat).geometry;
     occluders.push({ geometry: face, slot: 'grey' });
     // The coaming's shade on the panel's top (Patrick's cockpit clip, 11 Oct 2026, shows the top of the panel in the
