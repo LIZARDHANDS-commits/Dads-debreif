@@ -75,6 +75,7 @@ export const LIVE = Object.freeze({
   circleBackSec: 12, // in Terminate the offset comes back as Lead rolls out over about 12 s, the slot slide's own pace (estimate), so the roll-out never jumps the aim across
   circleInsideSec: 8, // ... but with the offset on the inside of Lead's turn (Lead turning into him) over about 8 s, so Lead's turn brings the circle to him and he rolls in later and shallower instead of rolling away first (estimate; Patrick 12 Oct 2026 03:10Z: he turns away only when the turn would bring him inside 500 ft)
   bubbleShare: -1, // inside the 500 ft bubble the aim goes to full lag (spec section 9; SMM 16.17 para 44c)
+  handsFadeSec: 3, // ... and fades out over the first 3 s after the Terminate press (estimate), so it is for the press only
   handsSec: 1, // in Terminate the lift wanted is eased over about a second (estimate; spec section 10.11, "eased over about a second")
   l1Sec: 2.5, // the pursuit gain is 2V over the distance to the aim, or over about 2.5 s of flight if the aim is nearer (estimate): standard L1 guidance, soft enough that a roll-in of Lead's is followed, not snatched at
   overLeadG: 1.5, // he pulls no more than about 1.5 G over what Lead is pulling (estimate: a pilot matches Lead's pull and adds what the picture needs), the bubble excepted
@@ -349,8 +350,17 @@ export function stepLiveWing(ws, ctx) {
   // back (measured V2.384: 60 -> 39 -> 47° in a second, 87°/s; the fluid thread's reversal right 58 -> 40 -> 46°). Only
   // while Lead holds a speed: eased through the manoeuvres as well he lost Lead in the wingovers and the barrel roll
   // (measured, dropped). The roll-out wag is a 10° overshoot at 14°/s with this (18-20° before TS-198).
-  if (holding && ws.liftEased) lift = add3(ws.liftEased, scale3(sub3(lift, ws.liftEased), Math.min(1, dt / LIVE.handsSec)));
-  const liftEased = holding ? lift : undefined;
+  // The ease is for the press only: it fades out over handsFadeSec from the Terminate press, so it never sits inside his
+  // pursuit loop for the rest of Terminate (the fluid thread's check of 995540b5: eased throughout, his bank hunted slowly
+  // after Lead's roll-out, two or three swings where main has one). Timed from the press (toSlot), not from the hold,
+  // because Lead's level turns already hold a speed (measured: a hold-timed fade had run out, level turn L still 86°/s).
+  // Measured with this: every Terminate's press 20-25°/s, the roll-out settle and swings the same as V2.384.
+  const holdSince = toSlot ? (ws.holdSince ?? t) : undefined;
+  const fade = holding && toSlot ? Math.max(0, 1 - (t - holdSince) / LIVE.handsFadeSec) : 0;
+  if (holding && ws.liftEased && fade > 0) lift = add3(ws.liftEased, scale3(sub3(lift, ws.liftEased), Math.min(1, dt / (LIVE.handsSec * fade))));
+  // The eased lift is carried through the manoeuvres too, so at the press the ease starts from the lift he was flying,
+  // not from the first step's jump to the slot (measured: starting from that step held the jump and made the snap worse).
+  const liftEased = lift;
   const cap = Math.min(shakerG(st.kias), inBubble ? availableG(st.kias) : Math.min(LIVE.normalG, (e.st?.g ?? 1) + LIVE.overLeadG));
   const mag = len3(lift);
   if (mag > cap) lift = scale3(lift, cap / mag);
@@ -392,7 +402,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, liftEased, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
+    ws: { ...ws, st: next, liftEased, holdSince, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
     pose,
     power,
     cue,
