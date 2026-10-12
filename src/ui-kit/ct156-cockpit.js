@@ -116,15 +116,16 @@ export const FORWARD_BOW_FT = Object.freeze({
   crestZ: ct156CanopySection(CT156_FRAME_X[0]).top * F,
   bandX: CT156_FRAME_X[0] * F - 0.05,
   glassInset: 0.01,
-  bandDepth: 0.15,
+  bandDepth: 0.08,
   tubeR: 0,
-  flange: 0.28,
+  flange: 0.25,
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([Object.freeze({ at: 0.5, n: 22, dia: 0.07 })]),
   footPlate: Object.freeze({ up: 0.4, aft: 0.45, inset: 0.09 }),
 });
 // Its section is a T (Patrick, 12 Oct 2026, from his cockpit photos): the aft face, and along its inner edge a flange
-// running forward `flange` (3.4 in) at the same distance inside the glass, in place of the dark tube 0.025 ft round. At
+// running forward `flange` (3 in) at the same distance inside the glass, in place of the dark tube 0.025 ft round; it
+// stands 1 in in from the glass (Patrick, 12 Oct 2026, "its not as thick as you have it"; was 1.8 in, the flange 3.4 in). At
 // each foot a triangular plate joins it to the canopy's lower frame, `up` the bow and `aft` along the frame (sizes
 // estimates), the ejection seat's placard on the right one.
 
@@ -244,7 +245,9 @@ export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.2
  * right of the middle (V2.264, from Patrick's cockpit frame; V2.266 tried the diagram's size). Sizes estimates; the
  * rear seat's is unseen.
  */
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.1, cardR: 0.085, cardBandDeg: 35, clear: 0.03, flange: 1.3, flangeT: 0.022, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.71, yRear: -0.8 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.1, cardR: 0.085, cardBandDeg: 35, clear: 0.03, flange: 0.95, cornerR: 0.03, flangeT: 0.022, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.71, yRear: -0.8 });
+// Since 12 Oct 2026 (Patrick, from his photo) the flange is smaller (0.95 of the ball's width; was 1.3), its corners
+// rounded and turned 45°, it and its strap light grey, and the card black with white marks (was cream with black).
 
 /**
  * The rear cockpit's panel, feet: face 0.47 ft ahead of the origin, upright, 0.57 to 1.62 ft up, 2.2 ft across (Patrick,
@@ -2013,8 +2016,12 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     ? [[0.11, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.14, SLOT.lampRed, 0.026, 0.026]]
     : [[0.16, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.16, SLOT.lampRed, 0.042, 0.025]];
   if (front) {
+    // On a grey strip across the panel's top under the lip, a small screw either side of each oblong lamp (Patrick,
+    // 12 Oct 2026, "there is a grey surface the buttons are on"; sizes off his photo).
+    put(box(THREE, lx, lx + 0.012, -0.25, 0.27, lz - 0.06, h.top - lipDrop), SLOT.grey);
     put(box(THREE, lx - 0.02, lx, -0.055, 0.165, lz - 0.035, lz + 0.035), SLOT.black);
     put(box(THREE, lx - 0.02, lx, -0.177, -0.103, lz - 0.037, lz + 0.037), SLOT.black);
+    for (const y of [-0.045, 0.045, 0.065, 0.155]) put(new THREE.CylinderGeometry(0.007, 0.007, 0.006, 8).rotateZ(Math.PI / 2).translate(lx - 0.023, y, lz), SLOT.metal);
   } else {
     put(box(THREE, lx - 0.006, lx, -0.42, 0.42, lz - 0.045, lz + 0.045), SLOT.knob);
     for (const [y] of lamps) put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
@@ -2103,11 +2110,19 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const cx = h.aftX + C.aheadOfEdge, cy = front ? C.y : C.yRear, cz = hoodZ(h, ts, cx, cy);
     const zc = cz + C.r + C.clear;
     const fh = C.r * C.flange, f0 = zc + C.r * 0.86, f1 = f0 + C.flangeT; // the flange's half-width, bottom and top
-    put(box(THREE, cx - fh, cx + fh, cy - fh, cy + fh, f0, f1), SLOT.black);
+    // The flange: a square with rounded corners turned 45° (Patrick, 12 Oct 2026, from his photo), so a corner points
+    // inboard to the strap.
+    const sq = new THREE.Shape(), cr = C.cornerR, k = fh - cr;
+    sq.moveTo(-k, -fh); sq.lineTo(k, -fh); sq.absarc(k, -k, cr, -Math.PI / 2, 0, false); sq.lineTo(fh, k);
+    sq.absarc(k, k, cr, 0, Math.PI / 2, false); sq.lineTo(-k, fh); sq.absarc(-k, k, cr, Math.PI / 2, Math.PI, false);
+    sq.lineTo(-fh, -k); sq.absarc(-k, -k, cr, Math.PI, 1.5 * Math.PI, false);
+    const plate = new THREE.ExtrudeGeometry(sq, { depth: C.flangeT, bevelEnabled: false, curveSegments: 4 });
+    put(plate.rotateZ(Math.PI / 4).translate(cx, cy, f0), SLOT.grey);
     for (const s of [1, -1]) put(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateX(Math.PI / 2).translate(cx, cy + s * (fh - 0.025), f1 + 0.006), SLOT.metal); // its bolts
-    const sy = cy + fh + C.strapIn, sz = hoodZ(h, ts, cx, sy); // the strap's foot, inboard of the flange
-    put(box(THREE, cx - 0.02, cx + 0.02, cy + fh - 0.01, sy + 0.005, f1 - 0.01, f1), SLOT.black);
-    put(box(THREE, cx - 0.02, cx + 0.02, sy - 0.005, sy + 0.005, sz - 0.01, f1), SLOT.black);
+    const corner = Math.SQRT2 * fh - (Math.SQRT2 - 1) * cr; // how far its corner reaches inboard
+    const sy = cy + corner + C.strapIn, sz = hoodZ(h, ts, cx, sy); // the strap's foot, inboard of the flange
+    put(box(THREE, cx - 0.02, cx + 0.02, cy + corner - 0.02, sy + 0.005, f1 - 0.01, f1), SLOT.grey);
+    put(box(THREE, cx - 0.02, cx + 0.02, sy - 0.005, sy + 0.005, sz - 0.01, f1), SLOT.grey);
     put(new THREE.CylinderGeometry(C.r * 0.47, C.r * 0.47, C.r * 0.6, 14).rotateX(Math.PI / 2).translate(cx, cy, zc - C.r * 0.95), SLOT.black); // the light under the ball
     // The case: the whole ball but its window (a round hole on the aft side, windowDeg across and 2 x cardBandDeg tall).
     const win = rad(C.windowDeg), band = rad(C.cardBandDeg);
@@ -2396,9 +2411,9 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
  * 5°, longer every 10°; N 3 6 E 12 15 S 21 24 W 30 33.
  */
 function drawCompassCard(ctx, w, h) {
-  ctx.fillStyle = '#e6e2d6';
+  ctx.fillStyle = '#141414';
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#121212';
+  ctx.fillStyle = '#f0f0f0';
   const xOf = (v) => ((360 - v) / 360) * w;
   for (let v = 0; v < 360; v += 5) ctx.fillRect(xOf(v) - 1.5, 0, 3, h * (v % 10 ? 0.16 : 0.3));
   ctx.font = `bold ${Math.round(h * 0.56)}px sans-serif`;
