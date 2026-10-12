@@ -293,9 +293,11 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
     bank = leadBank + frac * (bank - leadBank);
   }
   if (bankOwn != null) bank = Math.max(-cap, Math.min(cap, bankOwn)); // the switch's own bank, inside the phase's cap (the G rule)
-  // Lining up on a closure phase, the last few hundredths of a degree of bank are taken out at once, so the wings come
-  // level in a step or two instead of creeping for ten seconds (the heading left is inside alignHeadingRad).
-  if (aligning && ph.closureFtps && Math.abs(bank) < T.alignDeadbandDeg) bank = 0;
+  // Lining up on a closure phase or in the fighting wing cone, the last few hundredths of a degree of bank are taken out at
+  // once, so the wings come level in a step or two instead of creeping for ten seconds (the heading left is inside
+  // alignHeadingRad). In the cone it crept from about 1° to a billionth of a degree, about 13 s on every rejoin into
+  // fighting wing's plan, until 12 Oct 2026.
+  if (aligning && (ph.closureFtps || ph.coneAlt) && Math.abs(bank) < T.alignDeadbandDeg) bank = 0;
   return bank;
 }
 
