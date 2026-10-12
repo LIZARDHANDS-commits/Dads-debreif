@@ -1,6 +1,6 @@
 # Tags to push (12 Oct 2026)
 
-GitHub's newest tag is `v2.215-debrief-puck-cockpit`. The 159 versions on main after it (V2.216 to V2.387; V2.274, 281, 312, 313 and 318 were never used) have no tag on GitHub.
+GitHub's newest tag is `v2.215-debrief-puck-cockpit`. The 160 versions on main after it (V2.216 to V2.388; V2.274, 281, 312, 313 and 318 were never used) have no tag on GitHub.
 
 1. If you made each thread's tag on your PC as it merged, this sends them all: `git push origin --tags`.
 2. Otherwise, paste the block below into a clone of main. Each tag sits on that version's merge commit. Today's seven use the names their threads gave; the rest are named from the first words of their merge titles. A line for a tag you already have just says it exists and the rest carry on.
@@ -166,5 +166,6 @@ git tag v2.384-fluid-live-only f6cece4f
 git tag v2.385-terminate-ease 338e275c
 git tag v2.386-height-in-cone 97c31cbd
 git tag v2.387-handover-bank-speed 08263f83
+git tag v2.388-ct156-cockpit-photos 3c1fa1e1
 git push origin --tags
 ```

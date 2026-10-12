@@ -4,11 +4,11 @@ Where the whole tool stands at the end of the 12 Oct run, for whoever picks it u
 
 ## Main
 
-- **Version on main:** V2.387 (`08263f83`, #961). One version number for the whole tool, the one on the home screen.
+- **Version on main:** V2.388 (`3c1fa1e1`, #965). One version number for the whole tool, the one on the home screen.
 - **Site:** https://lizardhands-commits.github.io/Dads-debreif/. Patrick runs "Deploy to GitHub Pages" himself after a flyable merge.
 - **CI:** the one check. Two failures kept main red during the run: the SOF button walk (fixed by #958) and a Formation hand-over smoothness unit test from V2.381 to V2.386 (fixed by #961). V2.387's final head merged before its CI finished, so main's own run on V2.387 is the check. The type check's three.js loader warnings are warning-only (Patrick, 10 Oct).
 
-## What merged, V2.380 to V2.387 (11 to 12 Oct)
+## What merged, V2.380 to V2.388 (11 to 12 Oct)
 
 | Version | Module | What changed |
 |---|---|---|
@@ -20,12 +20,12 @@ Where the whole tool stands at the end of the 12 Oct run, for whoever picks it u
 | V2.385 | Fluid | #2 eases with Lead at the Terminate press, no full-rate roll (#959). |
 | V2.386 | Fluid | In a turn away #2 keeps the route position as height in the cone (#962, TS-200). |
 | V2.387 | Formation | Hand-overs turn at the bank flown and end on Lead's speed; the 4-ship opening out keeps its climb (#961). |
+| V2.388 | CT-156 model | Cockpit, canopy bow, seats and pilots match Patrick's photos: Patrick's 19-row fix list, built in seven stages with every stage's renders seen by him (#965). |
 
 No-version merges in the same run: the import rule in `AGENTS.md` (#952), Playwright 1.64.0 and Vite 8.3.3 (#956), the SOF button-walk fix (#958), and the docs for TS-198 and TS-200 (#951, #964).
 
 ## Open pull requests
 
-- **#965, CT-156 cockpit and canopy fixes** (Patrick's 19-row list, built in seven stages, every stage's renders seen by Patrick). Merging next.
 - **#946, EP Tabletop step 2, the instructor's phone link** (Dad's). Patrick merges Dad's pull requests himself. It asks Patrick three things: the new storage library, the wording of EP-8 to EP-10, and EP-Q4.
 - **#934, EP Tabletop step 1** (Dad's). Its work looks to have landed on main as V2.369 (#935); left open for Patrick to decide.
 - **#829, Formation refactor step 5** (11 Oct, straight rejoin rides Lead's six). Never merged and now well behind main; left open for Patrick to decide.
@@ -62,14 +62,16 @@ Every module keeps its ideas and rough spots in its own `future.md`. Counts are 
 
 ## Tags to push
 
-GitHub's newest tag is `v2.215-debrief-puck-cockpit`, so the 159 versions since (V2.216 to V2.387) have no tag there. [tags-to-push.md](tags-to-push.md) has the one command if you made the tags on your PC, and the full list to paste if you didn't.
+GitHub's newest tag is `v2.215-debrief-puck-cockpit`, so the 160 versions since (V2.216 to V2.388) have no tag there. [tags-to-push.md](tags-to-push.md) has the one command if you made the tags on your PC, and the full list to paste if you didn't.
+
+**CT-156 model and cockpit.** V2.388 (#965) changed the shape tables in `src/ui-kit/ct156-cockpit.js` and `ct156-model.js`, moved the pilots to `ct156-pilot.js`, and rebuilt the Blender files (`tools/blender/README.md`). Sizes are estimates off Patrick's photos and rulings, marked in the code. The rear eye is 6.4 in lower, putting the front headbox top on the horizon as Patrick picked. Unseen: the app in a browser after deploy. The open 3D items are in [shared/future.md](../docs/modules/shared/future.md).
 
 ## Open rulings
 
 The one waiting list is the end of [docs/PLAN.md](../docs/PLAN.md), "Waiting on Patrick". The ones at the top of it:
 
-- Fly Formation at V2.387 and ratify TS-76 to TS-85; say what still looks wrong in fluid manoeuvring.
-- See Traffic and the PFL on screen at V2.387.
+- Fly Formation at V2.388 and ratify TS-76 to TS-85; say what still looks wrong in fluid manoeuvring.
+- See Traffic and the PFL on screen at V2.388.
 - The CT-156 cockpit sizes and three questions (TS-154 to TS-156).
 - Dad's items: EP-Q1 (phone link), DB-31 (wheel height), and the SOF items he decides.
 
