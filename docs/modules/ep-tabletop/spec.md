@@ -49,7 +49,7 @@ Every step with its clock time, each question asked and answer revealed, each pa
 
 ## The phone link (EP-Q1, EP-Q2) and when it fails (EP-R10)
 
-As built in V2.383 (EP-8 to EP-10; EP-Q1 answered by Patrick, relayed by Dad, 12 Oct 2026: the relay mailbox, option (b)). Not yet seen in the app, and the relay's `/ep-link` waits on Dad's redeploy.
+As built in V2.384 (EP-8 to EP-10; EP-Q1 answered by Patrick, relayed by Dad, 12 Oct 2026: the relay mailbox, option (b)). Not yet seen in the app, and the relay's `/ep-link` waits on Dad's redeploy.
 
 - **The code.** The student's screen has an **Instructor's phone** button. It makes a session id and a key (each 128 random bits) and shows a QR code (our own encoder, `src/ui-kit/qr.js`, EP-Q2) for this page's own address with `#/ep-tabletop?console&s=<session>&k=<key>`. Scanning it opens the instructor's console on the phone, laid out in one column with big buttons. The key is only in the code's address, after the "#", so the page's own server never sees it.
 - **Who runs what.** The phone is the master: the scenario runs on it, and it sends only the **student view** (EP-9): the situation given at the start, the step and the steps visited, whether time runs and the clock, the FEVER and TCCC prompts, and the panel's settings for the flight instruments and for what has been revealed. Never the scenario's name or script, the developments to come, edits not yet applied, marks, notes, the Declare answers, the log or the end (EP-2). The one-screen mode draws the student's side from the same function.
