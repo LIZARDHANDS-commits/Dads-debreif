@@ -31,6 +31,7 @@ import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, POWER, closeBankNow, experienceNow } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
+import { excessThrustPerWeight, dragPerWeight } from '../../../core/t6-performance.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
 export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));
@@ -788,14 +789,14 @@ export const FW_MOVES = Object.freeze({
 });
 /** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
  * pair is; climbs and descents as fluid's (2,000 ft, a 15° path at the steepest; design 5.1, estimates). */
-const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15 });
+const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, rateShare: 0.8 }); // rateShare: 80% of the model's MAX climb or idle descent at Lead's speed (TS-203; estimate)
 
 /**
- * One of Lead's fighting wing moves (FW_MOVES) from where the pair is now, 2-ship. bankDeg: Lead's level turn bank (the
- * fluid setting). Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec } or { ok: false, reason }.
+ * Lead's plan for one of his fighting wing moves (FW_MOVES) from where he is now: { ok, segments, profile, turning, nowDir }
+ * or { ok: false, reason }. Shared by #2's two pilots in fighting wing, the tracker (planFwMove) and the live wingman
+ * (fw-live.js, TS-202), so Lead flies the same either way.
  */
-export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg = /** @type {number} */ (WING_BANKS.fwTurnBankDeg) } = {}) {
-  const [lead, wing] = aircraft;
+export function fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt = 8000) {
   if (!FW_MOVES[key]) return { ok: false, reason: `No fighting wing move called ${key}.` };
   const turning = Math.abs(lead.bankDeg) > 5;
   const nowDir = Math.sign(lead.bankDeg) || 1;
@@ -809,10 +810,32 @@ export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg
   } else if (key === 'climb' || key === 'descend') {
     // A pitch change only: a turn being flown carries on at its bank (as fluid's).
     if (turning) segments = held(nowDir, Math.abs(lead.bankDeg));
-    const avgFtps = (lead.tasFtps * Math.sin(FW_MOVE.climbDeg * DEG)) / SMOOTHER_PEAK;
+    // At what the T-6 holds at Lead's speed (TS-203): the climb's steepest rate a share of the model's MAX climb, the
+    // descent's of its idle descent, so #2 has power to spare either way. Until then a 15° path, about twice the MAX climb.
     const up = key === 'climb' ? 1 : -1;
+    const altFt = blockFt + (lead.altAboveFt ?? 0);
+    const perW = up > 0 ? excessThrustPerWeight(lead.kias, altFt, 1) : dragPerWeight(lead.kias, altFt, 1);
+    const peakFtps = Math.min(lead.tasFtps * Math.sin(FW_MOVE.climbDeg * DEG), FW_MOVE.rateShare * Math.max(0, perW) * lead.tasFtps);
+    const avgFtps = Math.max(1, peakFtps) / SMOOTHER_PEAK;
     profile = [{ t0, t1: t0 + FW_MOVE.climbFt / avgFtps, fromFt: lead.altAboveFt, toFt: lead.altAboveFt + up * FW_MOVE.climbFt }];
   } // wings level: no segments, so Lead rolls out (flight.js)
+  return { ok: true, segments, profile, turning, nowDir };
+}
+
+/** The words for a fighting wing move on #2's card. */
+export function fwMoveWords(key, dir, bankDeg) {
+  return key === 'levelTurn' ? `a level turn ${dir > 0 ? 'left' : 'right'} at ${bankDeg}° of bank, held until the next press` : key === 'reversal' ? 'a reversal' : key === 'wingsLevel' ? 'wings level' : `a ${key === 'climb' ? 'climb' : 'descent'} of ${FW_MOVE.climbFt.toLocaleString('en-CA')} ft`;
+}
+
+/**
+ * One of Lead's fighting wing moves (FW_MOVES) from where the pair is now, 2-ship. bankDeg: Lead's level turn bank (the
+ * fluid setting). Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec } or { ok: false, reason }.
+ */
+export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg = /** @type {number} */ (WING_BANKS.fwTurnBankDeg) } = {}) {
+  const [lead, wing] = aircraft;
+  const lp = fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt);
+  if (!lp.ok) return lp;
+  const { segments, profile, turning, nowDir } = lp;
   const leadPlan = { segments, profile };
   const refs = { [lead.id]: recordFlight(lead, leadPlan, t0) };
   const rel0 = relativeTo(lead, wing);
@@ -828,7 +851,7 @@ export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg
   // #2 climbs and descends with Lead, keeping the height he has from Lead (the whole cone, high or low: Patrick 08:58Z).
   const dh = wing.altAboveFt - lead.altAboveFt;
   const wingProfile = profile.map((leg) => ({ ...leg, fromFt: leg.fromFt + dh, toFt: leg.toFt + dh }));
-  const words = key === 'levelTurn' ? `a level turn ${dir > 0 ? 'left' : 'right'} at ${bankDeg}° of bank, held until the next press` : key === 'reversal' ? 'a reversal' : key === 'wingsLevel' ? 'wings level' : `a ${key === 'climb' ? 'climb' : 'descent'} of ${FW_MOVE.climbFt.toLocaleString('en-CA')} ft`;
+  const words = fwMoveWords(key, dir, bankDeg);
   return {
     ok: true,
     plans: { [lead.id]: { segments: segments.map((x) => ({ ...x })), profile }, [wing.id]: { segments: [{ kind: 'bankTrack', points: run.points }], profile: wingProfile } },
