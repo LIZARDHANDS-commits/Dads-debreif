@@ -46,7 +46,7 @@ export const DECLARE_FIELDS = Object.freeze(['nature', 'fuel', 'souls', 'plan', 
 
 const isFlight = (key) => key.startsWith('flight.');
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const words = (v) => (v === true ? 'ON' : v === false ? 'off' : v && typeof v === 'object' ? `${v.v} ±${v.swing}` : String(v));
+const words = (v) => (v === true ? 'ON' : v === false ? 'off' : v && typeof v === 'object' ? `${v.v} ±${v.swing}` : typeof v === 'number' ? String(Math.round(v * 10) / 10) : String(v)); // a flown number to a tenth
 
 function log(s, text) {
   return { ...s, log: [...s.log, { tS: s.clockS, step: s.step, text }] };
