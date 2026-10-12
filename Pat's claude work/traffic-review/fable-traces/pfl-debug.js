@@ -125,7 +125,7 @@ const PLAN_DEG = [-Infinity, 0, 180, 270];
  * The glide ring (Traffic spec 4.5 item 14; Patrick 4 Oct 08:33Z): how far the
  * aircraft can glide from where it is now, in the configuration down, drawn on
  * the ground. Radius = height above the field × the configuration's glide ratio
- * (T-6A max glide chart: clean 2.0 NM per 1,000 ft). The glide takes radius ÷
+ * (T-6A max glide data: clean 2.0 NM per 1,000 ft). The glide takes radius ÷
  * true airspeed at the PFL speed (125 KIAS clean, 120 with the gear down, at
  * mid-height), and the wind carries the whole circle downwind for that long, so
  * its centre is no longer on the aircraft.

@@ -74,6 +74,6 @@ The tool's numbers, speeds, patterns and geometry come from these manuals ("foll
 - Gen Book: 2 CFFTS Harvard II Gen Book, Version 8.9. Cited as "Gen Book p.7".
 - EFIG: instructor guide slides, 24 Jun 26. Cited as "EFIG p.151".
 - SMM: A-12-HVD-000/PT-D01, CT-156 Harvard II Standard Manoeuvre Manual, Change 3, 28 Aug 2024. Cited as "SMM 4.14 para 32".
-- NFM: A1-T6AAA-NFM-100, T-6A NATOPS Flight Manual (USN/USAF, not Moose Jaw orders), linked by Patrick 2026-09-30 06:38Z. Cited as "NFM Fig 3-4, p.3-12". Its charts are images, so their numbers are read by hand.
+- Reference data: T-6A performance numbers, given by Patrick 2026-09-30 06:38Z. Cited as "reference". Their numbers are read by hand.
 ## Open questions
 Open questions and my recommendations are in @Questions. Answers you've already given are logged in @Decisions and @Requirements, and ideas for later go in @Future features.

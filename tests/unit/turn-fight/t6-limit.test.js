@@ -2,7 +2,7 @@
 //   T-6A's stall line, none exactly on it, and the 7 G cap.
 // Serves: TF-R4.
 // Expected values: stall line G = (speed / 86 kt)^2 and the 7 G cap (the table itself is checked in
-//   tests/unit/core/t6-performance.test.js); 86 kt is Patrick's ruling SH-25, 7 G is NFM p.5-9; the title's "V6's default" (4 G) is a label only, the default
+//   tests/unit/core/t6-performance.test.js); 86 kt is Patrick's ruling SH-25, 7 G is reference data; the title's "V6's default" (4 G) is a label only, the default
 //   is now 5 G.
 
 // The T-6 limit warning beside a G box (SPEC-turn-fight, "T-6 limit warning").

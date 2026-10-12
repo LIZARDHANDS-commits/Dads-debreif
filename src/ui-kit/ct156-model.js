@@ -51,12 +51,12 @@ const rad = (d) => (d * Math.PI) / 180;
 
 // Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The top line runs almost flat from the
 // spinner back to the fin. Squareness 2 is an ellipse, higher is boxier (flat sides at the cockpit). The nose's top
-// line, spinner to windscreen foot, is the side drawing's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind
+// line, spinner to windscreen foot, is the side view's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind
 // the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's foot (was 0.65 to 1.0 ft off the photo), so from the front seat
-// the spinner hides under the cowl. The belly line is the same drawing's (Patrick, 11 Oct 2026: "analyze the pictures
+// the spinner hides under the cowl. The belly line is the same view's (Patrick, 11 Oct 2026: "analyze the pictures
 // ... and IMPROVE IT"): 2.9 ft under the axis at the wing, still 2.3 ft under it 2.2 ft ahead of the tail, closing to
 // 1.7 ft at the tail cone (the photo's was about 1 ft deeper all along, the far wing and the low camera adding to it;
-// it then rose from 6.3 ft ahead of the tail, up to 4 in too high). The half-widths are the top drawing's (scaled
+// it then rose from 6.3 ft ahead of the tail, up to 4 in too high). The half-widths are the top view's (scaled
 // by its span): 3 ft 2.6 in across from the windscreen to the rear bow, tapering straight from
 // the spinner's backplate to the cowl and from the rear bow to the tail (the front view, scaled by its 97 in prop, gives
 // 3 ft 2.2 in; was 3 ft 8.4 in, an estimate). Across the canopy the squareness is set so the canopy's sill stays within
@@ -79,10 +79,10 @@ const STATIONS = [
   [-0.725, 0.008, -0.024, -0.069, 2.2],
   [-0.744, 0.004, -0.048, -0.068, 2.0],
 ];
-// The top line aft of the fairing, into the tail, is the side drawing's (Patrick, 11 Oct 2026: "the fuselage
+// The top line aft of the fairing, into the tail, is the side view's (Patrick, 11 Oct 2026: "the fuselage
 // flows down into the tail"): 0.4 ft above the spinner's axis 6.9 ft ahead of the tail, level with it at 4.4 ft and
 // 0.4 ft below it at 2.2 ft (was level, 0.5 ft above the axis, back to 4.4 ft ahead of the tail, off the photo).
-// From the wing's trailing edge aft, the side drawing scaled by its length to the elevators' trailing edge (Patrick,
+// From the wing's trailing edge aft, the side view scaled by its length to the elevators' trailing edge (Patrick,
 // 11 Oct 2026 card "Tail and wing"): the tail cone ends 32.5 ft behind the spinner's tip, 1.3 ft under its axis (was
 // 33.3 ft); the belly 2.8 ft under the axis at 17 ft, 2.4 ft at 22.8 ft, 2.1 ft at 29.4 ft and 1.7 ft at 31.7 ft (was
 // about 0.3 ft deeper); the top view's half-widths 1.2 ft at 22.2 ft, 0.8 ft at 26.4 ft, 0.5 ft at 28.9 ft and 0.3 ft at
@@ -91,18 +91,18 @@ const STATIONS = [
 // The canopy and the fairing behind it, windscreen foot to where the fairing runs into the fuselage's top: [x,
 // half-width, top]. The glass ends at the rear bow (CT156_FRAME_X[2]), squared off there, and the fairing is painted
 // (Patrick, 11 Oct 2026: "the very back of the window should be squared off"; the glass ran on past the rear bow to a
-// point). The top, windscreen foot to just aft of the centre arch, is the side drawing's (ALL-31): the forward
+// point). The top, windscreen foot to just aft of the centre arch, is the side view's (ALL-31): the forward
 // bow's crest 2.75 ft above the spinner's axis 11.3 ft behind the tip, the peak 3.45 ft over the centre arch (was
-// 3.0 ft over the front seat, off the photo). From the rear bow aft the top is the same drawing's line falling from
+// 3.0 ft over the front seat, off the photo). From the rear bow aft the top is the same view's line falling from
 // the canopy into the tail: 2.3 ft above the axis at the rear bow, 1.4 ft 2 ft behind it and 0.4 ft where it meets the
 // fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). Windscreen and forward bow
-// stations re-measured on the side drawing 11 Oct 2026 (Fable thread, its 33 ft 4 in bar at 3.05 px/in): the
+// stations re-measured on the side view 11 Oct 2026 (Fable thread, scaled by its 33 ft 4 in length): the
 // windscreen's foot meets the cowl about 8.4 ft behind the spinner tip, the bow band's crest about 10.75 ft behind it
 // (its front edge 10.6, aft edge 10.9) and its feet about 11.05 ft, so the band leans about 14.5° with its top
 // forward; the model's rows from the foot to the bow moved 0.56 ft (0.024 units) forward to match (the bow crest was
-// at 11.3 ft, the foot at 9.1 ft). The drawing's crest reads 2.55 to 2.75 ft above the axis depending on where the
+// at 11.3 ft, the foot at 9.1 ft). The view's crest reads 2.55 to 2.75 ft above the axis depending on where the
 // spinner axis is taken; the 2.75 ft stays. The half-widths from the windscreen
-// foot to the centre arch are the top drawing's (measured 11 Oct 2026 against its 33 ft 5 in span):
+// foot to the centre arch are the top view's (measured 11 Oct 2026 against its 33 ft 5 in span):
 // the canopy 33.6 in across outside from just behind the forward bow all the way back, 32.8 in at the bow, the
 // windscreen narrowing over the 2.2 ft ahead of the bow to its point at the foot (was 30 in at the bow and narrowing
 // from there forward, off the photo; the model's one surface is both the outside and the inside, so the glass sits
@@ -133,16 +133,16 @@ const CANOPY = [
 // The cockpit, in model units (from the photo, as the canopy): the canopy frame hoops (the forward one is the windscreen
 // bow), the two seats' stations (front, rear; each helmet sits there, its seat back just behind) and the helmets' heights
 // (front, rear). ct156-cockpit.js builds the student's view from these, so each number has one copy. The forward bow and
-// the helmets are the side drawing's (ALL-31): the bow 11.3 ft behind the spinner tip (was 11.6); the front
+// the helmets are the side view's (ALL-31): the bow 11.3 ft behind the spinner tip (was 11.6); the front
 // helmet's centre 1.96 ft ahead of the origin and 1.99 ft up, the rear one's 3.4 ft aft and 2.29 ft up (was 1.4 ft
-// ahead, 3.0 ft aft, both 2.27 ft up). The front seat then moved 0.95 ft (11 in) forward to the same drawing's front
-// pilot re-read on a full copy (Patrick, 11 Oct 2026 07:39Z, "whole cockpit 11 in (except the bow)"): his eye about
+// ahead, 3.0 ft aft, both 2.27 ft up). The front seat then moved 0.95 ft (11 in) forward to the same view's front
+// pilot re-read on a complete copy (Patrick, 11 Oct 2026 07:39Z, "whole cockpit 11 in (except the bow)"): his eye about
 // 12.35 ft behind the spinner tip (the first reading's 13.2 ft was off a copy cut short at the tail), so the front
 // helmet's centre is now 2.91 ft ahead of the origin; its height and the rear seat unchanged.
 export const CT156_FRAME_X = Object.freeze([0.196, -0.022, -0.239]);
 export const CT156_SEAT_X = Object.freeze([0.1257, -0.1469]);
 export const CT156_HELMET_Z = Object.freeze([0.086, 0.0989]);
-/** The spinner's radius at its base less its 0.001-unit tip: 0.67 ft at the base, the side drawing's (ALL-31; was 0.79 ft). */
+/** The spinner's radius at its base less its 0.001-unit tip: 0.67 ft at the base, the side view's (ALL-31; was 0.79 ft). */
 export const CT156_SPINNER_R = 0.0279;
 /** The spinner's outline, tip to base, as [x, radius] in model units: an ogive 0.085 units (2 ft) long (shape an estimate off the photo). */
 export function ct156SpinnerProfile(n = 12) {
@@ -195,8 +195,8 @@ const cheatZ = () => -0.027;
 
 // Wings: a low wing, its root's underside on the belly line (2.9 ft under the axis). A flat centre section 4.1 ft each
 // side of the middle, then the outer panels' dihedral, 8.4° on the chord (Patrick, 11 Oct 2026: "the wings start kinda
-// straight but then go up"). The drawings: the top view's straight centre section, 49 in each
-// side, and the front view's, about 4.2 ft; the side drawing's tip chord 0.73 ft under the axis gives the 8.4° (the
+// straight but then go up"). The views: the top view's straight centre section, 49 in each
+// side, and the front view's, about 4.2 ft; the side view's tip chord 0.73 ft under the axis gives the 8.4° (the
 // front view: about 7.4° along the upper surface, 9.7° along the lower; was 8° from the root). The planform is the
 // same figure's top view, scaled fore and aft by the side view's 33 ft 4 in, which runs from the spinner's tip to the
 // elevators' trailing edge (Patrick, 11 Oct 2026 card "Tail and wing"): the centre section's chord 6.27 ft from 11.09 ft
@@ -225,7 +225,7 @@ function wingBend([x, y, z]) {
   const c = Math.cos(DIHEDRAL), s = Math.sin(DIHEDRAL);
   return [x, Math.sign(y) * (WING_BREAK + d * c - h * s), WING_Z + d * s + h * c];
 }
-// The tailplane across the tail cone 0.9 ft under the axis, 11 ft 4 in across (the top drawing). Its planform is
+// The tailplane across the tail cone 0.9 ft under the axis, 11 ft 4 in across (the top view). Its planform is
 // the same figure's top view, scaled as the wing's (Patrick, 11 Oct 2026 card "Tail and wing"): the tip's chord 2.36 ft
 // from 30.43 ft behind the spinner's tip, 3.67 ft from 29.55 ft 1.4 ft out from the middle, and a thin strake along the
 // tail cone's side from 26.5 ft back into it (the side view's root starts at 26.5 ft too); the trailing edge 33.2 ft
@@ -240,12 +240,12 @@ const STAB = [
   { le: -0.6546, s: 0.245, chord: 0.1019, t: 0.1, z: -0.04 },
 ];
 // The fin and rudder: the root buried in the tail cone, the top 0.232 units (5.4 ft) above the spinner's axis. Leading
-// and trailing edges are the side drawing's, scaled by its 33 ft 4 in to the elevators' trailing edge (Patrick,
+// and trailing edges are the side view's, scaled by its 33 ft 4 in to the elevators' trailing edge (Patrick,
 // 11 Oct 2026 card "Tail and wing"): the leading edge swept 15°, meeting the dorsal fin 1.56 ft above the axis 27.1 ft
 // behind the spinner's tip; the rudder's trailing edge leaning forward 9°, 31.4 ft behind the tip at the tail cone and
-// 30.5 ft at the top (was about 1.5 ft further aft, the drawing read with its length ending at the tail cone).
+// 30.5 ft at the top (was about 1.5 ft further aft, the view read with its length ending at the tail cone).
 const FIN = [{ le: -0.4775, s: -0.045, chord: 0.2229, t: 0.09, z: 0 }, { le: -0.5552, s: 0.232, chord: 0.0981, t: 0.09, z: 0 }];
-// The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the side drawing's
+// The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the side view's
 // (Patrick, 11 Oct 2026, circled it; scaled as the fin, card "Tail and wing"): its leading edge leaving the belly 25.5 ft
 // behind the spinner's tip, its foot 3.3 ft under the axis and 2.8 ft long from 26.0 ft, rising 0.38 ft to the back
 // (VENTRAL_RISE), its trailing edge meeting the belly 29.4 ft behind the tip (was about 1 ft further aft and 0.25 ft
@@ -253,7 +253,7 @@ const FIN = [{ le: -0.4775, s: -0.045, chord: 0.2229, t: 0.09, z: 0 }, { le: -0.
 const VENTRAL = [{ le: -0.4347, s: -0.08, chord: 0.1853, t: 0.06, z: 0 }, { le: -0.4632, s: -0.1413, chord: 0.1227, t: 0.06, z: 0 }];
 const VENTRAL_RISE = 0.134; // the foot's rise per unit aft
 // The dorsal fin on the fairing, from where it leaves the fairing into the fin's leading edge, [x, half-width, top]: a
-// thin fin, its top line the side drawing's (1.35 ft above the axis 22.8 ft behind the spinner's tip, 1.56 ft
+// thin fin, its top line the side view's (1.35 ft above the axis 22.8 ft behind the spinner's tip, 1.56 ft
 // where it meets the fin at 27.1 ft; scaled as the fin, card "Tail and wing"), the fairing and fuselage falling away
 // under it (Patrick, 11 Oct 2026: "instead of having a straight bulky spine"; it was a spine as wide as the canopy's
 // end). The half-widths are estimates.
@@ -264,13 +264,13 @@ const DORSAL = [
   [-0.5, 0.005, 0.067],
   [-0.53, 0.0035, 0.0684],
 ];
-// The forward bow leans aft from its crest 9° to the sill, as the side drawing shows it (was upright).
-export const CT156_BOW_LEAN = rad(14.5); // the side drawing's band, 11 Oct 2026 (was 9°, read off the photo; Patrick's 156102 photo reads about 13°)
+// The forward bow leans aft from its crest 9° to the sill, as the side view shows it (was upright).
+export const CT156_BOW_LEAN = rad(14.5); // the side view's band, 11 Oct 2026 (was 9°, read off the photo; Patrick's 156102 photo reads about 13°)
 /**
  * Each frame hoop's lean from its crest to the sills (CT156_FRAME_X's order), radians: + the feet aft of the crest, -
- * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 22° with its top aft, as the side drawing shows it
+ * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 22° with its top aft, as the side view shows it
  * (Patrick, 11 Oct 2026: "the wrong angles in the canopy bow"; it was upright). The centre bow 21° the same way, the
- * same drawing's, with the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leaning with it (was upright).
+ * same view's, with the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leaning with it (was upright).
  */
 export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, rad(-21), rad(-22)]);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
@@ -308,7 +308,7 @@ const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge
 const STROBE_X = WING_TIP.le - WING_TIP.chord + 0.01; // at the tip's trailing edge
 const TAIL_LIGHT = Object.freeze([-0.746, 0, -0.058]); // the tail cone's end, under the rudder
 // The exhaust stacks: placed off Patrick's photo of 156102 (11 Oct 2026, marked), their middle level with the spinner's
-// axis; shaped and sized off the top and side drawings (Patrick, 11 Oct 2026 08:26Z "look at the
+// axis; shaped and sized off the reference top and side views (Patrick, 11 Oct 2026 08:26Z "look at the
 // diagrams"; 20:12Z "the exhaust is the right shape", with his photo of a T-6C from above). The top view: each stack's
 // outer wall leaves the cowl about 2.85 ft behind the spinner's tip and turns aft round a quarter circle about 0.93 ft
 // across, centred on the cowl's skin 3.68 ft behind the tip and 1.2 ft out, reaching 2.12 ft out (25.5 in) where it
@@ -316,21 +316,21 @@ const TAIL_LIGHT = Object.freeze([-0.746, 0, -0.058]); // the tail cone's end, u
 // so it opens aft and outward (the side view and the photos look into it). The side view: about 7 in tall, the inner
 // wall's tip about 4.6 in tall. Built as a flattened oval pipe 10.7 in across and 7 in tall from inside the cowl (y0),
 // round the bend (xBend, R) and aft at yMid, cut by the slant from [xOut, yOut] to [xIn, yIn]; `taper` the aft end's
-// height share. Units; sizes read off the drawings, about +-1 in.
+// height share. Units; sizes read off the views, about +-1 in.
 const STUB = Object.freeze({ y0: 0.036, xBend: 0.66 - 3.68 / 23.148, yBend: 1.2 / 23.148, R: 0.485 / 23.148, yMid: (1.2 + 0.485) / 23.148, halfWide: 0.0192, halfTall: 0.0126, xOut: 0.66 - 3.68 / 23.148, yOut: 2.12 / 23.148, xIn: 0.66 - 4.5 / 23.148, yIn: 1.24 / 23.148, taper: 0.65, z: 0 });
 // The fairing under the nose, behind the nose wheel: a shallow box along the belly from 5.85 ft to 10.5 ft behind the
-// spinner's tip, hanging 0.34 ft under the belly at its front and 0.41 ft at its back (the side drawing,
-// measured 11 Oct 2026; Patrick's photo of 156102 shows it the same length). Its width is an estimate (the drawings
+// spinner's tip, hanging 0.34 ft under the belly at its front and 0.41 ft at its back (the side view,
+// measured 11 Oct 2026; Patrick's photo of 156102 shows it the same length). Its width is an estimate (the views
 // don't show it): 1 ft across. [x front, x back, depth front, depth back, half-width], units.
 const NOSE_FAIRING = Object.freeze({ x0: 0.66 - 5.85 / 23.148, x1: 0.66 - 10.5 / 23.148, depth0: 0.34 / 23.148, depth1: 0.41 / 23.148, half: 0.5 / 23.148 });
 // The antennas (the upper TAS antenna on the engine cowling's top; the lower TAS, transponder,
 // VHF/UHF, DME and marker beacon antennas under the fuselage). On the cowl's top 5.8 ft behind the spinner's tip (the
-// side drawing): the TAS antenna's two blades side by side on one round base (Patrick, 11 Oct 2026 20:12Z: "there are
+// side view): the TAS antenna's two blades side by side on one round base (Patrick, 11 Oct 2026 20:12Z: "there are
 // two instead of one", his T-6C photo), each about 0.42 ft long and 0.3 ft tall, their middles 0.24 ft apart and the
 // base about 0.6 ft across (spacing and base estimates off the photo).
 const TAS = Object.freeze({ x: 0.66 - 5.77 / 23.148, length: 0.42 / 23.148, height: 0.3 / 23.148, gap: 0.24 / 23.148, base: 0.3 / 23.148 });
 // Under the belly, the two light grey paddle antennas swept back that Patrick's photo of 156102 shows (the forward one
-// is a small blade on the side drawing; the CT-156's is the photo's). The aft one the side view's shape, its root 21.99 to
+// is a small blade on the side view; the CT-156's is the photo's). The aft one the side view's shape, its root 21.99 to
 // 22.57 ft behind the spinner's tip, its foot 22.32 to 22.88 ft and 0.89 ft down: SMM Fig 12.12 and 12.13 put the foot's
 // middle 22.6 ft behind the tip (a camera fitted to each picture's fin, tail, wingtips and fuselage marks, about 5 px
 // off, and the foot's ray met with the centreline; both pictures agree within 0.1 ft; the side view read 21.8 ft); its
@@ -1426,7 +1426,7 @@ function buildKit(THREE) {
   const keep = (o) => (own.push(o), o);
   const geo = {};
   // The chin intake under the spinner, painted (it was a dark blob in the frames' colour);
-  // its dark mouth is with the vents. Size and place estimates (the side drawing's lip 2.1 to 2.5 ft behind the tip).
+  // its dark mouth is with the vents. Size and place estimates (the side view's lip 2.1 to 2.5 ft behind the tip).
   const CHIN = [0.545, 0, -0.058, 0.03, 0.032, 0.016];
   const chinIntake = () => ellipsoid(THREE, ...CHIN);
 

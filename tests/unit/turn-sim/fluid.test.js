@@ -24,6 +24,7 @@ import { createFormation } from '../../../src/modules/turn-sim/live/formation.js
 import { judgeFormation } from '../../../src/modules/turn-sim/live/judge.js';
 import { checkFluidRange } from '../../../src/modules/turn-sim/live/fluid.js';
 import { TOLERANCES } from '../../helpers/tolerances.js';
+import { T6A_ROLL } from '../../../src/core/t6-performance.js';
 
 const BUBBLE_FT = 500; // SMM 16.17 para 44c; Gen Book p.11
 const CONE_HALF_DEG = 30; // Patrick 19:20Z row 2
@@ -414,8 +415,12 @@ test('Live #2 (TS-194): in a steady level turn he sits on Lead\'s circle inside 
   assert.ok(r.aspectDeg <= CONE_HALF_DEG, `Live, in the steady turn: inside the cone, aspect ${r.aspectDeg.toFixed(1)}°`);
   assert.ok(r.rangeFt >= 500 && r.rangeFt <= 750, `Live, in the steady turn: range ${Math.round(r.rangeFt)} ft, 500-750`);
   // #2's checks only: Lead's roll into a left level turn reaches about 113°/s with either wingman, Planned or Live (seen
-  // on V2.338 and later, Lead's flying, not this test's subject); it is on the turn-sim future.md list.
-  assert.deepEqual(failures.filter((x) => !x.startsWith('Lead')).slice(0, 5), []);
+  // on V2.338 and later, Lead's flying, not this test's subject); it is on the turn-sim future.md list. Live #2 is his own
+  // aircraft, so his roll is held to the aircraft's (spec section 9, "#2, the live wingman", 6: "no roll faster than the
+  // aircraft's"; core T6A_ROLL, an estimate), not TS-37's 90°/s for the planned wingman: following Lead's roll-in he
+  // reaches about 93-98°/s for a moment.
+  const rollOk = (x) => { const m = /^#2 rolling (-?\d+)°\/s$/.exec(x); return m && Math.abs(Number(m[1])) <= T6A_ROLL.maxRateDps + ROLL_SLACK_DPS; };
+  assert.deepEqual(failures.filter((x) => !x.startsWith('Lead') && !rollOk(x)).slice(0, 5), []);
   assert.equal(f.pressFluid('terminate'), 'started');
   fly(f, 120);
   assert.equal(f.state.fluid, null);

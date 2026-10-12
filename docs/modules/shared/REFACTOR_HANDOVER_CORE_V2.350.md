@@ -19,7 +19,7 @@ Who reads what, by import lines: Formation 108 (units, angles, flight-math, t6-p
 
 ### 1.1 Findings
 
-- **One break of the "modules never import each other" rule.** `src/modules/sof/map.js` imports three Debrief files: `../debrief/map2d/vnc.js` (the VNC chart layer), `../debrief/map2d/overlays.js` (`projectRoute`, `drawRoute`) and `../debrief/data/routes.js`. Everything else respects the rule. Dad owns both modules.
+- **One module imports another.** `src/modules/sof/map.js` imports three Debrief files: `../debrief/map2d/vnc.js` (the VNC chart layer), `../debrief/map2d/overlays.js` (`projectRoute`, `drawRoute`) and `../debrief/data/routes.js`. Patrick relaxed the "modules never import each other" rule on 11 Oct 2026 (23:29Z): the aim is that what several modules use lives in core or a shared folder, without being tied to it. So this is noted, not fixed; the rule book wording is the docs keeper's to change with Patrick's yes.
 - **The standard atmosphere is written three times inside core** and a fourth time in Traffic: `flight-math.js` `isaDensityRatio` (line 131), `t6-performance.js` `isaPressureRatio` and `speedOfSoundKt` (lines 95 to 105), and `src/modules/traffic/weather.js` `isaTempK` with today's temperature. `isaDensityRatio` sits in the turn file, not with the atmosphere. `wind.js` keeps a private `wrap360` that is `angles.js` `wrapDeg360`.
 - **Two zoom models.** Core's `flyZoomT6A` and `zoomT6A` are read only by tests; Traffic's PFL flies its own zoom (`pfl.js` `zoomPitchStep`, `flyZoomPlan`). One aircraft, two zooms.
 - **Module copies of core formulas.** The level-turn bank from G (`Math.acos(1 / g)`) is written in `turn-fight/readouts.js:113`, `turn-fight/view3d.js:137`, `debrief/view3d/scene.js:124` and five places in Traffic, where `bankDegFromG` exists. Feet per nautical mile has three values in the repo: `units.js` 6076.12, `sof/map-view.js:11` and `turn-sim/view.js:18` 6076.11549, and the bare 6076 in nine Traffic lines. `debrief/weather/winds.js:27` has its own metres-to-feet; `src/flight-data/gap-fill.js:75`, `src/airfields/distance.js:5`, `traffic/pfl.js:35` and `traffic/ejection.js:26` each define their own radians-per-degree beside `angles.js` `DEG`.
@@ -92,12 +92,9 @@ Not this thread's edit. This thread writes the list below into each module's `fu
 - Traffic's copies are the Traffic plan's step 2.
 - Proof: each in its own module's trace or crash check, as that module's thread runs it.
 
-### Step 4. The SOF's Debrief imports move to shared folders (waits on Dad)
+### Step 4. Dropped: the SOF's Debrief imports stay
 
-Files: `src/modules/debrief/map2d/vnc.js`, `src/modules/debrief/map2d/overlays.js` (`projectRoute`, `drawRoute` only), `src/modules/debrief/data/routes.js`, `src/modules/sof/map.js`, the Debrief importers.
-
-- The VNC layer and the route drawing go to `src/ui-kit/` (they are map drawing, like `map-tiles.js`); the routes data goes to `src/airfields/` beside the airspace and airports data. Both modules import from there. Dad owns SOF and Debrief, so this step is proposed to him through Patrick and built only on his word, by whoever he names; it is a pure move with no number in it.
-- Proof: both modules' crash check from the default start; `git grep "\.\./debrief/"` in `src/modules/sof` and `"\.\./sof/"` in `src/modules/debrief` return nothing.
+Patrick relaxed the rule (11 Oct 2026, 23:29Z), so the three imports in section 1.1 stay as they are. If Dad ever wants them shared, the VNC layer and route drawing would go to `src/ui-kit/` and the routes data to `src/airfields/`, a pure move with no number in it; nothing in this plan depends on it.
 
 ### Step 5. Numbers and decisions for Patrick (docs, with Patrick)
 
@@ -115,6 +112,6 @@ After each core merge Fable reads the diff for anything that is not a pure move,
 
 ## 6. Open at the start
 
-- Patrick's yes to this plan is the one gate for steps 1 and 2. Step 3 waits on each module's thread, step 4 on Dad, step 5 on Patrick's rulings.
+- Patrick's yes to this plan is the one gate for steps 1 and 2. Step 3 waits on each module's thread, step 5 on Patrick's rulings; step 4 is dropped.
 - The Formation thread is changing `turn-sim/live/` files that import core while this runs. Steps 1 and 2 keep every imported name and value, so Formation's work is unaffected; if Formation needs a new core function in that window, it asks this thread.
 - Unseen by Fable: the screens. Everything above is proved on numbers; Patrick sees each module's screen at the end of its merge, and the version label tells him which build he has.

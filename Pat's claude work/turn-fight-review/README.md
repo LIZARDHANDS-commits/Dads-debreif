@@ -1,6 +1,6 @@
 # Fight Sim (Turn Fight) architecture review, 4 Oct 2026
 
-Read-only review of `src/modules/turn-fight/` on main `1020583`, asked by Patrick 10:20Z ("the same architecture review and refactoring analysis on Fight Sim") and 10:21Z (a full system flow chart of inputs and outputs, as Turn Sim got). No repo changes.
+Read-only review of `src/modules/turn-fight/` on main `1020583`, asked by Patrick 10:20Z ("the same architecture review and refactoring analysis on Fight Sim") and 10:21Z (a full system flow data of inputs and outputs, as Turn Sim got). No repo changes.
 
 Read in this order:
 1. `review.md`: the answer, faults, reuse of Traffic's pieces, Turn Sim overlap, options, recommendation, questions.

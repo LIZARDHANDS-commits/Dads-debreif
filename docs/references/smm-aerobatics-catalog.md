@@ -6,7 +6,6 @@
 **Primary References:**  
 - CT-156 Standard Manoeuvre Manual (SMM), Change 3 (28 Aug 2024), Chapter 7 & Chapter 14  
 - 2 CFFTS Enhanced Flying Instructor Guide (EFIG, 24 Jun 2026), Slides 413–433  
-- T-6A NATOPS Flight Manual (A1-T6AAA-NFM-100 / TO 1T-6A-1), Sections V & VI  
 - Authoritative Flight Standards & Ratified Decisions: Patrick's Clarifications (2026-10-03), D109–D116, D369, D371, D381, D387, D407, D420, D426, D428  
 
 > [!NOTE]
@@ -111,7 +110,7 @@ All entry gates, target G-loads, power settings, apex floats, and exit criteria 
 ### 14.14 Level & Constant-Speed Max-Performance Turns (MPT)
 - **Academic Formula:** Optimal entry airspeed is $150\text{ KIAS} - (\text{Altitude in Thousands})$ (e.g. 140 KIAS at 10,000 ft MSL).
 - **Optimum Rate:** 160 KIAS at 17 units AOA (SMM 14.13 para 31).
-- **Bank Angle:** SMM prescribes ~75° visual attitude cue; aircraft sustained turn charts establish **69° aerodynamic bank** at 2.8 G sustained at 10,000 ft (D112).
+- **Bank Angle:** SMM prescribes ~75° visual attitude cue; aircraft sustained-turn data establish **69° aerodynamic bank** at 2.8 G sustained at 10,000 ft (D112).
 - **Tolerance:** 160 KIAS held within $\pm 5\text{ kt}$ (SMM 14.14).
 
 ### 14.15 Tactical Immelmann (BFM)

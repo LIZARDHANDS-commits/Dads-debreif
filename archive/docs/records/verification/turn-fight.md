@@ -15,7 +15,7 @@ Not built yet, per `todo.md` (all found absent in the running screen; not counte
 High 0, Medium 2, Low 5. Plus 7 items that are known and planned (listed at the end, not counted).
 
 Top 5:
-1. TF-1 (Medium) G boxes are labelled "Sustained G", but the default (220 kt, 4 G) is above what a T-6 can sustain per the turn charts; the warning only covers the stall line and 7 G.
+1. TF-1 (Medium) G boxes are labelled "Sustained G", but the default (220 kt, 4 G) is above what a T-6 can sustain per the turn data; the warning only covers the stall line and 7 G.
 2. TF-2 (Medium) "First nose-on: Red at +18.2 s" is measured from the merge while the clock beside it reads T+34.6; the row never says "after the merge".
 3. TF-3 (Low) "First nose chases" makes both aircraft turn toward each other (V6's "defender turns inside"); the label and About text say nothing about the second aircraft.
 4. TF-4 (Low) The B and R letters and MERGE text overlap each other and the aircraft near the merge point.
@@ -57,7 +57,7 @@ Checks that passed:
 ### Comparison with the SMM and the manuals index
 - 1-circle versus 2-circle definitions in the About text and on screen agree with SMM 14.14 para 37 (the two-circle is the rate fight, height traded to hold turn rate) and the spec.
 - The spec's own note that first nose-on in an even 2-circle fight is at +18.2 s (349 degrees of turn) was reproduced: that moment is a second head-on pass about 400 ft apart, not a positional advantage.
-- The default 220 kt / 4 G is inside the T-6A stall line (6.5 G) but above sustained thrust (sustained G tops out near 3 G at sea level, `formation-and-turn-numbers.md`, "T-6A performance charts"). See TF-1.
+- The default 220 kt / 4 G is inside the T-6A stall line (6.5 G) but above sustained thrust (sustained G tops out near 3 G at sea level, `formation-and-turn-numbers.md`, "T-6A performance data"). See TF-1.
 
 ### PILOT JUDGEMENT items, with my recommendation
 - PJ-1. In an even 2-circle fight the "first nose-on" lands as a re-pass at about 400 ft range with both noses just inside 5 degrees. Does Dad count that as "got their nose on first"? Recommendation: keep V6's 5 degree test (Q48 will name it "Both"), and add "range at first nose-on" to More detail so the student sees it was a high-aspect head-on pass, not a shot.
@@ -69,7 +69,7 @@ Energy mode is not in this build (PR D not open), so these were read, not flown.
 - D152 (after a head-on re-pass both keep turning in the max-performance turn): consistent with the SMM (nothing to pursue at high aspect). It does differ from the approved spec, step 4, which says the first nose-on aircraft stops its MPT and chases; the spec text needs a line for the head-on case. No SMM contradiction.
 - D153 (above 220 KIAS, dry-run Immelmann and pitch back and fly the faster): partly conflicts with SMM Table 14.1. The pitch back band there is 160 to 220 KIAS and the Immelmann 200 to 250; SMM 14.17 cautions that above 190 KIAS it is easy to exceed the 4.7 G rolling limit. So the dry run may fly a pitch back at, for example, 240 KIAS, which the SMM does not sanction, and above 250 neither move is in Table 14.1. Patrick's own words (09:27Z, 09:32Z) rank above the spec, so it stands. Recommendation: keep D153 but make the "why" text beside the aircraft say when the chosen move is outside the SMM entry band (for example "Pitch back at 240 KIAS: above SMM entry 160 to 220"), so the choice is visible to Dad.
 - D165 (split S up to 5 G "SMM 14.16 para 41"): the citation does not support the number. Table 14.1 says about 4 G and para 41 says roll at about 0.5 G then hold the shaker; 5 G is Patrick's 09:27Z figure. Recommendation: cite "Patrick 09:27Z" not para 41 in the log and help text; the cap stays 5 G.
-- D166 / D168 (stall 86 kt versus the charts): already flagged in the log. The warning in this build uses the 86 kt line, so at 160 kt it says 3.4 G where a stall speed of 89 kt would give 3.2 G, i.e. it can understate by about 0.2 G. Recommendation: accept until Patrick answers D166, since the warning text says "stall limit" and the model is his pick.
+- D166 / D168 (stall 86 kt versus the data): already flagged in the log. The warning in this build uses the 86 kt line, so at 160 kt it says 3.4 G where a stall speed of 89 kt would give 3.2 G, i.e. it can understate by about 0.2 G. Recommendation: accept until Patrick answers D166, since the warning text says "stall limit" and the model is his pick.
 - D175 and the 10:00Z rows (capture lead 3 s, planned first move, tie goes to pitch back): no SMM number involved. The 3 s capture lead contradicts nothing (SMM 14.17 para 42 only asks for the MPT before 180 degrees of turn).
 
 ## Part 2. Screen walkthrough
@@ -80,7 +80,7 @@ Energy mode is not in this build (PR D not open), so these were read, not flown.
 - Where: Fight setup, both aircraft, G box (`layout.js` line 37; the spec and the fight's own text call it "G").
 - Steps: open the module; read the G label.
 - Expected: a label that does not promise sustainability; spec table says "G"; manuals note (`formation-and-turn-numbers.md`, "What it means for the Turn Fight") says 4 G at 220 KIAS is not sustainable and the tool holds speed constant.
-- Actual: label "Sustained G" beside the default 4 G at 220 kt. The warning only tests the stall line and 7 G, so a student is told the T-6 can "sustain" 4 G at 220 kt when the charts show about 3 G at sea level.
+- Actual: label "Sustained G" beside the default 4 G at 220 kt. The warning only tests the stall line and 7 G, so a student is told the T-6 can "sustain" 4 G at 220 kt when the data show about 3 G at sea level.
 - Shot: `/mnt/project-files/verification/shots/turn-fight/01-default.png`. Known or planned: no (label chosen in #176, not in the spec).
 - Recommendation: rename to "G pulled" or "G (held)", with a hint "held constant; the T-6 cannot sustain this much at every speed".
 - Missing test: `tests/e2e/turn-fight.spec.js` (does not exist) should assert the control labels equal the spec's list; or a unit test on `layout.js` labels.
@@ -155,7 +155,7 @@ Every box opens filled with V6's value (2-circle, 2 NM, 220 kt, 4 G, 0 pitch, he
 
 | Item | Verdict | Severity | Note |
 |---|---|---|---|
-| TF-1 "Sustained G" label; 4 G at 220 kt not sustainable | CONFIRMED | Medium | Core's model: max sustained at 220 KIAS is 2.67 G (SL), 2.50 (5,000), 2.31 (10,000); chart gives ~2.72 G at SL. At 4 G excess is −0.118 (≈2.2 kt/s bleed). layout.js:37 says 'Sustained G' but the spec says "G": rename to "G" / "G pulled". Test: unit test on layout.js labels (e2e spec doesn't exist yet). |
+| TF-1 "Sustained G" label; 4 G at 220 kt not sustainable | CONFIRMED | Medium | Core's model: max sustained at 220 KIAS is 2.67 G (SL), 2.50 (5,000), 2.31 (10,000); data gives ~2.72 G at SL. At 4 G excess is −0.118 (≈2.2 kt/s bleed). layout.js:37 says 'Sustained G' but the spec says "G": rename to "G" / "G pulled". Test: unit test on layout.js labels (e2e spec doesn't exist yet). |
 | TF-2 first nose-on counted from merge | Facts CONFIRMED; not a build defect | Low / spec change | The wording is the approved spec (mock ~lines 65-73, line 140) and V6's. "Time since merge" is already in More detail. Log recommended wording ("+18.2 s after the merge") as a decision. |
 | Geometry | CONFIRMED on 6 closed-form setups | none | Largest difference 0.037 s (even 2-circle; heading-then-straight step). PJ-1 applies to the 1-circle too (even 1-circle nose-on is a head-on re-pass at ~170-190 ft). |
 | D153 above-220 pick vs SMM Table 14.1 | CONFIRMED | Low | Immelmann 200-250, pitch back 160-220 KIAS; entry speeds assume ~10,000 ft (para 10). The 4.7 G rolling limit is core's T6A_LIMITS.rollingMaxG, not the SMM. Explain out-of-band picks in the "why" text. |

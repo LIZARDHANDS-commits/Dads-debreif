@@ -19,6 +19,7 @@ export const RAINVIEWER_LIST = /^https:\/\/api\.rainviewer\.com\//;
 export const RAINVIEWER_TILES = /^https:\/\/tilecache\.rainviewer\.com\//;
 export const ADSBX = /^https:\/\/globe\.adsbexchange\.com\//;
 export const RELAY = /^https:\/\/relay\.example\//;
+export const OPEN_METEO = /^https:\/\/api\.open-meteo\.com\//;
 
 // The layer times in the caps fixtures: radar 2026-09-30 07:12Z, lightning 07:00Z, cloud 08:50Z.
 export const MAP_NOW = new Date('2026-09-30T07:20:00Z');
@@ -118,6 +119,12 @@ export async function serveMap(page, { rewrite = (xml) => xml } = {}) {
   await page.route(RAINVIEWER_TILES, (route) => {
     map.requests.push(route.request().url());
     return route.fulfill({ status: 200, contentType: 'image/png', headers: CORS, body: png(256, 256, () => [200, 60, 200, 150]) });
+  });
+  // The cloud model layer (model-clouds.js) asks Open-Meteo once the Layers button turns it on: an unusable reply,
+  // which the layer reports as a failed request, so no test depends on a live forecast.
+  await page.route(OPEN_METEO, (route) => {
+    map.requests.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"error":true,"reason":"test stand-in"}' });
   });
   await page.route(ADSBX, (route) => {
     map.adsbx.push(route.request().url());

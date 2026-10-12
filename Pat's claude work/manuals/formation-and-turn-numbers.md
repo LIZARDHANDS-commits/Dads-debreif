@@ -64,19 +64,19 @@ Compared with V6_STANDARDS (src/core/standards.js, main f7e8008), SPEC-turn-sim 
 | Nose-low recovery | safety altitude 6,000 ft AGL; rolling G limit +4.7 | EFIG p.181 | - | info |
 | Low level | minimum 180 KIAS; enroute turns level to slightly climbing, not more than 180° | Gen Book p.9 | - | info |
 
-## T-6A performance charts (Patrick, 05:19Z; images/t6a-*.png, from the T-6A flight manual, source pages not given)
+## T-6A performance data (Patrick, 05:19Z; source pages not given)
 
-Read off the pictures, so approximate.
+Read by eye, so approximate.
 
-- **V-n, max take-off weight 5,168 lb:** symmetric limits +7 G / -3.5 G; asymmetric (rolling) +4.7 / -1 G; limit speed 316 KIAS (VMO), 244 KIAS / M0.67 at 31,000 ft. The sea-level stall line fits G ≈ (KIAS ÷ 86)²: about 1.4 G at 100, 3.1 G at 150, 5.4 G at 200, 6.6 G at 220, 7 G at about 227 KIAS.
+- **Flight envelope, max take-off weight 5,168 lb:** symmetric limits +7 G / -3.5 G; asymmetric (rolling) +4.7 / -1 G; limit speed 316 KIAS (VMO), 244 KIAS / M0.67 at 31,000 ft. The sea-level stall line fits G ≈ (KIAS ÷ 86)²: about 1.4 G at 100, 3.1 G at 150, 5.4 G at 200, 6.6 G at 220, 7 G at about 227 KIAS.
 - **Airspeed limits:** VO 227 KIAS (manoeuvring speed, the corner where 7 G is first available), VG 206, VMO 316; gear and flaps extended 147 KIAS up to 22,000 ft; M0.67 above 18,769 ft.
 - **Sustained turn rate (max power, clean, standard day):** best at the stall limit around 130-140 KIAS: about 20.6 °/s at sea level, 18.5 at 5,000 ft, 16.5 at 10,000, 14.8 at 15,000, 12 at 20,000, 9.5 at 25,000, 6.7 at 31,000. Sustained G tops out near 3 G at sea level; zero sustained turn by about 260 KIAS at sea level.
 - **Sustained turn radius:** smallest about 650-700 ft near 140 KIAS at sea level (3 G), growing with altitude.
 - **What it means for the Turn Fight:** V6's default 220 KTAS / 4 G sits inside the envelope (220 KIAS can pull up to about 6.6 G), but 4 G isn't sustainable there, so speed would bleed off; the Turn Fight holds speed constant (Q50, "Simplified: constant speed and turn rate"). Real energy trading is FF23. A check against the stall line (flag a G above what the set speed allows) needs no energy model.
 
-## T-6A NATOPS Flight Manual (NFM)
+## T-6A reference data
 
-- The turn-rate/radius charts (appendix A9), V-n and the idle stall-speed chart (Fig 6-3, p.6-7) are images; the Scribd text holds only their captions. The T-6A chart images Patrick sent at 05:19Z are the readable copies. Stick shaker 5-10 kt above the stall. Zoom and glide are in traffic-pattern-numbers.md.
+- Stick shaker 5-10 kt above the stall. Zoom and glide are in traffic-pattern-numbers.md.
 
 ## Not yet read closely
 

@@ -142,7 +142,7 @@ Method: same example flight and same times as the earlier report, re-run through
 
 `/mnt/project-files/logs/decisions-for-review.md` rows for the Debrief:
 - D176 (winds: HRDPS default, one point mid-flight, hour at or before, 950-300 hPa): matches the code (checked). Does not contradict a manual or the spec. Point out W4: "no guessing below the model's lowest level" is not met because the lowest level (950 hPa) is under the ground at Moose Jaw; and the log's "about 1,800 ft" for 950 hPa is about 1,600 ft.
-- D182 (est. G unknown near a gap and above 7 G): consistent with the manuals index (V-n symmetric limit +7 G); pending merge.
+- D182 (est. G unknown near a gap and above 7 G): consistent with the manuals index (symmetric limit +7 G); pending merge.
 - Rows dated 10:30 for M1(a), M1(b), M2: consistent with Gen Book p.12 blocks (6,000 to 10,000 ft and 10,500 to 15,500 ft) and the SMM sweep default; pending merge.
 None contradicts the SMM, manuals or the spec. Note: the flag "low block top 10,250 ft" is Patrick's, not in the manuals (as before).
 

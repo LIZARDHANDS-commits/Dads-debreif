@@ -219,11 +219,11 @@ For the sim: "join the second element" is the M5/M6 planner run for #3 against L
 |---|---|
 | Turn rate, radius, G from bank and speed | yes, `core/flight-math.js` |
 | Indicated to true airspeed | yes, `iasToTasKt` |
-| Acceleration at **max power** | yes: `excessThrustPerWeight(kias, alt, g)` × g; fitted to the T-6A turn and glide charts |
+| Acceleration at **max power** | yes: `excessThrustPerWeight(kias, alt, g)` × g; fitted to the T-6A turn and glide data |
 | Deceleration at **idle or with speed brake** | **no**: the core has full-power thrust and clean drag only |
 | A full energy step | `src/modules/turn-fight/energy-sim.js` is a 3D energy-mode simulation (point mass, moves like Immelmann and slice); it is not needed here and is not a module this one may import |
 
-Figures from the core at 8,000 ft, G = 1 (my run of `excessThrustPerWeight` for this design, true airspeed change): 160 KIAS 3.1 kt/s, 180 KIAS 2.5, 200 KIAS 1.85, 210 KIAS 1.5, 220 KIAS 1.2, 230 KIAS 0.85, 250 KIAS 0.2. At 3 G the same function gives a loss of about 0.8 kt/s at 220 KIAS (consistent with the SMM's "minor loss in airspeed" in a 3 G LAB turn, 16.18 para 50), which V2.6 ignores on purpose (card 09:54Z). For slowing, with zero thrust the drag figure is an upper bound of about 2.7 kt/s at 220 KIAS and 1 G; the idle thrust and the speed brake are not modelled, so **the planner uses 1.5 kt/s for "smoothly slows to 200 KIAS" (estimate)**, about 13 s for 20 kt. If Patrick wants this checked against real behaviour, an idle drag figure from the NFM is the one missing number.
+Figures from the core at 8,000 ft, G = 1 (my run of `excessThrustPerWeight` for this design, true airspeed change): 160 KIAS 3.1 kt/s, 180 KIAS 2.5, 200 KIAS 1.85, 210 KIAS 1.5, 220 KIAS 1.2, 230 KIAS 0.85, 250 KIAS 0.2. At 3 G the same function gives a loss of about 0.8 kt/s at 220 KIAS (consistent with the SMM's "minor loss in airspeed" in a 3 G LAB turn, 16.18 para 50), which V2.6 ignores on purpose (card 09:54Z). For slowing, with zero thrust the drag figure is an upper bound of about 2.7 kt/s at 220 KIAS and 1 G; the idle thrust and the speed brake are not modelled, so **the planner uses 1.5 kt/s for "smoothly slows to 200 KIAS" (estimate)**, about 13 s for 20 kt. If Patrick wants this checked against real behaviour, an idle drag figure from the reference data is the one missing number.
 
 **Smooth hand-overs.** Every leg starts and ends wings level and at a steady speed except the turning rejoins, which end by "copy Lead's turn" (so bank, track and rates carry on) and the speed segments, which end at zero acceleration. The existing smoothness check (position, track, bank, roll rate, pitch rate carry straight on) applies to the new legs unchanged.
 

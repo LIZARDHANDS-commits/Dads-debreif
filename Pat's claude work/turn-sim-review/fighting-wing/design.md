@@ -52,7 +52,7 @@ Pictures beside this file (all drawn by scripts in this folder, nothing installe
 | Restrictions | structural limits plus **5 G at all times**; never more than 90° of aspect together with more than 90° of HCA and low line of sight; a **500 ft bubble** at all times | SMM 16.17 para 44; Gen Book p.11 (500 ft bubble, lead +4 G, wingmen +5 G) |
 | Terminate | "TERMINATE" if a restriction is broken (all manoeuvring stops, each aircraft acknowledges); "TERMINATE FOR POSITION" if the wingman is outside the parameters and cannot regain them quickly (Lead then flies a predictable turn until "Cleared to manoeuvre") | SMM 16.17 paras 45 and 46 |
 | Wingover | entry about 230 KIAS; about 45° of pitch above and below the horizon, up to 120° of bank, about 3 G; exits about 180° from the entry heading; then another wingover rolling the other way. Predictability is Lead's main job | SMM 16.17 para 47 |
-| Adjustments | pursuit may need changes to speed, G and bank, while respecting flight manual limits | SMM 16.17 para 47 note |
+| Adjustments | pursuit may need changes to speed, G and bank, while respecting the G limits | SMM 16.17 para 47 note |
 | After the exercise | Lead flies a gentle turn while the wingman re-establishes FW spacing | AFM7 brief p.17 |
 | Orders | Lead not above +4 G in FW and FM and keeps positive G; two aircraft in FW/FM have no bank or pitch limits; more than three aircraft: no bank limit, 60° pitch maximum; minimum height for formation wingovers and aerobatics in FM 3,000 ft AGL | Orders B2 ch 8 pp.98-99 (page numbers read from the text extract, check against the PDF) |
 

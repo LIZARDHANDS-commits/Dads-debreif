@@ -1,6 +1,6 @@
 // The wording of the warning beside each G box (SPEC-turn-fight, "T-6 limit
 // warning (simple mode)"). The stall line is G = (speed / 86 kt)², the
-// sea-level stall line of the T-6A V-n diagram, and the aircraft is limited to
+// sea-level stall line of the T-6A flight envelope, and the aircraft is limited to
 // 7 G; both come from core's shared T-6A model (core/t6-performance.js), which
 // this module builds none of. The simple mode has no altitude, so its speed is
 // taken as sea level, where true and indicated airspeed agree.

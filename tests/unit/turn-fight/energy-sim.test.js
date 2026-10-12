@@ -5,11 +5,11 @@
 // Serves: TF-R4, TF-R5, TF-R6, TF-R7, TF-R9, TF-R12.
 // Expected values: SMM 14.14 (MPT 160 +/- 5 KIAS, level MPT about 150 minus thousands of feet), 14.17 para 42
 //   (turn to the MPT, gap recorded not tuned), move banks from the SMM (no page in file); stall 86 kt Patrick's
-//   ruling SH-25; 7 G NFM p.5-9.
+//   ruling SH-25; 7 G reference data.
 
 // The Turn Fight's Energy mode engine (SPEC-turn-fight, "Energy mode (FF23, D112)").
 // Every test here is one of the spec's checks. There is nothing in V6 to pin: the
-// flying is checked against the SMM's words and the T-6A charts, through core's model.
+// flying is checked against the SMM's words and the T-6A reference data, through core's model.
 // energy-sim.js draws nothing, so these read the plain state.
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -21,8 +21,8 @@ export const ENERGY_MAX_START_FT = 25000;
 export const ENERGY_ACCURATE_MAX_FT = 15000;
 /**
  * The top speed the Energy engine allows at altFt, in the model's own IAS: VMO (316), or true Mach 0.67, whichever is slower.
- * The model's IAS has no compressibility (IAS = TAS x sqrt(density ratio)), so this sits about 9 kt under the NFM's KIAS line
- * up high (25,000 ft: about 270, where the NFM reads 279); it is core's modelMaxIasT6A. Auto keeps the model under VMO and Mmo (a forced move may go over). It is here for the screen to use.
+ * The model's IAS has no compressibility (IAS = TAS x sqrt(density ratio)), so this sits about 9 kt under the reference KIAS line
+ * up high (25,000 ft: about 270, where the reference reads 279); it is core's modelMaxIasT6A. Auto keeps the model under VMO and Mmo (a forced move may go over). It is here for the screen to use.
  */
 export function energyTopKias(altFt) {
   return modelMaxIasT6A(altFt); // core's own model-basis limit (#232)
@@ -179,7 +179,7 @@ export const MOVE_LABELS = Object.freeze({
 /**
  * The shaker the model pilot keeps every pull but the split S under: a share of the stall-line G at this speed (17 ÷ 18
  * units of AOA = 94 %, the `shakerFrac` setting), at most +7 G. Core's own shakerG (the split S's) is a different
- * rule on purpose: the shaker 7 kt over the stall speed (NFM p.1-52 gives 5 to 10 kt), so 1 G at 93 KIAS. They differ
+ * rule on purpose: the shaker 7 kt over the stall speed (reference data give 5 to 10 kt), so 1 G at 93 KIAS. They differ
  * by a few tenths of a G: 3.25 G here against 2.96 G there at 160 KIAS, 5.08 against 4.62 at 200, and both 7 G from
  * 250. This one is the spec's 94 % and a box on the screen for Dad to check; core's is the split S's law, which the
  * pin test holds this module to. Neither replaces the other.
@@ -217,11 +217,11 @@ export function checkedSetup(setup) {
     const vmoGoverns = exactLimit >= T6A_LIMITS.vmoKias;
     const limitKias = vmoGoverns ? T6A_LIMITS.vmoKias : Math.floor(exactLimit);
     need(Number.isFinite(s[kiasKey]) && s[kiasKey] >= 40, `${kiasKey} is from 40 to ${limitKias} KIAS`, s[kiasKey]);
-    // Where Mach governs, say it is the model's figure: a pilot knows the NFM's number, which is the same Mach on the gauge. Above the
-    // crossover but under 18,879 ft the NFM line is still VMO (316), so there is no NFM Mach number to quote.
-    const nfmKias = Math.round(maxKiasT6A(s[altKey]));
+    // Where Mach governs, say it is the model's figure: a pilot knows the reference number, which is the same Mach on the gauge. Above the
+    // crossover but under 18,879 ft the reference line is still VMO (316), so there is no reference Mach number to quote.
+    const refKias = Math.round(maxKiasT6A(s[altKey]));
     const limitText = vmoGoverns ? `${limitKias} KIAS, VMO`
-      : `${limitKias} KIAS in the model, Mach ${T6A_LIMITS.mmo}${nfmKias < T6A_LIMITS.vmoKias ? `; the NFM's ${nfmKias} is the same Mach on the gauge` : ''}`;
+      : `${limitKias} KIAS in the model, Mach ${T6A_LIMITS.mmo}${refKias < T6A_LIMITS.vmoKias ? `; the reference ${refKias} is the same Mach on the gauge` : ''}`;
     need(s[kiasKey] <= limitKias, `${who}'s merge speed is above the T-6A's limit at ${feet(s[altKey])} ft (${limitText})`, s[kiasKey]);
   }
   need(Number.isFinite(s.ataDeg) && s.ataDeg >= 0 && s.ataDeg <= 180, 'ataDeg is 0 to 180', s.ataDeg);

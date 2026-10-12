@@ -7,7 +7,7 @@
 //   the final turn. Each moment is found by what the aircraft is doing, never at a chosen second.
 // Serves: TR-R13, TR-R14, TR-R31, TR-R33, TR-R34, Traffic spec 4.5.
 // Expected values: 150 KIAS zoom split, 125 KIAS clean glide and High Key 5,000 ft are TR-R14 and spec 4.5 (SMM 13.17
-//   para 34; NFM Fig 3-4 p.3-12; T-6A Max Glide chart; SMM 13.5 paras 7-8); 4,500 ft breakout and the 140 KIAS climb
+//   para 34; reference data; SMM 13.5 paras 7-8); 4,500 ft breakout and the 140 KIAS climb
 //   are TR-R34 and Patrick (6 Oct); 3,500 ft and 220 KIAS pattern height and speed, 2,500 ft go-around level and
 //   runway heading 298 are TR-R4; the runway is 1,880 ft in the sim. Margins from the shared table (docs/TESTING.md)
 //   unless the line says why; each run has a safety stop with its reason beside it.
@@ -153,7 +153,7 @@ test('a breakout from the downwind turns back at 4,500 ft and rejoins without co
 });
 
 // The PFL button (spec 4.5). Start: on the initial at 220 KIAS (Pattern 1 point 9). After the zoom it glides clean at
-// 125 KIAS (TR-R14; T-6A Max Glide chart).
+// 125 KIAS (TR-R14; T-6A max glide data).
 test('the PFL button on the initial zooms, then glides clean at about 125 KIAS', () => {
   const run = aloneAt(9);
   assert.equal(run.sim.command(run.id, 'pfl_current'), true);
