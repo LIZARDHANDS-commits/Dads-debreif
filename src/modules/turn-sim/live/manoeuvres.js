@@ -11,6 +11,7 @@
 import { bankDegFromG } from '../../../core/flight-math.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
+import { speedSeg } from './replay.js';
 
 /** Line abreast turns: about 70° of bank at 3 G (SMM 16.18 para 50; Figs 16.15-16.21 "70/3"). */
 export const TURN_G = 3;
@@ -74,6 +75,37 @@ export function dryRun(aircraft, plan, t0, { maxSec = 600, sampleSec = 0.25 } = 
 }
 
 export const turnSeg = (toRad, dir, bankDeg, rollOut = true) => ({ kind: 'turn', toRad, dir, bankDeg, rollOut });
+/**
+ * A line abreast tactical turn: at full power, the speed going where the turn takes it (TS-204; Patrick 12 Oct 2026 09:47Z
+ * "LAB tactical turns is full power", 09:51Z "LAB is flown by lead at 220 knots but 70/3 full power turns", "then reset to
+ * 220"). Until V2.396 the speed was held through the turn, which needs more than full power in the model at 3 G.
+ */
+export const tacticalSeg = (toRad, dir, bankDeg = TURN_BANK_DEG, rollOut = true) => ({ ...turnSeg(toRad, dir, bankDeg, rollOut), fullPower: true });
+
+/**
+ * After a tactical turn, each aircraft sets power back for the formation's speed (220 KIAS in line abreast) the moment he
+ * rolls out, all over the same time, so they stay where the turn put them (TS-204). Adds that to each plan in place, as a
+ * speed change straight after his own programme (no fixed time, so a planner that moves his roll-in moves it too); the speed-up is at 80% torque at most (replay.js speedSeg). It runs in the background: the
+ * manoeuvre is over at the roll-out, so the next one can be called while the speed comes back (formation.js).
+ * homeKias: the speed a reset still running was taking him back to (formation.js sets it at a press).
+ */
+export function backToSpeed(plans, aircraft, t0, kias = aircraft[0].homeKias ?? aircraft[0].kias) {
+  const runs = aircraft.filter((a) => plans[a.id]).map((a) => ({ a, run: dryRun(a, plans[a.id], t0) }));
+  // Each sets power back the moment he rolls out, over the same time, so every aircraft flies the same speed profile from
+  // his own roll-out: the delayed turns' copies of one turn stay copies, and the wait for a steady speed puts them abeam
+  // at the original spacing once all are back (with a common start the first to roll out flew slow longest and the line
+  // opened about 100 ft, measured V2.405).
+  const spanSec = Math.max(0, ...runs.map(({ run }) => {
+    const seg = speedSeg(run.end.kias, kias);
+    return Math.abs(kias - run.end.kias) / Math.abs(seg.rateKtps);
+  }));
+  for (const { a, run } of runs) {
+    if (Math.abs(run.end.kias - kias) < 0.5 || spanSec <= 0) continue;
+    const seg = speedSeg(run.end.kias, kias);
+    plans[a.id].segments.push({ ...seg, rateKtps: Math.sign(seg.rateKtps || 1) * Math.abs(kias - run.end.kias) / spanSec, background: true });
+  }
+  return plans;
+}
 
 /**
  * A turn of `total` radians the `dir` way at `bankDeg`, as flight.js turn segments of at most 170° each handed straight on
@@ -95,10 +127,14 @@ export function leadTurnSegs(h0, dir, total, bankDeg, rollOut) {
  * where the second is from the first (feet): (rel · u1) / (v (1 − u0 · u1)). Shared by the
  * 2-ship delayed turns and the four-ship chain (four-ship.js). `extraAlongFt` is for a
  * second aircraft whose programme is not an exact copy of the first's (the four-ship's
- * check turn): how much further it is along the new heading, once rolled out, than a copy would be.
+ * check turn): how much further it is along the new heading, once rolled out, than a copy would be. vEnd: the true
+ * airspeed both settle at once their speed is back (backToSpeed), when it is not v: a turn called before the last one's
+ * reset to speed is done starts slow (TS-204). Each sets power back from his own roll-out, so the second's path is the
+ * first's moved by where he started and the wait he held straight at v; abeam once both are back at vEnd needs
+ * rel · u1 + v·wait·(u0 · u1) − vEnd·wait = 0.
  */
-export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0) {
-  return (dot(rel, u1) + extraAlongFt) / (v * (1 - dot(u0, u1)));
+export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0, vEnd = v) {
+  return (dot(rel, u1) + extraAlongFt) / (vEnd - v * dot(u0, u1));
 }
 
 /**
@@ -114,16 +150,19 @@ export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0) {
  * sides swapped. If that wait comes out negative for the outside-first order (the
  * pair is not abreast), the other order is used.
  */
-function delayed(pair, m, dir, t0) {
+function delayed(pair, m, dir, t0, kias) {
   const [lead, wing] = pair;
   const h0 = lead.headingRad;
   const h1 = wholeDegree(h0 + dir * m.turnDeg * DEG);
   const v = lead.tasFtps;
   const u0 = unit(h0);
-  const turn = [turnSeg(h1, dir, TURN_BANK_DEG)];
-  // The heading the turn really rolls out on (the fixed step leaves a fraction of a degree), from a dry run.
-  const u1 = unit(dryRun(lead, { segments: turn }, t0).end.headingRad);
-  const waitFor = (first, second) => exactWaitSec({ x: second.xFt - first.xFt, y: second.yFt - first.yFt }, u0, u1, v);
+  const turn = [tacticalSeg(h1, dir)];
+  // The heading the turn really rolls out on (the fixed step leaves a fraction of a degree), and the speed it leaves him
+  // at, from a dry run.
+  const turned = dryRun(lead, { segments: turn.map((seg) => ({ ...seg })) }, t0).end;
+  const u1 = unit(turned.headingRad);
+  const vEnd = v * ((kias ?? lead.homeKias ?? lead.kias) / lead.kias); // the true airspeed at the speed they reset to (backToSpeed)
+  const waitFor = (first, second) => exactWaitSec({ x: second.xFt - first.xFt, y: second.yFt - first.yFt }, u0, u1, v, 0, vEnd);
   // Outside of the turn: the aircraft whose partner is on the turning side.
   const wingLeft = relativeTo(lead, wing).left;
   const leadOutside = Math.sign(wingLeft) === dir;
@@ -134,10 +173,10 @@ function delayed(pair, m, dir, t0) {
     wait = waitFor(first, second);
   }
   wait = onStep(wait);
-  const plans = {
+  const plans = backToSpeed({
     [first.id]: { segments: turn.map((seg) => ({ ...seg })) },
     [second.id]: { segments: [{ kind: 'hold', untilSec: t0 + wait }, ...turn.map((seg) => ({ ...seg }))] },
-  };
+  }, pair, t0, kias);
   return { plans, firstId: first.id, note: `${first.id === lead.id ? 'Lead' : '#2'} goes first (outside of the turn); the other waits ${wait.toFixed(1)} s and rolls out abeam.` };
 }
 
@@ -172,10 +211,11 @@ function breakAway(pair, m, t0, delaySec = BREAK.delaySec) {
 }
 
 /** Check, in-place and hook turns: both roll in together and fly the same turn (SMM 16.19 paras 58-60). */
-function together(pair, m, dir) {
+function together(pair, m, dir, t0, kias) {
   const h1 = wholeDegree(pair[0].headingRad + dir * m.turnDeg * DEG);
   const plans = {};
-  for (const a of pair) plans[a.id] = { segments: [turnSeg(h1, dir, TURN_BANK_DEG)] };
+  for (const a of pair) plans[a.id] = { segments: [tacticalSeg(h1, dir)] };
+  backToSpeed(plans, pair, t0, kias);
   const what = m.turnDeg >= 180 ? 'Both turn together through 180 and roll out abreast.' : m.turnDeg > 30 ? 'Both turn together and roll out in trail.' : 'Both turn together; the line between them turns with them.';
   return { plans, note: what };
 }
@@ -204,7 +244,7 @@ function sideways(aircraft, segments, dir, t0) {
  * on the original heading with sides swapped. The straight leg between the turns is
  * set so each moves sideways by the spacing: 2 × (one 45's sideways move) + V t sin 45.
  */
-function shackle(pair, t0) {
+function shackle(pair, t0, kias) {
   const [lead, wing] = pair;
   const h0 = wholeDegree(lead.headingRad);
   const rel = relativeTo(lead, wing);
@@ -212,11 +252,11 @@ function shackle(pair, t0) {
   const leadDir = Math.sign(rel.left) || 1; // Lead turns toward the wingman
   const quarter = Math.PI / 4;
   const v = lead.tasFtps;
-  const out = sideways(lead, [turnSeg(wrapPi(h0 + leadDir * quarter), leadDir, TURN_BANK_DEG)], leadDir, t0);
+  const out = sideways(lead, [tacticalSeg(wrapPi(h0 + leadDir * quarter), leadDir)], leadDir, t0);
   const build = (dir, straight) => [
-    turnSeg(wrapPi(h0 + dir * quarter), dir, TURN_BANK_DEG),
+    tacticalSeg(wrapPi(h0 + dir * quarter), dir),
     { kind: 'hold', untilSec: t0 + onStep(out.durationSec) + straight },
-    turnSeg(h0, -dir, TURN_BANK_DEG),
+    tacticalSeg(h0, -dir),
   ];
   // First guess from the geometry, then two corrections from dry runs of the whole programme,
   // so each aircraft moves sideways by the spacing and they roll out at the spacing they started at.
@@ -230,10 +270,10 @@ function shackle(pair, t0) {
   const end = t0 + run.durationSec;
   const cross = t0 + out.durationSec + straight / 2;
   return {
-    plans: {
+    plans: backToSpeed({
       [lead.id]: { segments: build(leadDir, straight) },
       [wing.id]: { segments: build(-leadDir, straight), profile: missProfile(t0, cross, end) },
-    },
+    }, pair, t0, kias),
     note: straight === 0 && run.sideFt > spacing + 100 ? 'Spacing is too tight for a full shackle: they roll out wider than they started.' : 'Both turn in, #2 passes 300 ft above Lead, both turn back.',
   };
 }
@@ -245,15 +285,15 @@ function shackle(pair, t0) {
  * sideways by the spacing and they roll out at the spacing they started at. The
  * wingman passes 300 ft above Lead at the cross.
  */
-function crossTurn(pair, t0) {
+function crossTurn(pair, t0, kias) {
   const [lead, wing] = pair;
   const h0 = wholeDegree(lead.headingRad);
   const rel = relativeTo(lead, wing);
   const spacing = Math.abs(rel.left);
   const leadDir = Math.sign(rel.left) || 1;
   const segs = (dir, bank) => [
-    turnSeg(wrapPi(h0 + dir * Math.PI / 2), dir, bank, false),
-    turnSeg(wrapPi(h0 + Math.PI), dir, TURN_BANK_DEG),
+    tacticalSeg(wrapPi(h0 + dir * Math.PI / 2), dir, bank, false),
+    tacticalSeg(wrapPi(h0 + Math.PI), dir),
   ];
   const sideFor = (bank) => sideways(lead, segs(leadDir, bank), leadDir, t0);
   let [lo, hi] = CROSS_FIRST_BANK_DEG; // a steeper first stage moves less sideways
@@ -275,25 +315,26 @@ function crossTurn(pair, t0) {
   const cross = crossPoint ? crossPoint[0] : t0 + run.durationSec / 2;
   const firstG = 1 / Math.cos((bank * Math.PI) / 180);
   return {
-    plans: {
+    plans: backToSpeed({
       [lead.id]: { segments: segs(leadDir, bank) },
       [wing.id]: { segments: segs(-leadDir, bank), profile: missProfile(t0, cross, end) },
-    },
+    }, pair, t0, kias),
     note: `Both turn in at ${Math.round(bank)}° bank (${firstG.toFixed(1)} G) to 90°, #2 passes 300 ft above, then 70° (3 G) to 180°.`,
   };
 }
 
 /**
  * The plan for a button press. pair: [lead, wing] as they are now; key: a MANOEUVRES key;
- * dir: +1 left, -1 right (ignored by the shackle and cross turn); t0: formation time now.
+ * dir: +1 left, -1 right (ignored by the shackle and cross turn); t0: formation time now; kias: the speed they set power
+ * back for after a tactical turn (TS-204), the first aircraft's by default (Lead's, or the 4-ship's rear element's Lead's).
  * Returns { plans: { id: { segments, profile? } }, note }.
  */
-export function planManoeuvre(pair, key, dir, t0) {
+export function planManoeuvre(pair, key, dir, t0, { kias = pair[0].homeKias ?? pair[0].kias } = {}) {
   const m = MANOEUVRES[key];
   if (!m) throw new Error(`No manoeuvre called ${key}`);
-  if (m.kind === 'delayed') return delayed(pair, m, dir, t0);
-  if (m.kind === 'together') return together(pair, m, dir);
-  if (m.kind === 'shackle') return shackle(pair, t0);
+  if (m.kind === 'delayed') return delayed(pair, m, dir, t0, kias);
+  if (m.kind === 'together') return together(pair, m, dir, t0, kias);
+  if (m.kind === 'shackle') return shackle(pair, t0, kias);
   if (m.kind === 'break') return breakAway(pair, m, t0);
-  return crossTurn(pair, t0);
+  return crossTurn(pair, t0, kias);
 }

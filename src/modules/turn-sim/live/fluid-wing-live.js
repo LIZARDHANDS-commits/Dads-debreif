@@ -105,6 +105,12 @@ export const LIVE = Object.freeze({
   wordShare: Object.freeze({ on: 0.35, off: 0.15 }), // LAG or LEAD shows past 35% of the cap and goes under 15%, so the word doesn't flicker (estimate)
   settleKt: 2, // Terminate ends with him in the fighting wing band and within 2 kt of Lead (spec section 9)
   fwAltFtps: 8, // ... and moved up or down at no more than 8 ft/s, so a change of height is a gentle climb or descent, not a bob (estimate)
+  // In fighting wing his aim moves round Lead (in Lead's own frame) no faster than this and builds to it at fwAimAccel, so a
+  // press of Lead's never asks him for a snap: from the 4-ship's place (543 ft, 45° off the tail) the aim swept about 400 ft
+  // across in 3.6 s at a level turn's press and rolled him to 85° in 2 s (Patrick 12 Oct 2026 10:02Z: "There should be roll
+  // rates and roll acceleration build ups built in"; his card 10:08Z "Ease the aim"). Estimates.
+  fwAimFtps: 100,
+  fwAimAccelFtps2: 60,
   fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
@@ -309,7 +315,9 @@ export function stepLiveWing(ws, ctx) {
   // its fly margins, slots.js FW_BAND), so after Lead rolls out he resets in position; while Lead turns it holds, and the
   // circle and the lead and lag fly him. Its height is the energy height (below).
   const inBand = (x, [lo, hi], m) => Math.max(lo + m, Math.min(hi - m, x));
-  const fwAltWanted = fw ? fwEnergy(ws, rangeFt, closureFtps, st).altFt : 0;
+  // In the 4-ship each wingman keeps his stack on the one he flies off (ws.fwStackFt, set at the press, TS-206), the
+  // energy height round it.
+  const fwAltWanted = fw ? (ws.fwStackFt ?? 0) + fwEnergy(ws, rangeFt, closureFtps, st).altFt : 0;
   // The place is taken once, as Lead's turn eases off (and at the press), and then held, so the energy and the power have
   // a place to fly back to instead of following him wherever he drifts.
   const fwLevel = fw && turning < LIVE.sideFreeTurn;
@@ -386,7 +394,30 @@ export function stepLiveWing(ws, ctx) {
   }
   const heightFt = toward(ws.heightFt ?? 0, heightWanted, LIVE.altFtps);
   sideVec = add3(sideVec, scale3(Z, heightFt));
-  const aim = add3(add3(add3(L, scale3(ahead, offFt)), sideVec), scale3(Z, place.alt));
+  let aim = add3(add3(add3(L, scale3(ahead, offFt)), sideVec), scale3(Z, place.alt));
+  // Fighting wing: the aim eased in Lead's frame (fwAimFtps, fwAimAccelFtps2), so it moves with Lead as he turns but never
+  // jumps across him.
+  let aimRel = null;
+  let aimVel = null;
+  if (fw) {
+    const up = unit3(cross3(nose, left));
+    const want = sub3(aim, L);
+    const wantRel = { f: dot3(want, nose), l: dot3(want, left), u: dot3(want, up) };
+    const was = ws.aimRel ?? wantRel;
+    const v0 = ws.aimVel ?? { f: 0, l: 0, u: 0 };
+    const gap = { f: wantRel.f - was.f, l: wantRel.l - was.l, u: wantRel.u - was.u };
+    const dist = Math.hypot(gap.f, gap.l, gap.u);
+    const speed = Math.min(LIVE.fwAimFtps, Math.sqrt(2 * LIVE.fwAimAccelFtps2 * dist));
+    const vWant = dist > 1e-6 ? { f: (gap.f / dist) * speed, l: (gap.l / dist) * speed, u: (gap.u / dist) * speed } : { f: 0, l: 0, u: 0 };
+    const dv = { f: vWant.f - v0.f, l: vWant.l - v0.l, u: vWant.u - v0.u };
+    const dvMag = Math.hypot(dv.f, dv.l, dv.u);
+    const k = dvMag > LIVE.fwAimAccelFtps2 * dt ? (LIVE.fwAimAccelFtps2 * dt) / dvMag : 1;
+    aimVel = { f: v0.f + dv.f * k, l: v0.l + dv.l * k, u: v0.u + dv.u * k };
+    const stepFt = Math.hypot(aimVel.f, aimVel.l, aimVel.u) * dt;
+    aimRel = stepFt >= dist ? wantRel : { f: was.f + aimVel.f * dt, l: was.l + aimVel.l * dt, u: was.u + aimVel.u * dt };
+    if (stepFt >= dist) aimVel = { f: 0, l: 0, u: 0 };
+    aim = add3(L, add3(add3(scale3(nose, aimRel.f), scale3(left, aimRel.l)), scale3(up, aimRel.u)));
+  }
   const toAim = sub3(aim, pw);
 
   // ---- the lift: core's pursuit lift at the L1 gain (2V over the distance to the aim), then the caps ----
@@ -399,7 +430,10 @@ export function stepLiveWing(ws, ctx) {
     // he keeps his wings where they are, so a wish to push never becomes a roll toward what little sideways pull is left
     // (rolling upright over the top instead of pulling through). The hand-over is blended over the first quarter G.
     const across = sub3(lift, scale3(st.bodyUp, onUp));
-    lift = add3(scale3(st.bodyUp, LIVE.minG), scale3(across, Math.min(1, Math.max(0, onUp) / (LIVE.minG / 2))));
+    // In fighting wing he rolls toward the aim even with a push wanted: no aerobatics to pull through there, and with his
+    // wings held a wingman banked away from his aim sat at 0.5 G and flew off (the 4-ship's #4, measured 12 Oct 2026).
+    const rollShare = fw ? 1 : Math.min(1, Math.max(0, onUp) / (LIVE.minG / 2));
+    lift = add3(scale3(st.bodyUp, LIVE.minG), scale3(across, rollShare));
   }
   // Eased hands in Terminate: the lift wanted is eased over about a second (spec section 10.11, "the aim itself is eased
   // over about a second (estimate) so a press of Lead's never moves #2 in one step"), so Lead's ease from 60° to 30° of
@@ -429,7 +463,7 @@ export function stepLiveWing(ws, ctx) {
     // a climb in the cone falls him back and a descent moves him forward; the throttle holds the speed that height gives
     // him at Lead's energy, plus only what the height could not take, within 15 KIAS of Lead.
     const en = fwEnergy(ws, rangeFt, closureFtps, st);
-    const aboveFt = pw.z - L.z;
+    const aboveFt = pw.z - L.z - (ws.fwStackFt ?? 0); // above his stack (TS-206; 0 in the 2-ship)
     holdKias = e.holdKias + Math.max(-LIVE.overtakeKias, Math.min(LIVE.overtakeKias, en.powerKt - aboveFt / en.ftPerKt));
   } else if (holding) {
     // The path sets his line; power sets how far down it he is: the range against his place's, and the closure on Lead.
@@ -466,7 +500,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, fwLevel, fwPlace, liftEased, holdSince, heightFt, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
+    ws: { ...ws, st: next, aimRel, aimVel, fwLevel, fwPlace, liftEased, holdSince, heightFt, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
     pose,
     power,
     cue,

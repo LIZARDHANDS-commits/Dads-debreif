@@ -26,7 +26,19 @@ export function rideAim(ph, L, Lprev, ref, W) {
   const f = unit(L.headingRad);
   const l = { x: -f.y, y: f.x };
   const toW = (v) => ({ x: v.fwd * f.x + v.left * l.x, y: v.fwd * f.y + v.left * l.y });
-  const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
+  const st = (ref.ride ??= { established: false });
+  const omegaNow = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
+  // Once on the line, a change in Lead's turn rate reaches the frame over the time Lead takes to cover #2's distance behind
+  // him (back / V, standard kinematics: at that pace the angle the frame's turn adds, ω·back/V, grows no faster than Lead's
+  // own heading turns). Taken at once, as until V2.393, Lead's roll-in swung the frame's velocity at #2's place toward the
+  // outside of the turn faster than Lead turned, and #2 rolled away from the turn first: from fighting wing to echelon +43°
+  // at 84°/s, then back through level to 40° the right way at 97°/s (Patrick 12 Oct 2026 09:01Z "smooth hand over").
+  let omegaL = omegaNow;
+  if (st.established) {
+    const tauSec = Math.max(0, -relativeTo(L, W).fwd) / Math.max(W.tasFtps, 1);
+    st.omega = (st.omega ?? omegaNow) + (omegaNow - (st.omega ?? omegaNow)) * Math.min(1, STEP_SEC / Math.max(tauSec, STEP_SEC));
+    omegaL = st.omega;
+  }
   const rx = W.xFt - L.xFt;
   const ry = W.yFt - L.yFt;
   // The frame's velocity at #2's place: what he would fly to sit still on Lead's canopy.
@@ -38,7 +50,6 @@ export function rideAim(ph, L, Lprev, ref, W) {
   const mW = toW({ fwd: -line.u.fwd, left: -line.u.left }); // up the line, toward Lead
   const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; // d(cross)/dt in Lead's frame
   const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; // up the line, ft/s
-  const st = (ref.ride ??= { established: false });
   const maxDrift = ph.driftFtps ?? TR.rideDriftFtps; // Patrick G2, 10 ft/s, ruled again 10 Oct 20:00Z (it was 40 on every rejoin ride)
   if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= maxDrift) {
     st.established = true;
@@ -102,8 +113,9 @@ export function rideAim(ph, L, Lprev, ref, W) {
   const back = -rel.fwd;
   const sweep = Math.atan2(back, Math.max(across, 1e-6)) * (180 / Math.PI);
   const correctSide = ph.side == null || (ph.side > 0 ? rel.left > 50 : rel.left < -50);
-  // In the cone the sim flies (slots.js FW_LIMITS, 450-1,250 ft, 25-65°; until 10 Oct its own 450-1,500 ft copy).
-  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= FW_LIMITS.rangeFt[0] && r <= FW_LIMITS.rangeFt[1] && sweep >= FW_LIMITS.sweepDeg[0] && sweep <= FW_LIMITS.sweepDeg[1];
+  // In the cone the sim flies (slots.js FW_LIMITS, 450-1,250 ft, 25-65°; until 10 Oct its own 450-1,500 ft copy), or a phase's
+  // own earlier entry to it (coneEntryFt, coneEntrySweepDeg: the turning rejoin from line abreast starts its turn in sooner).
+  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= FW_LIMITS.rangeFt[0] && r <= (ph.coneEntryFt ?? FW_LIMITS.rangeFt[1]) && sweep >= (ph.coneEntrySweepDeg ?? FW_LIMITS.sweepDeg[0]) && sweep <= FW_LIMITS.sweepDeg[1];
   if (inFwCone && !st.established) {
     st.established = true;
     st.establishedRange = r;

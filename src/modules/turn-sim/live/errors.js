@@ -711,7 +711,8 @@ function speedChangeTimes(aircraft, plan, t0) {
   let t = t0;
   for (let i = 0; i < 12000 && !planDone(a, p); i++) {
     stepAircraft(a, p, t);
-    if (p.speedLeg && legs[legs.length - 1] !== p.speedLeg) legs.push(p.speedLeg);
+    // (The reset to speed after a full-power turn, TS-204, is the manoeuvre's own change, not the fix's.)
+    if (p.speedLeg && !p.speedLeg.background && legs[legs.length - 1] !== p.speedLeg) legs.push(p.speedLeg);
     t += STEP_SEC;
   }
   return legs.map((l) => ({ t0: l.t0, t1: l.t1 }));

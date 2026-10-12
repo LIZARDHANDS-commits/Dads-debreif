@@ -27,7 +27,7 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, loadAo, loadParts } from './ct156-blender.js';
+import { aoShaded, loadAo, loadParts, paintGrain } from './ct156-blender.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
 /** The paint setting every module offers: Paint: Harvard / Ship colours, Harvard the default. */
@@ -623,9 +623,10 @@ export function ct156PiecesHash(pieces) {
 // tools/blender/build_ct156_exterior.py from these very shapes (ct156ExteriorPieces), smooth-shaded, with the soft
 // shadows and panel lines baked into one picture (ct156-exterior-ao.jpg) on its own UV map. Once it is in, each of these
 // kit shapes takes the file's in place, so every ship (and every ship made later) draws it; the decals, cheat line,
-// glass, lights, pilots and prop stay the code's. Only all of it or none: if the file is missing, or any part was built
+// glass, lights, pilots and prop stay the code's, and so do the exhaust stacks since 12 Oct 2026 (Blender's shading put
+// grey spikes round their lips; Patrick, 12 Oct 2026, "exhaust doesnt look right here"). Only all of it or none: if the file is missing, or any part was built
 // from other shapes than the code draws now, every ship stays as the code draws it.
-const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'stubs', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
+const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
 // The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
@@ -1440,9 +1441,33 @@ function canopyAt(x, grow = 0) {
   const [, w, top] = rowAt(CANOPY, x);
   return { w: w + grow, top: top + grow, base: sillZ(x, w) };
 }
+/**
+ * The canopy's section is a U (Patrick, 12 Oct 2026, card "Build U shape", after "Why does our bow look almost like an
+ * arch? and less circular?"): its sides rise straight up from the sill, then turn over in a half circle of the
+ * canopy's half-width, as the T-6A-1 front view draws the glass (near-vertical sides, a round top) and his reference
+ * picture shows the forward bow. Where the canopy is lower than its half-width the top is a half ellipse that tall,
+ * with no straight part. Until V2.402 one tall arch from sill to sill (y = w cos^0.85, z = base + (top - base) sin^0.75),
+ * which read as a church window from the seat. { r: the top's height, v: the straight sides' height, a: the share of
+ * phi each straight side takes, so the points along the section stay about evenly spaced }.
+ */
+function canopyU(c) {
+  const h = c.top - c.base, r = Math.min(c.w, h), v = h - r;
+  return { h, r, v, a: v / (2 * v + (Math.PI / 2) * (c.w + r)) };
+}
+/** A point [y, z] round the canopy's section c, phi 0 at the right sill through the top (pi / 2) to the left (pi). */
 function canopyPoint(c, phi) {
-  const cp = Math.cos(phi), sp = Math.sin(phi);
-  return [c.w * Math.sign(cp) * Math.abs(cp) ** 0.85, c.base + (c.top - c.base) * Math.max(sp, 0) ** 0.75];
+  const t = Math.min(Math.max(phi / Math.PI, 0), 1), { r, v, a } = canopyU(c);
+  if (a > 0 && t <= a) return [c.w, c.base + v * (t / a)];
+  if (a > 0 && t >= 1 - a) return [-c.w, c.base + v * ((1 - t) / a)];
+  const th = (Math.PI * (t - a)) / (1 - 2 * a);
+  return [c.w * Math.cos(th), c.base + v + r * Math.sin(th)];
+}
+/** canopyPoint backwards: the phi (0 to pi / 2, the right side) at a share f (0 the sill, 1 the top) of the height. */
+function canopyPhiAt(c, f) {
+  const { h, r, v, a } = canopyU(c), dz = Math.min(Math.max(f, 0), 1) * h;
+  if (dz <= v) return v > 0 ? Math.PI * a * (dz / v) : 0;
+  const th = Math.asin(Math.min(1, (dz - v) / r));
+  return Math.PI * a + th * (1 - 2 * a);
 }
 /** Where the glass ends: the rear bow's hoop (CT156_FRAME_X[2], leaning by CT156_FRAME_LEAN[2]), M + 1 points sill to sill. */
 const glassEnd = (M) => ct156HoopPoints(CT156_FRAME_X[2], M, 0, CT156_FRAME_LEAN[2]).map((p) => p.x);
@@ -1492,8 +1517,7 @@ export function ct156CanopyHalfWidth(x, z) {
   const c = canopyAt(x);
   const f = (z - c.base) / (c.top - c.base);
   if (!(f >= 0 && f <= 1)) return 0;
-  const sp = f ** (1 / 0.75); // canopyPoint backwards: z = base + (top - base) * sin^0.75, y = w * cos^0.85
-  return c.w * Math.sqrt(Math.max(1 - sp * sp, 0)) ** 0.85;
+  return canopyPoint(c, canopyPhiAt(c, f))[0];
 }
 /**
  * Each coaming's crown, its middle's height along it from its aft edge forward, as [x, z] in feet (the model's frame):
@@ -1574,10 +1598,10 @@ function coamingGeometry(THREE) {
   }
   return joinGeometries(THREE, parts);
 }
-/** The fuselage's section at x, in model units: { halfWidth, top, bottom } (for ct156-cockpit.js). */
+/** The fuselage's section at x, in model units: { halfWidth, top, bottom, nUp } (for ct156-cockpit.js; nUp the upper half's superellipse power). */
 export function ct156FuselageSection(x) {
-  const [, halfWidth, top, bottom] = rowAt(STATIONS, x);
-  return { halfWidth, top, bottom };
+  const [, halfWidth, top, bottom, , nUp] = rowAt(STATIONS, x);
+  return { halfWidth, top, bottom, nUp };
 }
 /**
  * The canopy's hoop with its crest at station x as n + 1 points from the left sill over the top to the right sill,
@@ -1640,14 +1664,18 @@ function railGeometry(THREE, side) {
   // A point on the canopy grown by `grow`, dz feet above its sill at station x (canopyPoint backwards).
   const at = (x, dz, grow) => {
     const c = canopyAt(x, grow), f = Math.min(1, (dz * FT) / (c.top - c.base));
-    const [y, z] = canopyPoint(c, Math.asin(f ** (1 / 0.75)));
+    const [y, z] = canopyPoint(c, canopyPhiAt(c, f));
     return [x, side * y, z - (dz === 0 ? 0.002 : 0)]; // the bottom edge tucks under the sill
   };
   const rows = [[0, 0.0004], [tall - seam, 0.0004], [tall - seam, 0.0007], [tall, 0.0007]];
   const pos = [], idx = [];
+  // Under the windscreen it eases in from nothing at its front end to its full height 1 ft aft, and keeps to the lower
+  // 40 % of the glass, so it runs out along the sill rather than ending in a dark spike up the glass beside the
+  // coaming (Patrick, 12 Oct 2026, "More clipping/needs to be smooth/merged"; it started at full height).
   for (let i = 0; i <= N; i++) {
-    const x = x0 + ((x1 - x0) * i) / N;
-    for (const [dz, grow] of rows) pos.push(...at(x, dz, grow));
+    const x = x0 + ((x1 - x0) * i) / N, c = canopyAt(x, 0);
+    const k = Math.min(Math.sin((Math.PI / 2) * Math.min(1, (x0 - x) / FT)), (0.4 * (c.top - c.base)) / (tall * FT));
+    for (const [dz, grow] of rows) pos.push(...at(x, dz * k, grow));
   }
   const R = rows.length;
   for (let i = 0; i < N; i++) {
@@ -1939,12 +1967,12 @@ function cheatLine(THREE) {
  * A thin piece hugging the fuselage's side (side +1 left, -1 right) through rows [x, zTop, zBottom] from aft to front,
  * nz steps down each row: a painted or dark shape that follows the skin's curve.
  */
-function skinStrip(THREE, rows, side, nz = 3) {
+function skinStrip(THREE, rows, side, nz = 3, lift = 0.0025) {
   const pos = [], idx = [];
   for (const [x, zTop, zBottom] of rows) {
     for (let j = 0; j <= nz; j++) {
       const z = zTop + ((zBottom - zTop) * j) / nz;
-      pos.push(x, side * fuseSurf(x, z), z);
+      pos.push(x, side * (fuseSurf(x, z) - 0.0025 + lift), z);
     }
   }
   for (let i = 0; i < rows.length - 1; i++) {
@@ -2163,7 +2191,7 @@ function buildKit(THREE) {
     geometry: skinStrip(THREE, Array.from({ length: 13 }, (_, i) => {
       const t = i / 12, x = 0.304 + 0.053 * t, top = topAt(x) - 0.0045 - 0.0027 * t;
       return [x, top, top - mouth(t)];
-    }), side),
+    }), side, 3, 0.0006), // close on the skin, so from the seat it doesn't stand off the cowl as a blade (it sat 0.7 in out; Patrick, 12 Oct 2026, "More clipping")
     materials: [0],
   }, {
     geometry: patch(THREE, (LOWER_VENT.x0 + LOWER_VENT.x1) / 2, (LOWER_VENT.z0 + LOWER_VENT.z1) / 2, LOWER_VENT.x1 - LOWER_VENT.x0, LOWER_VENT.z1 - LOWER_VENT.z0, side, fuseSurf),
@@ -2292,6 +2320,9 @@ function buildKit(THREE) {
     // Bare, heat-stained steel, as on Patrick's photo of 156102 (was a dark grey that read as paint).
     // Lighter and shinier, so the stacks read as metal pipes and not painted tanks (156102 and 156115 photos; by eye).
     exhaust: mat({ color: '#a8988a', roughness: 0.32, metalness: 0.85, envMap: env, envMapIntensity: 0.9 }),
+    // The stacks' sooty insides: a dull brown-black, grained and blotchy, not a smooth shiny black (Patrick, 12 Oct 2026,
+    // pinned on a stack's open end: "give the whole interior a texture, its not quite right"; was the blades' black).
+    soot: paintGrain(mat({ color: '#2b251d', roughness: 0.95 }), { unit: 1 / FT, grain: 0.02, bump: 0.0015, speckle: 0.15, mottle: 0.2, mottleSize: 0.12, wear: 0, shine: 0.05 }),
     glass: mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two }),
     // The canopy seen from inside (setCockpitView): a faint clear tint, no reflections, so the sky shows through it.
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
@@ -2299,9 +2330,11 @@ function buildKit(THREE) {
     floor: mat({ color: '#0d1118', roughness: 0.9, side: two }),
     // The cockpit tub (setCockpitView; TS-155, TS-157): a dark charcoal floor and walls, as US Navy T-6A cockpit photos
     // show (Patrick, 11 Oct 2026 22:06Z; were mid and light grey off Dad's reference pictures). Shades estimates.
-    tubFloor: mat({ color: '#26292c', roughness: 0.95, side: two }),
+    // Both with the cockpit's paint grain (ct156-cockpit.js INTERIOR_GRAIN, Patrick, 12 Oct 2026: "give the whole
+    // interior a texture").
+    tubFloor: paintGrain(mat({ color: '#26292c', roughness: 0.95, side: two }), { unit: 1 / FT }),
     // The walls medium grey like the panels since 12 Oct 2026 (Patrick's CT-156 cockpit photos; were '#2f3236').
-    tubWall: mat({ color: '#5a5e63', roughness: 0.85, side: two }),
+    tubWall: paintGrain(mat({ color: '#5a5e63', roughness: 0.85, side: two }), { unit: 1 / FT }),
     // The pilots (pilotGeometry): one material per slot of CT156_PILOT_SLOTS (helmet, visor, mask, hose, flight suit, vest and
     // collar, harness, gloves, and the mask's grey-blue parts, black hardware, vest panel and skin; colours estimates);
     // and the seats' headboxes.
@@ -2574,7 +2607,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.spinnerRing, mats.blade);
     // Up close only: the position lights, the exhaust stacks, the canopy's frames and the serial on the fin (TS-156).
     add(geo.lights, mats.lights, detail);
-    add(geo.stubs, [mats.exhaust, mats.blade], detail);
+    add(geo.stubs, [mats.exhaust, mats.soot], detail);
     add(geo.frames, mats.frame, detail);
     seats = add(geo.seats, mats.frame, detail);
     bowFront = add(geo.bowFront, mats.frame, detail);
@@ -2622,7 +2655,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(decalGeo.dotAft[s], mats.dot, detail);
       add(decalGeo.dotRoot[s], mats.dot, detail);
     }
-    add(geo.stubs, [mats.exhaust, mats.blade], detail);
+    add(geo.stubs, [mats.exhaust, mats.soot], detail);
     add(geo.vent, mats.vent, detail);
     add(geo.antenna, mats.antenna, detail);
     add(geo.beacon, mats.beacon, detail);
