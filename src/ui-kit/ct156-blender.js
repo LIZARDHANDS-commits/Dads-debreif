@@ -86,15 +86,15 @@ export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null
 
 /**
  * Gives `material` (a MeshStandardMaterial) a painted surface drawn by the shader, so it needs no picture or uv map:
- * a fine grain in the paint, bump-mapped and a little uneven in shine, and a faint mottling of the colour, as worn
- * matt paint has (Patrick, 12 Oct 2026: "give the whole interior a texture, its not quite right"). Sizes in feet on the
+ * a fine grain in the paint, bump-mapped and a little uneven in shine, a mottling of the colour and lighter scuffed
+ * spots, as worn matt paint has (Patrick, 12 Oct 2026: "give the whole interior a texture, its not quite right"). Sizes in feet on the
  * part; `unit`, the feet in one of the geometry's own units (1 for the cockpit, built in feet). `grain` the grain's size,
- * `bump` its depth (feet), `speckle` and `mottle` how far each lightens or darkens the colour, `shine` how far the grain moves
- * the roughness. The grain fades out where it is smaller than a pixel, so it never sparkles far off. Estimates, judged
+ * `bump` its depth (feet), `speckle` and `mottle` how far each lightens or darkens the colour, `wear` how far the
+ * scuffed spots (about `wearSize` across, in patches) lighten it, `shine` how far the grain moves the roughness. The grain fades out where it is smaller than a pixel, so it never sparkles far off. Estimates, judged
  * on renders. Keeps whatever the material's shader already does (aoShaded's), and returns the material.
  */
-export function paintGrain(material, { unit = 1, grain = 0.012, bump = 0.0006, speckle = 0.05, mottle = 0.07, mottleSize = 0.4, shine = 0.12 } = {}) {
-  const opts = { unit, grain, bump, speckle, mottle, mottleSize, shine };
+export function paintGrain(material, { unit = 1, grain = 0.012, bump = 0.0012, speckle = 0.08, mottle = 0.12, mottleSize = 0.4, wear = 0.18, wearSize = 0.05, shine = 0.15 } = {}) {
+  const opts = { unit, grain, bump, speckle, mottle, mottleSize, wear, wearSize, shine };
   material.userData.ct156Grain = opts;
   const before = material.onBeforeCompile, key = material.customProgramCacheKey;
   const f = (v) => v.toFixed(6);
@@ -119,7 +119,8 @@ float ct156Noise( vec3 x ) { // smooth value noise, 0 to 1
 	float ct156Fine = clamp( 1.5 - length( fwidth( ct156G ) ), 0.0, 1.0 ); // the grain only where a pixel is smaller than it
 	float ct156Grain = ( ct156Noise( ct156G ) * 0.65 + ct156Noise( ct156G * 2.7 + 7.1 ) * 0.35 - 0.5 ) * ct156Fine;
 	float ct156Mottle = ct156Noise( vCt156Pos / ${f(mottleSize)} ) * 0.6 + ct156Noise( vCt156Pos / ${f(mottleSize * 0.31)} + 3.3 ) * 0.4 - 0.5;
-	diffuseColor.rgb *= 1.0 + ${f(speckle)} * 2.0 * ct156Grain + ${f(mottle)} * 2.0 * ct156Mottle;`)
+	float ct156Wear = smoothstep( 0.6, 0.8, ct156Noise( vCt156Pos / ${f(wearSize)} + 11.7 ) ) * smoothstep( 0.45, 0.7, ct156Noise( vCt156Pos / ${f(mottleSize)} + 5.1 ) );
+	diffuseColor.rgb *= 1.0 + ${f(speckle)} * 2.0 * ct156Grain + ${f(mottle)} * 2.0 * ct156Mottle + ${f(wear)} * ct156Wear;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 	roughnessFactor = clamp( roughnessFactor + ${f(shine)} * 2.0 * ct156Grain, 0.04, 1.0 );`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>

@@ -2052,7 +2052,7 @@ function ventParts(THREE, x, y, z, put, SLOT) {
 }
 
 /** The interior's paint grain (paintGrain's sizes, feet): estimates, judged on renders beside Patrick's reference picture. */
-export const INTERIOR_GRAIN = Object.freeze({ grain: 0.012, bump: 0.0006, speckle: 0.05, mottle: 0.07, mottleSize: 0.4, shine: 0.12 });
+export const INTERIOR_GRAIN = Object.freeze({ grain: 0.012, bump: 0.0012, speckle: 0.08, mottle: 0.12, mottleSize: 0.4, wear: 0.18, wearSize: 0.05, shine: 0.15 });
 
 // Material slots for the joined solid parts.
 const SLOT = Object.freeze({
