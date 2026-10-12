@@ -22,7 +22,7 @@ Where the whole tool stands at the end of the 12 Oct run, for whoever picks it u
 | V2.387 | Formation | Hand-overs turn at the bank flown and end on Lead's speed; the 4-ship opening out keeps its climb (#961). |
 | V2.388 | CT-156 model | Cockpit, canopy bow, seats and pilots match Patrick's photos: Patrick's 19-row fix list, built in seven stages with every stage's renders seen by him (#965). |
 
-No-version merges in the same run: the import rule in `AGENTS.md` (#952), Playwright 1.64.0 and Vite 8.3.3 (#956), the SOF button-walk fix (#958), and the docs for TS-198 and TS-200 (#951, #964).
+No-version merges in the same run: the import rule in `AGENTS.md` (#952), Playwright 1.64.0 and Vite 8.3.3 (#956), the SOF button-walk fix (#958), the docs for TS-198 and TS-200 (#951, #964), the hand-over estimates on the Turn Sim future list (#966), the Traffic audit handover (#967), and the plan catch-ups (#954, #960, #963).
 
 ## Open pull requests
 
