@@ -37,14 +37,18 @@ export const T6A_LIMITS = Object.freeze({
   weightLb: 6400, basicWeightLb: 5170, maxWeightLb: 6900, operatedMaxWeightLb: 6500,
 });
 
-/** The most G the wing gives at this speed before it stalls: (KIAS ÷ stall speed)². */
-export function stallLimitG(kias, stallKias = T6A_LIMITS.stallKias) {
-  return (kias / stallKias) ** 2;
+/**
+ * The most G the wing gives at this speed before it stalls: (KIAS ÷ stall speed)², stallKias being the stall speed at
+ * 6,400 lb. At another weightLb the stall speed moves with √(weight ÷ 6,400), so the G scales with 6,400 ÷ weight
+ * (standard aerodynamics: the same wing lift carries more or less weight).
+ */
+export function stallLimitG(kias, stallKias = T6A_LIMITS.stallKias, weightLb = T6A_LIMITS.weightLb) {
+  return (kias / stallKias) ** 2 * T6A_LIMITS.weightLb / weightLb;
 }
 
-/** The G the aircraft can pull now: the stall line, capped at +7 G (+4.7 G while rolling). */
-export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKias) {
-  return Math.min(stallLimitG(kias, stallKias), rolling ? T6A_LIMITS.rollingMaxG : T6A_LIMITS.maxG);
+/** The G the aircraft can pull now: the stall line at weightLb (stallLimitG), capped at +7 G (+4.7 G while rolling). */
+export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKias, weightLb = T6A_LIMITS.weightLb) {
+  return Math.min(stallLimitG(kias, stallKias, weightLb), rolling ? T6A_LIMITS.rollingMaxG : T6A_LIMITS.maxG);
 }
 
 /**
@@ -156,14 +160,15 @@ export const T6A_AIRFRAME = Object.freeze({ wingAreaSqFt: 175.3, spanFt: 33 + 5 
  * - shaftHp 1,100: flat-rated, 100% torque at 2,000 rpm (EASA.IM.A.636; certified).
  * - propRpm 2,000 (100% is 1,995) and propDiameterIn 97, four blades (EASA.IM.A.636, UK.TC.A.00092, EASA.IM.E.038;
  *   certified).
- * - flatRatedToSigma 0.64 and lapseExp 0.85: full power is held to a density ratio of 0.64 (about 14,500 ft on a
- *   standard day), then falls as (σ ÷ 0.64)^0.85. ESTIMATE: the certificate gives only the sea-level corner.
+ * - flatRatedToFt 16,000: full power holds to about 16,000 ft on a standard day (Patrick's flying experience,
+ *   12 Oct 2026); FLAT_RATED_SIGMA is the standard atmosphere's density ratio there, about 0.61.
+ * - lapseExp 0.85: above that, power falls as (σ ÷ FLAT_RATED_SIGMA)^0.85. ESTIMATE.
  * - exhaustThrustLb 160: the exhaust's own thrust at full power (EASA.IM.E.038 gives 185 lbf static at 1,250 shp,
  *   scaled to 1,100), falling with speed to nothing at exhaustZeroKtas 400 KTAS. ESTIMATES.
  */
 export const T6A_ENGINE = Object.freeze({
   shaftHp: 1100, propRpm: 2000, propDiameterIn: 97,
-  flatRatedToSigma: 0.64, lapseExp: 0.85, exhaustThrustLb: 160, exhaustZeroKtas: 400,
+  flatRatedToFt: 16000, lapseExp: 0.85, exhaustThrustLb: 160, exhaustZeroKtas: 400,
 });
 
 /**
@@ -183,6 +188,9 @@ export const T6A_ENGINE = Object.freeze({
  */
 export const T6A_PROP = Object.freeze({ peakEfficiency: 0.812, peakAdvanceRatio: 1.8, staticThrustLb: 3100, fallWidth: 1.1 });
 
+/** The standard day's density ratio at the flat-rating height (T6A_ENGINE.flatRatedToFt). */
+const FLAT_RATED_SIGMA = isaDensityRatio(T6A_ENGINE.flatRatedToFt);
+
 /** Revolutions per second × diameter, ft/s: true airspeed ÷ this is the advance ratio. */
 const PROP_ND_FTPS = T6A_ENGINE.propRpm / 60 * (T6A_ENGINE.propDiameterIn / 12);
 const FULL_POWER_FT_LBF_S = T6A_ENGINE.shaftHp * FT_LBF_PER_S_PER_HP;
@@ -198,7 +206,7 @@ function propEfficiency(j) {
 
 /** Full-throttle shaft power as a share of 1,100 shp at altFt (T6A_ENGINE): flat-rated, then falling with density. */
 function powerLapse(altFt) {
-  return Math.min(1, (isaDensityRatio(altFt) / T6A_ENGINE.flatRatedToSigma) ** T6A_ENGINE.lapseExp);
+  return Math.min(1, (isaDensityRatio(altFt) / FLAT_RATED_SIGMA) ** T6A_ENGINE.lapseExp);
 }
 
 /** Full-throttle thrust in lbf: propeller (efficiency × power ÷ true airspeed) plus the exhaust. */
@@ -231,7 +239,7 @@ function qPsf(kias) {
 
 /**
  * Maximum-power thrust ÷ weight at kias, altFt and weightLb (6,400 lb unless told): the propeller's efficiency
- * (T6A_PROP) × the shaft power (T6A_ENGINE, flat-rated to about 14,500 ft) ÷ true airspeed, plus the exhaust. Part
+ * (T6A_PROP) × the shaft power (T6A_ENGINE, flat-rated to about 16,000 ft) ÷ true airspeed, plus the exhaust. Part
  * throttle scales all of it (excessFnFor).
  */
 export function thrustPerWeight(kias, altFt, weightLb = T6A_LIMITS.weightLb) {
@@ -458,27 +466,27 @@ export function excessThrustPerWeight(kias, altFt, g, config = 'clean', weightLb
 }
 
 /**
- * Pitch attitude: the angle of attack the wing needs on top of the flight path
- * angle. AoA = aoa180Deg × G × (180 ÷ KIAS)², set so the normal 180 KIAS climb
- * shows about 10-12° nose up and the 140 KIAS best-rate climb about 15°, with
- * this model's full-power climb angles (SMM 3.14 para 35; EFIG p.126). With datumDeg it gives Patrick's attitudes
- * within a fraction of a degree (Patrick, 11 Oct 2026 01:26Z: 2.5° nose up on the gear on level ground, 0° level at
- * 180 KIAS, -0.5° at 220 KIAS; the sim 2.6°, 0.2°, -0.7°).
+ * Pitch attitude: the angle of attack the wing needs on top of the flight path angle. AoA = aoa180Deg × G ×
+ * (180 ÷ KIAS)² × (weight ÷ 6,400): straight in the lift coefficient, as for any wing below the stall. aoa180Deg and
+ * datumDeg are fitted to Patrick's clean level attitudes: about 9° nose up at 100 KIAS and 5° at 120 (Patrick's flying
+ * experience, 12 Oct 2026), 0° at 180 and -0.5° at 220 (Patrick, 11 Oct 2026 01:26Z); the sim gives 8.9°, 5.2°, 0.4° and
+ * -0.9°. Flap lowers the nose at the same speed: takeoff flap about 3°, landing flap about 6° (Patrick's flying
+ * experience, 12 Oct 2026). The 140 KIAS best-rate climb then shows about 15° (SMM 3.14 para 35; EFIG p.126).
  */
 export const T6A_PITCH = Object.freeze({
-  aoa180Deg: 2.8,
-  datumDeg: 2.6,
-  takeoffFlapAoADeg: -1.7,
-  landingFlapAoADeg: -3.3,
+  aoa180Deg: 3.8,
+  datumDeg: 3.4,
+  takeoffFlapAoADeg: -3,
+  landingFlapAoADeg: -6,
   /** On the wheels, level ground: the gear holds the nose 2.5° up (Patrick, 6 Oct 06:17Z and 11 Oct 2026 01:26Z). Traffic's
    * path-follower.js GROUND_ATTITUDE_DEG is the same number, kept there until Patrick points it here. */
   onGearDeg: 2.5,
 });
 
 /**
- * Delta angle-of-attack from flap deflection, in degrees.
+ * Delta angle-of-attack from flap deflection, in degrees (T6A_PITCH).
  * Extending flaps increases wing camber, shifting zero-lift angle negative and requiring less body AoA
- * for a given lift coefficient. ESTIMATES.
+ * for a given lift coefficient.
  */
 function flapAoADeltaDeg(config) {
   if (!config || typeof config !== 'string') return 0;
@@ -490,25 +498,23 @@ function flapAoADeltaDeg(config) {
 
 /**
  * Pitch attitude in degrees, nose up positive: flight path angle (climb rate ÷
- * true airspeed, both ft/s) plus angle of attack at this KIAS and G (T6A_PITCH),
- * adjusted for flap configuration when provided.
+ * true airspeed, both ft/s) plus angle of attack at this KIAS, G and weightLb
+ * (6,400 lb unless told; T6A_PITCH), adjusted for flap configuration when provided.
  */
-export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = null) {
+export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = null, weightLb = T6A_LIMITS.weightLb) {
   const gamma = Math.asin(Math.max(-1, Math.min(1, climbFtps / Math.max(tasFtps, 1)))) * 180 / Math.PI;
   const flapDelta = flapAoADeltaDeg(config);
-  return gamma + T6A_PITCH.aoa180Deg * g * (180 / Math.max(kias, 60)) ** 2 + flapDelta;
+  return gamma + T6A_PITCH.aoa180Deg * g * (180 / Math.max(kias, 60)) ** 2 * weightLb / T6A_LIMITS.weightLb + flapDelta;
 }
 
 /**
  * The pitch attitude the pilot sees, in degrees nose up: pitchDegFromClimb less T6A_PITCH.datumDeg, the angle the
- * fuselage sits nose-down from the wing's zero-lift line. 2.6° is fitted to Patrick's 220 KIAS level attitude of
- * -0.5 to -1° (6 Oct 2026 06:17Z; card "Both modules" 06:20Z) and matches his 2.5° nose up on the gear on level ground
- * (Patrick, 11 Oct 2026 01:26Z, with 0° level at 180 KIAS and -0.5° at 220); it gives about 8.5° in the model's
- * 180 KIAS full-power climb (Patrick: about 10°). For display and attitude targets; pitchDegFromClimb itself is
- * unchanged for the code that already uses it.
+ * fuselage sits nose-down from the wing's zero-lift line, fitted with aoa180Deg (T6A_PITCH) to Patrick's level
+ * attitudes. It gives about 9° in the model's 180 KIAS full-power climb (Patrick: about 10°). For display and attitude
+ * targets.
  */
-export function attitudeDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = null) {
-  return pitchDegFromClimb(climbFtps, tasFtps, kias, g, config) - T6A_PITCH.datumDeg;
+export function attitudeDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = null, weightLb = T6A_LIMITS.weightLb) {
+  return pitchDegFromClimb(climbFtps, tasFtps, kias, g, config, weightLb) - T6A_PITCH.datumDeg;
 }
 
 /** excessThrustPerWeight as stepPointMass's excessFn, which passes true airspeed. */
@@ -590,11 +596,12 @@ const SPLIT_S_MAX_SEC = 120;    // a guard: the slowest entry takes about 30 s (
 
 /**
  * The G a pull in the stick shaker gives at this speed: 1 G at the shaker
- * speed (stall + margin, 93 KIAS), growing with KIAS², at most maxG (the
- * certificates' +7 G unless told). With no margin it is the stall line.
+ * speed (stall + margin, 93 KIAS at 6,400 lb), growing with KIAS², at most maxG
+ * (the certificates' +7 G unless told). With no margin it is the stall line. At
+ * another weightLb the shaker speed moves with √(weight ÷ 6,400), as the stall's does.
  */
-export function shakerG(kias, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A_MANOEUVRE.shakerMarginKt, maxG = T6A_LIMITS.maxG } = {}) {
-  return Math.min((kias / (stallKias + marginKt)) ** 2, maxG);
+export function shakerG(kias, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A_MANOEUVRE.shakerMarginKt, maxG = T6A_LIMITS.maxG, weightLb = T6A_LIMITS.weightLb } = {}) {
+  return Math.min((kias / (stallKias + marginKt)) ** 2 * T6A_LIMITS.weightLb / weightLb, maxG);
 }
 
 /**
