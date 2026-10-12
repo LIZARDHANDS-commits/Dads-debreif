@@ -116,6 +116,7 @@ export const LIVE = Object.freeze({
   fwAheadSec: 1.5,
   fwOthersMarginFt: 100,
   fwOthersGain: 2,
+  fwDeconflictFt: 150,
   fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
@@ -293,7 +294,9 @@ export function stepLiveWing(ws, ctx) {
     side = -side;
     swapUntil = t + WING.swapGuardSec;
   }
-  if (overTop && !toSlot && !entering && t >= swapUntil && aDot < 0) {
+  // In fighting wing he may end on either side, whichever his spacing and geometry need, and sometimes switches (Patrick 12
+  // Oct 2026 10:54Z; SMM 12.29 para 69), so a crossing of Lead's tail is taken in a level turn too.
+  if ((overTop || fw) && !toSlot && !entering && t >= swapUntil && aDot < 0) {
     const stopAt = side * latDeg - (aDot * aDot) / (2 * WING.swapAccelDps2);
     if (stopAt < -WING.swapMarginDeg) {
       side = -side;
@@ -436,6 +439,9 @@ export function stepLiveWing(ws, ctx) {
       const shortFt = FW_BAND.bubbleFt + LIVE.fwOthersMarginFt - (rr - closing * LIVE.lookSec);
       if (shortFt > 0) {
         toAim = add3(toAim, scale3(d, (LIVE.fwOthersGain * shortFt) / Math.max(rr, 1)));
+        // ... and deconflicts by height too, away from him in the vertical, within the cone (Patrick 12 Oct 2026 10:54Z).
+        const upFt = Math.min(LIVE.fwDeconflictFt, shortFt) * (d.z >= 0 ? 1 : -1);
+        toAim = add3(toAim, { x: 0, y: 0, z: upFt });
         if (rr < FW_BAND.bubbleFt) nearOther = true;
       }
     }

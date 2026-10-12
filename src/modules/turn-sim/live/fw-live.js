@@ -140,7 +140,7 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
     t += dt;
     ws = ws.map((w, i) => {
       // Everyone else in the formation, for his bubble (Lead and the other wingmen as they are at the start of the step).
-      const others = wings.length > 1 ? [L0, ...ws.map((x) => x.st)].filter((_, k) => k !== i + 1 && k !== (i === 0 ? 0 : -1)).map((x) => ({ pos: { x: x.pm.x, y: x.pm.y, z: x.pm.z - blockFt }, vel: x.vel })) : null;
+      const others = wings.length > 1 ? [L0, ...ws.map((x) => x.st)].filter((_, k) => k !== i + 1).map((x) => ({ pos: { x: x.pm.x, y: x.pm.y, z: x.pm.z - blockFt }, vel: x.vel })) : null;
       const r = stepLiveWing(w, { e: es[i], t, blockFt, fw: true, others });
       poses[i].push({ ...r.pose, power: r.power });
       return r.ws;
