@@ -111,6 +111,9 @@ export const LIVE = Object.freeze({
   // rates and roll acceleration build ups built in"; his card 10:08Z "Ease the aim"). Estimates.
   fwAimFtps: 100,
   fwAimAccelFtps2: 60,
+  // ... and his aim is kept at least 1.5 s of flight ahead of him, so a lag that brings it back onto him never flips his
+  // roll (the 4-ship's #3 rolled through inverted chasing an aim 80 ft away; estimate, measured 12 Oct 2026).
+  fwAheadSec: 1.5,
   fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
@@ -403,7 +406,7 @@ export function stepLiveWing(ws, ctx) {
     const up = unit3(cross3(nose, left));
     const want = sub3(aim, L);
     const wantRel = { f: dot3(want, nose), l: dot3(want, left), u: dot3(want, up) };
-    const was = ws.aimRel ?? wantRel;
+    const was = ws.aimRel && !inBubble ? ws.aimRel : wantRel; // inside the bubble, no easing: he goes where he must
     const v0 = ws.aimVel ?? { f: 0, l: 0, u: 0 };
     const gap = { f: wantRel.f - was.f, l: wantRel.l - was.l, u: wantRel.u - was.u };
     const dist = Math.hypot(gap.f, gap.l, gap.u);
@@ -418,7 +421,11 @@ export function stepLiveWing(ws, ctx) {
     if (stepFt >= dist) aimVel = { f: 0, l: 0, u: 0 };
     aim = add3(L, add3(add3(scale3(nose, aimRel.f), scale3(left, aimRel.l)), scale3(up, aimRel.u)));
   }
-  const toAim = sub3(aim, pw);
+  let toAim = sub3(aim, pw);
+  if (fw) {
+    const shortFt = st.V * LIVE.fwAheadSec - dot3(toAim, st.nose);
+    if (shortFt > 0) toAim = add3(toAim, scale3(st.nose, shortFt));
+  }
 
   // ---- the lift: core's pursuit lift at the L1 gain (2V over the distance to the aim), then the caps ----
   const vHat = st.nose;

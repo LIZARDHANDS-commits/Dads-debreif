@@ -84,6 +84,8 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
   while (t - t0 < FW_LIVE.maxSec) {
     // Each wingman reads the one he flies off as it is at the start of the step (as fluid.js), then all fly the step.
     const es = ws.map((w, i) => entryOf(i === 0 ? L : ws[i - 1].st, blockFt, key, w.side));
+    // The formation's turn is Lead's: each wingman senses the turn from Lead, not from the swings of the one ahead.
+    for (let i = 1; i < es.length; i++) es[i] = { ...es[i], accPerp: es[0].accPerp, cue: es[0].cue, ctl: es[0].ctl };
     flyStep(L, plan, t);
     t += dt;
     ws = ws.map((w, i) => {
