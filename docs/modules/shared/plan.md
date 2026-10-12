@@ -62,6 +62,21 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
   - [x] 6. Ejection seats get their canopy-breaker spikes.
   - [x] 7. Pilots: helmets with visors and masks, and shoulders and bodies, like your picture.
 
+## Step 3b. CT-156 model: refine, then High and Performance versions (Patrick, 12 Oct 2026)
+
+Patrick approved this step on 12 Oct 2026 and added item 3, "set up Blender". The graphics session owns it (one writer: `src/ui-kit/ct156-*.js`, `tools/blender/` and `public/models/ct156-*`).
+
+- [x] 1. **Measure.** Triangles, sizes and draw calls of the three model files, with glTF-Transform and the Khronos validator (done 12 Oct: cockpit 143,000 triangles and 5.2 MB, of which the canopy bow is 31,000 and the power lever 20,000; outside 19,800 and 0.6 MB; gear 5,600 and 0.2 MB; no errors or warnings).
+- [ ] 2. **Blender 5.2 check.** The scripts were run on Blender 4.2 LTS; this PC has 5.2 LTS. Rebuild the outside, gear and cockpit on 5.2, render the same views as the 4.2 files, and fix the scripts until they match.
+- [ ] 3. **Set up Blender for our work** (Patrick's addition): baking on the graphics card if it gives the same picture, the official Blender connector checked end to end, and the settings written into `tools/blender/README.md` so every session, Dad's included, builds the same files.
+- [ ] 4. **Fix list from Patrick.** Patrick says what is not right on the outside and inside, with photos or marked-up renders; each item becomes a numbered row with its source. Already open: sill height (waits on his tape measurements), the rear seat after V2.403, paint grain, the pilots in Blender, and the dark left wall (lighting, waits on its own yes).
+- [ ] 5. **Refine.** Work through the fix list, rebuild in Blender, and show before and after from the same views.
+- [ ] 6. **One detail-level setting in each build script.** High and Performance are built from the same code pieces and carry the same fingerprints, so their shape never differs, only the polish. Performance has fewer triangles, smaller bakes and no rivet or dirt maps. Budgets (estimates): Performance cockpit under 40,000 triangles and 1.5 MB, outside under 10,000 triangles. The High cockpit loses triangles nobody can see.
+- [ ] 7. **Compress at build time** with glTF-Transform (Meshopt); the app reads it with the decoder that ships with three.js, so no new library.
+- [ ] 8. **The Graphics switch picks the files:** Performance loads the Performance files and High the High files, in Formation and Traffic.
+- [ ] 9. **Check every model file with the Khronos validator** as part of each rebuild.
+- [ ] 10. **Patrick sees it in the app** from the default start, High and Performance, outside and every seat. At most one test: both versions carry the code's fingerprints. A decision row (SH-60, High and Performance model files from the same pieces) follows once he has seen item 6 working, worded with him first.
+
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 
 - [ ] Sign-off: anyone runs the checklist in `testing.md` for the shared parts and sends Patrick the result; the next step starts only after his yes (TQ-2) (`pf/reset/4-decisions/answers.md:13`).
