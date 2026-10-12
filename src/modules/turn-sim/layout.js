@@ -33,6 +33,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   ...TAG_DEFAULTS,
   trackSec: 0, // Settings › Track length: how long the tracks stay, in seconds; 0 is the whole flight (Patrick, 5 Oct)
   autoFit: true, // Auto zoom: the camera keeps every aircraft in the picture (spec section 10.3); a drag pauses it, Fit brings it back
+  camBar: true, // the 3D camera bar shown; its small – folds it to a "Camera ▸" tab (Patrick, 12 Oct 2026)
   realSize: false, // Real aircraft size (Patrick, 5 Oct): ticked, each aircraft is drawn at a T-6's real length in 2D and 3D
   planeScale: 1, // unticked: the scale on the usual easy-to-see size (×0.5 to ×4)
   camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
@@ -480,7 +481,28 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const canvas = h('canvas', { class: 'ts-canvas' });
   const canvas3d = h('canvas', { class: 'ts-canvas ts-canvas3d', hidden: true }); // the 3D view's own canvas: a WebGL context can't share the 2D one
   const tags3d = h('canvas', { class: 'ts-canvas ts-tags3d', hidden: true, 'aria-hidden': 'true' }); // the info tags over the 3D picture
-  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d, camBar3d);
+  // Each window minimises on its own (Patrick, 12 Oct 2026: "little buttons on the top right of each window that minimize
+  // each independently"): a small – on the window's top right folds it to a small tab, and the tab brings it back. The HUD's
+  // is the Data tag menu's HUD switch (tagHud); the camera bar's is camBar. Both remembered with the rest of the layout.
+  const miniButton = (cls, label, onclick, text) => {
+    const b = h('button', { type: 'button', class: `ts-mini ${cls}`, 'aria-label': label, title: label, onclick }, text);
+    b.addEventListener('pointerdown', (e) => e.stopPropagation?.());
+    return b;
+  };
+  const camBarMin = miniButton('ts-mini-close', 'Minimise the camera buttons', () => layout.update({ camBar: false }), '–');
+  camBar3d.prepend(camBarMin);
+  const camBarTab = miniButton('ts-mini-tab ts-cam-tab', 'Show the camera buttons', () => layout.update({ camBar: true }), 'Camera ▸');
+  const hudMin = miniButton('ts-mini-close ts-hud-min', 'Minimise the HUD', () => layout.update({ tagHud: false }), '–');
+  const hudTab = miniButton('ts-mini-tab ts-hud-tab', 'Show the HUD', () => layout.update({ tagHud: true }), 'HUD ▸');
+  let viewNow = '2d';
+  const camBarShown = (values) => values.camBar !== false;
+  function syncMinis(values) {
+    camBar3d.hidden = viewNow !== '3d' || !camBarShown(values);
+    camBarTab.hidden = viewNow !== '3d' || camBarShown(values);
+    hudMin.hidden = !values.tagHud;
+    hudTab.hidden = Boolean(values.tagHud);
+  }
+  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d, camBar3d, camBarTab, hudMin, hudTab);
   const note3d = h('span', { class: 'ts-note', role: 'status', hidden: true });
   // Real aircraft size, and the scale slider when it is off (Patrick, 5 Oct).
   const scaleSlider = lc.slider('planeScale', { label: 'Scale', min: 0.5, max: 4, step: 0.25, format: (v) => `×${v}` });
@@ -536,6 +558,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     formationPanel.setCollapsed(!values.formationColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
     syncCamBar(values);
+    syncMinis(values);
   }
   applyLayout(layout.get());
 
@@ -552,7 +575,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       canvas.hidden = view === '3d';
       canvas3d.hidden = view !== '3d';
       tags3d.hidden = view !== '3d';
-      camBar3d.hidden = view !== '3d';
+      viewNow = view;
+      syncMinis(layout.get());
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
       lc.setDisabled('camLook', view !== '3d'); // Follow and Padlock turn the 3D view; the 2D map stays north up
       lc.setDisabled('coneShape', view !== '3d'); // the 2D map always draws the flat band
