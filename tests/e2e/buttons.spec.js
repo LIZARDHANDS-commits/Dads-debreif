@@ -66,6 +66,9 @@ for (const route of CHECKED_ROUTES) {
       const target = page.locator(`[data-test-control="${again.index}"]`);
       await expect(target).toHaveText(control.text);
       await target.click();
+      // Some controls answer through a browser event the page gets at its next frame, not during the click: the SOF's
+      // Full screen changes its words on fullscreenchange. Two frames let that land before the page is read.
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const after = await page.evaluate(() => ({ hash: location.hash, changes: window.__changes, dialog: Boolean(document.querySelector('dialog[open]')) }));
       // A link to the page you're already on counts: it's where it says it goes.
       // So does the choice already picked in a row of choices (aria-pressed), like a radio button.

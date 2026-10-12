@@ -9,6 +9,7 @@
 
 import { isaTempK, densityRatio } from '../../core/atmosphere.js';
 import { iasToTasKt as coreIasToTasKt, tasToIasKt as coreTasToIasKt } from '../../core/t6-performance.js';
+import { FT_PER_NM } from '../../core/units.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, FLARE_FROM_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
 
 /** The standard day's temperature at Moose Jaw's field elevation, °C: about 11°C. */
@@ -62,7 +63,7 @@ export function trueAltFt(altFt) {
 }
 
 /** Without Pattern 1's route, the window is ¾ NM out from the 29L threshold (SMM 4.7 para 12). */
-const WINDOW_FALLBACK_OUT_FT = 0.75 * 6076;
+const WINDOW_FALLBACK_OUT_FT = 0.75 * FT_PER_NM;
 
 /**
  * The 29L approach: { ux, uy } the unit vector out from the threshold (away from the departure end), windowOutFt how far
@@ -90,8 +91,10 @@ export function interceptOutFt(slope, levelAltFt) {
 /**
  * The straight-in starts down at the 3° intercept (Patrick's card "Follow the mark", 5 Oct 07:29Z; TR-80): moves the
  * SI Rejoin's (ENT2) "Glide path" point along the centreline to today's intercept, so it flies a true 3° to the runway.
- * It stays at least 1,000 ft outside the window and 500 ft inside the point before it (estimates, to keep the route's
- * order on an extreme day). Its last point moves from the threshold to the touchdown point past the numbers, after a flare. `routes` is the
+ * There is no limit on where it goes (Patrick, 12 Oct 2026: "there is no limit"): the aircraft fly indicated altitude,
+ * set for pressure, not temperature, so a hotter day puts them higher and the 3° point further back, as a training aid.
+ * Over the setup's temperature range (-50 to 50°C) it runs from about 11,900 to 17,300 ft out, between the window
+ * (4,350 ft) and the Final point. Its last point moves from the threshold to the touchdown point past the numbers, after a flare. `routes` is the
  * setup's routes, changed in place.
  */
 export function placeStraightInDescent(routes) {
@@ -100,9 +103,8 @@ export function placeStraightInDescent(routes) {
   if (i < 1) return;
   const pat1 = routes.find((r) => r?.id === 'PAT1');
   const { ux, uy, windowOutFt, slope } = approachLine(pat1);
-  const th = THRESHOLD_29L, p = ent2.points[i], before = ent2.points[i - 1];
-  const beforeOutFt = (before.x - th.x) * ux + (before.y - th.y) * uy;
-  const outFt = Math.max(windowOutFt + 1000, Math.min(beforeOutFt - 500, interceptOutFt(slope, p.alt)));
+  const th = THRESHOLD_29L, p = ent2.points[i];
+  const outFt = interceptOutFt(slope, p.alt);
   if (!Number.isFinite(outFt)) return;
   const x = Math.round((th.x + ux * outFt) * 10) / 10, y = Math.round((th.y + uy * outFt) * 10) / 10;
   if (p.x !== x) p.x = x;
@@ -115,7 +117,7 @@ export function placeStraightInDescent(routes) {
 
   // Window waypoint: matches the final turn rollout window (PAT1 point 12)
   const patWin = pat1?.points?.[12];
-  const winAlt = patWin?.alt ?? 2119;
+  const winAlt = patWin?.alt ?? 2131;
   const winX = patWin?.x ?? Math.round((th.x + ux * windowOutFt) * 10) / 10;
   const winY = patWin?.y ?? Math.round((th.y + uy * windowOutFt) * 10) / 10;
   let winIdx = ent2.points.findIndex((pt) => pt?.label === 'Window');

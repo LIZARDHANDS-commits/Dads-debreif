@@ -155,19 +155,39 @@ export function rollToward(bank, target, maxDeltaRad, prefer = 1) {
  * One step of a smooth roll toward targetDeg: the roll rate builds up and dies
  * away at most maxAccelDps2, never passes maxRateDps, and slows in time to stop
  * on the target, so the wings ease into and out of a bank instead of snapping.
- * Degrees and degrees per second; returns { bankDeg, rollRateDps } for the next
- * step. With no time step nothing moves.
+ * With an onset (onsetSec, seconds) the roll's acceleration is built too: it
+ * changes by at most maxAccelDps2 per onsetSec, so full acceleration takes one
+ * onset to build and one to die away (the stick pushed, not slammed); accelDps2
+ * is the acceleration it already has. Onset 0 is the law without it, exactly.
+ * Degrees, degrees per second and per second²; returns { bankDeg, rollRateDps,
+ * rollAccelDps2 } for the next step. With no time step nothing moves.
  */
-export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxAccelDps2 }) {
-  if (!(dt > 0)) return { bankDeg, rollRateDps };
+export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxAccelDps2, onsetSec = 0, accelDps2 = 0 }) {
+  const onset = onsetSec > 0 ? onsetSec : 0;
+  if (!(dt > 0)) return { bankDeg, rollRateDps, rollAccelDps2: onset > 0 ? accelDps2 : 0 };
   const err = targetDeg - bankDeg;
-  // The fastest rate that can still stop on the target at maxAccelDps2.
-  const half = (maxAccelDps2 * dt) / 2; // discrete-step correction, so the roll stops on the target, not past it
+  // The fastest rate that can still stop on the target at maxAccelDps2, with the time the acceleration takes to build
+  // added to the stopping margin.
+  const half = (maxAccelDps2 * (dt + onset)) / 2; // discrete-step correction, so the roll stops on the target, not past it
   const stopRate = Math.max(0, Math.sqrt(2 * maxAccelDps2 * Math.abs(err) + half * half) - half);
   const wanted = Math.sign(err) * Math.min(maxRateDps, stopRate, Math.abs(err) / dt);
-  const step = maxAccelDps2 * dt;
-  const rate = rollRateDps + Math.max(-step, Math.min(step, wanted - rollRateDps));
-  return { bankDeg: bankDeg + rate * dt, rollRateDps: rate };
+  if (!(onset > 0)) {
+    const step = maxAccelDps2 * dt;
+    const rate = rollRateDps + Math.max(-step, Math.min(step, wanted - rollRateDps));
+    return { bankDeg: bankDeg + rate * dt, rollRateDps: rate, rollAccelDps2: (rate - rollRateDps) / dt };
+  }
+  // The acceleration that reaches the rate wanted over half an onset, never past maxAccelDps2 or the rate limit, moved
+  // toward at most maxAccelDps2 / onset per second.
+  let accWanted = Math.max(-maxAccelDps2, Math.min(maxAccelDps2, ((wanted - rollRateDps) * 2) / onset));
+  accWanted = Math.max((-maxRateDps - rollRateDps) / dt, Math.min((maxRateDps - rollRateDps) / dt, accWanted));
+  const build = (maxAccelDps2 / onset) * dt;
+  const accel = accelDps2 + Math.max(-build, Math.min(build, accWanted - accelDps2));
+  const rate = rollRateDps + accel * dt;
+  const bank = bankDeg + rate * dt;
+  // The built roll closes on the target without end: within a thousandth of a degree, with the rate and the acceleration
+  // all but gone, the wings are on it.
+  if (Math.abs(targetDeg - bank) < 1e-3 && Math.abs(rate) < 1e-2 && Math.abs(accel) < 1) return { bankDeg: targetDeg, rollRateDps: 0, rollAccelDps2: 0 };
+  return { bankDeg: bank, rollRateDps: rate, rollAccelDps2: accel };
 }
 
 /** easeRoll under a general name: it limits any value's rate and the rate's change (a G onset, a roll), not only bank. */

@@ -317,7 +317,7 @@ export function createFormation(options = {}) {
       return false;
     }
     const [lead, wing] = state.aircraft;
-    const session = createFluidSession(lead, wing, state.tSec, { blockFt: opts.blockFt, rangeFt: opts.fluidRangeFt, bank: opts.fluidBank, wing: opts.fluidWing });
+    const session = createFluidSession(lead, wing, state.tSec, { blockFt: opts.blockFt, rangeFt: opts.fluidRangeFt, bank: opts.fluidBank });
     state.fluid = { session, readouts: null, prev: null };
     state.plans = Object.fromEntries(state.aircraft.map((a) => [a.id, { segments: [] }]));
     state.planned = session.planned();
@@ -620,13 +620,12 @@ export function createFormation(options = {}) {
       return r;
     },
     /**
-     * Fluid manoeuvring settings, taken at once while it runs: { rangeFt (500-1,000), bank ('gentle' | 'medium' | 'steep') };
-     * wing ('planned' | 'live', TS-194) takes effect at the next start of fluid manoeuvring.
+     * Fluid manoeuvring settings, taken at once while it runs: { rangeFt (500-1,000), bank ('gentle' | 'medium' | 'steep') }.
+     * (`wing`, the Planned or Live choice, went with the planned wingman, TS-199: #2 is the live wingman, TS-194.)
      */
     setFluid(next = {}) {
       if (next.rangeFt !== undefined) opts.fluidRangeFt = next.rangeFt;
       if (next.bank !== undefined) opts.fluidBank = next.bank;
-      if (next.wing === 'planned' || next.wing === 'live') opts.fluidWing = next.wing;
       if (state.fluid) {
         if (next.rangeFt !== undefined) state.fluid.session.setRange(next.rangeFt);
         if (next.bank !== undefined) state.fluid.session.setBank(next.bank);

@@ -27,7 +27,7 @@
 // run did. So going back to before a spawn or a removal shows the run as it was, and going forward again flies it
 // in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0,
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
-import { ktToFtps, ftpsToKt } from '../../core/units.js';
+import { ktToFtps, ftpsToKt, FT_PER_NM } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
 import { tickAircraft } from './tick-aircraft.js';
@@ -55,8 +55,11 @@ import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
 
-/** The aircraft's named groups of state (path-follower.js groupOf), copied into each snapshot. */
-const GROUPS = Object.freeze(['random', 'spacing', 'landing', 'pfl']);
+/**
+ * Per-aircraft objects a step changes in place, copied into each snapshot so a rewind never shares one with the live run:
+ * the named groups of state (path-follower.js groupOf), the join's blend and the side-step (path-follower.js, `t` advances).
+ */
+const GROUPS = Object.freeze(['random', 'spacing', 'landing', 'pfl', 'joinOffset', 'sideStep']);
 
 /** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
 export const TYPE_COLORS = Object.freeze({
@@ -270,7 +273,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x ?? 0, a.y ?? 0, rwy.th, ux, uy);
     const rwyTrack = (Math.atan2(ux, uy) * 180 / Math.PI + 360) % 360;
     const off = Math.abs((((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack) % 360 + 540) % 360 - 180);
-    return linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 60 }) && along > -3 * 6076 && along < rwy.len;
+    return linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 60 }) && along > -3 * FT_PER_NM && along < rwy.len;
   }
 
   /**
@@ -578,7 +581,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const rwyTrack = compassDegFromVector(ux, uy);
     const windowFt = Math.hypot(pat.points[12].x - th.x, pat.points[12].y - th.y);
     const limitFt = extendLimitFt(pat.points, perch);
-    const reachFt = windowFt + EVADE.finalSpacingFt + (Number.isFinite(limitFt) ? Math.max(0, limitFt) : 3 * 6076);
+    const reachFt = windowFt + EVADE.finalSpacingFt + (Number.isFinite(limitFt) ? Math.max(0, limitFt) : 3 * FT_PER_NM);
     const wind = windNow();
     const live = aircraft.filter((a) => a.active && !a.landed && t >= a.startsAt && Number.isFinite(a.x) && Number.isFinite(a.y));
     const alongOf = (p) => -runwayFrameFt(p.x, p.y, th, ux, uy).alongFt;
@@ -876,10 +879,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const target = routeById(route.attachTo);
     if (target && target.kind === 'pattern') {
       const mergeIndex = Math.max(0, Math.min(+route.mergeIndex || 0, target.points.length - 1));
-      const curPos = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y };
+      const curPos = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y, alt: a.alt ?? whereIs(a, route).alt };
       a.routeId = target.id;
       // The pattern's path passes close to, not exactly through, the entry's end: join it smoothly (spec item 13a).
-      startJoin(a, target, closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt), windNow(), routeOptions());
+      // Nearest by height too: at the threshold the initial passes overhead within a foot of the end of final.
+      startJoin(a, target, closestDistFt(target, curPos, routeOptions(), { byHeight: true }) + Math.max(0, overshootFt), windNow(), routeOptions());
       const nextP = whereIs(a, target);
       a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
       // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
@@ -1111,7 +1115,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── Snapshots ──────────────────────────────────────────────────────────────
 
-  /** Fresh copies of an aircraft's named groups (path-follower.js groupOf), so a snapshot and the live run never share one. */
+  /** Fresh copies of an aircraft's in-place objects (GROUPS), so a snapshot and the live run never share one. */
   const copyGroups = (rec) => Object.fromEntries(GROUPS.filter((g) => rec[g]).map((g) => [g, { ...rec[g] }]));
 
   /** Everything a later step depends on. The trail is kept flat (x, y, x, y, ...): it is up to 240 points an aircraft. */

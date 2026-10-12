@@ -4,6 +4,7 @@
 // final turn, within the caution height (500 ft, TR-Q11). Nothing here changes how anything flies.
 import { createSim } from './sim.js';
 import { pointDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { FT_PER_NM } from '../../core/units.js';
 
 /** How often the tracks are sampled, s. */
 const SAMPLE_SEC = 0.5;
@@ -50,7 +51,7 @@ const CONFLICT_AHEAD_SEC = 180;
 /** How long the new aircraft's route is flown once, s: a full Pattern 1 circuit and the look ahead (an estimate). */
 const CONFLICT_LAP_SEC = 480;
 /** The new aircraft never appears closer than this to anyone, ft (1 NM, as Random's spacing)... */
-const CONFLICT_SPAWN_GAP_FT = 6076;
+const CONFLICT_SPAWN_GAP_FT = FT_PER_NM;
 /**
  * ...counting only aircraft within this height of it, ft (an estimate). Without it a PFL gliding in 5,000 ft overhead
  * blocked every start on final, and Spawn a conflict found nothing (Patrick, 4 Oct).

@@ -428,7 +428,6 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const fourGrid = h('div', { hidden: true },
     group('Tactical', fourAll.filter((b) => TACTICAL.has(b.key)).map(makeFourButton)),
     group('Close formation', fourAll.filter((b) => !TACTICAL.has(b.key)).map(makeFourButton)));
-  if (fluidUi?.modeElement) buttons.get('fluid')?.after(fluidUi.modeElement); // how #2 is flown, next to Fluid (fluid-panel.js)
   const element = h('section', { class: 'ts-change', 'aria-labelledby': 'ts-change-title' },
     // The FORMATION bar, the two groups, then Side, just above the manoeuvres (Patrick, 5 Oct).
     h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Formation')),
@@ -577,10 +576,6 @@ export function createChangeUi({ onChange, fluidUi = null }) {
           button.disabled = !ok;
           button.setAttribute('aria-current', String(running));
           button.title = running ? 'You are here' : ok ? '' : where.manoeuvring ? 'Wings level first; the formation buttons come back once #2 has settled' : 'Wait for the change to finish';
-          if (fluidUi?.modeElement) {
-            fluidUi.modeElement.hidden = button.hidden;
-            fluidUi.modeElement.disabled = running; // taken at the next start, so it waits while fluid manoeuvring runs
-          }
           continue;
         }
         if (where.key === 'fluid' || where.manoeuvring) {

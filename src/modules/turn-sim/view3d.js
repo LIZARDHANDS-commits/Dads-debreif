@@ -13,7 +13,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
-import { drawTags, drawLeadArrows, T6_LENGTH_FT, trailSince, CLOCK_LINE_RED } from './view.js';
+import { drawTags, drawLeadArrows, LEAD_ARROW_YELLOW, T6_LENGTH_FT, trailSince, CLOCK_LINE_RED } from './view.js';
 import { FW_TURN, TURNING_REJOIN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 import { drawHud } from '../../ui-kit/hud.js';
@@ -856,8 +856,30 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const inside = (povNow === 'cockpit' || povNow === 'padlock') ? Number(povKey.split('|')[1]) : null;
     const seen = inside === null ? state : { ...state, aircraft: state.aircraft.filter((a) => a.id !== inside) };
     if (links && inside === null) drawLeadArrows(ctx, { screenOf, size: box }, state, links);
+    // From inside, the arrow's range instead as a yellow number top right, with #2's LAG, PURE or LEAD under it in fluid
+    // manoeuvring (Patrick 12 Oct 2026 04:01Z and 04:04Z): the seat's own link, or #2's from Lead's seat.
+    if (links && inside !== null) drawRangeCorner(ctx, box, links.find((l) => l.id === inside) ?? links[0]);
     if (tags) drawTags(ctx, { screenOf, noseOf, size: box }, seen, tags);
     drawHud(ctx, box, hud); // the HUD, bottom left (Patrick, 6 Oct)
+  }
+
+  /** The range to Lead (and the pursuit word) in yellow, top right of the picture, for the cockpit and padlock views. */
+  function drawRangeCorner(ctx, box, link) {
+    if (!link || !Number.isFinite(link.rangeFt)) return;
+    const x = box.width - 14;
+    ctx.save();
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 3;
+    ctx.fillStyle = LEAD_ARROW_YELLOW;
+    ctx.font = 'bold 24px ui-monospace, Consolas, monospace';
+    ctx.fillText(`${Math.round(link.rangeFt).toLocaleString('en-CA')} ft`, x, 12);
+    if (link.word) {
+      ctx.font = 'bold 15px ui-monospace, Consolas, monospace';
+      ctx.fillText(link.word, x, 42);
+    }
+    ctx.restore();
   }
 
   function requestDraw() {

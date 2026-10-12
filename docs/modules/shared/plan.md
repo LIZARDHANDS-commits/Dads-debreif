@@ -53,6 +53,14 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
   - [x] 1. Measure the hinge lines and surface outlines off the reference views and the panel lines already drawn. Working copies stay private; only the numbers go in the repo.
   - [x] 2. Cut the surfaces from the wing and tail in the code model and the Blender file, hinge them, add the split flaps and `setControls`. Render neutral, full deflections and both flap settings beside your photos, and merge with a version bump. One light check: at full deflection every surface stays on its hinge line and nothing passes through the wing or tail. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`, `public/models/ct156-exterior.glb`, `tests/unit/ui-kit/ct156-surfaces.test.js`).
   - [ ] 3. Hook-ups go to each module's own thread: Formation and Turn Sim from the stick, Traffic's flaps by phase of the pattern (through the coordinator, after the refactor), and Debrief inferred from the track.
+- Cockpit and outside polish (Patrick, 12 Oct 2026 03:45-03:49Z), built in the same pull request as this line:
+  - [x] 1. Glareshield top: the hood meets the windscreen frame and the canopy sides with no gap to the outside, as in your cockpit photo.
+  - [x] 2. Exhaust stacks: thick walls and a dark sooty inside, so from the seat they read as pipes.
+  - [x] 3. Underside: the wheel wells show structure instead of flat black, and the belly and gear are checked against your photo of 123.
+  - [x] 4. Canopy bows flush with the outside of the glass.
+  - [x] 5. From outside, the glareshield shows through the canopy.
+  - [x] 6. Ejection seats get their canopy-breaker spikes.
+  - [x] 7. Pilots: helmets with visors and masks, and shoulders and bodies, like your picture.
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 

@@ -5,6 +5,7 @@
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC } from './flight.js';
+import { T6A_ROLL } from '../../../core/t6-performance.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { TURNING_REJOIN, KIAS_OUTSIDE_LAB } from './tuning.js';
 import { fixedLine, FW_LIMITS, FW_BAND } from './slots.js';
@@ -68,7 +69,11 @@ export function rideAim(ph, L, Lprev, ref, W) {
   // He closes on the line no faster than he can stop on it: across it at most √(2·a·|cross|) (a = rideStopFtps2). Until he
   // is established, the rest of his speed goes up or down the line, whichever brings him to the capture point (a hot start
   // falls back down it, as an HTRJ gets colder); once established, up it (|vf + c·n + a·m| = V, solved for a).
-  const cMax = Math.sqrt(2 * (ph.stopFtps2 ?? TR.rideStopFtps2) * Math.abs(cross));
+  // Into the fighting wing cone his roll builds its acceleration first (TS-196), so he starts the stop that much sooner: the
+  // room to stop in is less what he crosses in the roll's onset (Patrick 12 Oct 2026 04:45Z, "roll earlier into the cone").
+  // Without it the rejoin from line abreast ended about 790 ft and 28° off the tail, on the cone's edge (V2.376).
+  const onsetFt = ph.isFw || ph.toFw ? Math.abs(drift) * T6A_ROLL.onsetSec : 0;
+  const cMax = Math.sqrt(2 * (ph.stopFtps2 ?? TR.rideStopFtps2) * Math.max(0, Math.abs(cross) - onsetFt));
   const cNow = (dvx - vfx) * nW.x + (dvy - vfy) * nW.y;
   if (Math.abs(cNow) > cMax || !st.established) {
     let c = st.established ? Math.sign(cNow) * Math.min(Math.abs(cNow), cMax) : -Math.sign(cross) * Math.min(cMax, Math.abs(cross) / (ph.settleSec ?? TR.rideSettleSec));

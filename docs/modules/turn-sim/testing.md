@@ -142,7 +142,7 @@ Each feature below names its test file, what the file checks and where each expe
 
 Changed to keep their intent when the turns came to the close formations: `transitions.test.js` presses the Shackle in route (still refused) instead of Delayed 90 (now flown), and `four-ship-changes.test.js` presses G-warm in finger (still refused) instead of the Hook (now flown).
 
-**Fluid manoeuvring** (`fluid.test.js` and `tags.test.js`, TS-57, TS-59, TS-60; `spec.md` section 9):
+**Fluid manoeuvring** (`fluid.test.js` and `tags.test.js`, TS-57, TS-59, TS-60, TS-194, TS-199; `spec.md` section 9). The planned wingman's checks (back in the cone, hold 15°, climb and descend, the loop, side swap, wingovers, barrel roll, sequence, long distance: nine tests, red since V2.359) were retired with him on 12 Oct 2026 (TS-199, Patrick's card 04:57Z); the live wingman's checks are the rows marked Live:
 
 | What | Check | Source of the expected value |
 |---|---|---|
@@ -158,6 +158,10 @@ Changed to keep their intent when the turns came to the close formations: `trans
 | Climb and descend (V2.18, TS-59) | Lead ends level more than 1,000 ft higher, then lower; #2 in the cone as above; both aircraft keep positive G | Patrick's list, design 5.1; SMM 16.16 para 39c; 2 CFFTS Orders B2 ch 8 para 1a |
 | The loop (V2.18, TS-59) | Lead goes inverted and more than 1,000 ft up, and ends wings level on his entry heading (±5°); entry and exit 230 KIAS (±10 kt); slowest 100-120 KIAS (±10 kt) over the top; #2 back in the cone after it (V2.19) | SMM 7.5 paras 10-13, Fig 7.2, Table 7.1; EFIG p.171; SMM 16.17 para 42 |
 | Side swap (V2.19, TS-60) | Through a 70/3 turn and its reversal, if #2 changes sides he crosses within the 30° half cone behind Lead, never in front; he ends 15° off the tail (±5°) on either side | Patrick 19:21Z, 22:28Z; SMM 16.18 para 50 (70/3) |
+| Live: steady level turn (TS-194) | On Lead's circle inside the cone, 500-750 ft, nothing jumps, never inside 400 ft; Terminate ends in the fighting wing band | Patrick's card 11 Oct 2026 23:06Z; SMM 16.17 paras 42, 44c |
+| Live: tight entry (TS-198) | From 500 ft at 55° off the tail the entry never comes inside 400 ft and ends in position | Patrick 12 Oct 2026 04:14Z, 01:53Z |
+| Live: barrel roll (TS-194) | Never STRETCHED through the roll, never inside 400 ft; the side he comes out on is the side Terminate takes him to fighting wing on | Patrick 12 Oct 2026 03:40Z |
+| Live: wingovers, his own swaps (TS-199) | Through both wingovers never ahead of Lead's 3/9 line and never inside 400 ft; Terminate ends in the band | TS-60, Patrick 5 Oct 2026 19:21Z |
 | Wingovers (V2.19, TS-60) | Flight path about 45° up and 45° down (±5°), bank up to 120° (+5°) and over 90°, Lead's G about 3 (+0.5), the first turns 180° (-5°) from the entry, entry 230 KIAS (±10 kt), back on the entry heading (±5°) wings level | SMM 16.17 para 47 |
 | Barrel roll (V2.19, TS-60) | Flight path about 45° up and down (±5°), pitch attitude under 60°, level (±5°) and inverted (bank within 5° of 180°) at 90° off the line (±5°), entry and exit 230 KIAS (±10 kt), back on the line (±5°) wings level | SMM 14.8 para 19, Fig 14.1, Table 14.1; AFM7 brief p.17; Patrick 19:20Z rows 5-6 |
 | Standard sequence (V2.19, TS-60) | One press flies a level turn, a loop, the wingovers and a barrel roll, in that order, then straight and level | SMM 16.17 para 42 |
