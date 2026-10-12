@@ -10,6 +10,11 @@ Read this first, then `tools/blender/README.md` (how to rebuild the model files)
 
 ## 1. How the model is made
 
+**Changed by ALL-38 (12 Oct 2026):** Blender now owns the shape, in master files in the private repo `3d-work`, and
+the app takes finished, checked files. This section describes the model as built up to V2.418, from the code tables;
+the move is plan Step 3b in `docs/modules/shared/plan.md`, and the next handover is
+`Pat's claude work/graphics-handover-12oct-night.md`.
+
 The code is the one source of the aircraft's shape. Blender never invents a shape: it takes the code's own pieces, rounds them, bakes their soft shadows and panel lines, and writes model files the app swaps in.
 
 ```mermaid

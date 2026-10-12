@@ -1,5 +1,9 @@
 # Blender CT-156
 
+**Moving (ALL-38, 12 Oct 2026):** the CT-156's shape now belongs to Blender master files in the private repo
+`3d-work`. These scripts build the model from the code tables as today and seed those master files; they stay until
+the code-drawn CT-156 is retired under ALL-38 (5). See `docs/modules/shared/plan.md` Step 3b.
+
 The CT-156's outside (ALL-33), landing gear (ALL-34) and cockpit (ALL-32) are model files built here by script from the code model's own
 shapes, so the code's tables stay the one source for the aircraft's shape and size. Blender adds what code can't easily:
 smooth shading with sharp edges where they belong, baked soft shadows, and the panel lines and control-surface gaps.

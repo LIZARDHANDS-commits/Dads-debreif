@@ -6,16 +6,18 @@ For whoever picks up the graphics session next (folder `Dads-debreif-graphics`, 
 
 ## Where we are
 
-- **Plan:** Shared plan Step 3b, "CT-156 model: refine, then High and Performance versions", approved by Patrick on
-  12 Oct 2026 with his addition of item 3, "set up Blender". Items 1 and 2 are done, item 3 is done except the
-  connector check.
-- **Branch:** `graphics`, two commits ahead of main (`831d796e`), not pushed:
-  - `1e9f3a9e` Shared plan: CT-156 model refine, then High and Performance versions
-  - `eb1be8b2` Shared 3D: CT-156 builds on Blender 5.2 match 4.2, bake on the graphics card
-- **App:** nothing in the app changed. The model files in `public/models/` are as on main.
+- **Decision ALL-38 (Patrick, 12 Oct 2026):** Blender owns the CT-156's shape. Master Blender files live in the
+  private repo `LIZARDHANDS-commits/3d-work` (on this PC: `Documentsntigravityd-work`); the app takes finished,
+  checked files and keeps in code what moves in flight. The code-drawn CT-156 stays until the Blender files are seen
+  working in every module. ALL-32 to ALL-35, the shared spec and Step 3b were changed to match.
+- **Plan:** Shared plan Step 3b, "CT-156: Blender owns the shape, then refine, then High and Performance". Done: 1, 2,
+  3.1, 3.2; item 3 except the connector check. **Next: 3.3, the master Blender files.**
+- **Branch:** `graphics`, with a pull request to main for the plan, the Blender 5.2 fixes, the rule-book line on
+  third-party skills and ALL-38.
+- **App:** nothing on screen changed. The model files in `public/models/` are as on main.
 - **Parallel session:** the formation-physics session (folder `Dads-debreif-physics`) owns the flight code and
-  `src/modules/turn-sim/live/`. This session owns `src/ui-kit/ct156-*.js`, `tools/blender/` and
-  `public/models/ct156-*`.
+  `src/modules/turn-sim/live/`. This session owns `src/ui-kit/ct156-*.js`, `tools/blender/`,
+  `public/models/ct156-*` and the `3d-work` repo.
 
 ## The plan (Step 3b)
 
@@ -24,13 +26,29 @@ For whoever picks up the graphics session next (folder `Dads-debreif-graphics`, 
 | 1 | Measure the three model files | Done |
 | 2 | Blender 5.2 check | Done |
 | 3 | Set up Blender for our work | Done except the connector check |
-| 4 | Fix list from Patrick (outside and inside) | Next; waiting on how he wants to give it |
+| 3.1 | Decision ALL-38 written, related rows and spec changed | Done |
+| 3.2 | Private repo `3d-work` | Done |
+| 3.3 | Master Blender files with named points, sources table; nothing changes on screen | **Next** |
+| 3.4 | Delivery command in `3d-work`; `npm run models:import` in the app | |
+| 3.5 | App reads named points, one module at a time | |
+| 3.6 | Our own skill `ct156-model-pipeline` in `3d-work` (draft in `3d-work/scratch/`) | |
+| 4 | Fix list from Patrick (outside and inside), made in Blender | Waiting on how he gives it |
 | 5 | Refine | |
-| 6 | One detail-level setting in each build script (High and Performance) | |
-| 7 | Compress at build time (Meshopt) | |
+| 6 | High and Performance from the same master files | |
+| 7 | Compress at delivery (Meshopt) | |
 | 8 | The Graphics switch picks the files | |
-| 9 | Khronos validator on every model file | |
-| 10 | Patrick sees it in the app; SH-60 wording with him | |
+| 10 | Patrick sees it in every module, then the code CT-156 is retired | |
+
+## Also done this session
+
+- **Prompt-injection audit** of every skill, plugin, hook and connector both tools load, the repo and the Blender
+  connector: clean. Scanner at `~/.claude/tools/` (`bash ~/.claude/tools/scan-mine.sh`).
+- **Antigravity's `agentic-awesome-skills` connector removed** (it ran the newest npm version on every start, unpinned);
+  backup `~/.gemini/config/mcp_config.json.bak-2026-10-12-aas`. Takes effect when Antigravity restarts.
+- **Rule book:** third-party skills, plugins and connectors only after a read and a scan, pinned, without hooks.
+- **Clones for reading** in `3d-work/clones/` (not in git): `three-agent-skills` and `claudedesignskills`, both scanned
+  clean. Borrow list: graphics memory over file size, Meshopt, draw-call readout, joining static cockpit parts,
+  environment reflections, normal-map baking; Decimate rejected (breaks thin parts).
 
 ## What was found
 
@@ -77,7 +95,7 @@ same pictures (mean difference 0.03 of 255). `CT156_BAKE_DEVICE=CPU` forces the 
 3. Already open from the earlier handover: sill height (his tape measurements of the bow), the rear seat after V2.403,
    paint grain, the pilots in Blender, the dark left wall (lighting, waits on its own yes), and tags `v2.385` to
    `v2.417` to push.
-4. Next conversation: Patrick wants to talk about the environment (the 3D world around the aircraft).
+4. The development-environment talk is done: it led to ALL-38 and `3d-work`.
 
 ## Untested or unseen
 
