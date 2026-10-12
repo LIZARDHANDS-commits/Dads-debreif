@@ -160,7 +160,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags, symbolPx);
       if (tags) drawTags(ctx, map, state, tags);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels(), tags);
-      drawHud(ctx, map.size, source.hud?.()); // the HUD, bottom left (Patrick, 6 Oct)
+      if (layers.camHud !== false) drawHud(ctx, map.size, source.hud?.()); // the HUD, bottom left (Patrick, 6 Oct); folded away by its button (12 Oct 2026)
     },
   });
 

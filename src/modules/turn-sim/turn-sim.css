@@ -911,6 +911,26 @@
   display: none;
 }
 
+/* The small HUD and camera button, bottom right of the picture (Patrick, 12 Oct 2026): folds both away. */
+[data-module='turn-sim'] .ts-camhud-toggle {
+  position: absolute;
+  z-index: 11;
+  right: var(--space-2, 8px);
+  bottom: var(--space-2, 8px);
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.75);
+  color: rgb(227, 238, 245);
+  font: 600 11px / 1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+[data-module='turn-sim'] .ts-camhud-toggle:hover,
+[data-module='turn-sim'] .ts-camhud-toggle:focus-visible {
+  border-color: var(--accent, #4fc3f7);
+}
+
 [data-module='turn-sim'] .ts-cam-row {
   display: flex;
   flex-wrap: wrap;

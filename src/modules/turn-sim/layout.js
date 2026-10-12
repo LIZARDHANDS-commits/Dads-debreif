@@ -33,6 +33,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   ...TAG_DEFAULTS,
   trackSec: 0, // Settings › Track length: how long the tracks stay, in seconds; 0 is the whole flight (Patrick, 5 Oct)
   autoFit: true, // Auto zoom: the camera keeps every aircraft in the picture (spec section 10.3); a drag pauses it, Fit brings it back
+  camHud: true, // the HUD (2D and 3D) and the 3D camera bar shown; the small button bottom right folds both away (Patrick, 12 Oct 2026)
   realSize: false, // Real aircraft size (Patrick, 5 Oct): ticked, each aircraft is drawn at a T-6's real length in 2D and 3D
   planeScale: 1, // unticked: the scale on the usual easy-to-see size (×0.5 to ×4)
   camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
@@ -480,7 +481,19 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const canvas = h('canvas', { class: 'ts-canvas' });
   const canvas3d = h('canvas', { class: 'ts-canvas ts-canvas3d', hidden: true }); // the 3D view's own canvas: a WebGL context can't share the 2D one
   const tags3d = h('canvas', { class: 'ts-canvas ts-tags3d', hidden: true, 'aria-hidden': 'true' }); // the info tags over the 3D picture
-  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d, camBar3d);
+  // One small button, bottom right of the picture, folds the HUD and the 3D camera bar away and brings them back (Patrick,
+  // 12 Oct 2026: "a small button to minimize both"). Remembered with the rest of the layout.
+  const camHudButton = h('button', {
+    type: 'button',
+    class: 'ts-camhud-toggle',
+    'aria-expanded': 'true',
+    title: 'Show or hide the HUD and the camera buttons',
+    onclick: () => layout.update({ camHud: layout.get().camHud === false }),
+  }, 'HUD and camera ▾');
+  camHudButton.addEventListener('pointerdown', (e) => e.stopPropagation?.());
+  let viewNow = '2d';
+  const camHudShown = (values) => values.camHud !== false;
+  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d, camBar3d, camHudButton);
   const note3d = h('span', { class: 'ts-note', role: 'status', hidden: true });
   // Real aircraft size, and the scale slider when it is off (Patrick, 5 Oct).
   const scaleSlider = lc.slider('planeScale', { label: 'Scale', min: 0.5, max: 4, step: 0.25, format: (v) => `×${v}` });
@@ -536,6 +549,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     formationPanel.setCollapsed(!values.formationColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
     syncCamBar(values);
+    const shown = camHudShown(values);
+    camHudButton.textContent = shown ? 'HUD and camera ▾' : 'HUD and camera ▸';
+    camHudButton.setAttribute('aria-expanded', String(shown));
+    camBar3d.hidden = viewNow !== '3d' || !shown;
   }
   applyLayout(layout.get());
 
@@ -552,7 +569,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       canvas.hidden = view === '3d';
       canvas3d.hidden = view !== '3d';
       tags3d.hidden = view !== '3d';
-      camBar3d.hidden = view !== '3d';
+      viewNow = view;
+      camBar3d.hidden = view !== '3d' || !camHudShown(layout.get());
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
       lc.setDisabled('camLook', view !== '3d'); // Follow and Padlock turn the 3D view; the 2D map stays north up
       lc.setDisabled('coneShape', view !== '3d'); // the 2D map always draws the flat band
