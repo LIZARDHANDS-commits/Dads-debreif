@@ -66,7 +66,7 @@ Dad's asks of 12 Oct 2026, in his words: "certain pressures should trigger a lig
 
 - **Faults (EP-11):** the instructor sets causes with a severity and a trend; the gauges follow; the lights follow from thresholds; typed values still win. Unsourced thresholds and rates show "(estimate)".
 - **Cues (EP-12):** words, flicker, a small shake, smoke haze and fire glow overlays, each seen by the student only once applied.
-- **Flight (EP-13):** the shared point mass flies each pick (waits on EP-Q5).
+- **Flight (EP-13):** the shared point mass flies each pick (plan Step 5, built on EP-Q5's working answer (a) while it stays open; `systems-plan.md` 4.2). Gear and flaps picks change the configuration; Declare marks D; Eject ends the flight. The ground is the nearest field's elevation: on a runway "landed", anywhere else "touched down off the runway" with where, in words only. A typed altitude, airspeed or heading puts the aircraft there; pitch and bank are flown. In phone mode the student's screen carries the phone's last flight on by dead reckoning between sends (the engine's state, a cause, never reaches it).
 - **Decisions and plan (EP-14):** plain manoeuvre words only; a small map with the glide ring and the line to the field; nothing says right or wrong, the consequences show it.
 - **Rewind, better and worse (EP-15):** rewind to any moment shows the student only what they saw then; Better / Worse / Hold by the instructor's hand.
 - **Picks to the phone (EP-16):** a second relay mailbox; picks are untrusted.
@@ -74,4 +74,4 @@ Dad's asks of 12 Oct 2026, in his words: "certain pressures should trigger a lig
 
 ## What the module uses (no second copies)
 
-The CT-156 cockpit and its live instruments (ui-kit, ALL-31 to ALL-33; the engine displays become live, an additive change shared with the other sims), the shared sky, terrain and airfields (ui-kit, core), the version label and settings (shell). No flight maths of its own in the first version: the aircraft holds the state the scenario gives it.
+The CT-156 cockpit and its live instruments (ui-kit, ALL-31 to ALL-33; the engine displays become live, an additive change shared with the other sims), the shared sky, terrain and airfields (ui-kit, core), the version label and settings (shell). No flight maths of its own: since plan Step 5 the aircraft flies on the shared core's point mass and T-6 numbers (EP-13), with Traffic's glide ring imported as it is.

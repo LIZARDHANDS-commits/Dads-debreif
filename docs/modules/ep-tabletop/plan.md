@@ -23,7 +23,8 @@ Only what is here gets built. Patrick approved `spec.md` and EP-1 to EP-3 (relay
 - [x] Flicker, a small cockpit shake, smoke haze and fire glow as overlays, cue words per fault, all applied by the instructor and only then seen by the student (EP-12). No 3D cues (future list). Built, not yet seen by Patrick or Dad in the app. Cue controls are a Cues section on the console; new causes "Smoke or fumes" and "Generator flickering". Every cue number is a picture choice (see the code README).
 
 ## Step 5. The aircraft flies the student's picks (Phase 3a)
-- [ ] The shared point mass flies each pick (EP-13); the engine-out case and Traffic's glide footprint move to core, no second copy. Waits on EP-Q5 (the flight approach).
+- [x] The shared point mass flies each pick (EP-13); the engine-out case in core (`excessFnFor`'s `engineOut`), no second copy; Traffic's glide footprint imported as it is, its move to core later.
+- **Built on EP-Q5's working answer (a), not yet seen** by Patrick or Dad in the app; EP-Q5 is still open with Patrick. `flight.js` and `manoeuvres.js`; the console's "Pick for the student" control drives it in one-screen mode (and on the phone); the student's own list is Step 6. Glide speeds 125 clean and 120 gear down (EP-Q11's working answer, Patrick's C1; the reference data say 125 and 105). Not built: High Key and the forced-landing pattern, a round-out at touchdown, the throttle moving the engine gauges. Its one test: `tests/unit/ep-tabletop/flight.test.js`. Seen by screenshot only (headless, a turn and an engine-out glide).
 
 ## Step 6. The student's decision list and plan map (Phase 3b)
 - [ ] Plain manoeuvre words only, nothing marked right or wrong; a small map with the glide ring and the line to the field, so a wrong choice is seen going off the rails (EP-14).
