@@ -4,12 +4,12 @@ This folder is the emergency procedures tabletop: an instructor runs a practice 
 
 ## Where it stands
 
-**Spec written, waiting on Patrick's approval of the spec; no code yet.** Dad's ask, 12 Oct 2026; Patrick approved it as a new module (relayed by Dad the same day; ALL-36). The rule book says a module's building starts once its spec is approved, so the spec and the first questions are on the waiting list in `../../PLAN.md`.
+**Spec approved; Step 1 (one-screen tabletop) being built.** Dad's ask, 12 Oct 2026; Patrick approved it as a new module (relayed by Dad the same day; ALL-36), then approved the spec: "pat approved, start building the one screen version and use the moose jaw 3d environment" (relayed by Dad, 12 Oct 2026). EP-Q1 (the phone link) is still open; the one-screen version needs no link.
 
 ## What is next
 
-1. Patrick approves `spec.md` and answers EP-Q1 (how the instructor's phone links to the student's screen).
-2. Then `plan.md` Step 1 onward.
+1. `plan.md` Step 1: the one-screen tabletop.
+2. Patrick answers EP-Q1 (how the instructor's phone links to the student's screen) before Step 2.
 
 ## The files
 
