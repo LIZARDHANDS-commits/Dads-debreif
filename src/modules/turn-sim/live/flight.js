@@ -655,3 +655,12 @@ function pitchAboveHorizonDeg(a) {
 export function planDone(a, plan) {
   return plan.segments.length === 0 && a.bankDeg === 0 && a.rollRateDps === 0 && !plan.speedLeg;
 }
+
+/**
+ * As planDone, but a plan whose only segments left are background ones (marked `background`: the reset to the formation's
+ * speed after a tactical turn, TS-204) counts as done, so the manoeuvre ends at the roll-out.
+ */
+export function planDoneBut(a, plan) {
+  const rest = plan.segments;
+  return rest.every((s) => s.background) && a.bankDeg === 0 && a.rollRateDps === 0 && (!plan.speedLeg || Boolean(rest[0]?.background));
+}

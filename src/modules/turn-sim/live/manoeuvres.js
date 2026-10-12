@@ -84,15 +84,23 @@ export const tacticalSeg = (toRad, dir, bankDeg = TURN_BANK_DEG, rollOut = true)
 
 /**
  * After a tactical turn, each aircraft holds the speed the turn left him until the last has rolled out, then all set power
- * back for the speed they started at (220 KIAS by default), together, so they stay where the turn put them (TS-204). Adds
- * that to each plan in place; the speed-up is at 80% torque at most (replay.js speedSeg).
+ * back for the formation's speed (220 KIAS in line abreast), together, so they stay where the turn put them (TS-204). Adds
+ * that to each plan in place; the speed-up is at 80% torque at most (replay.js speedSeg). It runs in the background: the
+ * manoeuvre is over at the roll-out, so the next one can be called while the speed comes back (formation.js).
+ * homeKias: the speed a reset still running was taking him back to (formation.js sets it at a press).
  */
-export function backToSpeed(plans, aircraft, t0, kias = aircraft[0].kias) {
+export function backToSpeed(plans, aircraft, t0, kias = aircraft[0].homeKias ?? aircraft[0].kias) {
   const runs = aircraft.filter((a) => plans[a.id]).map((a) => ({ a, run: dryRun(a, plans[a.id], t0) }));
   const tEnd = onStep(Math.max(...runs.map((r) => r.run.durationSec))) + t0;
+  // All take the same time to get back, so the few tenths of a knot between them (the 4-ship's chain) cost no spacing.
+  const spanSec = Math.max(0, ...runs.map(({ run }) => {
+    const seg = speedSeg(run.end.kias, kias);
+    return Math.abs(kias - run.end.kias) / Math.abs(seg.rateKtps);
+  }));
   for (const { a, run } of runs) {
-    if (Math.abs(run.end.kias - kias) < 0.5) continue;
-    plans[a.id].segments.push({ kind: 'hold', untilSec: tEnd, thenNext: true }, speedSeg(run.end.kias, kias));
+    if (Math.abs(run.end.kias - kias) < 0.5 || spanSec <= 0) continue;
+    const seg = speedSeg(run.end.kias, kias);
+    plans[a.id].segments.push({ kind: 'hold', untilSec: tEnd, thenNext: true, background: true }, { ...seg, rateKtps: Math.sign(seg.rateKtps || 1) * Math.abs(kias - run.end.kias) / spanSec, background: true });
   }
   return plans;
 }
@@ -315,7 +323,7 @@ function crossTurn(pair, t0, kias) {
  * back for after a tactical turn (TS-204), the first aircraft's by default (Lead's, or the 4-ship's rear element's Lead's).
  * Returns { plans: { id: { segments, profile? } }, note }.
  */
-export function planManoeuvre(pair, key, dir, t0, { kias = pair[0].kias } = {}) {
+export function planManoeuvre(pair, key, dir, t0, { kias = pair[0].homeKias ?? pair[0].kias } = {}) {
   const m = MANOEUVRES[key];
   if (!m) throw new Error(`No manoeuvre called ${key}`);
   if (m.kind === 'delayed') return delayed(pair, m, dir, t0, kias);
