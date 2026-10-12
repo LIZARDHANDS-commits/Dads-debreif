@@ -215,12 +215,28 @@ export function t6aExcessFn(ktas, altFt, g) {
   return excessThrustPerWeight(tasToIasKt(ktas, altFt), altFt, g);
 }
 
-/** The excess-power callback for the point-mass step at part throttle: thrust scales with `throttle` (0 to 1), drag does not. Full throttle is t6aExcessFn itself. */
-export function excessFnFor(throttle) {
-  if (throttle === 1) return t6aExcessFn;
+/**
+ * The excess-power callback for the point-mass step at part throttle: thrust scales with `throttle` (0 to 1), drag does not. Full
+ * throttle, clean, is t6aExcessFn itself. With no options it is exactly what it was before the options came (the Formation sim and Turn
+ * Fight call it that way).
+ * options:
+ *  - config: a T6A_GLIDE configuration ('clean' by default, 'gearDown', 'flapsTakeoff', 'landing'). Gear and flap drag is
+ *    glideDragPerWeight's (the configuration's glide data), which for 'clean' is dragPerWeight itself; the thrust is unchanged.
+ *  - engineOut: true for the engine failed, prop feathered: no thrust, whatever the throttle, and the configuration's power-off drag
+ *    (-glideDragPerWeight). The one place the engine-out callback is written (flyZoomT6A and the EP Tabletop's flight read it here).
+ */
+export function excessFnFor(throttle, { config = 'clean', engineOut = false } = {}) {
+  if (engineOut) return (ktas, altFt, g) => -glideDragPerWeight(config, tasToIasKt(ktas, altFt), altFt, g);
+  if (config === 'clean') {
+    if (throttle === 1) return t6aExcessFn;
+    return (ktas, altFt, g) => {
+      const kias = tasToIasKt(ktas, altFt);
+      return throttle * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
+    };
+  }
   return (ktas, altFt, g) => {
     const kias = tasToIasKt(ktas, altFt);
-    return throttle * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
+    return throttle * thrustPerWeight(kias, altFt) - glideDragPerWeight(config, kias, altFt, g);
   };
 }
 
@@ -337,7 +353,7 @@ export function flyZoomT6A(kias, altFt) {
   if (!(kias >= 0 && kias <= T6A_LIMITS.vmoKias && Number.isFinite(altFt))) {
     throw new RangeError(`zoom from ${kias} KIAS at ${altFt} ft: needs 0 to ${T6A_LIMITS.vmoKias} KIAS and a finite height`);
   }
-  const engineOff = (ktas, alt, g) => -dragPerWeight(tasToIasKt(ktas, alt), alt, g);
+  const engineOff = excessFnFor(0, { engineOut: true }); // clean, prop feathered: -glideDragPerWeight('clean'), which is -dragPerWeight
   let s = pointMassState({ altFt, ktas: iasToTasKt(kias, altFt), headingRad: 0 });
   let t = 0;
   const now = () => pointMassFlight(s);
