@@ -1,28 +1,40 @@
 // The one T-6A performance model every module reads (SPEC-core, "API, fifth
-// PR"; Patrick, 2026-09-30 06:58Z). V6 has none of this: it is new, checked
-// against the T-6A's reference data (tests/unit/core/t6-performance.test.js). Each
-// module keeps its own flying; this only holds the aircraft's numbers.
+// PR"; Patrick, 2026-09-30 06:58Z). V6 has none of this: it is new. Since
+// 12 Oct 2026 it is built from formulas with named inputs, each with its
+// source: a public type certificate or manufacturer sheet, an SMM, EFIG or
+// Gen Book page, one of Patrick's rulings, or the word ESTIMATE (spec section
+// "API, fifth PR: T-6A performance"). Each module keeps its own flying; this
+// only holds the aircraft's numbers.
 //
-// Speeds are knots: KIAS where the reference data use indicated airspeed, KTAS where
+// Speeds are knots: KIAS where a source gives indicated airspeed, KTAS where
 // the motion needs true airspeed. Altitudes are feet, pressure altitude on a
-// standard day. G is the load factor.
+// standard day. G is the load factor. Weights are pounds.
 import { FT_PER_NM, G_FTPS2, KT_TO_FTPS } from './units.js';
 import { isaDensityRatio, isaPressureRatio, speedOfSoundKt } from './atmosphere.js';
-import { T6A_FIT } from './t6a-turn-data.js';
 import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js';
 
 /**
- * The T-6A flight envelope and airspeed limits (clean, at 5,168 lb; reference data).
- * stallKias is the 1 G stall speed: 86 kt, which Patrick kept (2026-09-30
- * 09:29Z). The envelope itself reads about 89 kt (7 G near 236 KIAS), and the
- * sustained-turn data imply about 83 kt at maximum power (likely because power on
- * lowers the stall speed). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
- * mmo is the Mach limit, 0.67 (reference): slower than VMO from
- * about 18,900 ft (the reference data say 18,769). maxKiasT6A gives the top speed at a height.
+ * The T-6A's G, speed and weight limits.
+ * - maxG, minG +7 and -3.5; rollingMaxG, rollingMinG +4.7 and -1: the type
+ *   certificates (EASA.IM.A.636, UK.TC.A.00092); the rolling limits from
+ *   Germann 2006, p.17.
+ * - stallKias: the 1 G clean stall, 86 KIAS (Patrick's ruling, 30 Sep 2026
+ *   09:29Z). It stays 86 at every weight until Patrick says otherwise (spec
+ *   question 2). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
+ * - voKias 227 (manoeuvring), vmoKias 316, mmo 0.67, gearFlapKias 150: the
+ *   type certificates. Mach 0.67 is slower than 316 KIAS from about 18,900 ft;
+ *   maxKiasT6A gives the top speed at a height.
+ * - weightLb: the sortie weight every function uses unless told, 6,400 lb (two
+ *   pilots and 1,200 lb of fuel on a 4,824 lb empty aircraft: Germann 2006,
+ *   Table 9, a published example). Patrick's typical weights replace it.
+ * - basicWeightLb 5,170 (Textron T-6C brochure); maxWeightLb 6,900 (certified,
+ *   EASA.IM.A.636); operatedMaxWeightLb 6,500 (as the trainer is operated,
+ *   Germann 2006, p.17). A weight outside basic to maximum throws.
  */
 export const T6A_LIMITS = Object.freeze({
   maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1,
-  stallKias: 86, voKias: 227, vmoKias: 316, mmo: 0.67, weightLb: 5168,
+  stallKias: 86, voKias: 227, vmoKias: 316, mmo: 0.67, gearFlapKias: 150,
+  weightLb: 6400, basicWeightLb: 5170, maxWeightLb: 6900, operatedMaxWeightLb: 6500,
 });
 
 /** The most G the wing gives at this speed before it stalls: (KIAS ÷ stall speed)². */
@@ -99,8 +111,8 @@ export function machToKiasKt(mach, altFt) {
 }
 
 /**
- * The fastest the T-6A may fly at altFt, in KIAS, following the reference
- * data's line: VMO 316, or Mmo 0.67 where that is slower (above about
+ * The fastest the T-6A may fly at altFt, in KIAS, from the type certificates'
+ * limits: VMO 316, or Mmo 0.67 where that is slower (above about
  * 18,900 ft; 279 KIAS at 25,000 ft). This is the airspeed indicator's reading,
  * for showing a pilot. Do not hold a model's IAS (TAS × √σ, iasToTasKt) to it:
  * that flies about Mach 0.69 at 25,000 ft. Use modelMaxIasT6A for that.
@@ -127,30 +139,254 @@ export function energyHeightFt(altFt, ktas) {
   return altFt + v * v / (2 * G_FTPS2);
 }
 
+// ── Thrust and drag: formulas with named inputs (spec, "API, fifth PR: T-6A performance") ──
+
+/** Standard-day sea-level density, slug per cubic foot: dynamic pressure from indicated airspeed, q = ½ ρ₀ V². */
+const RHO0_SLUG_FT3 = 0.0023769;
+const FT_LBF_PER_S_PER_HP = 550;
+
 /**
- * Maximum-power propeller thrust ÷ weight (fitted to the sustained turn data,
- * T6A_FIT): falls with true airspeed, holds its sea-level value up to about
- * 14,000 ft, then falls with density.
+ * The airframe: wing area 175.3 sq ft and span 33 ft 5 in (Textron T-6C brochure; published); aspect ratio 6.29 (a
+ * public PC-9 listing; published).
  */
-export function thrustPerWeight(kias, altFt) {
-  const f = T6A_FIT;
-  const sigma = Math.min(isaDensityRatio(altFt), f.thrustFlatSigma);
-  return f.thrustK * sigma ** f.thrustDensityExp / (iasToTasKt(kias, altFt) + f.thrustV0Kt);
+export const T6A_AIRFRAME = Object.freeze({ wingAreaSqFt: 175.3, spanFt: 33 + 5 / 12, aspectRatio: 6.29 });
+
+/**
+ * The engine.
+ * - shaftHp 1,100: flat-rated, 100% torque at 2,000 rpm (EASA.IM.A.636; certified).
+ * - propRpm 2,000 (100% is 1,995) and propDiameterIn 97, four blades (EASA.IM.A.636, UK.TC.A.00092, EASA.IM.E.038;
+ *   certified).
+ * - flatRatedToSigma 0.64 and lapseExp 0.85: full power is held to a density ratio of 0.64 (about 14,500 ft on a
+ *   standard day), then falls as (σ ÷ 0.64)^0.85. ESTIMATE: the certificate gives only the sea-level corner.
+ * - exhaustThrustLb 160: the exhaust's own thrust at full power (EASA.IM.E.038 gives 185 lbf static at 1,250 shp,
+ *   scaled to 1,100), falling with speed to nothing at exhaustZeroKtas 400 KTAS. ESTIMATES.
+ */
+export const T6A_ENGINE = Object.freeze({
+  shaftHp: 1100, propRpm: 2000, propDiameterIn: 97,
+  flatRatedToSigma: 0.64, lapseExp: 0.85, exhaustThrustLb: 160, exhaustZeroKtas: 400,
+});
+
+/**
+ * The propeller's efficiency against its advance ratio J, true airspeed ÷ (revolutions per second × diameter): J 1 is
+ * about 160 KTAS at 2,000 rpm. ESTIMATES, all of it: a generic constant-speed curve (the shape of the NACA propeller
+ * maps), fitted to the EFIG's level torque table (EFIG p.222) and Patrick's level torque points (12 Oct 2026 00:13Z).
+ * - peakEfficiency 0.80 at peakAdvanceRatio 1.8 (about 290 KTAS); at pattern height it is 0.73 at 140 KIAS, 0.78 at
+ *   180 and about 0.80 from 220 to 300.
+ * - staticThrustLb 3,500: the thrust standing still, which sets how the curve rises from J 0 (momentum theory on the
+ *   97 in disc at 1,100 shp, with a figure of merit about 0.7).
+ * - fallWidth 1.1: how fast the efficiency falls past the peak, as the blade tips near the speed of sound.
+ * The low-speed end is the least sure: one more torque point there (Patrick) or a measured climb would pin it.
+ */
+export const T6A_PROP = Object.freeze({ peakEfficiency: 0.8, peakAdvanceRatio: 1.8, staticThrustLb: 3500, fallWidth: 1.1 });
+
+/** Revolutions per second × diameter, ft/s: true airspeed ÷ this is the advance ratio. */
+const PROP_ND_FTPS = T6A_ENGINE.propRpm / 60 * (T6A_ENGINE.propDiameterIn / 12);
+const FULL_POWER_FT_LBF_S = T6A_ENGINE.shaftHp * FT_LBF_PER_S_PER_HP;
+// How steeply the curve rises from J 0, set by the static thrust: at J 0, efficiency ÷ J = static thrust × nD ÷ power.
+const PROP_RISE_EXP = T6A_PROP.staticThrustLb * PROP_ND_FTPS * T6A_PROP.peakAdvanceRatio / (FULL_POWER_FT_LBF_S * T6A_PROP.peakEfficiency);
+
+/** The propeller's efficiency at advance ratio j (T6A_PROP): rising from 0 to the peak, then falling. Estimates. */
+function propEfficiency(j) {
+  const p = T6A_PROP;
+  if (j <= p.peakAdvanceRatio) return p.peakEfficiency * (1 - (1 - Math.max(0, j) / p.peakAdvanceRatio) ** PROP_RISE_EXP);
+  return p.peakEfficiency * Math.exp(-(((j - p.peakAdvanceRatio) / p.fallWidth) ** 2));
+}
+
+/** Full-throttle shaft power as a share of 1,100 shp at altFt (T6A_ENGINE): flat-rated, then falling with density. */
+function powerLapse(altFt) {
+  return Math.min(1, (isaDensityRatio(altFt) / T6A_ENGINE.flatRatedToSigma) ** T6A_ENGINE.lapseExp);
+}
+
+/** Full-throttle thrust in lbf: propeller (efficiency × power ÷ true airspeed) plus the exhaust. */
+function fullThrustLb(kias, altFt) {
+  const ktas = iasToTasKt(kias, altFt);
+  const v = ktas * KT_TO_FTPS;
+  const lapse = powerLapse(altFt);
+  const prop = propEfficiency(v / PROP_ND_FTPS) * FULL_POWER_FT_LBF_S * lapse / v;
+  const exhaust = T6A_ENGINE.exhaustThrustLb * lapse * Math.max(0, 1 - ktas / T6A_ENGINE.exhaustZeroKtas);
+  return prop + exhaust;
 }
 
 /**
- * Drag ÷ weight, clean: a zero-lift part growing with KIAS² and a part growing
- * with G² ÷ KIAS² (set by the max glide data, T6A_FIT). At a given IAS it is
- * the same at any height; altFt is there so every function reads alike.
+ * The inputs every thrust and drag function checks: a speed of at least 1 KIAS (the formulas divide by it), a finite
+ * height and G, and a weight from basic to maximum (T6A_LIMITS). Speeds over VMO are flown, not refused: VMO is a
+ * published limit, flagged on screen, never a wall (AGENTS.md). Anything else throws a RangeError.
  */
-export function dragPerWeight(kias, altFt, g) {
-  const f = T6A_FIT;
-  return f.dragA * kias * kias + f.dragB * g * g / (kias * kias);
+function checkInputs(what, kias, altFt, g, weightLb) {
+  if (!(kias >= 1 && kias < Infinity && Number.isFinite(altFt) && Number.isFinite(g)
+    && weightLb >= T6A_LIMITS.basicWeightLb && weightLb <= T6A_LIMITS.maxWeightLb)) {
+    throw new RangeError(`${what} at ${kias} KIAS, ${altFt} ft, ${g} G and ${weightLb} lb: needs at least 1 KIAS, a finite height and G, and ${T6A_LIMITS.basicWeightLb} to ${T6A_LIMITS.maxWeightLb} lb`);
+  }
 }
 
-/** (Thrust − drag) ÷ weight at maximum power: what is left to climb or speed up with. */
-export function excessThrustPerWeight(kias, altFt, g) {
-  return thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
+/** Dynamic pressure in lb per sq ft at an indicated airspeed. */
+function qPsf(kias) {
+  const v = kias * KT_TO_FTPS;
+  return 0.5 * RHO0_SLUG_FT3 * v * v;
+}
+
+/**
+ * Maximum-power thrust ÷ weight at kias, altFt and weightLb (6,400 lb unless told): the propeller's efficiency
+ * (T6A_PROP) × the shaft power (T6A_ENGINE, flat-rated to about 14,500 ft) ÷ true airspeed, plus the exhaust. Part
+ * throttle scales all of it (excessFnFor).
+ */
+export function thrustPerWeight(kias, altFt, weightLb = T6A_LIMITS.weightLb) {
+  checkInputs('thrust', kias, altFt, 1, weightLb);
+  return fullThrustLb(kias, altFt) / weightLb;
+}
+
+/**
+ * The drag polar, clean: CD = zeroLiftCd + CL² ÷ (π × aspect ratio × spanEfficiency) + the rise near the stall.
+ * - zeroLiftCd 0.028: derived from Patrick's level torque points (180 KIAS at 45%, 220 KIAS at 65%; 12 Oct 2026
+ *   00:13Z; SMM 4.14 para 32) with the propeller curve (T6A_PROP). Draggier than a textbook 0.020 to 0.024.
+ * - spanEfficiency 0.8: ESTIMATE (0.75 to 0.85 for a straight tapered wing).
+ * - stallRiseCd 0.04 over the last stallRiseKt 10 kt: the polar steepens as the wing nears the stall line, from nothing
+ *   10 kt above it (at 1 G, 96 KIAS) to 0.04 on it, growing with the square of how far in, and held there past it.
+ *   ESTIMATE, standard aerodynamics.
+ */
+export const T6A_DRAG = Object.freeze({ zeroLiftCd: 0.028, spanEfficiency: 0.8, stallRiseCd: 0.04, stallRiseKt: 10 });
+
+/** The induced drag factor, 1 ÷ (π × aspect ratio × span efficiency): the induced part of CD is this × CL². */
+const INDUCED_K = 1 / (Math.PI * T6A_AIRFRAME.aspectRatio * T6A_DRAG.spanEfficiency);
+// The rise starts where the load is this share of the stall line's: (86 ÷ 96)² at 1 G.
+const STALL_RISE_FROM = (T6A_LIMITS.stallKias / (T6A_LIMITS.stallKias + T6A_DRAG.stallRiseKt)) ** 2;
+
+/**
+ * The extra drag coefficient near the stall line at kias and g (T6A_DRAG): nothing until 10 kt above it, the whole
+ * 0.04 on it, and no more past it (beyond the stall line the wing is stalled and the polar does not apply).
+ */
+function stallRiseCd(kias, g) {
+  const share = Math.min(1, Math.abs(g) / stallLimitG(kias));
+  if (share <= STALL_RISE_FROM) return 0;
+  return T6A_DRAG.stallRiseCd * ((share - STALL_RISE_FROM) / (1 - STALL_RISE_FROM)) ** 2;
+}
+
+/** Lift coefficient at kias, g and weightLb: CL = n W ÷ (q S). */
+function liftCoefficient(kias, g, weightLb) {
+  return g * weightLb / (qPsf(kias) * T6A_AIRFRAME.wingAreaSqFt);
+}
+
+/**
+ * The T-6A's best glide, engine off and propeller feathered, by configuration: glide speed (KIAS) and distance flown
+ * (NM per 1,000 ft of height).
+ * - clean 125 KIAS, 2.0 NM per 1,000 ft: SMM 13.5 paras 6 and 7.
+ * - gearDown 105 KIAS, 1.5; landing (gear and landing flap) 95 KIAS, 1.1; windmilling (propeller not feathered,
+ *   clean) 110 KIAS, 1.0: Patrick's ruling, to confirm (spec question 3).
+ * - flapsTakeoff (gear and takeoff flap) 110 KIAS, 1.3: an ESTIMATE between gear down and landing flap; no source
+ *   gives it (Patrick, 4 Oct 2026 04:18Z).
+ * The ratio is fixed through the air, so the sink rate grows with height (glideSinkFpm).
+ */
+export const T6A_GLIDE = Object.freeze({
+  clean: Object.freeze({ kias: 125, nmPer1000Ft: 2.0, prop: 'feathered' }),
+  gearDown: Object.freeze({ kias: 105, nmPer1000Ft: 1.5, prop: 'feathered' }),
+  flapsTakeoff: Object.freeze({ kias: 110, nmPer1000Ft: 1.3, prop: 'feathered' }),
+  landing: Object.freeze({ kias: 95, nmPer1000Ft: 1.1, prop: 'feathered' }),
+  windmilling: Object.freeze({ kias: 110, nmPer1000Ft: 1.0, prop: 'windmilling' }),
+});
+
+/**
+ * The glide ratio through the air for a T6A_GLIDE configuration: feet flown for each foot of height lost (clean 2 NM
+ * per 1,000 ft is about 12.2). A configuration not in T6A_GLIDE throws a RangeError.
+ */
+export function glideRatio(config) {
+  if (!Object.hasOwn(T6A_GLIDE, config)) throw new RangeError(`glide configuration ${config}: use one of ${Object.keys(T6A_GLIDE).join(', ')}`);
+  return T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000;
+}
+
+/**
+ * Sink rate in ft/min for a T6A_GLIDE configuration at kias and altFt: true airspeed ÷ the glide ratio, so it grows
+ * with height.
+ */
+export function glideSinkFpm(config, kias, altFt) {
+  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / glideRatio(config);
+}
+
+/**
+ * The engine-off zero-lift drag coefficient for a T6A_GLIDE configuration: the one that makes the polar's best
+ * lift-to-drag ratio the table's glide ratio, 1 ÷ (4 × induced factor × ratio²). Standard aerodynamics.
+ */
+function glideZeroLiftCd(config) {
+  return 1 / (4 * INDUCED_K * glideRatio(config) ** 2);
+}
+
+/** Engine-off drag ÷ weight from the glide table alone, for a configuration. */
+function glideTableDragPerWeight(config, kias, g, weightLb) {
+  const cl = liftCoefficient(kias, g, weightLb);
+  return qPsf(kias) * T6A_AIRFRAME.wingAreaSqFt * (glideZeroLiftCd(config) + INDUCED_K * cl * cl) / weightLb;
+}
+
+/**
+ * The gear-down orbit: a 30° bank orbit at 120 KIAS, gear down, flaps up, engine off, loses about 2,600 ft per turn
+ * (SMM 13.5 para 11). Patrick (6 Oct 2026 08:24Z): "base it on the drag that's required to lose 2600 in a 30 deg orbit
+ * with gear no flaps". Flown at 3,500 ft and the default weight.
+ */
+const GEAR_ORBIT = Object.freeze({ kias: 120, altFt: 3500, bankDeg: 30, lossFt: 2600 });
+
+/**
+ * Engine-off gear-down drag ÷ the glide table's, so the orbit above loses its 2,600 ft (Patrick, 6 Oct 2026). Derived
+ * from the orbit: the loss per turn is drag ÷ weight × 2π V² ÷ (g tan bank).
+ */
+const GEAR_DRAG_FACTOR = (() => {
+  const o = GEAR_ORBIT, bank = o.bankDeg * Math.PI / 180;
+  const v = iasToTasKt(o.kias, o.altFt) * KT_TO_FTPS;
+  const needed = o.lossFt * G_FTPS2 * Math.tan(bank) / (2 * Math.PI * v * v);
+  return needed / glideTableDragPerWeight('gearDown', o.kias, 1 / Math.cos(bank), T6A_LIMITS.weightLb);
+})();
+
+/**
+ * Drag ÷ weight, engine off and propeller feathered (windmilling for 'windmilling'), for a T6A_GLIDE configuration at
+ * kias, altFt, g and weightLb (6,400 lb unless told). Each configuration's zero-lift drag is set so its best glide
+ * ratio is the table's (glideZeroLiftCd); with the gear down the gear's drag is raised to the 2,600 ft orbit
+ * (GEAR_DRAG_FACTOR), and the flaps' steps from the table go on top of it. At a given IAS it is the same at any height.
+ */
+export function glideDragPerWeight(config, kias, altFt, g = 1, weightLb = T6A_LIMITS.weightLb) {
+  glideRatio(config);
+  checkInputs('glide drag', kias, altFt, g, weightLb);
+  const table = glideTableDragPerWeight(config, kias, g, weightLb);
+  const gear = ['gearDown', 'flapsTakeoff', 'landing'].includes(config);
+  return table + (gear ? (GEAR_DRAG_FACTOR - 1) * glideTableDragPerWeight('gearDown', kias, g, weightLb) : 0);
+}
+
+/**
+ * Level flight at 120 KIAS with the gear down and takeoff flap takes about 35% torque at pattern height on a standard
+ * day (Patrick, 12 Oct 2026 00:13Z; EFIG p.222). Taken at 2,000 ft and the default weight.
+ */
+const TAKEOFF_FLAP_LEVEL = Object.freeze({ kias: 120, altFt: 2000, torque: 0.35 });
+
+/**
+ * The step each configuration adds to the clean zero-lift drag with the engine running (dragPerWeight's config).
+ * - gearDown: the glide table's gear-down step over clean (Patrick's ruling, to confirm). The 2,600 ft orbit's extra
+ *   drag is the engine-off glide's only (GEAR_DRAG_FACTOR).
+ * - flapsTakeoff (gear and takeoff flap): set so level flight at 120 KIAS takes 35% torque (TAKEOFF_FLAP_LEVEL;
+ *   Patrick, 12 Oct 2026).
+ * - landing (gear and landing flap): the glide table's landing-flap step over clean, so the glide table comes out.
+ * Derived at load from those sources; no other number is set here.
+ */
+export const T6A_CONFIG_DRAG = (() => {
+  const step = (config) => glideZeroLiftCd(config) - glideZeroLiftCd('clean');
+  const p = TAKEOFF_FLAP_LEVEL;
+  const cl = liftCoefficient(p.kias, 1, T6A_LIMITS.weightLb);
+  const neededCd = p.torque * fullThrustLb(p.kias, p.altFt) / (qPsf(p.kias) * T6A_AIRFRAME.wingAreaSqFt);
+  const flapsTakeoff = neededCd - T6A_DRAG.zeroLiftCd - INDUCED_K * cl * cl - stallRiseCd(p.kias, 1);
+  return Object.freeze({ clean: 0, gearDown: step('gearDown'), flapsTakeoff, landing: step('landing') });
+})();
+
+/**
+ * Drag ÷ weight with the engine running, at kias, altFt, g, a configuration ('clean' unless told; 'gearDown',
+ * 'flapsTakeoff' or 'landing', T6A_CONFIG_DRAG) and weightLb (6,400 lb unless told): q S CD ÷ W, the polar in
+ * T6A_DRAG. At a given IAS it is the same at any height; altFt is there so every function reads alike.
+ */
+export function dragPerWeight(kias, altFt, g, config = 'clean', weightLb = T6A_LIMITS.weightLb) {
+  if (!Object.hasOwn(T6A_CONFIG_DRAG, config)) throw new RangeError(`drag configuration ${config}: use one of ${Object.keys(T6A_CONFIG_DRAG).join(', ')}`);
+  checkInputs('drag', kias, altFt, g, weightLb);
+  const cl = liftCoefficient(kias, g, weightLb);
+  const cd = T6A_DRAG.zeroLiftCd + T6A_CONFIG_DRAG[config] + INDUCED_K * cl * cl + stallRiseCd(kias, g);
+  return qPsf(kias) * T6A_AIRFRAME.wingAreaSqFt * cd / weightLb;
+}
+
+/** (Thrust − drag) ÷ weight at maximum power: what is left to climb or speed up with. config and weightLb as dragPerWeight. */
+export function excessThrustPerWeight(kias, altFt, g, config = 'clean', weightLb = T6A_LIMITS.weightLb) {
+  return thrustPerWeight(kias, altFt, weightLb) - dragPerWeight(kias, altFt, g, config, weightLb);
 }
 
 /**
@@ -174,7 +410,7 @@ export const T6A_PITCH = Object.freeze({
 /**
  * Delta angle-of-attack from flap deflection, in degrees.
  * Extending flaps increases wing camber, shifting zero-lift angle negative and requiring less body AoA
- * for a given lift coefficient (AETCMAN 11-248, RCAF SMM).
+ * for a given lift coefficient. ESTIMATES.
  */
 function flapAoADeltaDeg(config) {
   if (!config || typeof config !== 'string') return 0;
@@ -221,120 +457,28 @@ export function excessFnFor(throttle) {
   };
 }
 
-/**
- * The T-6A max glide data (engine inoperative, IAS; PT6A-68; reference data;
- * Patrick's upload 06:33Z; SMM 13.5 para 7 agrees on 2 NM at 125).
- * chartSinkFpm is the reference sink rate, which works out as the glide
- * ratio at about 16,000 ft; glideSinkFpm gives it at any height.
- * The flapsTakeoff row is an estimate, interpolated between gear down and
- * landing flap; no source gives it (Patrick, 4 Oct 2026 04:18Z).
- */
-export const T6A_GLIDE = Object.freeze({
-  clean: Object.freeze({ kias: 125, nmPer1000Ft: 2.0, chartSinkFpm: 1350, prop: 'feathered', dragIndex: 0 }),
-  gearDown: Object.freeze({ kias: 105, nmPer1000Ft: 1.5, chartSinkFpm: 1500, prop: 'feathered', dragIndex: 20 }),
-  flapsTakeoff: Object.freeze({ kias: 110, nmPer1000Ft: 1.3, chartSinkFpm: 1816, prop: 'feathered', dragIndex: 50 }),
-  landing: Object.freeze({ kias: 95, nmPer1000Ft: 1.1, chartSinkFpm: 1850, prop: 'feathered', dragIndex: 80 }),
-  windmilling: Object.freeze({ kias: 110, nmPer1000Ft: 1.0, chartSinkFpm: 2350, prop: 'windmilling', dragIndex: 0 }),
-});
-
-/**
- * Sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
- * 'flapsTakeoff', 'landing', 'windmilling') at kias: true airspeed ÷ the glide ratio. The
- * ratio is fixed through the air, so the sink rate grows with height.
- */
-export function glideSinkFpm(config, kias, altFt) {
-  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / glideRatio(config);
-}
-
-/**
- * The glide ratio through the air for a T6A_GLIDE configuration: feet flown
- * for each foot of height lost (clean 2 NM per 1,000 ft is about 12.2). The
- * flapsTakeoff row is an estimate (see T6A_GLIDE).
- */
-export function glideRatio(config) {
-  if (!Object.hasOwn(T6A_GLIDE, config)) throw new RangeError(`glide configuration ${config}: use one of ${Object.keys(T6A_GLIDE).join(', ')}`);
-  return T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000;
-}
-
-/**
- * Drag ÷ weight, engine off and prop feathered, for a T6A_GLIDE configuration
- * ('clean', 'gearDown', 'flapsTakeoff', 'landing') at kias, altFt and g. Gear
- * and flap raise the zero-lift part of the clean drag (dragPerWeight) so the
- * configuration's best glide ratio is the max glide data's: dragA ×
- * (clean ratio ÷ its ratio)². Its best glide speed then comes out near the
- * data's: gear down about 108 KIAS (data 105), landing flap about 93
- * (data 95). The flapsTakeoff row is an estimate, as its ratio is. Standard
- * aerodynamics on those numbers; checked against SMM 13.5 para 11's
- * orbit losses: clean about 1,630 ft per 360° at 30° (SMM about 1,700), gear
- * down about 2,000 ft (SMM about 2,600, a difference not yet settled).
- */
-export function glideDragPerWeight(config, kias, altFt, g = 1) {
-  const ref = (c) => T6A_FIT.dragA * (glideRatio('clean') / glideRatio(c)) ** 2 * kias * kias + T6A_FIT.dragB * g * g / (kias * kias);
-  // With the gear down, the gear's drag is raised to the SMM's orbit; the flaps' steps from the glide data go on top of it.
-  return ref(config) + (['gearDown', 'flapsTakeoff', 'landing'].includes(config) ? (GEAR_DRAG_FACTOR - 1) * ref('gearDown') : 0);
-}
-
-/**
- * Gear-down drag ÷ the max glide data's: a 30° orbit at 120 KIAS, gear down, then loses about 2,600 ft (SMM 13.5
- * para 11) instead of the data's about 1,980 (Patrick, 6 Oct 08:24Z: "base it on the drag that's required to lose
- * 2600 in a 30 deg orbit with gear no flaps"). Fitted, an estimate; best glide stays near 105 KIAS.
- */
-const GEAR_DRAG_FACTOR = 1.322;
-
-/**
- * The zoom reference data: height gained after an
- * engine failure, engine secured and prop feathered, gear and flaps up; 2 s
- * delay, 2 G pull to 20° nose up held to 145 KIAS, then a 0 to +0.5 G push to
- * capture 125 KIAS (reference). Its lightest and heaviest rows, [speed][altitude];
- * the rows between are straight lines from these to within 1 ft.
- */
-export const ZOOM_GAIN_TABLE = Object.freeze({
-  kias: Object.freeze([200, 250]),
-  altFt: Object.freeze([500, 1500, 3000, 6000]),
-  lightLb: 5400,
-  heavyLb: 6500,
-  light: Object.freeze([Object.freeze([595, 621, 649, 794]), Object.freeze([1172, 1232, 1297, 1487])]),
-  heavy: Object.freeze([Object.freeze([738, 757, 768, 883]), Object.freeze([1299, 1347, 1410, 1552])]),
-});
-
-const ZOOM_DEFAULT_LB = 5800;   // reference example 1: a two-seat jet part way through a sortie; for Dad
-const ZOOM_MIN_KIAS = 150;      // below it the reference procedure slows down level instead
-const ZOOM_GLIDE_KIAS = 125;
-const ZOOM_PUSH_G = 0.25;       // the middle of the reference 0 to +0.5 G push
+// The zoom after an engine failure (Patrick's practice; SMM 13.5 para 6 for the 125 KIAS glide after it): 2 s, a 2 G
+// pull to 20° nose up, held to 145 KIAS, then a gentle push to 125 KIAS. None at or below 150 KIAS.
+const ZOOM_MIN_KIAS = 150;      // at or below it, a level slow-down to the glide speed instead (Patrick's practice)
+const ZOOM_GLIDE_KIAS = 125;    // SMM 13.5 para 6
+const ZOOM_PUSH_G = 0.25;       // the gentle push; ESTIMATE
 const ZOOM_STEP_SEC = 0.02;
 const ZOOM_PITCH_GAIN = 5;      // extra G per radian off the 20° climb, to hold it
 const ZOOM_MAX_SEC = 120;       // no zoom or slow-down takes this long; a guard, never reached
 
-const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
-
-/** Straight-line interpolation of ys over xs, held at the ends. */
-function lerpHeld(xs, ys, x) {
-  if (x <= xs[0]) return ys[0];
-  for (let i = 1; i < xs.length; i++) {
-    if (x <= xs[i]) return ys[i - 1] + (ys[i] - ys[i - 1]) * (x - xs[i - 1]) / (xs[i] - xs[i - 1]);
-  }
-  return ys[ys.length - 1];
-}
-
-/** Energy height from kias down to the glide speed, at one altitude. */
-function idealZoomFt(kias, altFt) {
-  return energyHeightFt(altFt, iasToTasKt(kias, altFt)) - energyHeightFt(altFt, iasToTasKt(ZOOM_GLIDE_KIAS, altFt));
-}
-
 /**
- * The reference zoom procedure flown by the model with the engine off (drag only):
- * 2 s straight and level, a 2 G pull to 20° nose up held to 145 KIAS, then a
- * 0.25 G push until 125 KIAS or the clean glide path. At or below 150 KIAS, a
- * level slow-down to 125 KIAS instead. kias from 0 to VMO (316) and a finite
- * altFt, or it throws a RangeError. Returns the height gained, the time and
- * the distance over the ground in still air. About 1,000 steps: fine once per
- * engine failure, not once per frame.
+ * The zoom after an engine failure, flown by the point-mass step with the engine off (drag only, clean): 2 s straight
+ * and level, a 2 G pull to 20° nose up held to 145 KIAS, then a 0.25 G push until 125 KIAS or the clean glide path. At
+ * or below 150 KIAS, a level slow-down to 125 KIAS instead. kias from 0 to VMO (316), a finite altFt and a weightLb
+ * from basic to maximum (6,400 lb unless told), or it throws a RangeError. Returns the height gained, the time and the
+ * distance over the ground in still air. About 1,000 steps: fine once per engine failure, not once per frame.
  */
-export function flyZoomT6A(kias, altFt) {
-  if (!(kias >= 0 && kias <= T6A_LIMITS.vmoKias && Number.isFinite(altFt))) {
-    throw new RangeError(`zoom from ${kias} KIAS at ${altFt} ft: needs 0 to ${T6A_LIMITS.vmoKias} KIAS and a finite height`);
+export function flyZoomT6A(kias, altFt, weightLb = T6A_LIMITS.weightLb) {
+  if (!(kias >= 0 && kias <= T6A_LIMITS.vmoKias && Number.isFinite(altFt)
+    && weightLb >= T6A_LIMITS.basicWeightLb && weightLb <= T6A_LIMITS.maxWeightLb)) {
+    throw new RangeError(`zoom from ${kias} KIAS at ${altFt} ft and ${weightLb} lb: needs 0 to ${T6A_LIMITS.vmoKias} KIAS, a finite height and ${T6A_LIMITS.basicWeightLb} to ${T6A_LIMITS.maxWeightLb} lb`);
   }
-  const engineOff = (ktas, alt, g) => -dragPerWeight(tasToIasKt(ktas, alt), alt, g);
+  const engineOff = (ktas, alt, g) => -dragPerWeight(tasToIasKt(ktas, alt), alt, g, 'clean', weightLb);
   let s = pointMassState({ altFt, ktas: iasToTasKt(kias, altFt), headingRad: 0 });
   let t = 0;
   const now = () => pointMassFlight(s);
@@ -345,7 +489,7 @@ export function flyZoomT6A(kias, altFt) {
     while (nowKias() > ZOOM_GLIDE_KIAS && going()) fly({ g: 1, bankRad: 0 });
   } else {
     const climb = 20 * Math.PI / 180;
-    const glidePath = -Math.atan(1 / (T6A_GLIDE.clean.nmPer1000Ft * FT_PER_NM / 1000));
+    const glidePath = -Math.atan(1 / glideRatio('clean'));
     while (t < 2 - 1e-9) fly({ g: 1, bankRad: 0 });
     while (now().climbRad < climb && going()) fly({ g: 2, bankRad: 0 });
     while (nowKias() > 145 && going()) {
@@ -358,40 +502,11 @@ export function flyZoomT6A(kias, altFt) {
 }
 
 /**
- * Height gained by the reference zoom after an engine failure at kias
- * and altFt (reference), for a jet of weightLb (5,800 lb unless told; the
- * table's 5,400 to 6,500 lb, held at its ends). At 200 and 250 KIAS between
- * 500 and 6,000 ft it is the table; elsewhere, the same share of the energy
- * height from kias down to 125 KIAS as the table's nearest speed and altitude.
- * At or below 150 KIAS there is no zoom (the reference procedure slows down level), so the
- * gain steps from 0 to about 200 ft there, as the reference rule does. The time
- * and distance are the model's (flyZoomT6A), which the reference data do not give.
- * kias from 0 to VMO (316) and a finite altFt, or it throws a RangeError.
- * Returns { gainFt, timeSec, distanceFt }.
- */
-export function zoomT6A(kias, altFt, weightLb = ZOOM_DEFAULT_LB) {
-  const { timeSec, distanceFt } = flyZoomT6A(kias, altFt);
-  if (kias <= ZOOM_MIN_KIAS) return { gainFt: 0, timeSec, distanceFt };
-  const z = ZOOM_GAIN_TABLE;
-  const w = (clamp(weightLb, z.lightLb, z.heavyLb) - z.lightLb) / (z.heavyLb - z.lightLb);
-  const alt = clamp(altFt, z.altFt[0], z.altFt[z.altFt.length - 1]);
-  // The table's share of the ideal at each of its speeds, at this altitude and weight.
-  const shares = z.kias.map((k, i) => {
-    const gains = z.altFt.map((_, j) => z.light[i][j] + (z.heavy[i][j] - z.light[i][j]) * w);
-    return lerpHeld(z.altFt, gains, alt) / idealZoomFt(k, alt);
-  });
-  const share = lerpHeld(z.kias, shares, kias);
-  const gainFt = share * idealZoomFt(kias, altFt);
-  // Rounded to 1e-9 ft so the table's own points come back exact, not a float step off.
-  return { gainFt: Math.round(gainFt * 1e9) / 1e9, timeSec, distanceFt };
-}
-
-/**
  * How the model flies a manoeuvre (Patrick, 2026-09-30 09:27Z; SMM 14.16).
  * - shakerMarginKt: pulls fly in the stick shaker, not on the stall line. The
- *   shaker comes on about 5 to 10 kt above the stall (reference); 7 kt here.
+ *   shaker comes on 7 kt above the stall (Patrick's ruling, 30 Sep 2026).
  * - splitSMaxG: the most G the split S pulls; Patrick: "Split S goes up to 5 G"
- *   (AIF 2410's maximum; SMM Table 14.1 gives about 4 G).
+ *   (SMM Table 14.1 gives about 4 G).
  * - rollRateDegPerSec: the roll inverted, at SPEC-turn-fight's 90°/s default
  *   (no manual gives one).
  * - splitSNoseUpDeg, splitSRollG: the split S raises the nose to about 20° up,
@@ -408,7 +523,7 @@ const SPLIT_S_MAX_SEC = 120;    // a guard: the slowest entry takes about 30 s (
 /**
  * The G a pull in the stick shaker gives at this speed: 1 G at the shaker
  * speed (stall + margin, 93 KIAS), growing with KIAS², at most maxG (the
- * envelope's 7 G unless told). With no margin it is the stall line.
+ * certificates' +7 G unless told). With no margin it is the stall line.
  */
 export function shakerG(kias, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A_MANOEUVRE.shakerMarginKt, maxG = T6A_LIMITS.maxG } = {}) {
   return Math.min((kias / (stallKias + marginKt)) ** 2, maxG);

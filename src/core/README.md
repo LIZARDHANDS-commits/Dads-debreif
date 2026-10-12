@@ -15,10 +15,9 @@ The small functions behind every number the tool shows: units, angles and headin
 | `tennis.js` | The tennis ball, one solver for the map and the 3D view |
 | `standards.js` | Formation standards (spread, offset, lead) for the Debrief, with the SMM's as the default preset (D114-D116) |
 | `wind.js` | Crab angle, heading and ground speed in a wind (compass degrees in and out); the wind as a vector |
-| `t6-performance.js` | The one T-6A performance model: V-n limits and stall line, roll and G onset, IAS and TAS, thrust and drag, pitch attitude, energy height, glide, the engine-out zoom, and the stick-shaker pull and split S, checked against reference data |
+| `t6-performance.js` | The one T-6A performance model: V-n limits and stall line, roll and G onset, IAS and TAS, thrust and drag from formulas with sourced inputs, pitch attitude, energy height, glide, the engine-out zoom, and the stick-shaker pull and split S |
 | `closest-approach.js` | Closest approach of two aircraft, the danger test that holds until the range opens, which side to dodge, and when two aircraft first get inside a cylinder of each other (ALL-27); every limit passed in |
 | `point-mass.js` | One step of an aircraft flown by G and bank as a point, through loops and straight up or down |
-| `t6a-turn-data.js` | The sustained turn points, read by eye, and the thrust and drag fitted to them |
 | `canopy.js` | Whether Lead is in the wingman's canopy glass, and the overshoot lane round Lead (`LANE`) |
 
 ## One heading rule

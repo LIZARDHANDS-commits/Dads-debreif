@@ -19,7 +19,7 @@ import {
 import { bankDegFromG, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
 import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
-  thrustPerWeight, dragPerWeight, excessThrustPerWeight, zoomT6A,
+  thrustPerWeight, dragPerWeight, excessThrustPerWeight, flyZoomT6A,
 } from '../../../src/core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../../src/core/point-mass.js';
 
@@ -273,24 +273,25 @@ test('a right bank turns clockwise (heading falls) and a left bank counter-clock
 
 // ---------- zoom ----------
 
-// Each zoomT6A call flies about 1,000 steps, so these run few times.
+// Each flyZoomT6A call flies about 1,000 steps, so these run few times. Weights from the 5,170 lb basic to the
+// 6,900 lb certified maximum (T6A_LIMITS).
 const ZOOM_RUNS = 30;
-const weightLb = num(4500, 7500);
+const weightLb = num(5170, 6900);
 
 test('zoom gain is never negative', () => {
   property(7001, fc.tuple(num(0, 316), altFt, weightLb), ([kias, alt, w]) => {
-    assert.ok(zoomT6A(kias, alt, w).gainFt >= 0);
+    assert.ok(flyZoomT6A(kias, alt, w).gainFt >= 0);
   }, ZOOM_RUNS);
 });
 
 test('zoom gain is 0 at or below 150 KIAS', () => {
   property(7002, fc.tuple(num(0, 150), altFt, weightLb), ([kias, alt, w]) => {
-    assert.equal(zoomT6A(kias, alt, w).gainFt, 0);
+    assert.equal(flyZoomT6A(kias, alt, w).gainFt, 0);
   }, ZOOM_RUNS);
 });
 
 test('zoom gain does not fall as speed rises above 150 KIAS', () => {
   property(7003, fc.tuple(num(150.5, 300), num(0.5, 16), altFt, weightLb), ([kias, dk, alt, w]) => {
-    assert.ok(zoomT6A(kias + dk, alt, w).gainFt >= zoomT6A(kias, alt, w).gainFt);
+    assert.ok(flyZoomT6A(kias + dk, alt, w).gainFt >= flyZoomT6A(kias, alt, w).gainFt);
   }, ZOOM_RUNS);
 });

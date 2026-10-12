@@ -1,40 +1,41 @@
-// Checks: the T-6A performance model: G and speed limits, stall line, IAS and TAS, Mmo and top speed, sustained turn data, max glide, energy height.
+// Checks: the T-6A performance model: G and speed limits, stall line, IAS and TAS, Mmo and top speed, thrust and drag, level torque, glide, zoom, energy height.
 // Serves: ALL-R20, ALL-R22, ALL-R28.
-// Expected values: the reference data cited in the test and standard atmosphere formulas; the 86 stall constant is Patrick's default;
-//   a few checks still pin the model's own output (test register, T2 and T3).
+// Expected values: the type certificates, SMM and EFIG pages and Patrick's rulings cited in each test, and standard
+//   aerodynamics and atmosphere formulas worked out in the test; a few split S checks still pin the model's own output
+//   (test register, T2 and T3).
 
-// The shared T-6A performance model (SPEC-core, "API, fifth PR"), against the
-// T-6A's own reference data. V6 has none of this, so every check here is a
-// known answer: the flight envelope, the airspeed limits, the sustained turn rate
-// and radius data, the max glide data and the zoom.
+// The shared T-6A performance model (SPEC-core, "API, fifth PR"), built from public and pilot sources (12 Oct 2026).
+// V6 has none of this, so every check here is a known answer: the certificates' limits, the formulas with their
+// inputs, Patrick's level torque, the SMM's glide and the zoom.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
-  T6A_GLIDE, glideSinkFpm, glideRatio, ZOOM_GAIN_TABLE, zoomT6A, flyZoomT6A, t6aExcessFn,
+  T6A_GLIDE, glideSinkFpm, glideRatio, flyZoomT6A, t6aExcessFn,
   T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A, modelMaxIasT6A,
   pitchDegFromClimb,
 } from '../../../src/core/t6-performance.js';
-import {
-  T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
-} from '../../../src/core/t6a-turn-data.js';
 import { isaDensityRatio, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
-import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../../src/core/units.js';
-import { TOLERANCES, assertNear } from '../../helpers/tolerances.js';
+import { KT_TO_FTPS, FT_PER_NM } from '../../../src/core/units.js';
 
 const near = (actual, expected, tol, what) => assert.ok(Math.abs(actual - expected) <= tol, `${what}: ${actual} is not ${expected} ± ${tol}`);
 
 // ── Task 14: limits and speeds ──
 
-test('the G and speed limits: +7/−3.5 G, +4.7 G rolling, VO 227, VMO 316 KIAS, 5,168 lb', () => {
+// The type certificates (EASA.IM.A.636, UK.TC.A.00092) for the G and speed limits and the 6,900 lb maximum; Germann 2006
+// p.17 for the rolling limits and the 6,500 lb the trainer is operated at, and Table 9 for the 6,400 lb sortie weight;
+// the Textron T-6C brochure for the 5,170 lb basic weight.
+test('the G, speed and weight limits: +7/−3.5 G, +4.7 G rolling, VO 227, VMO 316 KIAS, 6,400 lb sortie weight', () => {
   assert.deepEqual(
     { maxG: T6A_LIMITS.maxG, minG: T6A_LIMITS.minG, rollingMaxG: T6A_LIMITS.rollingMaxG, rollingMinG: T6A_LIMITS.rollingMinG },
     { maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1 });
   assert.equal(T6A_LIMITS.voKias, 227);
   assert.equal(T6A_LIMITS.vmoKias, 316);
-  assert.equal(T6A_LIMITS.weightLb, 5168);
-  assert.equal(T6A_LIMITS.stallKias, 86, "Patrick's choice, not a reference value: he kept 86 kt as the stall speed (30 Sep, 09:29Z); the sustained-turn data's own max-power stall is nearer 83 kt");
+  assert.deepEqual(
+    { weightLb: T6A_LIMITS.weightLb, basicWeightLb: T6A_LIMITS.basicWeightLb, maxWeightLb: T6A_LIMITS.maxWeightLb, operatedMaxWeightLb: T6A_LIMITS.operatedMaxWeightLb },
+    { weightLb: 6400, basicWeightLb: 5170, maxWeightLb: 6900, operatedMaxWeightLb: 6500 });
+  assert.equal(T6A_LIMITS.stallKias, 86, "Patrick's ruling: 86 kt is the 1 G stall speed (30 Sep, 09:29Z), at every weight for now");
   assert.throws(() => { T6A_LIMITS.maxG = 8; }, TypeError);
 });
 
@@ -45,9 +46,7 @@ test('the stall line: (KIAS ÷ 86)², reaching 7 G at 227.5 KIAS', () => {
   near(stallLimitG(200), 5.408, 0.001, '200 KIAS');
   near(stallLimitG(86 * Math.sqrt(7)), 7, 1e-12, 'corner');
   near(86 * Math.sqrt(7), 227.5, 0.05, 'corner speed');
-  near(stallLimitG(139.6, 83), 2.829, 0.001, 'the sustained-turn data\'s max-power stall is near 83 kt');
-  // The flight envelope's own curve is (KIAS ÷ 89.4)², reaching 7 G near 236 KIAS; 227.5 matching VO (227) is a coincidence of the 86.
-  near(89.4 * Math.sqrt(7), 236.5, 0.1, 'the flight envelope curve\'s corner');
+  // 227.5 matching VO (227) is a coincidence of the 86.
 });
 
 test('available G: the stall line, capped at +7 G, or +4.7 G while rolling', () => {
@@ -65,7 +64,7 @@ test('IAS and TAS through the standard atmosphere: TAS = IAS ÷ √σ', () => {
   for (const alt of [0, 3500, 10000, 20000, 31000]) near(tasToIasKt(iasToTasKt(173, alt), alt), 173, 1e-12, `round trip at ${alt} ft`);
 });
 
-test('the Mach limit: Mmo 0.67 (reference), and the other limits unchanged', () => {
+test('the Mach limit: Mmo 0.67 (type certificates), and the other limits unchanged', () => {
   assert.equal(T6A_LIMITS.mmo, 0.67);
   assert.deepEqual(
     { maxG: T6A_LIMITS.maxG, minG: T6A_LIMITS.minG, stallKias: T6A_LIMITS.stallKias, voKias: T6A_LIMITS.voKias, vmoKias: T6A_LIMITS.vmoKias },
@@ -92,14 +91,13 @@ test('the KIAS a Mach number reads: calibrated airspeed, standard day, with comp
   for (const bad of [-0.1, 1, NaN]) assert.throws(() => machToKiasKt(bad, 10000), RangeError);
 });
 
-// The reference airspeed and Mach limits: VMO 316 KIAS to
-// 18,769 ft, then Mmo 0.67, which is 244 KIAS at 31,000 ft.
-test('the top speed follows the reference line: VMO 316 KIAS to about 18,900 ft, then Mach 0.67', () => {
-  for (const alt of [0, 5000, 10000, 15000, 18000, 18769]) assert.equal(maxKiasT6A(alt), 316, `${alt} ft: VMO`);
+// The type certificates' VMO 316 KIAS and Mmo 0.67: Mach 0.67 reads 316 KIAS near 18,900 ft on a standard day
+// (the standard calibrated-airspeed formula), so it is the limit above that.
+test('the top speed follows the certificates: VMO 316 KIAS to about 18,900 ft, then Mach 0.67', () => {
+  for (const alt of [0, 5000, 10000, 15000, 18000, 18700]) assert.equal(maxKiasT6A(alt), 316, `${alt} ft: VMO`);
   near(maxKiasT6A(20000), 309.1, 0.1, '20,000 ft');
   near(maxKiasT6A(25000), 279.1, 0.1, '25,000 ft');
-  // The standard formula gives 245.3 at the line's top; the reference reads 244.
-  near(maxKiasT6A(31000), 244, 1.5, '31,000 ft: the reference reads 244');
+  near(maxKiasT6A(31000), 245.3, 0.1, '31,000 ft');
   assert.ok(maxKiasT6A(19000) < 316, 'Mach is the limit by 19,000 ft');
   for (const alt of [20000, 25000, 31000]) assert.equal(maxKiasT6A(alt), machToKiasKt(T6A_LIMITS.mmo, alt), `${alt} ft is Mach 0.67`);
   for (const bad of [NaN, -Infinity]) assert.throws(() => maxKiasT6A(bad), RangeError);
@@ -127,57 +125,58 @@ test('energy height: altitude + V²/2g', () => {
   near(energyHeightFt(3500, 220) - energyHeightFt(3500, 145), 1212, 1, '220 to 145 KTAS is worth about 1,212 ft');
 });
 
-// ── Task 16: thrust and drag from the sustained turn data ──
+// ── Thrust and drag from the public and pilot sources (spec, "API, fifth PR: T-6A performance") ──
 
-const DEG = 180 / Math.PI;
+// The polar's inputs, as the spec gives them: wing area 175.3 sq ft (Textron T-6C brochure), aspect ratio 6.29 (a
+// public PC-9 listing), zero-lift drag about 0.028 (from Patrick's level torque points, 12 Oct 2026), span efficiency
+// 0.8 (an estimate). Standard aerodynamics: q = ½ ρ₀ V² from indicated airspeed, CL = n W ÷ (q S), CD = CD0 + CL² ÷ (π AR e).
+const WING_SQFT = 175.3, ASPECT = 6.29, CD0 = 0.028, SPAN_E = 0.8, SORTIE_LB = 6400;
+const qPsf = (kias) => 0.5 * 0.0023769 * (kias * KT_TO_FTPS) ** 2;
+const inducedPerWeight = (kias, g, w = SORTIE_LB) => g * g * w / (qPsf(kias) * WING_SQFT * Math.PI * ASPECT * SPAN_E);
 
-/** The G the model can hold without slowing down: where thrust equals drag. 0 if not even 1 G. */
-function sustainedG(kias, altFt) {
-  if (excessThrustPerWeight(kias, altFt, 1) < 0) return 0;
-  let lo = 1, hi = 10;
-  for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (excessThrustPerWeight(kias, altFt, mid) > 0) lo = mid; else hi = mid; }
-  return lo;
-}
-
-/** The reference lines from the model: best sustained rate and where, smallest radius, zero-turn speed. */
-function refFromModel(altFt, stallKias) {
-  let bestRate = 0, bestKias = 0, minRadius = Infinity, zeroKias = 0;
-  for (let kias = 80; kias <= 300; kias += 0.1) {
-    const sustained = sustainedG(kias, altFt);
-    if (sustained >= 1) zeroKias = kias;
-    const g = Math.min(sustained, availableG(kias, false, stallKias));
-    if (g <= 1) continue;
-    const v = iasToTasKt(kias, altFt) * KT_TO_FTPS;
-    const rate = turnRateRadPerSec(v, g) * DEG;
-    if (rate > bestRate) { bestRate = rate; bestKias = kias; }
-    minRadius = Math.min(minRadius, turnRadiusFt(v, g));
-  }
-  return { bestRate, bestKias, minRadius, zeroKias };
-}
-
-test('drag: a zero-lift part plus a part growing with G², set by the max glide data', () => {
-  // Best glide 125 KIAS clean at 2 NM per 1,000 ft: L/D 12.15, both parts equal there.
-  near(1 / dragPerWeight(125, 0, 1), 2 * FT_PER_NM / 1000, 1e-3, 'L/D at 125 KIAS, 1 G');
-  near(T6A_FIT.dragA * 125 ** 2 / (T6A_FIT.dragB / 125 ** 2), 1, 1e-5, 'the two parts equal at the best glide speed');
-  assert.ok(dragPerWeight(115, 0, 1) > dragPerWeight(125, 0, 1) && dragPerWeight(135, 0, 1) > dragPerWeight(125, 0, 1), '125 KIAS is the least drag at 1 G');
-  near(dragPerWeight(200, 0, 3) - dragPerWeight(200, 0, 1), 8 * T6A_FIT.dragB / 200 ** 2, 1e-12, 'G² part');
+test('drag: the zero-lift part plus the induced part, from the polar\'s inputs', () => {
+  // 220 KIAS, 1 G: far from the stall, so only the two parts.
+  near(dragPerWeight(220, 2000, 1), qPsf(220) * WING_SQFT * CD0 / SORTIE_LB + inducedPerWeight(220, 1), 1e-12, '220 KIAS, 1 G');
+  near(dragPerWeight(200, 0, 3) - dragPerWeight(200, 0, 1), inducedPerWeight(200, 3) - inducedPerWeight(200, 1), 1e-12, 'the G² part, 200 KIAS');
   assert.equal(dragPerWeight(180, 20000, 2), dragPerWeight(180, 0, 2), 'at a given IAS, drag does not change with height');
+  // The least drag at 1 G, 6,400 lb: within the shared ±10 kt of the SMM's 125 KIAS best glide (SMM 13.5 para 7).
+  let least = 0;
+  for (let k = 100; k <= 150; k += 0.5) if (!least || dragPerWeight(k, 0, 1) < dragPerWeight(least, 0, 1)) least = k;
+  near(least, 125, 10, 'least drag speed, KIAS');
+  // Gear and flaps add drag; a heavier aircraft has more induced drag ÷ weight at the same speed and G.
+  assert.ok(dragPerWeight(120, 2000, 1, 'gearDown') > dragPerWeight(120, 2000, 1), 'gear down');
+  assert.ok(dragPerWeight(120, 2000, 1, 'landing') > dragPerWeight(120, 2000, 1, 'flapsTakeoff'), 'landing flap over takeoff flap');
+  assert.ok(dragPerWeight(150, 2000, 2, 'clean', 6900) > dragPerWeight(150, 2000, 2, 'clean', 5170), 'heavier');
+  assert.throws(() => dragPerWeight(150, 2000, 1, 'spoilers'), RangeError);
+  for (const [kias, alt, g, w] of [[0.5, 2000, 1, 6400], [NaN, 2000, 1, 6400], [150, NaN, 1, 6400], [150, 2000, NaN, 6400], [150, 2000, 1, 5000], [150, 2000, 1, 7000]]) {
+    assert.throws(() => dragPerWeight(kias, alt, g, 'clean', w), RangeError, `${kias} KIAS, ${alt} ft, ${g} G, ${w} lb`);
+  }
+  // VMO is a published limit, flagged on screen, never a wall: the drag past it is still there (AGENTS.md).
+  assert.ok(dragPerWeight(330, 2000, 1) > dragPerWeight(316, 2000, 1), 'past VMO');
 });
 
-test('thrust: falls with speed, holds its sea-level value to about 14,000 ft, then falls with density', () => {
+test('thrust: falls with speed, holds its sea-level value to about 14,500 ft, then falls with density', () => {
   assert.ok(thrustPerWeight(100, 0) > thrustPerWeight(150, 0) && thrustPerWeight(150, 0) > thrustPerWeight(250, 0), 'falls with speed');
-  near(thrustPerWeight(150, 0), T6A_FIT.thrustK / (150 + T6A_FIT.thrustV0Kt) * T6A_FIT.thrustFlatSigma ** T6A_FIT.thrustDensityExp, 1e-12, 'the formula at sea level');
-  // Same true airspeed, sea level and 12,000 ft (σ above the flat-rating point): same thrust.
-  near(thrustPerWeight(tasToIasKt(200, 12000), 12000), thrustPerWeight(200, 0), 1e-12, 'flat-rated below about 14,000 ft');
+  // Same true airspeed, sea level and 12,000 ft (density ratio above the 0.64 flat-rating corner): same thrust.
+  near(thrustPerWeight(tasToIasKt(200, 12000), 12000), thrustPerWeight(200, 0), 1e-12, 'flat-rated below about 14,500 ft');
   assert.ok(thrustPerWeight(tasToIasKt(200, 20000), 20000) < thrustPerWeight(200, 0), 'less above it');
-  // As power: 50 to 80 % of the PT6A-68's 1,100 shp (flat-rated, reference data) at 5,168 lb,
-  // rising with speed like a propeller's efficiency.
+  // As power: a propeller turns 50 to 90 % of the shaft power into thrust power (standard aerodynamics); the shaft
+  // power is the PT6A-68's 1,100 shp, flat-rated (EASA.IM.A.636), and the exhaust adds a little.
   let last = 0;
   for (const kias of [100, 150, 200, 250, 280]) {
-    const share = thrustPerWeight(kias, 0) * T6A_LIMITS.weightLb * kias * KT_TO_FTPS / 550 / 1100;
-    assert.ok(share > 0.5 && share < 0.8 && share > last, `thrust power at ${kias} KIAS: ${(share * 100).toFixed(0)} % of 1,100 shp`);
+    const share = thrustPerWeight(kias, 0) * SORTIE_LB * kias * KT_TO_FTPS / 550 / 1100;
+    assert.ok(share > 0.5 && share < 0.9 && share > last, `thrust power at ${kias} KIAS: ${(share * 100).toFixed(0)} % of 1,100 shp`);
     last = share;
   }
+  near(thrustPerWeight(180, 2000, 5170), thrustPerWeight(180, 2000) * SORTIE_LB / 5170, 1e-12, 'thrust ÷ weight at another weight');
+});
+
+// The one new test of this rebuild: the model's level-flight torque against the SMM and Patrick. With the propeller
+// at 2,000 rpm, torque is a share of the 1,100 shp, and the part throttle that holds level flight is drag ÷ full thrust.
+test('level flight at 220 KIAS, pattern height, takes about 65 % torque (SMM 4.14 para 32; Patrick, 12 Oct 2026)', () => {
+  const torque = dragPerWeight(220, 2000, 1) / thrustPerWeight(220, 2000);
+  // 10 points either way: the SMM and Patrick both say "about".
+  assert.ok(torque >= 0.55 && torque <= 0.75, `${(torque * 100).toFixed(1)} % torque`);
 });
 
 test('excess thrust: thrust minus drag', () => {
@@ -190,107 +189,7 @@ test('t6aExcessFn: excess thrust for stepPointMass, which passes true airspeed',
   near(t6aExcessFn(iasToTasKt(180, 12000), 12000, 3), excessThrustPerWeight(180, 12000, 3), 1e-12, '180 KIAS at 12,000 ft, 3 G');
 });
 
-test('every reference point: thrust within 10 % of drag at the reference G', () => {
-  let worst = 0;
-  for (const [kias, alt, rate] of T6A_TURN_POINTS) {
-    const g = Math.hypot(1, rate / DEG * iasToTasKt(kias, alt) * KT_TO_FTPS / G_FTPS2);
-    const d = dragPerWeight(kias, alt, g);
-    const miss = Math.abs(excessThrustPerWeight(kias, alt, g) / d);
-    assert.ok(miss <= 0.1, `${kias} KIAS at ${alt} ft: ${(miss * 100).toFixed(1)} %`);
-    worst = Math.max(worst, miss);
-  }
-  assert.ok(worst > 0.01, 'read off by eye: not a perfect fit');
-});
-
-// Turn rate against the reference directly (verification of 2026-09-30, finding F2): a point's
-// thrust within 10 % of its drag can still be a rate 28 % low where the curve falls steeply.
-
-/** The model's sustained turn rate, °/s, at kias and altFt: thrust equal to drag, capped by the stall line. */
-function sustainedRate(kias, altFt, stallKias = T6A_LIMITS.stallKias) {
-  const g = Math.min(sustainedG(kias, altFt), availableG(kias, false, stallKias));
-  return g > 1 ? turnRateRadPerSec(iasToTasKt(kias, altFt) * KT_TO_FTPS, g) * DEG : 0;
-}
-
-// More reference points, read in the independent check (verification/core.md, Table 1):
-// 175, 230 and 250 KIAS, where the curves fall steeply, and fresh reads at 200 KIAS. [KIAS, ft, °/s]
-const EXTRA_POINTS = [
-  [200, 0, 15.36], [230, 0, 11.46], [250, 0, 7.32], [200, 5000, 13.35], [250, 5000, 4.51],
-  [200, 10000, 11.5], [175, 15000, 11.9], [200, 15000, 9.75], [200, 20000, 6.86],
-  [175, 25000, 6.27], [200, 25000, 3.17], [175, 31000, 2.31],
-];
-
-/** Whether the model reaches the reference rate within kt knots of the reference speed. */
-function reachesWithin(kias, altFt, rate, kt) {
-  const lo = sustainedRate(kias - kt, altFt), hi = sustainedRate(kias + kt, altFt);
-  return Math.min(lo, hi) <= rate && rate <= Math.max(lo, hi);
-}
-
-test('turn rate against the reference, sea level to 15,000 ft: within 0.65°/s, or 3 kt where the curve is steep', () => {
-  const points = [...T6A_TURN_150_200, ...T6A_TURN_OTHER, ...EXTRA_POINTS].filter(([, alt]) => alt <= 15000);
-  assert.equal(points.length, 20);
-  let worst = 0;
-  for (const [kias, alt, rate] of points) {
-    const miss = sustainedRate(kias, alt) - rate;
-    assert.ok(Math.abs(miss) <= 0.65 || reachesWithin(kias, alt, rate, 3), `${kias} KIAS at ${alt} ft: model ${sustainedRate(kias, alt).toFixed(2)}°/s, reference ${rate}`);
-    worst = Math.max(worst, Math.abs(miss));
-  }
-  assert.ok(worst > 0.3, 'read off by eye: not a perfect fit');
-  // Near zero turn at sea level the curve is steep: 0.75°/s high, but only 2 kt.
-  assert.ok(!(Math.abs(sustainedRate(256.6, 0) - 4.48) <= 0.65) && reachesWithin(256.6, 0, 4.48, 3));
-});
-
-// Where the model and the reference differ (20,000 ft and up, and the tops of the lines with the 86 kt stall)
-// the gap is shown in the test output and goes in the report for Patrick and Dad at sign-off. The test
-// does not lock the gap in (T7): it only checks the model is within the shared +/-2.5 deg/s margin.
-// Source of the reference values: read by eye, see t6a-turn-data.js.
-test('turn rate against the reference, 20,000 ft and up: compared and shown, the gap reported', (t) => {
-  const gaps = [];
-  for (const [kias, alt, rate] of [...T6A_TURN_150_200, ...EXTRA_POINTS].filter(([, a]) => a >= 20000)) {
-    const model = sustainedRate(kias, alt);
-    assertNear(model, rate, TOLERANCES.RATE_DEG_PER_SEC, `${kias} KIAS at ${alt} ft: model ${model.toFixed(2)}, reference ${rate} deg/s`);
-    gaps.push(`${kias} KIAS ${alt} ft: model ${(model - rate).toFixed(2)} deg/s against the reference`);
-  }
-  t.diagnostic(`Model minus reference, 20,000 ft and up (for Patrick and Dad): ${gaps.join('; ')}`);
-});
-
-test('the tops of the reference lines: the model matches the reference with the reference\'s own 83 kt stall; with the 86 kt default the gap is shown and reported', (t) => {
-  const gaps = [];
-  for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT) {
-    assertNear(sustainedRate(kias, alt, 83), rate, 0.35, `${alt} ft at 83 kt stall (the reference's own, about 83 kt; 0.35 deg/s is the reading's own accuracy)`);
-    const at86 = sustainedRate(kias, alt, 86);
-    assertNear(at86, rate, TOLERANCES.RATE_DEG_PER_SEC, `${alt} ft at the 86 kt default`);
-    gaps.push(`${alt} ft: ${(at86 - rate).toFixed(2)} deg/s`);
-  }
-  t.diagnostic(`Model minus reference at the line tops with the 86 kt stall (for Patrick and Dad): ${gaps.join('; ')}`);
-});
-
-test('zero sustained turn: the model reaches it within 6 kt of each reference line', () => {
-  for (const [kias, alt] of T6A_TURN_ZERO) {
-    let zero = 0;
-    for (let k = 150; k <= 300; k += 0.1) if (sustainedG(k, alt) >= 1) zero = k;
-    assert.ok(Math.abs(zero - kias) <= 6, `${alt} ft: model ${zero.toFixed(1)} KIAS, reference ${kias}`);
-  }
-});
-
-test('the tops of the reference lines: within 0.35°/s with an 83 kt stall', () => {
-  // The 86 kt default reads low here (verification finding F1, logged for review); that band was the code's own output, so it is not checked.
-  for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT) {
-    const at83 = sustainedRate(kias, alt, 83) - rate;
-    assert.ok(Math.abs(at83) <= 0.35, `${alt} ft at 83 kt: ${at83.toFixed(2)}°/s`);
-  }
-});
-
-for (const stallKias of [86, 83]) {
-  test(`the sustained-turn checks (SPEC-turn-fight), stall at ${stallKias} kt`, () => {
-    const sl = refFromModel(0, stallKias);
-    near(sl.bestRate, 20.6, 1, 'best sustained rate at sea level, °/s');
-    near(sl.bestKias, 140, 10, 'at about 140 KIAS');
-    near(sl.zeroKias, 260, 10, 'zero sustained turn at sea level, KIAS');
-    assert.ok(sl.minRadius >= 650 * 0.9 && sl.minRadius <= 700 * 1.1, `smallest sustained radius 650 to 700 ft ± 10 %: ${sl.minRadius.toFixed(0)}`);
-    near(refFromModel(10000, stallKias).bestRate, 16.5, 1, 'best at 10,000 ft');
-    near(refFromModel(20000, stallKias).bestRate, 12, 1, 'best at 20,000 ft');
-  });
-}
+const DEG = 180 / Math.PI;
 
 test('the model\'s corner: 7 G first at 227.5 KIAS (86 kt × √7); 33.3°/s on a 659 ft radius at 227 KIAS, sea level', () => {
   near(T6A_LIMITS.stallKias * Math.sqrt(T6A_LIMITS.maxG), 227.5, 0.05, 'corner speed');
@@ -299,17 +198,19 @@ test('the model\'s corner: 7 G first at 227.5 KIAS (86 kt × √7); 33.3°/s on 
   near(turnRadiusFt(v, 7), 659, 1, 'radius at 7 G');
 });
 
-// ── Task 17: glide and zoom, and the cross-checks ──
+// ── Glide and zoom, and the cross-checks ──
 
-test('the max glide data, by configuration', () => {
+// Clean: SMM 13.5 paras 6 and 7. Gear down, landing flap and windmilling: Patrick's ruling, to confirm. Takeoff flap:
+// an estimate between gear down and landing flap (Patrick, 4 Oct 2026 04:18Z).
+test('the best glide, by configuration', () => {
   assert.deepEqual(
-    Object.fromEntries(Object.entries(T6A_GLIDE).map(([k, c]) => [k, [c.kias, c.nmPer1000Ft, c.chartSinkFpm, c.prop, c.dragIndex]])),
+    Object.fromEntries(Object.entries(T6A_GLIDE).map(([k, c]) => [k, [c.kias, c.nmPer1000Ft, c.prop]])),
     {
-      clean: [125, 2.0, 1350, 'feathered', 0],
-      gearDown: [105, 1.5, 1500, 'feathered', 20],
-      flapsTakeoff: [110, 1.3, 1816, 'feathered', 50],
-      landing: [95, 1.1, 1850, 'feathered', 80],
-      windmilling: [110, 1.0, 2350, 'windmilling', 0],
+      clean: [125, 2.0, 'feathered'],
+      gearDown: [105, 1.5, 'feathered'],
+      flapsTakeoff: [110, 1.3, 'feathered'],
+      landing: [95, 1.1, 'feathered'],
+      windmilling: [110, 1.0, 'windmilling'],
     });
   assert.throws(() => { T6A_GLIDE.clean.kias = 120; }, TypeError);
 });
@@ -321,93 +222,26 @@ test('glide sink rate: true airspeed ÷ the glide ratio, so it grows with height
   assert.ok(glideSinkFpm('clean', 125, 10000) > glideSinkFpm('clean', 125, 0), 'faster sink higher up');
   assert.throws(() => glideSinkFpm('Clean', 125, 0), { name: 'RangeError', message: /clean, gearDown, flapsTakeoff, landing, windmilling/ });
   near(glideSinkFpm('gearDown', 120, 3500), iasToTasKt(120, 3500) * KT_TO_FTPS * 60 / (1.5 * FT_PER_NM / 1000), 1e-9, 'the SMM\'s 120 KIAS gear down');
-  // The reference sink rates are the same sums at about 16,000 ft, all four rows alike.
-  for (const [config, c] of Object.entries(T6A_GLIDE)) {
-    const atRef = glideSinkFpm(config, c.kias, 16300);
-    assert.ok(Math.abs(atRef / c.chartSinkFpm - 1) < 0.02, `${config}: ${atRef.toFixed(0)} ft/min at 16,300 ft against the reference ${c.chartSinkFpm}`);
-  }
 });
 
 test('the glide cross-check: drag alone at 125 KIAS clean glides within 15 % of 2 NM per 1,000 ft', () => {
   const ratio = 1 / dragPerWeight(125, 0, 1);
   const refRatio = 2 * FT_PER_NM / 1000;
-  assert.ok(Math.abs(ratio / refRatio - 1) <= 0.15, `model ${ratio.toFixed(2)}:1, reference ${refRatio.toFixed(2)}:1`);
-  // It is exact, since the glide data set the drag (T6A_FIT).
-  near(ratio, refRatio, 1e-3, 'L/D');
-});
-
-test('the reference zoom table: the lightest and heaviest rows exactly, the rows between within 1 ft', () => {
-  for (let i = 0; i < ZOOM_GAIN_TABLE.kias.length; i++) {
-    for (let j = 0; j < ZOOM_GAIN_TABLE.altFt.length; j++) {
-      assert.equal(zoomT6A(ZOOM_GAIN_TABLE.kias[i], ZOOM_GAIN_TABLE.altFt[j], ZOOM_GAIN_TABLE.lightLb).gainFt, ZOOM_GAIN_TABLE.light[i][j]);
-      assert.equal(zoomT6A(ZOOM_GAIN_TABLE.kias[i], ZOOM_GAIN_TABLE.altFt[j], ZOOM_GAIN_TABLE.heavyLb).gainFt, ZOOM_GAIN_TABLE.heavy[i][j]);
-    }
-  }
-  // As read from the table: 500, 1,500, 3,000 and 6,000 ft; 200 KIAS then 250 KIAS.
-  assert.deepEqual(ZOOM_GAIN_TABLE.light, [[595, 621, 649, 794], [1172, 1232, 1297, 1487]], '5,400 lb');
-  assert.deepEqual(ZOOM_GAIN_TABLE.heavy, [[738, 757, 768, 883], [1299, 1347, 1410, 1552]], '6,500 lb');
-  near(zoomT6A(200, 3000, 5800).gainFt, 693, 1, 'reference example 1');
-  near(zoomT6A(250, 6000, 6200).gainFt, 1535, 1, 'reference example 2');
-  near(zoomT6A(200, 500, 5900).gainFt, 660, 1, 'a row between');
-  near(zoomT6A(250, 1500, 6100).gainFt, 1305, 1, 'another');
-});
-
-test('zoomT6A between and beyond the table: the same share of the ideal energy height, none below 150 KIAS', () => {
-  assert.equal(zoomT6A(250, 3000).gainFt, zoomT6A(250, 3000, 5800).gainFt, '5,800 lb unless told');
-  const gains = [150.1, 175, 200, 220, 250, 280].map((k) => zoomT6A(k, 3500).gainFt);
-  for (let i = 1; i < gains.length; i++) assert.ok(gains[i] > gains[i - 1], `rises with speed: ${gains.join(', ')}`);
-  near(zoomT6A(220, 3500).gainFt, 959, 1, 'about 960 ft from 220 KIAS at 3,500 ft');
-  near(zoomT6A(280, 3500).gainFt, 1830.5, 0.5, 'above 250 KIAS: 250\'s share');
-  assert.equal(zoomT6A(150, 3500).gainFt, 0, 'at or below 150 KIAS the reference procedure decelerates level');
-  near(zoomT6A(200, 2250).gainFt, (zoomT6A(200, 1500).gainFt + zoomT6A(200, 3000).gainFt) / 2, 1e-9, 'straight line between altitudes');
-  assert.ok(zoomT6A(250, 10000).gainFt > zoomT6A(250, 6000).gainFt, 'higher than the table: the same share of a bigger energy height');
-  assert.equal(zoomT6A(200, 3000, 5000).gainFt, zoomT6A(200, 3000, 5400).gainFt, 'lighter than the table: its lightest row');
-});
-
-test('zoomT6A time and distance come from flying the reference procedure in the model', () => {
-  const z = zoomT6A(200, 500, 5400);
-  const flown = flyZoomT6A(200, 500);
-  // The zoom gains height, in the range the reference table gives (5,400 lb row: 595 ft from 200 KIAS at 500 ft).
-  // The flown time and distance are not pinned: they are the model's own output (T3).
-  assert.ok(flown.gainFt > 0, 'the zoom gains height');
-  assert.ok(Math.abs(flown.gainFt / ZOOM_GAIN_TABLE.light[0][0] - 1) <= TOLERANCES.PERCENT * 2, 'within 10 % of the reference table');
-  assert.ok(flyZoomT6A(250, 6000).gainFt > flown.gainFt, 'more height from 250 KIAS at 6,000 ft than from 200 KIAS at 500 ft');
-  assert.equal(z.timeSec, flown.timeSec);
-  assert.equal(z.distanceFt, flown.distanceFt);
-  // A generous limit: a zoom is a few seconds of pull and climb; 60 s would mean it is stuck or lost, not slow.
-  assert.ok(z.timeSec > 0 && z.timeSec < 60, `200 KIAS: ${z.timeSec.toFixed(1)} s`);
-  assert.ok(zoomT6A(250, 500).timeSec > z.timeSec && zoomT6A(250, 500).distanceFt > z.distanceFt, 'longer from 250');
-  const level = zoomT6A(140, 3500);
-  assert.ok(level.gainFt === 0 && level.timeSec > 0 && level.distanceFt > 0, 'a level slow-down to 125 below 150 KIAS');
-  assert.deepEqual(zoomT6A(120, 3500), { gainFt: 0, timeSec: 0, distanceFt: 0 }, 'already at glide speed');
-});
-
-test('the zoom cross-check: the model, thrust off, flies the reference zoom within 10 % of the table (5,400 lb)', () => {
-  // 2 s delay, 2 G pull to 20° nose up, held to 145 KIAS, then a 0.25 G push to 125 KIAS or the glide path.
-  for (let i = 0; i < ZOOM_GAIN_TABLE.kias.length; i++) {
-    const [lo, hi] = i === 0 ? [595, 883] : [1172, 1552];
-    for (let j = 0; j < ZOOM_GAIN_TABLE.altFt.length; j++) {
-      const gain = flyZoomT6A(ZOOM_GAIN_TABLE.kias[i], ZOOM_GAIN_TABLE.altFt[j]).gainFt;
-      const table = ZOOM_GAIN_TABLE.light[i][j];
-      assert.ok(Math.abs(gain / table - 1) <= 0.1, `${ZOOM_GAIN_TABLE.kias[i]} KIAS at ${ZOOM_GAIN_TABLE.altFt[j]} ft: model ${gain.toFixed(0)}, reference ${table}`);
-      assert.ok(gain >= lo && gain <= hi, `inside the reference ${lo} to ${hi} ft`);
-    }
-  }
+  assert.ok(Math.abs(ratio / refRatio - 1) <= 0.15, `model ${ratio.toFixed(2)}:1, SMM ${refRatio.toFixed(2)}:1`);
 });
 
 test('the zoom refuses speeds and heights it cannot fly, rather than hang', () => {
   for (const [kias, alt] of [[-200, 3000], [NaN, 3000], [Infinity, 3000], [317, 3000], [200, NaN], [200, -Infinity]]) {
-    assert.throws(() => zoomT6A(kias, alt), RangeError, `${kias} KIAS at ${alt} ft`);
     assert.throws(() => flyZoomT6A(kias, alt), RangeError, `${kias} KIAS at ${alt} ft, flown`);
   }
-  assert.ok(zoomT6A(316, 3000).gainFt > zoomT6A(250, 3000).gainFt, 'up to VMO');
-  assert.deepEqual(zoomT6A(0, 3000), { gainFt: 0, timeSec: 0, distanceFt: 0 }, 'standing still: nothing to trade');
+  assert.ok(flyZoomT6A(316, 3000).gainFt > flyZoomT6A(250, 3000).gainFt, 'up to VMO');
+  assert.deepEqual(flyZoomT6A(0, 3000), { gainFt: 0, timeSec: 0, distanceFt: 0 }, 'standing still: nothing to trade');
 });
 
 // ── The stick shaker and the split S (Patrick, 2026-09-30 09:27Z) ──
 // Manoeuvre pulls fly in the shaker, not on the stall line: the shaker comes
-// on about 5 to 10 kt above the stall (reference), taken as 7 kt, so the G is
-// (KIAS ÷ 93)². Split S pulls go up to 5 G (Patrick; AIF 2410's maximum).
+// on 7 kt above the stall (Patrick's ruling, 30 Sep 2026), so the G is
+// (KIAS ÷ 93)². Split S pulls go up to 5 G (Patrick).
 
 test('the manoeuvre numbers: shaker 7 kt above the stall, split S 5 G, 90°/s roll, 20° nose up, 0.5 G roll', () => {
   assert.deepEqual({ ...T6A_MANOEUVRE }, { shakerMarginKt: 7, splitSMaxG: 5, rollRateDegPerSec: 90, splitSNoseUpDeg: 20, splitSRollG: 0.5 });
@@ -515,7 +349,7 @@ test('the split S flies from a slow or a fast entry, says when it cannot finish,
   }
 });
 
-test('glideRatio: the reference 2 NM per 1,000 ft clean is about 12.2 ft flown per foot lost', () => {
+test('glideRatio: the SMM\'s 2 NM per 1,000 ft clean (13.5 para 7) is about 12.2 ft flown per foot lost', () => {
   near(glideRatio('clean'), 2 * FT_PER_NM / 1000, 1e-9, 'clean');
   near(glideRatio('landing'), 1.1 * FT_PER_NM / 1000, 1e-9, 'landing flap');
   assert.throws(() => glideRatio('spoilers'), RangeError);

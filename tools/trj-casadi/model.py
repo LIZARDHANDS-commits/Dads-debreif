@@ -12,15 +12,29 @@ KT_TO_FTPS = 1.68781
 FTPS_TO_KT = 1.0 / KT_TO_FTPS
 DEG = 3.141592653589793 / 180.0
 
-# T6A Fit Constants (from src/core/t6a-turn-data.js)
-T6A_FIT = {
-    'dragA': 2.63326e-6,
-    'dragB': 642.886,
-    'thrustK': 96.9613,
-    'thrustV0Kt': 74.793,
-    'thrustDensityExp': 0.884479,
-    'thrustFlatSigma': 0.642634,
-}
+# T-6A performance inputs (copied from src/core/t6-performance.js: T6A_AIRFRAME, T6A_ENGINE, T6A_PROP, T6A_DRAG and
+# the 6,400 lb sortie weight in T6A_LIMITS; each input's source is written there). Clean configuration only.
+RHO0_SLUG_FT3 = 0.0023769
+WING_AREA_SQFT = 175.3
+ASPECT_RATIO = 6.29
+WEIGHT_LB = 6400.0
+SHAFT_HP = 1100.0
+PROP_ND_FTPS = 2000.0 / 60.0 * (97.0 / 12.0)
+FLAT_RATED_SIGMA = 0.64
+LAPSE_EXP = 0.85
+EXHAUST_THRUST_LB = 160.0
+EXHAUST_ZERO_KTAS = 400.0
+PROP_PEAK_EFF = 0.8
+PROP_PEAK_J = 1.8
+PROP_STATIC_LB = 3500.0
+PROP_FALL_WIDTH = 1.1
+ZERO_LIFT_CD = 0.028
+SPAN_EFFICIENCY = 0.8
+STALL_RISE_CD = 0.04
+STALL_RISE_KT = 10.0
+FULL_POWER = SHAFT_HP * 550.0
+PROP_RISE_EXP = PROP_STATIC_LB * PROP_ND_FTPS * PROP_PEAK_J / (FULL_POWER * PROP_PEAK_EFF)
+INDUCED_K = 1.0 / (3.141592653589793 * ASPECT_RATIO * SPAN_EFFICIENCY)
 
 # SMM / Flight Limits (from src/core/t6-performance.js)
 T6A_LIMITS = {
@@ -59,11 +73,17 @@ def ktas_to_kias(ktas, alt_ft):
 
 
 def thrust_per_weight_max(kias, alt_ft):
-    """Maximum power thrust / weight."""
+    """Maximum power thrust / weight: propeller efficiency x flat-rated shaft power / true airspeed, plus the exhaust."""
     sigma = isa_density_ratio(alt_ft)
-    sigma_eff = ca.fmin(sigma, T6A_FIT['thrustFlatSigma'])
+    lapse = ca.fmin(1.0, (sigma / FLAT_RATED_SIGMA) ** LAPSE_EXP)
     ktas = kias_to_ktas(kias, alt_ft)
-    return (T6A_FIT['thrustK'] * (sigma_eff ** T6A_FIT['thrustDensityExp'])) / (ktas + T6A_FIT['thrustV0Kt'])
+    v = ktas * KT_TO_FTPS
+    j = v / PROP_ND_FTPS
+    rising = PROP_PEAK_EFF * (1.0 - ca.fmax(0.0, 1.0 - j / PROP_PEAK_J) ** PROP_RISE_EXP)
+    falling = PROP_PEAK_EFF * ca.exp(-((j - PROP_PEAK_J) / PROP_FALL_WIDTH) ** 2)
+    eta = ca.if_else(j <= PROP_PEAK_J, rising, falling)
+    exhaust = EXHAUST_THRUST_LB * lapse * ca.fmax(0.0, 1.0 - ktas / EXHAUST_ZERO_KTAS)
+    return (eta * FULL_POWER * lapse / v + exhaust) / WEIGHT_LB
 
 
 def drag_per_weight(kias, alt_ft, g, boards=0.0):
@@ -71,7 +91,12 @@ def drag_per_weight(kias, alt_ft, g, boards=0.0):
     Drag / weight including clean induced+parasitic drag and speedbrake contribution.
     boards: 0.0 (retracted) to 1.0 (fully deployed).
     """
-    clean_drag = T6A_FIT['dragA'] * (kias ** 2) + T6A_FIT['dragB'] * (g ** 2) / (kias ** 2 + 1e-4)
+    q = 0.5 * RHO0_SLUG_FT3 * (kias * KT_TO_FTPS) ** 2 + 1e-9
+    cl = g * WEIGHT_LB / (q * WING_AREA_SQFT)
+    rise_from = (T6A_LIMITS['stallKias'] / (T6A_LIMITS['stallKias'] + STALL_RISE_KT)) ** 2
+    share = ca.fmin(1.0, ca.fabs(g) / ((kias / T6A_LIMITS['stallKias']) ** 2 + 1e-9))
+    rise = STALL_RISE_CD * (ca.fmax(0.0, share - rise_from) / (1.0 - rise_from)) ** 2
+    clean_drag = q * WING_AREA_SQFT * (ZERO_LIFT_CD + INDUCED_K * cl ** 2 + rise) / WEIGHT_LB
     boards_drag = boards * BOARDS_DRAG_PER_W * ((kias / REF_KIAS) ** 2)
     return clean_drag + boards_drag
 
