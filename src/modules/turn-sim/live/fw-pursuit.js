@@ -73,10 +73,10 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 /**
  * Where #2 and L will be over the next horizonSec if L keeps his present turn and #2 turns onto heading psi at
- * turnRateDegS, then flies straight: the least range and the last. A steady turn for L and a straight line for #2: an
- * estimate, refreshed every step.
+ * turnRateDegS, then flies straight: the least range and the last, and (with loFt) how far and how long he is inside loFt
+ * (shortFtSec, ft x s). A steady turn for L and a straight line for #2: an estimate, refreshed every step.
  */
-function predict(L, W, psi, horizonSec = FW_BUBBLE.horizonSec) {
+export function predict(L, W, psi, horizonSec = FW_BUBBLE.horizonSec, loFt = 0) {
   const B = FW_BUBBLE;
   const omegaL = turnRateFromBankRadPerSec(Math.max(L.tasFtps, 1), L.bankDeg); // + left, heading grows
   const wMax = B.turnRateDegS * DEG;
@@ -85,6 +85,7 @@ function predict(L, W, psi, horizonSec = FW_BUBBLE.horizonSec) {
   let [wx, wy, wh] = [W.xFt, W.yFt, W.headingRad];
   let least = Infinity;
   let last = 0;
+  let shortFtSec = 0;
   for (let t = dt; t <= horizonSec + 1e-9; t += dt) {
     lh += omegaL * dt;
     lx += L.tasFtps * Math.cos(lh) * dt;
@@ -94,8 +95,9 @@ function predict(L, W, psi, horizonSec = FW_BUBBLE.horizonSec) {
     wy += W.tasFtps * Math.sin(wh) * dt;
     last = Math.hypot(wx - lx, wy - ly);
     least = Math.min(least, last);
+    shortFtSec += Math.max(0, loFt - last) * dt;
   }
-  return { least, last };
+  return { least, last, shortFtSec };
 }
 
 /**

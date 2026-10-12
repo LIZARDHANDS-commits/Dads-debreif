@@ -25,6 +25,7 @@ import assert from 'node:assert/strict';
 import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
 import { relativeTo } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
+import { shakerG } from '../../../src/core/t6-performance.js';
 
 const DEG = Math.PI / 180;
 const WINGSPAN_FT = 33.4; // T-6A wingspan (SMM 12.6 para 15 counts in wingspans)
@@ -396,4 +397,71 @@ test('with #2 on Live, a level turn into him and its reversal keep him between 5
     back = l.range >= 500 && l.range <= 1000 && l.sweep >= 25 && l.sweep <= 65 && Math.abs(l.down) <= 250;
   }
   assert.ok(back, 'after wings level #2 is back in the cone');
+});
+
+// TS-208: in the 4-ship on Live every wingman flies Lead's turn circle off the one ahead. What a pilot would recognise from
+// a level turn into #2 and the roll-out: nobody rolls past 90° of bank or pulls past the stick shaker (the shared 0.5 G
+// margin), and once Lead is level each wingman settles in fighting wing off the one ahead, 500-1,000 ft and 30-60° of
+// sweep, below him (SMM 12.29 para 69; SMM 16.38 para 104: each wingman flies off the preceding aircraft), with the shared
+// ±100 ft and ±5° margins. 60 s is a generous limit for the roll-out: they settle in about 15 s. The range kept in the
+// turn is the next test's.
+test('4-ship on Live: through a level turn into #2 nobody passes 90° of bank or the shaker, and after the roll-out each wingman is in fighting wing off the one ahead', () => {
+  const f = createFormation({ ships: 4 });
+  f.setFluid({ fwWing: 'live' });
+  f.change('fw', {});
+  for (let i = 0; i < CATCH_SEC / STEP_SEC && f.state.current; i++) f.step();
+  const into = Math.sign(relativeTo(f.state.aircraft[0], f.state.aircraft[1]).left) || -1;
+  const sane = (what, t) => f.state.aircraft.slice(1).forEach((a, k) => {
+    assert.ok(Math.abs(a.bankDeg) <= 90, `${what} at ${t.toFixed(1)} s: #${k + 2} at ${a.bankDeg.toFixed(0)}° of bank`);
+    assert.ok(a.g <= shakerG(a.kias) + 0.5, `${what} at ${t.toFixed(1)} s: #${k + 2} pulls ${a.g.toFixed(1)} G at ${a.kias.toFixed(0)} KIAS, past the shaker`);
+  });
+  assert.equal(f.pressFw('levelTurn', into), 'started');
+  for (let i = 0; i < 30 / STEP_SEC; i++) { f.step(); sane('level turn into #2', i * STEP_SEC); }
+  assert.equal(f.pressFw('wingsLevel'), 'started');
+  let settled = false;
+  for (let i = 0; i < 60 / STEP_SEC && !settled; i++) {
+    f.step();
+    sane('wings level', i * STEP_SEC);
+    const A = f.state.aircraft;
+    settled = A.slice(1).every((a, k) => inFw(link(A[k], a)));
+  }
+  const A = f.state.aircraft;
+  const where = A.slice(1).map((a, k) => { const l = link(A[k], a); return `#${k + 2} ${l.range.toFixed(0)} ft, ${l.sweep.toFixed(0)}° sweep, ${l.down.toFixed(0)} ft below`; }).join('; ');
+  assert.ok(settled, `after wings level each wingman is in fighting wing off the one ahead (${where})`);
+});
+
+// TS-208's fighting wing start and Patrick's 12 Oct 2026 18:17Z ruling ("hold 2 closer to the edge of the cone near to
+// lead"). What a pilot would recognise, from the default start (Spread 4) with Live set:
+//  - the change into fighting wing ends with each wingman about 650 ft off the one ahead (TS-208; Patrick 4 Oct 11:44Z)
+//    and below him by 50-100 ft (TS-208; Patrick 12 Oct 2026 17:16Z), with the shared ±100 ft margin on each; #2 sits
+//    at the aft edge of the cone, 60° of sweep (SMM 12.29 para 69's 30-60°), with the shared ±5°;
+//  - a level turn into #2 from there never brings a wingman within 300 ft of the one ahead (3D). The floor he flies to is
+//    500 ft (SMM 16.17 para 44c; Patrick 12 Oct 2026 16:49Z), a published limit flagged on screen and never a wall, so the
+//    test does not hold him at it: 300 ft (the floor less two of the shared 100 ft margins) catches the real fault, a
+//    wingman closing on the one ahead, as from the old start near abeam (about 250 ft). 30 s covers the turn's entry,
+//    where the closest point comes.
+test('4-ship on Live: the change into fighting wing ends at the start place, and a level turn into #2 keeps each wingman 300 ft or more from the one ahead', () => {
+  const f = createFormation({ ships: 4 });
+  f.setFluid({ fwWing: 'live' });
+  assert.equal(f.change('fw', {}), 'started');
+  for (let i = 0; i < CATCH_SEC / STEP_SEC && f.state.current; i++) f.step();
+  let A = f.state.aircraft;
+  A.slice(1).forEach((a, k) => {
+    const l = link(A[k], a);
+    const at = `#${k + 2}: ${l.range.toFixed(0)} ft, ${l.sweep.toFixed(0)}° sweep, ${l.down.toFixed(0)} ft below`;
+    assert.ok(Math.abs(l.range - 650) <= 100, `${at}: about 650 ft off the one ahead`);
+    assert.ok(l.down > 0 && l.down <= 100 + 100, `${at}: 50-100 ft below the one ahead`);
+    if (k === 0) assert.ok(Math.abs(l.sweep - 60) <= 5, `${at}: #2 at the aft edge of the cone`);
+  });
+  const into = Math.sign(relativeTo(A[0], A[1]).left) || -1;
+  assert.equal(f.pressFw('levelTurn', into), 'started');
+  for (let i = 0; i < 30 / STEP_SEC; i++) {
+    f.step();
+    A = f.state.aircraft;
+    A.slice(1).forEach((a, k) => {
+      const l = link(A[k], a);
+      const r = Math.hypot(l.range, l.down);
+      assert.ok(r >= 300, `level turn into #2 at ${(i * STEP_SEC).toFixed(1)} s: #${k + 2} ${Math.round(r)} ft from the one ahead`);
+    });
+  }
 });
