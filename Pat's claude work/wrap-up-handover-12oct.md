@@ -27,8 +27,8 @@ No-version merges in the same run: the import rule in `AGENTS.md` (#952), Playwr
 
 - **#965, CT-156 cockpit and canopy fixes** (Patrick's 19-row list, built in seven stages, every stage's renders seen by Patrick). Merging next.
 - **#946, EP Tabletop step 2, the instructor's phone link** (Dad's). Patrick merges Dad's pull requests himself. It asks Patrick three things: the new storage library, the wording of EP-8 to EP-10, and EP-Q4.
-- **#934, EP Tabletop step 1** (Dad's). Its work landed on main as V2.369 (#935); this one looks superseded, for Patrick to close.
-- **#829, Formation refactor step 5** (11 Oct, straight rejoin rides Lead's six). Never merged and now well behind main; for Patrick to rule on.
+- **#934, EP Tabletop step 1** (Dad's). Its work looks to have landed on main as V2.369 (#935); left open for Patrick to decide.
+- **#829, Formation refactor step 5** (11 Oct, straight rejoin rides Lead's six). Never merged and now well behind main; left open for Patrick to decide.
 
 ## Kept off main
 
@@ -52,25 +52,17 @@ Every module keeps its ideas and rough spots in its own `future.md`. Counts are 
 
 ## Notes from each module
 
+**Traffic and core.** Read [AUDIT_HANDOVER_V2.387.md](../docs/modules/traffic/AUDIT_HANDOVER_V2.387.md) (#967): every audit verdict, the trace baseline `traffic-main-9aa2f041`, how Traffic pull requests are checked, and three rough spots (a join's climb has no excess-thrust cap, the window height is written in five places, the PFL circle radius is fixed in the code).
+
+**Performance rebuild.** Branch `claude/project-thread-swv8zh`, handover `Pat's claude work/performance-rebuild/handover.md` on that branch. It is off main by Patrick's order and already takes in V2.387. Today's ruling: idle propeller drag is full up to 220 KIAS and gone by 250. Open: the gear-down orbit conflict, the climb above 20,000 ft, static thrust, and seven module fixes waiting for Patrick's go.
+
 **Formation.** V2.387 (#961) merged on Patrick's word without a second Fable review. The hand-overs (line abreast to echelon, echelon to line abreast, fighting wing to route) re-fly roll lags of 1 s or less at the bank flown; longer roll-ins, such as #4's 5.65 s in the echelon hook, still fly the planned path. The two timings are estimates (`ROLLED_MAX_SEC` 1 s, `ROLLED_BLEND_SEC` 6 s), and the item stays on the Turn Sim future list until Patrick flies it (#966). Unseen: the 3D view and Patrick's flying. The Formation branch has no open work.
 
 **Fluid (live wingman).** Finished (Patrick, 12 Oct 07:06Z), all on main: v9 at V2.382 (#950, TS-198), the Planned wingman retired and the swap at the inverted top at V2.384 (#955, TS-199), Terminate eased at V2.385 (#959), height in the cone at V2.386 (#962, TS-200, docs #964). TS-201 (the eased Terminate) is waiting for Patrick's yes to its words, with a docs pull request to follow; the next free Turn Sim row after it is TS-202. The open rough spots are in the "Live fluid #2 after v9" bullet of [turn-sim/future.md](../docs/modules/turn-sim/future.md). Patrick hasn't flown V2.382 to V2.386.
 
 ## Tags to push
 
-GitHub's newest tag is `v2.215-debrief-puck-cockpit`; later versions are mostly untagged there. These are the ones the threads named today. From an up-to-date clone of main:
-
-```
-git fetch origin
-git tag v2.370-arrow-height d5e4504d
-git tag v2.371-fluid-v8-side-free 62eaecfb
-git tag v2.382-fluid-v9 3daa96b1
-git tag v2.384-fluid-live-only f6cece4f
-git tag v2.385-terminate-ease 338e275c
-git tag v2.386-height-in-cone 97c31cbd
-git tag v2.387-handover-bank-speed 08263f83
-git push origin --tags
-```
+GitHub's newest tag is `v2.215-debrief-puck-cockpit`, so the 159 versions since (V2.216 to V2.387) have no tag there. [tags-to-push.md](tags-to-push.md) has the one command if you made the tags on your PC, and the full list to paste if you didn't.
 
 ## Open rulings
 
