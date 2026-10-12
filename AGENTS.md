@@ -68,7 +68,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 ## Building
 
 - **Search for existing flight math before writing new.** Check the flight-math list in `docs/modules/shared/` and the code in `src/core/` first. Use or improve what is there; never write a second copy of a formula.
-- **Plain JavaScript** (ES modules), no framework, one folder per module with a short README, so the code stays readable to a non-developer. Modules never import each other; shared code lives in the shared folders.
+- **Plain JavaScript** (ES modules), no framework, one folder per module with a short README, so the code stays readable to a non-developer. Code that several modules use belongs in core or a shared folder. That is the aim, not a wall: a module may import another module's file when moving it isn't worth it (Patrick, 11 Oct 2026).
 - **A link in a normal browser.** Anyone should be able to open the tool from a link. Nothing to install is a goal, not an absolute rule: a feature may need an install if it clearly makes the project better, and where it can, a light mode keeps working without it.
 - **No new libraries or plugins** without Patrick's yes.
 - **Simple screens:** every setting starts with a default; a module opens with only its essentials showing, and extras sit behind a switch or a "More".
