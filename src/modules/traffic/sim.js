@@ -43,10 +43,11 @@ import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from 
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
 import { buildTaxiIn, taxiStep, taxiPosition, TAXI } from './taxi.js';
-import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT, RUNWAY_WIDTH_FT } from './airfield.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT, RUNWAY_WIDTH_FT, runwayFrameFt, linedUp } from './airfield.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { closestApproach } from '../../core/closest-approach.js';
 import { iasToTasKt } from './weather.js';
+import { TYPE_FALLBACK_KT } from './types.js'; // the speed flown where a route point gives none
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
@@ -62,16 +63,6 @@ export const TYPE_COLORS = Object.freeze({
   'CT-114': '#ff6b6b',
   'CT-155': '#d29922',
   'CF-188': '#56d4dd',
-});
-
-/** Fallback knot speeds when route points have no speed specified. */
-const TYPE_FALLBACK_KT = Object.freeze({
-  'CT-157': 125,
-  'CT-156': 180,
-  'CT-102': 150,
-  'CT-114': 230,
-  'CT-155': 250,
-  'CF-188': 300,
 });
 
 /** The conflict limits when a setup gives none: red 200 ft and 200 ft, caution 500 ft and 500 ft (the built-in profile's). */
@@ -155,6 +146,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   /** The aircraft's state for a move flown from where it is. */
   const stateOf = (a) => ({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 220, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0 });
   const windNow = () => ({ windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 });
+  /** The aircraft's closed-pattern bank: its own choice, else the setting, else 50°. */
+  const closedBankOf = (a) => a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
 
   /**
    * Puts an aircraft at the start of its route, as V6's `resetAircraftToStarts` does (line 411), and
@@ -201,7 +194,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.headingDeg = RUNWAY_29L_HDG_DEG;
       a.x = route.points[a.startIndex]?.x ?? DEPARTURE_END_29L.x;
       a.y = route.points[a.startIndex]?.y ?? DEPARTURE_END_29L.y;
-      a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+      a.closedPatternBankDeg = closedBankOf(a);
       startClosedPattern(a);
     } else {
       const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
@@ -272,11 +265,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const rwy = circuitRunway();
     if (!rwy) return false;
     const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
-    const dx = (a.x ?? 0) - rwy.th.x, dy = (a.y ?? 0) - rwy.th.y;
-    const along = dx * ux + dy * uy, across = Math.abs(dx * uy - dy * ux);
+    const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x ?? 0, a.y ?? 0, rwy.th, ux, uy);
     const rwyTrack = (Math.atan2(ux, uy) * 180 / Math.PI + 360) % 360;
     const off = Math.abs((((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack) % 360 + 540) % 360 - 180);
-    return across < 2000 && off < 60 && along > -3 * 6076 && along < rwy.len;
+    return linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 60 }) && along > -3 * 6076 && along < rwy.len;
   }
 
   /**
@@ -300,7 +292,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
     const downwind = pat && innerDownwind(pat);
     if (!downwind) return;
-    const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+    const bankDeg = closedBankOf(a);
     const points = buildClosedPattern(stateOf(a), windNow(), downwind, bankDeg);
     a.goAroundFlight = { route: { id: 'CLOSED_FLOWN', kind: 'flown', name: 'Closed pattern', points } };
     a.distFt = 0;
@@ -318,8 +310,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    */
   function landForTheStop(a) {
     const ux = DEPARTURE_END_29L.x - THRESHOLD_29L.x, uy = DEPARTURE_END_29L.y - THRESHOLD_29L.y, len = Math.hypot(ux, uy);
-    const dx = (a.x ?? NaN) - THRESHOLD_29L.x, dy = (a.y ?? NaN) - THRESHOLD_29L.y;
-    const along = (dx * ux + dy * uy) / len, across = Math.abs(dx * uy - dy * ux) / len;
+    const frame = runwayFrameFt(a.x ?? NaN, a.y ?? NaN, THRESHOLD_29L, ux, uy);
+    const along = frame.alongFt / len, across = frame.acrossFt / len;
     a.landed = true;
     a.alt = THRESHOLD_DATA_ELEV_FT;
     a.command = null;
@@ -373,10 +365,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     for (const a of aircraft) {
       if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
       if (a.intent === 'full_stop' || a.goAroundFlight || a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
-      const along = (a.x - th.x) * ux + (a.y - th.y) * uy, across = Math.abs((a.x - th.x) * uy - (a.y - th.y) * ux);
+      const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
-      const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && off < 30 && across < 2000);
+      const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }));
       if (!onFinal || along <= -RANDOM.lowApproachFt || along >= touchdownFt) continue;
       a.rndLowApproach = false;
       startGoAround(a);
@@ -413,7 +405,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           a.routeId = split.id;
           a.distFt = 0;
           a.phase = 'route';
-          if (Number.isFinite(a.x)) startJoin(a, split, 0, { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, routeOptions());
+          if (Number.isFinite(a.x)) startJoin(a, split, 0, windNow(), routeOptions());
         }
       }
     }
@@ -440,7 +432,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (gapFt > JOIN_NEAR_FT || !(gapFt > lastGapFt)) return false; // still closing, or not near yet
     delete a._mergeGapFt;
     a.routeId = target.id;
-    startJoin(a, target, d, { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
+    startJoin(a, target, d, windNow(), opt);
     a.phase = p.phase || 'initial';
     return true;
   }
@@ -453,9 +445,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function startGoAround(a, sideFt = 0, levelAltFt = null, holdKias = null) {
     const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
     if (!pat) return;
+    const wind = windNow();
     const points = buildGoAround(pat.points, {
       x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
-    }, setup.windFromDeg ?? 360, setup.windKt ?? 0, sideFt, levelAltFt, holdKias);
+    }, wind.windFromDeg, wind.windKt, sideFt, levelAltFt, holdKias);
     a.goAroundFlight = { route: { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points } };
     a.distFt = 0;
     a.phase = 'go_around';
@@ -493,7 +486,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const leg = rejoin === from ? 0 : gateLegOf(rejoin);
     // A breakout needed so as not to collide (the deconfliction's last-moment, skill layer) may bank up to 80° (Patrick,
     // 5 Oct 00:08Z and 00:13Z); otherwise, and for the button, the closed-pattern bank.
-    const bankDeg = toAvoidCollision ? BREAKOUT_TRAFFIC_BANK_DEG : (a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50);
+    const bankDeg = toAvoidCollision ? BREAKOUT_TRAFFIC_BANK_DEG : closedBankOf(a);
     // Off the rejoin line (an entry that joins the pattern) it turns away from the pattern (Patrick, 5 Oct 00:08Z).
     const onRejoinLine = !a.goAroundFlight && from && from.kind === 'entry' && +from.mergeIndex > 0;
     const turnDir = onRejoinLine ? awayFromPattern(a) : null;
@@ -586,18 +579,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const reachFt = windowFt + EVADE.finalSpacingFt + (Number.isFinite(limitFt) ? Math.max(0, limitFt) : 3 * 6076);
     const wind = windNow();
     const live = aircraft.filter((a) => a.active && !a.landed && t >= a.startsAt && Number.isFinite(a.x) && Number.isFinite(a.y));
-    const alongOf = (p) => -((p.x - th.x) * ux + (p.y - th.y) * uy);
+    const alongOf = (p) => -runwayFrameFt(p.x, p.y, th, ux, uy).alongFt;
     const leaders = [];
     for (const a of live) {
-      const across = Math.abs((a.x - th.x) * uy - (a.y - th.y) * ux), along = -alongOf(a);
+      const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       // Lined up and landing: within 2,000 ft of the centreline and 30° of the runway track, short of the threshold,
       // and no more than 500 ft above the glide path (estimates), so the overhead's initial above doesn't count.
       const glideFt = THRESHOLD_DATA_ELEV_FT + (pat.points[12].alt - THRESHOLD_DATA_ELEV_FT) / windowFt * -along;
-      const linedUp = across < 2000 && off < 30 && along < 0 && -along <= reachFt && a.alt <= glideFt + 500;
+      const landing = linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }) && along < 0 && -along <= reachFt && a.alt <= glideFt + 500;
       const extending = a.goAroundFlight?.route.id === 'EXTEND_FLOWN';
       const turningFinal = a.routeId === pat.id && a.phase === 'final_turn' && !a.goAroundFlight;
-      if (!linedUp && !extending && !turningFinal) continue;
+      if (!landing && !extending && !turningFinal) continue;
       leaders.push({ a, distAt: leaderTrack(a, alongOf) });
     }
     if (!leaders.length) return;
@@ -660,7 +653,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     for (const a of aircraft) {
       if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
       if (a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
-      const along = (a.x - th.x) * ux + (a.y - th.y) * uy, across = Math.abs((a.x - th.x) * uy - (a.y - th.y) * ux);
+      const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
       // A low approach chosen on final goes around low over the runway end.
@@ -670,7 +663,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       }
       if (a.goAroundFlight) continue;
       // On final, about a mile out: touch-and-go, full stop or low approach.
-      const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && off < 30 && across < 2000);
+      const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }));
       if (onFinal && !a.rndFinal && along < 0 && -along <= RANDOM.finalRollFt) {
         Object.assign(a, { rndFinal: true, rndUpwind: false, rndDownwind: false });
         const choice = roll(a, odds.final);
@@ -797,7 +790,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * and PFL): already at High Key, the practice PFL starts at once (TR-R31).
    */
   function startHighKeyClimb(a) {
-    const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+    const env = windNow();
     const distToHk = Math.hypot(HIGH_KEY_PT.x - (a.x ?? 0), HIGH_KEY_PT.y - (a.y ?? 0));
     const alt = a.alt ?? 3500;
     if (distToHk <= 1500 && alt >= 4750) {
@@ -809,7 +802,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
     // The climb to High Key, flown once from where the aircraft is (Traffic spec 1a item 23): a full-power
     // climbing turn onto the 760 ft run-in, followed by the path follower; at High Key the PFL takes over (tick-aircraft.js).
-    const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+    const bankDeg = closedBankOf(a);
     const flown = buildHighKeyClimb({
       x: a.x, y: a.y, alt: alt, kias: a.iasKt ?? a.kt ?? 140, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
     }, env, bankDeg);
@@ -866,7 +859,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (!pat) { a.active = false; return; }
     const opt = routeOptions();
     a.routeId = pat.id;
-    startJoin(a, pat, closestDistFt(pat, a, opt), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
+    startJoin(a, pat, closestDistFt(pat, a, opt), windNow(), opt);
     a.phase = posOnRoute(pat, a.distFt, opt).phase || 'downwind';
     if (a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'breakout') a.command = null;
   }
@@ -888,7 +881,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const curPos = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y };
       a.routeId = target.id;
       // The pattern's path passes close to, not exactly through, the entry's end: join it smoothly (spec item 13a).
-      startJoin(a, target, closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, routeOptions());
+      startJoin(a, target, closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt), windNow(), routeOptions());
       const nextP = whereIs(a, target);
       a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
       // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
@@ -920,7 +913,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     // The circuit's climb-out starts at the touchdown point past the numbers, not the threshold point (TR-93, TR-96).
     const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt - NUMBER_BASE_PAST_THRESHOLD_FT - TOUCHDOWN_PAST_NUMBERS_FT;
     // The circuit's climb-out passes close to, not exactly through, the touchdown point: join it smoothly.
-    startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
+    startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), windNow(), opt);
     a.phase = 'touch_and_go';
     a.command = null;
     a.touchAndGo = true;
@@ -1015,7 +1008,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     t += STEP_SEC; // added up one step at a time, as V6 does, so the clock is V6's to the last digit
     steps++;
     const opt = routeOptions();
-    const wind = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+    const wind = windNow();
     if (steps % DECONFLICT.decideEverySteps === 0) siPatternTick();
     if (setup.randomize && steps % DECONFLICT.decideEverySteps === 0) randomizeTick();
     if (setup.deconflict && steps % DECONFLICT.decideEverySteps === 0) deconflictTick();
@@ -1468,7 +1461,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (action === 'breakout') {
         startBreakout(a);
       } else if (action === 'closed_pattern') {
-        a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+        a.closedPatternBankDeg = options?.bankDeg ?? closedBankOf(a);
         // The pull-up starts at or after the upwind end of the runway (TR-R33, WFO art 402): an aircraft
         // on final or on the runway touches and goes, and pulls up once past the upwind end.
         if (beforeUpwindEnd(a)) {
@@ -1483,7 +1476,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         startHighKeyClimb(a);
       } else if (action === 'engine_fail' || action === 'pfl_current') {
         // The PFL button: an engine failure where the aircraft is, flown as Traffic spec 4.5 says (pfl.js).
-        const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+        const env = windNow();
         // Gear and flap already down stay down (Patrick, 11 Oct 08:43Z): the glide starts in today's configuration.
         const startConfig = a.engineFailed ? a.config : sim.state().aircraft.find((b) => b.id === a.id)?.config;
         startPflFlight(a, env, { settings: setup.settings, startConfig });
@@ -1535,12 +1528,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         let onFinal = false, toThresholdFt = NaN;
         if (rwy && Number.isFinite(x) && Number.isFinite(y)) {
           const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
-          const along = (x - rwy.th.x) * ux + (y - rwy.th.y) * uy, across = Math.abs((x - rwy.th.x) * uy - (y - rwy.th.y) * ux);
+          const { alongFt: along, acrossFt: across } = runwayFrameFt(x, y, rwy.th, ux, uy);
           const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? 0) - compassDegFromVector(ux, uy)));
           // Low as well as lined up: an aircraft on initial at pattern height over the same line is not landing yet
           const low = Number.isFinite(alt) && alt <= (win?.alt ?? PATTERN_ALT_FT) + FINAL_TAG_ABOVE_WINDOW_FT;
           const overRunway = along >= 0 && along <= rwy.len && across < 500 && low;
-          onFinal = (along < 0 && across < 2000 && off < 30 && low) || overRunway;
+          onFinal = (along < 0 && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }) && low) || overRunway;
           toThresholdFt = along >= 0 ? 0 : Math.hypot(x - rwy.th.x, y - rwy.th.y);
         }
         const b = behaviourOf({ ...a, kt, alt, leg, siPattern: onSiPattern(a) }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });

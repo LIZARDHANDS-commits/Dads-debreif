@@ -8,6 +8,7 @@
 // The temperature is one value for the whole run, set by the sim from its setup before each step.
 
 import { isaTempK, densityRatio } from '../../core/atmosphere.js';
+import { iasToTasKt as coreIasToTasKt, tasToIasKt as coreTasToIasKt } from '../../core/t6-performance.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, FLARE_FROM_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
 
 /** The standard day's temperature at Moose Jaw's field elevation, °C: about 11°C. */
@@ -39,14 +40,14 @@ export function temperatureKey() {
   return deviationC;
 }
 
-/** True airspeed from indicated: IAS ÷ √σ, with today's temperature (no compressibility). */
+/** True airspeed from indicated with today's temperature: core iasToTasKt with the day's density. */
 export function iasToTasKt(kias, altFt) {
-  return kias / Math.sqrt(densityRatio(altFt, deviationC));
+  return coreIasToTasKt(kias, altFt, densityRatio(altFt, deviationC));
 }
 
-/** Indicated airspeed from true: TAS × √σ. */
+/** Indicated airspeed from true with today's temperature: core tasToIasKt with the day's density. */
 export function tasToIasKt(ktas, altFt) {
-  return ktas * Math.sqrt(densityRatio(altFt, deviationC));
+  return coreTasToIasKt(ktas, altFt, densityRatio(altFt, deviationC));
 }
 
 /** True height ÷ indicated height above the field, for the air between the field and altFt. 1 on a standard day. */

@@ -13,8 +13,8 @@
 // rulings as cited on each number.
 
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
-import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
-import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
+import { DEG, RAD, wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
+import { bankDegFromG, turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
 import { glideDragPerWeight, glideRatio, stallLimitG } from '../../core/t6-performance.js';
 import { iasToTasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
@@ -32,8 +32,6 @@ import {
   FIELD_ELEV_FT,
 } from './airfield.js';
 
-const DEG = Math.PI / 180;
-const RAD = 180 / Math.PI;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
 const bearing = (a, b) => compassDegFromVector(b.x - a.x, b.y - a.y);
@@ -169,7 +167,7 @@ function directTurnRadiusFt(altFt = 2500) {
 }
 
 function glideJoinMinRadiusFt(altFt = 3500) {
-  const stallBankDeg = Math.acos(1 / Math.max(stallG(PFL.glideCleanKias, 0), 1.0001)) / DEG;
+  const stallBankDeg = bankDegFromG(Math.max(stallG(PFL.glideCleanKias, 0), 1.0001));
   return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideCleanKias, altFt)), Math.min(PFL.maxBankDeg, stallBankDeg));
 }
 
@@ -689,7 +687,7 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
   const nl = { x: -geo.u.y, y: geo.u.x };
   const off = (from.x - geo.th.x) * nl.x + (from.y - geo.th.y) * nl.y;
   const vMax = ktToFtps(iasToTasKt(kias, altFt) + (wind?.windKt ?? 0));
-  const bankMax = Math.min(PFL.maxBankDeg, Math.acos(1 / Math.max(stallG(kias, 0), 1.0001)) / DEG);
+  const bankMax = Math.min(PFL.maxBankDeg, bankDegFromG(Math.max(stallG(kias, 0), 1.0001)));
   const rMin = turnRadiusFromBankFt(vMax, bankMax);
   const rMax = turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, altFt)), PFL.directMinBankDeg);
   const out = [];
@@ -1470,10 +1468,7 @@ function flownBehind(a, first, wind) {
   const alt = Number.isFinite(a.alt) ? a.alt : 3500;
   const tasFtps = ktToFtps(iasToTasKt(a.iasKt ?? a.kt ?? 125, alt));
   const omegaDeg = Number.isFinite(a.bankDeg) ? turnRateFromBankRadPerSec(Math.max(tasFtps, 1), a.bankDeg) * RAD : 0;
-  const w = {
-    x: -Math.sin((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0),
-    y: -Math.cos((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0),
-  };
+  const w = windVectorFtps(wind?.windFromDeg ?? 360, wind?.windKt ?? 0);
   const pts = [];
   let x = Number.isFinite(a.x) ? a.x : 0, y = Number.isFinite(a.y) ? a.y : 0, hdg = a.headingDeg ?? RUNWAY_29L_HDG_DEG;
   const dt = 0.4;

@@ -36,7 +36,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 
 | Function | File | What it gives | Source |
 |---|---|---|---|
-| `iasToTasKt(kias, alt)`, `tasToIasKt` | t6-performance.js | Indicated to true airspeed and back, standard day, no compressibility | aero |
+| `iasToTasKt(kias, alt, sigma)`, `tasToIasKt` | t6-performance.js | Indicated to true airspeed and back, no compressibility: the standard day's density unless the caller passes the day's own (`sigma`) | aero |
 | `machToKiasKt` | t6-performance.js | KIAS for a Mach number, with compressibility | aero |
 | `isaTempK(alt, dev)`, `isaPressureRatio(alt)`, `isaDensityRatio(alt)`, `speedOfSoundKt(alt, dev)` | atmosphere.js | The standard day once: temperature, pressure and density as a fraction of sea level, and the speed of sound; `dev` is today's temperature deviation, °C (0 by default). `isaDensityRatio` is also exported from flight-math.js and `speedOfSoundKt` from t6-performance.js, under the same names | standard atmosphere |
 | `densityRatio(alt, dev)` | atmosphere.js | Air density at a pressure height on a day `dev` °C off standard: the standard ratio times T ÷ (T + dev). Traffic's airspeed pair in `weather.js` uses it with the day's deviation (TR-77) | standard atmosphere |
@@ -71,7 +71,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `windVectorFtps(windFrom, windKt)` | wind.js | The wind as a vector, x east and y north, the way the air moves | aero |
 | `legOffsetsFt(a, b, p)` | geo.js | Distance along a leg and off it (right positive) | geometry |
 | `compassDegFromVector(dx, dy)`, `wrapDeg360` | angles.js | Compass bearing of a vector; degrees into 0-360 | geometry |
-| `DEG`, `degToRad`, `radToDeg` | angles.js | Degrees and radians, once | geometry |
+| `DEG`, `RAD`, `degToRad`, `radToDeg` | angles.js | Degrees and radians, once | geometry |
 | `wrapDeg180`, `wrapPi`, `angleDiffRad`, `absAngleDeg`, `headingRad` | angles.js | Angle wrapping and differences, math radians | geometry |
 | `compassDegToHeadingRad`, `headingRadToCompassDeg`, `unitVectorFromCompassDeg` | angles.js | Compass degrees to code headings and back | geometry |
 | `relativeBearingDeg`, `aspectAngleDeg`, `headingCrossAngleDeg`, `clockToRelativeDeg` | angles.js | Bearing off the nose, aspect, heading crossing angle, clock code | geometry |
@@ -102,11 +102,11 @@ These live in `src/modules/traffic/` today. The refactor moves or replaces them 
 
 | What | Where now | What happens to it |
 |---|---|---|
-| Indicated to true airspeed and back on today's temperature (`iasToTasKt`, `tasToIasKt`, with the day's deviation from the standard day, TR-77) | `weather.js` | Same names as core's standard-day pair; each is one line calling core's `densityRatio` (`atmosphere.js`) with the day's deviation (core step 2) |
-| Moose Jaw numbers (threshold, runway heading, field elevation, pattern and key heights, PFL circle) | `airfield.js` | Stays there; any number still typed elsewhere moves in by PR 5 |
+| Indicated to true airspeed and back on today's temperature (`iasToTasKt`, `tasToIasKt`, with the day's deviation from the standard day, TR-77) | `weather.js` | Same names as core's pair; each is one line calling core's `iasToTasKt` / `tasToIasKt` with `densityRatio` (`atmosphere.js`) at the day's deviation, so there is one formula (Traffic refactor step 2) |
+| Moose Jaw numbers (threshold, runway heading, field elevation, pattern and key heights, PFL circle), and where a point sits against a runway (`runwayFrameFt`: along and across the centreline; `linedUp`: within a caller's distance and angle of it) | `airfield.js` | Stays there; any number still typed elsewhere moves in by PR 5. `sim.js` and `path-follower.js` read the runway frame from it (Traffic refactor step 2) |
 | The circuit, built by flying it: climb-out, crosswind at 220 KIAS, fixed downwind and base, break, perch moved so the final turn rolls out at the window | `circuit.js` (`buildCircuit`, `breakPointAlongFt`, `CIRCUIT`, `ROLL`) | New in PR 2; `generateWindAdjustedTrack` in `route.js` now calls it |
 | The path follower: moves an aircraft along a built path, with heading, bank, roll and pitch from the path | `path-follower.js` (`followRoute`, `trackAt`) | New in PR 2; uses the core functions above |
-| Old wind perch and break arc (old closed pattern targeting) | `route.js` (`computeWindPerch`, `simulateBreakArc`, `computeBreakRollout`) | The closed pattern no longer uses them (it aims at the built circuit's downwind line, `closed-pattern.js`, 4 Oct); left for the map's wind perch and the old physics code, which goes in the PR 4 clean-up |
+| Old wind perch (old closed pattern targeting) | `route.js` (`computeWindPerch`) | The closed pattern no longer uses it (it aims at the built circuit's downwind line, `closed-pattern.js`, 4 Oct); left for the map's wind perch marker. The old break arc (`simulateBreakArc`, `computeBreakRollout`) went in Traffic refactor step 1 |
 | Full-power climb toward a speed with a smooth level-off (excess thrust at the turn's G, extra speed traded for height) | `circuit.js` (`powerClimb`) | Shared by the climb to High Key (`high-key.js`), the closed pattern (`closed-pattern.js`) and the breakout (`breakout.js` `buildBreakout`) |
 | PFL circle and its old height schedule | `route.js` (`generatePflTrack`), `pfl-rail.js`, `pfl-solver.js` | The PFL is rebuilt in `pfl.js` (PR 3): a simulated pilot flies it at the press on `circuit.js`'s pilot and the path follower flies the result. `pfl-rail.js` and `pfl-solver.js` removed in the PR 4 clean-up (4 Oct) |
 | The 1,350 ft/min sink literal | `pfl-rail.js`, `pfl-solver.js` | Gone from `map2d.js` in PR 3 (the glide ring uses `glideRatio` and true airspeed); the old PFL files were removed in the PR 4 clean-up (4 Oct) |
