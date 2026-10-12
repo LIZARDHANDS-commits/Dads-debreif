@@ -120,24 +120,26 @@ export const FORWARD_BOW_FT = Object.freeze({
   glassInset: 0.01,
   bandDepth: 0.13,
   tubeR: 0,
-  section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0, innerT: 0 }),
-  foot: Object.freeze({ len: 0.45, rise: 0.45, plateT: 0.025 }),
-  studs: Object.freeze({ n: 25, r: 0.014, h: 0.012 }),
+  section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.1, innerT: 0.025 }),
+  foot: Object.freeze({ len: 0.35, rise: 0.2, plateT: 0.025 }),
+  studs: Object.freeze({ n: 25, r: 0.01, head: 0.017 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
   footFillet: null,
 });
-// Its section is a T, as Patrick sketched it (Patrick, 12 Oct 2026, "It looks to me like it has a cross section
-// SOMETHING like this? not to scale?"): a flange along the glass `section.outer` (1.9 in) fore and aft and a web down
-// its middle `section.web` thick, `bandDepth` (1.6 in) from the glass inward ("this side should be thinner?"), its aft
-// face at bandX (`section.inner` would add a flange along the web's inner edge; none). A row of `studs` stands on the
-// flange either side of the web, and the web's aft face is dark, so from the seat it reads as the flange with a
-// shadowed groove beside the web, as Patrick's reference picture of the cockpit shows ("Construction only"). At each
-// foot the web flares fore and aft over the leg's last `foot.rise` into a plate `foot.len` long on the sill ("the
-// middle part goes out to a flange in both directions at the bottom?", and his card "At the feet"). Sizes are
-// estimates off his sketch, that picture and Fig 3.5's band. Before: an I with a flange on the web's inner edge, and
-// before that a channel open aft with one row of studs (both 12 Oct 2026); before that a T, an aft face 1 in deep with
-// a flange 3 in forward along its inner edge (from Patrick's photos), a ring of round holes, and a rounded join at each
+// Its section is an I, as Patrick sketched it and read it off his reference picture of the cockpit (Patrick, 12 Oct
+// 2026, "It looks to me like it has a cross section SOMETHING like this? not to scale?", and "the inner flange is only
+// about as thick as the outer part of the canopy bow. and the bolts extend to its surface"): a flange along the glass
+// `section.outer` (1.9 in) fore and aft, a web down its middle `section.web` thick and a flange `section.inner` (1.2 in)
+// fore and aft along the web's inner edge, both flanges 0.3 in thick, `bandDepth` (1.6 in) from the glass inward
+// ("this side should be thinner?"), its aft face at bandX. A row of `studs` stands aft out of the web, halfway between
+// the flanges, out as far as their aft edges, and the web's aft face is dark, so from the seat it reads as two flanges
+// with a shadowed groove of bolts between ("Construction only"). At each foot the web flares fore and aft over the
+// leg's last `foot.rise` into a plate `foot.len` long on the sill ("the middle part goes out to a flange in both
+// directions at the bottom?", his card "At the feet", and "the flange seems shallower than yours"). Sizes are
+// estimates off his sketch, that picture and Fig 3.5's band. Before (all 12 Oct 2026): a T with no inner flange and a
+// flare 5.4 in tall; an I with studs on the outer flange; a channel open aft with one row of studs; and a T with a
+// flange 3 in forward along its inner edge (from Patrick's photos), a ring of round holes, and a rounded join at each
 // foot.
 
 /**
@@ -1779,16 +1781,14 @@ function bandGeometries(THREE, b) {
         return (d) => [hx * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
       });
     };
-    const rows = b.studs ? [(c - web / 2) / 2, W - (c - web / 2) / 2] : [];
-    const hoops = new Map([...ring.map(([dx]) => dx), c - web / 2 - 0.002, ...rows].map((dx) => [dx, hoop(dx)]));
+    const hoops = new Map([...ring.map(([dx]) => dx), c - web / 2 - 0.002].map((dx) => [dx, hoop(dx)]));
     band = loft(THREE, pts.map((_, j) => ring.map(([dx, d]) => hoops.get(dx)[j](d))), { closed: true });
     const rec = hoops.get(c - web / 2 - 0.002);
     recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + outerT)), pts.map((_, j) => rec[j](d1 - innerT))], { closed: false });
-    // The studs: two rows on the outer flange's inner face, one each side of the web, evenly spaced by length, half a
-    // spacing in from each sill, each a short round head standing inward.
-    const up = new THREE.Vector3(0, 1, 0);
-    for (const dx of rows) {
-      const { n: ns, r, h } = b.studs, line = hoops.get(dx), mid = pts.map((_, j) => line[j](d0 + outerT + h / 2));
+    // The studs: one row standing aft out of the web's aft face, halfway between the flanges, out as far as the
+    // flanges' aft edges, evenly spaced by length, half a spacing in from each sill.
+    if (b.studs) {
+      const { n: ns, r, head } = b.studs, len = c - web / 2, line = hoops.get(0), mid = pts.map((_, j) => line[j]((d0 + outerT + d1 - innerT) / 2));
       const along = [0];
       for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(...[0, 1, 2].map((i) => mid[j][i] - mid[j - 1][i])));
       const total = along[along.length - 1];
@@ -1798,10 +1798,8 @@ function bandGeometries(THREE, b) {
         while (j < along.length - 1 && along[j] < want) j++;
         const t = (want - along[j - 1]) / (along[j] - along[j - 1] || 1);
         const [x, y, z] = [0, 1, 2].map((i) => mid[j - 1][i] + (mid[j][i] - mid[j - 1][i]) * t);
-        const [, iy, iz] = line[j](1), [, oy, oz] = line[j](0);
-        const dir = new THREE.Vector3(0, iy - oy, iz - oz).normalize();
-        const g = new THREE.CylinderGeometry(r, r, h, 12).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir));
-        studs.push(g.translate(x, y, z));
+        studs.push(new THREE.CylinderGeometry(r, r, len, 10).rotateZ(Math.PI / 2).translate(x + len / 2, y, z));
+        studs.push(new THREE.CylinderGeometry(head, head, 0.01, 12).rotateZ(Math.PI / 2).translate(x + 0.005, y, z));
       }
     }
   } else {
