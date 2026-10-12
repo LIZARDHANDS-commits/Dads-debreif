@@ -35,6 +35,12 @@
 //    entry included (Patrick 22:33Z and 22:55Z). While Lead holds a speed (Terminate) power flies his range, from Lead's
 //    new speed.
 //
+// The same law flies #2 in the 2-ship's fighting wing moves when the "#2 in fighting wing" setting is Live (ctx.fw; TS-202,
+// Patrick 12 Oct 2026 08:19Z: "FM is basically fighting wing but aerobatics", "uses lead / lag / pure"). There Lead holds
+// his speed, #2's place is the cone (where he is while in it, else its nearest point, taken again whenever Lead is level so
+// he resets in position as Lead rolls out), and his spacing is flown with the vertical first, power only for the rest
+// (Patrick 08:19Z: "climbing in the cone falls back, descending moves forward ... but can use power if needed").
+//
 // Units: feet, seconds, x east, y north, z up; Lead's positions are heights above the block (fluid.js), #2's point mass
 // is absolute (as Lead's st.pm). Every number with no manual or ruling beside it is an estimate and says so.
 import { liftTowardAim } from '../../../core/point-mass.js';
@@ -98,6 +104,8 @@ export const LIVE = Object.freeze({
   overtakeKias: HOLD.overtakeKias, // ... within 15 KIAS of Lead (EFIG p.374's 10-20 KIAS)
   wordShare: Object.freeze({ on: 0.35, off: 0.15 }), // LAG or LEAD shows past 35% of the cap and goes under 15%, so the word doesn't flicker (estimate)
   settleKt: 2, // Terminate ends with him in the fighting wing band and within 2 kt of Lead (spec section 9)
+  fwAltFtps: 8, // ... and moved up or down at no more than 8 ft/s, so a change of height is a gentle climb or descent, not a bob (estimate)
+  fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
 /**
@@ -170,13 +178,39 @@ function liveWord(cue) {
 }
 
 /**
+ * Fighting wing's energy (TS-202): the speed his place wants (the range against his place's and the closure on Lead, as
+ * Terminate's power) as height first, up to fwHeightFt above or below Lead (a knot is about V / g feet of height at the
+ * same energy), and the knots the height can't take for power. Returns { altFt, powerKt, ftPerKt }.
+ */
+function fwEnergy(ws, rangeFt, closureFtps, st) {
+  const extraKt = LIVE.placeKtPerFt * (rangeFt - ws.place.rangeFt) - LIVE.closeKtPerKt * closureFtps * FTPS_TO_KT;
+  const ftPerKt = st.V / FTPS_TO_KT / G_FTPS2;
+  const altFt = Math.max(-LIVE.fwHeightFt, Math.min(LIVE.fwHeightFt, -extraKt * ftPerKt));
+  return { altFt, powerKt: extraKt + altFt / ftPerKt, ftPerKt };
+}
+
+/**
+ * #2's picture of Lead's turn at a press in the middle of one (fighting wing, TS-202): his sense of the turn as if he had
+ * been watching it, so a reversal or a wings level pressed mid-turn doesn't start him from a straight Lead (a jump of the
+ * aim across). e: Lead's entry at the press.
+ */
+export function seedLiveWingTurn(ws, e) {
+  const nose = unit3(e.vel);
+  const turning = Math.min(1, len3(e.accPerp) / (LIVE.severityG * G_FTPS2));
+  if (len3(e.accPerp) <= LIVE.turnHeldG * G_FTPS2) return ws;
+  return { ...ws, turnAcc: e.accPerp, turnDir: unit3(e.accPerp), plane: unit3(cross3(nose, e.accPerp)), severity: turning, circle: turning, circleIn: turning };
+}
+
+/**
  * One step of #2. ctx: { e (Lead's entry this step: pos, vel, accPerp, st, cue, holdKias), t, rangeFt (the setting),
- * blockFt, side (+1 left of Lead's tail, -1 right: the planned wingman's, used only until he has a side of his own) }.
+ * blockFt, side (+1 left of Lead's tail, -1 right: the planned wingman's, used only until he has a side of his own), fw (fighting
+ * wing, TS-202) }.
  * Returns { ws (the next state), pose (kinematic.js applyPose), power, cue ('lag' | 'pure' | 'lead' | 'entry' | 'back to
  * fighting wing'), rangeFt, settled, side (his side of Lead's tail now) }.
  */
 export function stepLiveWing(ws, ctx) {
   const { e, t, blockFt } = ctx;
+  const fw = Boolean(ctx.fw);
   const st = ws.st;
   const L = e.pos;
   const nose = unit3(e.vel);
@@ -270,8 +304,20 @@ export function stepLiveWing(ws, ctx) {
   // "Use the cone as required, power as a last resort"; his 12 Oct 04:14Z debrief: "when we enter into FM the range should
   // be 500, it starts at like 3-something").
   const wantRange = toSlot ? ws.slot.rangeFt : Math.max(FW_BAND.bubbleFt, ctx.rangeFt - LIVE.turnInFt);
-  const tightStraight = toSlot ? 0 : (1 - turning) * Math.max(0, Math.min(1, (wantRange - (rangeFt - closureFtps * LIVE.lookSec)) / Math.max(wantRange - FW_BAND.bubbleFt, 1)));
-  const want = toSlot
+  const tightStraight = toSlot || fw ? 0 : (1 - turning) * Math.max(0, Math.min(1, (wantRange - (rangeFt - closureFtps * LIVE.lookSec)) / Math.max(wantRange - FW_BAND.bubbleFt, 1)));
+  // Fighting wing (TS-202): with Lead level his place is where he is in the cone, else its nearest point (inside the band by
+  // its fly margins, slots.js FW_BAND), so after Lead rolls out he resets in position; while Lead turns it holds, and the
+  // circle and the lead and lag fly him. Its height is the energy height (below).
+  const inBand = (x, [lo, hi], m) => Math.max(lo + m, Math.min(hi - m, x));
+  const fwAltWanted = fw ? fwEnergy(ws, rangeFt, closureFtps, st).altFt : 0;
+  // The place is taken once, as Lead's turn eases off (and at the press), and then held, so the energy and the power have
+  // a place to fly back to instead of following him wherever he drifts.
+  const fwLevel = fw && turning < LIVE.sideFreeTurn;
+  const fwTake = fwLevel && !ws.fwLevel;
+  const fwPlace = fwTake ? { rangeFt: inBand(rangeFt, FW_BAND.rangeFt, FW_BAND.flyMarginFt[0]), acrossDeg: inBand(Math.abs(latDeg), FW_BAND.sweepDeg, FW_BAND.flyMarginDeg) } : ws.fwPlace;
+  const want = fw
+    ? { rangeFt: fwPlace.rangeFt, acrossDeg: side * fwPlace.acrossDeg, alt: fwAltWanted }
+    : toSlot
     ? { rangeFt: wantRange, acrossDeg: side * ws.slot.acrossDeg, alt: ws.slot.alt }
     : { rangeFt: wantRange, acrossDeg: side * (LIVE.sideDeg + (LIVE.openDeg - LIVE.sideDeg) * tightStraight), alt: LIVE.openUpFt * tightStraight };
   // Terminate: Lead flies straight and level, so his place flows across to the fighting wing slot from the press (Patrick
@@ -279,7 +325,7 @@ export function stepLiveWing(ws, ctx) {
   const place = {
     rangeFt: toward(ws.place.rangeFt, want.rangeFt, LIVE.rangeFtps),
     acrossDeg: toward(ws.place.acrossDeg, want.acrossDeg, toSlot ? LIVE.slotAcrossDps : LIVE.acrossDps),
-    alt: toward(ws.place.alt, want.alt, LIVE.altFtps),
+    alt: toward(ws.place.alt, want.alt, fw ? LIVE.fwAltFtps : LIVE.altFtps),
   };
 
   // ---- lead, pure or lag: how far in front of Lead (lead) or behind him (lag) his nose sits ----
@@ -301,7 +347,8 @@ export function stepLiveWing(ws, ctx) {
   if (inBubble) shareWanted = Math.min(shareWanted, LIVE.bubbleShare);
   // While Lead holds a speed (Terminate) power flies his place, so geometry comes in only as lag (a lead there was tried
   // and wagged him at Lead's roll-out).
-  if (holding) shareWanted = Math.min(0, shareWanted);
+  // In fighting wing he uses lead as well (Patrick 12 Oct 2026 08:19Z, "uses lead / lag / pure").
+  if (holding && !fw) shareWanted = Math.min(0, shareWanted);
   const share = Math.max(-1, Math.min(1, shareWanted)) * severity;
   // Lead (nose in front of him, SMM 12.30 para 72) moves the point toward the inside of Lead's turn, square to #2's line of
   // sight, so he flies a smaller circle and closes; lag moves it outside, a bigger circle, opening (SMM 16.17 para 44).
@@ -377,7 +424,14 @@ export function stepLiveWing(ws, ctx) {
 
   // ---- power ----
   let holdKias;
-  if (holding) {
+  if (fw && holding) {
+    // Fighting wing (TS-202): the speed he wants goes into height first (fwEnergy: the place's height), so at Lead's power
+    // a climb in the cone falls him back and a descent moves him forward; the throttle holds the speed that height gives
+    // him at Lead's energy, plus only what the height could not take, within 15 KIAS of Lead.
+    const en = fwEnergy(ws, rangeFt, closureFtps, st);
+    const aboveFt = pw.z - L.z;
+    holdKias = e.holdKias + Math.max(-LIVE.overtakeKias, Math.min(LIVE.overtakeKias, en.powerKt - aboveFt / en.ftPerKt));
+  } else if (holding) {
     // The path sets his line; power sets how far down it he is: the range against his place's, and the closure on Lead.
     const behindFt = rangeFt - Math.hypot(place.rangeFt, place.alt);
     const closingKt = closureFtps * FTPS_TO_KT;
@@ -412,7 +466,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, liftEased, holdSince, heightFt, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
+    ws: { ...ws, st: next, fwLevel, fwPlace, liftEased, holdSince, heightFt, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
     pose,
     power,
     cue,

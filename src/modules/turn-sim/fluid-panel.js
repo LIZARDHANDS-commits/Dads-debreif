@@ -49,9 +49,9 @@ export function speedsLine(sp) {
 }
 
 /**
- * onPress(key, dir): a Lead button. onSettings({ rangeFt?, bank?, wing? }): a setting changed (only good values are sent;
- * wing takes effect at the next start of fluid manoeuvring).
- * settings: { rangeFt, bank, wing? } to start from. Returns { element, cardElement, update(state), renderCard(state) }.
+ * onPress(key, dir): a Lead button. onSettings({ rangeFt?, bank?, fwWing? }): a setting changed (only good values are sent;
+ * fwWing takes effect at the next fighting wing press).
+ * settings: { rangeFt, bank, fwWing? } to start from (fwWing: 'tracker' | 'live', TS-202). Returns { element, cardElement, update(state), renderCard(state) }.
  */
 export function createFluidUi({ onPress, onSettings, settings }) {
   let rangeFt = settings.rangeFt;
@@ -100,8 +100,15 @@ export function createFluidUi({ onPress, onSettings, settings }) {
   // The setting "How #2 is flown" (Planned or Live) and the "#2: Planned / Live" button next to Fluid went with the planned
   // wingman (TS-199, 12 Oct 2026): #2 is the live wingman (TS-194).
   const hint = h('p', { class: 'ts-hint' }, 'Lead\'s buttons work once fluid manoeuvring has started from fighting wing. #2 stays in the cone behind Lead; Terminate brings him back to fighting wing.');
+  // How #2 flies Lead's fighting wing moves, 2-ship (TS-202): the tracker, or the live wingman's law; Tracker until Patrick
+  // has flown Live. Taken at the next fighting wing press.
+  const fwWingSelect = h('select', {
+    'aria-label': '#2 in fighting wing',
+    onchange: () => onSettings({ fwWing: fwWingSelect.value }),
+  }, [['tracker', 'Tracker'], ['live', 'Live']].map(([value, label]) => h('option', { value, selected: value === (settings.fwWing ?? 'tracker') }, label)));
   const more = h('details', { class: 'ts-more' },
     h('summary', {}, 'Fluid settings'),
+    h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, '#2 in fighting wing (Live: the fluid wingman\'s law, TS-202)'), fwWingSelect),
     h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, "Lead's level turn bank"), bankSelect),
     h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, `Distance (${FLUID.rangeFt.min}-${FLUID.rangeFt.max.toLocaleString('en-CA')} ft, SMM 16.17 para 42)`), rangeInput),
     rangeMessage,
