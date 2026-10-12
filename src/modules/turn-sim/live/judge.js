@@ -440,16 +440,23 @@ export function clockText(bearingDeg) {
 }
 
 /**
- * The rejoin block of the card: range, closure, where Lead is, the line (ON LINE, HOT or COLD, 60° and 30° being
- * estimates), and height against Lead (SMM 12.27 para 65: never at or above Lead's height).
+ * The rejoin block of the card and the Data tag's arrow: range, closure, where Lead is, the line (ON LINE, HOT or COLD,
+ * 60° and 30° being estimates), and height against Lead (SMM 12.27 para 65: never at or above Lead's height).
+ * Range and closure are the straight line between the two aircraft, height included, as the HUD's RANGE and the fluid
+ * card read them (Patrick 12 Oct 2026 03:40Z: the arrow read short of the HUD in a loop, the height left out).
  */
 export function rejoinReadout(lead, wing) {
   const dx = wing.xFt - lead.xFt;
   const dy = wing.yFt - lead.yFt;
-  const range = Math.hypot(dx, dy);
-  const lv = { x: lead.tasFtps * Math.cos(lead.headingRad), y: lead.tasFtps * Math.sin(lead.headingRad) };
-  const wv = { x: wing.tasFtps * Math.cos(wing.headingRad), y: wing.tasFtps * Math.sin(wing.headingRad) };
-  const closureFtps = range > 1e-6 ? -(((wv.x - lv.x) * dx) + ((wv.y - lv.y) * dy)) / range : 0;
+  const dz = (wing.altAboveFt ?? 0) - (lead.altAboveFt ?? 0);
+  const range = Math.hypot(dx, dy, dz);
+  const vel = (a) => {
+    const horiz = Math.sqrt(Math.max(0, a.tasFtps ** 2 - (a.climbFtps ?? 0) ** 2));
+    return { x: horiz * Math.cos(a.headingRad), y: horiz * Math.sin(a.headingRad), z: a.climbFtps ?? 0 };
+  };
+  const lv = vel(lead);
+  const wv = vel(wing);
+  const closureFtps = range > 1e-6 ? -(((wv.x - lv.x) * dx) + ((wv.y - lv.y) * dy) + ((wv.z - lv.z) * dz)) / range : 0;
   const bearing = relativeBearingDeg({ x: wing.xFt, y: wing.yFt, hdg: wing.headingRad }, { x: lead.xFt, y: lead.yFt });
   const abs = Math.abs(bearing);
   const line = abs >= REJOIN.hotBearingDeg ? 'HOT' : abs <= REJOIN.coldBearingDeg ? 'COLD' : 'ON LINE';

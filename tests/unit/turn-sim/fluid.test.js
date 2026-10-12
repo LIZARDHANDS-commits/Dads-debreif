@@ -432,3 +432,68 @@ test('Live #2 (TS-194): in a steady level turn he sits on Lead\'s circle inside 
   const [lead, wing] = f.state.aircraft;
   assert.ok(judgeFormation('fw', lead, wing).inBand);
 });
+
+test('Live #2: from a tight fighting wing start, 500 ft at 55° off the tail, the entry opens him to his place without coming inside 400 ft', () => {
+  // Patrick 12 Oct 2026 04:14Z after flying V2.371: "when we enter into FM the range should be 500, it starts at like
+  // 3-something". Lead is straight and level at MAX through the entry (Patrick 11 Oct 22:30Z), so #2, already tight,
+  // used to cut the corner to 319 ft and park there TIGHT. What a pilot would recognise: starting tight inside the
+  // fighting wing cone (500 ft, 55° off the tail: the SMM band's near edge, 12.29 para 69) he opens out across the cone
+  // and up, never closer than 500 (Patrick 01:53Z "dont be closer than 500"; this check fails under 400 ft, 500 less the
+  // shared ±100 ft margin, docs/TESTING.md), and ends the entry in position: inside the cone, no longer TIGHT. 60 s is a
+  // generous limit for the entry (he is in position in about 30 s).
+  const f = inFightingWing();
+  {
+    const [lead, wing] = f.state.aircraft;
+    const back = -500 * Math.cos(55 * DEG);
+    const left = -500 * Math.sin(55 * DEG); // his right, the side fighting wing is flown on from the default start
+    wing.xFt = lead.xFt + back * Math.cos(lead.headingRad) - left * Math.sin(lead.headingRad);
+    wing.yFt = lead.yFt + back * Math.sin(lead.headingRad) + left * Math.cos(lead.headingRad);
+    wing.altAboveFt = lead.altAboveFt;
+    wing.headingRad = lead.headingRad;
+  }
+  f.setFluid({ wing: 'live' });
+  assert.equal(f.change('fluid'), 'started');
+  const failures = [];
+  fly(f, 60, alwaysTrue(failures, LIVE_FLOOR_FT));
+  const rollOk = (x) => { const m = /^#2 rolling (-?\d+)°\/s$/.exec(x); return m && Math.abs(Number(m[1])) <= T6A_ROLL.maxRateDps + ROLL_SLACK_DPS; };
+  assert.deepEqual(failures.filter((x) => !x.startsWith('Lead') && !rollOk(x)).slice(0, 5), []);
+  const r = f.state.fluid.readouts;
+  assert.ok(r.aspectDeg <= CONE_HALF_DEG, `Live, after the entry: inside the cone, aspect ${r.aspectDeg.toFixed(1)}°`);
+  assert.equal(r.state, 'IN POSITION', `Live, after the entry: ${r.state} at ${Math.round(r.rangeFt)} ft`);
+});
+
+test('Live #2: through a barrel roll he stays in range, and once Lead is level he keeps the side of the tail he came out on into fighting wing', () => {
+  // Patrick 12 Oct 2026 03:40Z: "2 does not have to reset to 'the same offset' each time, and can end on a different
+  // offset side". What a pilot would recognise: #2 never STRETCHED through the roll (more than 1,000 ft, SMM 16.17 para
+  // 42) and outside the bubble (the live floor, as above); the side of Lead's tail he is on once Lead is level again
+  // is the side Terminate takes him to fighting wing on, never a flight back across. 40 s for the roll and 2 minutes
+  // for Terminate are generous limits.
+  const f = inFightingWing();
+  f.setFluid({ wing: 'live' });
+  assert.equal(f.change('fluid'), 'started');
+  const failures = [];
+  const watch = alwaysTrue(failures, LIVE_FLOOR_FT);
+  fly(f, 30, watch);
+  assert.equal(f.pressFluid('barrelRoll', -1), 'started');
+  fly(f, 40, (g, before) => {
+    watch(g, before);
+    if (g.state.aircraft[1].stretched) failures.push('#2 STRETCHED through the roll');
+  });
+  const sideOf = (g) => {
+    const [lead, wing] = g.state.aircraft;
+    const dx = wing.xFt - lead.xFt;
+    const dy = wing.yFt - lead.yFt;
+    return -dx * Math.sin(lead.headingRad) + dy * Math.cos(lead.headingRad) >= 0 ? 'left' : 'right';
+  };
+  assert.ok(Math.abs(f.state.aircraft[0].bankDeg) < 5, `Lead level after the roll, bank ${Math.round(f.state.aircraft[0].bankDeg)}°`);
+  const sideOut = sideOf(f);
+  const rollOk = (x) => { const m = /^#2 rolling (-?\d+)°\/s$/.exec(x); return m && Math.abs(Number(m[1])) <= T6A_ROLL.maxRateDps + ROLL_SLACK_DPS; };
+  assert.deepEqual(failures.filter((x) => !x.startsWith('Lead') && !rollOk(x)).slice(0, 5), []);
+  assert.equal(f.pressFluid('terminate'), 'started');
+  fly(f, 120);
+  assert.equal(f.state.fluid, null);
+  assert.equal(f.where().key, 'fw');
+  const [lead, wing] = f.state.aircraft;
+  assert.ok(judgeFormation('fw', lead, wing).inBand);
+  assert.equal(sideOf(f), sideOut, `fighting wing on the ${sideOut}, the side he came out of the roll on`);
+});

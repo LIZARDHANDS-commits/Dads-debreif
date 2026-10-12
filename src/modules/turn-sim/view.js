@@ -9,13 +9,12 @@
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
-import { ktToFtps, formatNm } from '../../core/units.js';
+import { ktToFtps, formatNm, FT_PER_NM } from '../../core/units.js';
 import { distance } from '../../core/geo.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
 import { FW_TURN, TURNING_REJOIN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 
-const FT_PER_NM = 6076.11549;
 const MINUS = '−';
 
 /** 6420 -> "6,420 ft", with a real minus sign (moved here from the retired plan-mode readouts.js). */
@@ -773,7 +772,7 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = nu
 }
 
 /** The Data tag's arrow (Patrick, 6 Oct): yellow, from each wingman toward Lead, with the distance and closure on it. */
-const LEAD_ARROW_YELLOW = '#ffd23f';
+export const LEAD_ARROW_YELLOW = '#ffd23f';
 export function drawLeadArrows(ctx, map, state, links) {
   const at = (a) => (map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt));
   const lead = state.aircraft.find((a) => a.id === 1);

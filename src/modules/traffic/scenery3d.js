@@ -8,7 +8,7 @@
 // - The flight line / apron / hangars sit NORTH of the parallel runways (Y about 2,000 to 3,400 ft),
 //   placed against the satellite photo: first on the 1.2 times stretched photo, then divided by 1.2 to
 //   true feet with the route rebuild (TR-67), then checked and re-traced on the true photo (5 Oct).
-// - Field elevation: 1880 ft MSL (floor default).
+// - Field elevation: 1892 ft MSL (floor default).
 // - World frame: X east, Y north, Z up (altitude in feet).
 //
 // Textures and sprites need a canvas, so they exist only in a browser; with no document (the Node

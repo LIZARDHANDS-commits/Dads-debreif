@@ -121,6 +121,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.reverseMaxSec | `20` | the reversal ends with Lead at frozenBearingDeg off the nose, so there is no slide onto it after (Fable 04:40Z; until V2.250 it ended 15° off Lead's heading, Lead 25° off the nose), or after this long (estimate) |
 | TURNING_REJOIN.pointFromFt | `2500` | only from further out than this; closer in the capture alone (estimate) |
 | TURNING_REJOIN.formRoll | `Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 })` | his roll from the start to the slot: a formation rate, Lead's close-turn roll (rates.js RATE_SETS.close.leadRoll), not the 180°/s of the tactical moves |
+| TURNING_REJOIN.coneRefJerkFtps3 | `10` | the place he flies to in the cone speeds up and slows down this smoothly, with no corner, so his roll-out has no kink (estimate) |
+| TURNING_REJOIN.coneAlignSec | `1.5` | settled in the cone, his heading eases onto Lead's over about this long, carrying on from the turn he has, not a step onto Lead's heading (estimate) |
+| TURNING_REJOIN.coneAlignDoneDeg | `0.05` | ...until within this of Lead's heading with the turn gone, then he holds Lead's heading (estimate) |
 | TURNING_REJOIN.hotFt | `1000` | ahead of the line by this much (hot) he flies his least speed, Lead's 200 KIAS, coming up to lineOverKias above it as he reaches the line (estimate; TS-75) |
 | TURNING_REJOIN.laneTolFt | `20` | flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z) |
 | TURNING_REJOIN.decisionArriveRates | `'instructor'` | he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58) |
@@ -171,8 +174,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.overshootBankDeg | `15` | the overshoot: wings near level, no more than this bank... (SMM 12.27 para 65; card 03:33Z rule 5; estimate) |
 | TURNING_REJOIN.overshootLevelSec | `3` | ...for this long, then he stabilizes on the outside of Lead's turn (estimate) |
 | TURNING_REJOIN.rideKias | `210` | on the line he holds this to the decision point (Patrick 8 Oct 20:16: "maintain 210 to the decision point") |
-| TURNING_REJOIN.windowEntryOverKt | `0.5` | a plan counts as on the line only if it enters the window at no more than rideKias + this (Patrick's G3: 210.5 KIAS, HANDOVER_REPORT_V2.210_TRJ.md; 5.5 until the clean-up, Patrick 11 Oct 2026 16:26Z, "Agree with data", unsourced-numbers.md row 10) |
+| TURNING_REJOIN.windowEntryOverKt | `0.5` | a plan counts as on the line only if it enters the window at no more than rideKias + this (Patrick's G3: 210.5 KIAS, HANDOVER_REPORT_V2.210_TRJ.md; 5.5 until the clean-up, Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 10) |
 | TURNING_REJOIN.fwLeastKias | `195` | on the way to fighting wing a plan never below this counts (5 kt under the 200 floor, which TS-169 lets bleed; estimate; row 10) |
+| TURNING_REJOIN.fwQuickerBySec | `10` | into fighting wing, a start that misses the line speed above still wins when it is in this much sooner than one that meets it (Patrick's card 12 Oct 2026 00:05Z, "Quicker 78°": from line abreast the 78° start in 21 s over a 60° one in 34 s that met 210 KIAS; the 10 s is an estimate) |
 | TURNING_REJOIN.fwApproach | `Object.freeze({ windowFt: 1200, carrotWindowFt: 250, decisionFt: 1000, coneEaseFarFt: 1500, captureFt: 250 })` |  |
 | TURNING_REJOIN.rideCaptureAlongFt | `1750` | he joins (the middle of Patrick's 1,500-2,000 ft, G6) the line no closer to Lead than this, or where he already is if closer (Patrick G1: established by 1,500 ft; 8 Oct 20:16 inside 2,000 ft get on it where he is) |
 | TURNING_REJOIN.rideLeadFt | `1000` | he aims at the line this far further up it than his own place, so off it he heads across and onto it along it (estimate) |
@@ -262,7 +266,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER |  | The tracker's own numbers (tracker.js): a small control loop that chases a moving target slot in the frame of the aircraft flown off, flown once at the press and replayed. It stays as the fallback for starts no kinematic-line rule covers (Patrick 5 Oct 05:27Z: "Tracker for fallback, and refractor the tracker"). All estimates: they shape how smoothly the wingman flies, not where the formations are. |
 | TRACKER.gain | `Object.freeze({` |  |
 | TRACKER.…position | `0.3` | 1/s: position error to relative velocity |
-| TRACKER.…heading | `1.5` | 1/s: heading error to turn rate |
+| TRACKER.…heading | `1.2` | 1/s: heading error to turn rate (1.5 before #2's roll built its acceleration, TS-196: at 1.5 the roll that builds its acceleration came out of fighting wing to line abreast 17° past the bank it settles on; Fable's plan) |
 | TRACKER.…refRate | `0.5` | 1/s: how fast the moving reference closes on its target |
 | TRACKER.…speedLoop | `0.8` | 1/s: speed error to acceleration |
 | TRACKER.…jerkKtps2 | `POWER_JERK_KTPS2` | kt/s²: the acceleration follows the torque, 0 to 100% in about 0.2 s (Patrick 6 Oct 03:17Z, TS-108; 1.0 until V2.119) |
@@ -276,7 +280,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.minSpeedFtps | `1` | a commanded velocity under this gives no heading: #2 takes Lead's (estimate) |
 | TRACKER.kiasSnap | `0.003` | the last few thousandths of a knot are taken out at once, so the speed has no step |
 | TRACKER.alignHeadingRad | `1.5e-4` | aligned: within this of Lead's heading (about 0.01°) |
-| TRACKER.alignDeadbandDeg | `0.05` | a closure phase lining up commands no bank under this (step 2): at 1.5/s of heading gain it is a heading error of about 0.003°, inside alignHeadingRad |
+| TRACKER.alignDeadbandDeg | `0.05` | a closure phase, or the fighting wing cone (from 12 Oct 2026), lining up commands no bank under this (step 2): at 1.2/s of heading gain it is a heading error of about 0.004°, inside alignHeadingRad |
 | TRACKER.laneRangeFt | `LANE.rangeFt` | the overshoot lane is measured inside this range (slots.js LANE) |
 | TRACKER.belowRangeFt | `LANE.belowRangeFt` | the height under Lead is measured inside this range (slots.js LANE) |
 | TRACKER.phase | `Object.freeze({` |  |
@@ -315,6 +319,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.…belowFt | `200` | ... nor this far below him (estimate; row 5) |
 | TRACKER.…kt | `12` | speed within this of Lead's (estimate; row 5) |
 | TRACKER.…bankDeg | `15` | bank within this of Lead's (estimate; row 5) |
+| TRACKER.…climbFtps | `5` | climb or descent within this of Lead's, so he isn't still climbing when the rejoin ends (estimate; V2.330) |
 | TRACKER.openingFull | `Object.freeze({` |  |
 | TRACKER.…ceilingKias | `REJOIN_LINE_KIAS.ai` | the opening full power ends at the AI line speed (235 KIAS, TS-133) ... (row 6) |
 | TRACKER.…overLineKt | `15` | ... or the line speed + this, whichever is higher ... (estimate; row 6) |

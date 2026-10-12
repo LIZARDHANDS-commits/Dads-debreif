@@ -136,9 +136,9 @@ test('degrees → radians → degrees round-trips', () => {
 // ---------- units ----------
 
 test('knots → ft/s → knots round-trips to V6\'s constants', () => {
-  // V6 rounds the two factors separately: KT_TO_FTPS = 1.68781 but FTPS_TO_KT
-  // = 0.592484, not 1/1.68781 = 0.5924838…. Their product is 1 + 4.2e-7, so the
-  // round trip is exact only to that relative error (5e-7 leaves a little room).
+  // FTPS_TO_KT is exactly 1 / KT_TO_FTPS (Patrick, 12 Oct 2026; V6 rounded it
+  // to 0.592484, a product of 1 + 4.2e-7), so the round trip is exact to floating
+  // point; the 5e-7 relative margin is kept from then and still holds.
   // Values stay away from zero: a relative test means nothing on subnormals,
   // where the product underflows to 0 (fast-check found -2e-323 at once).
   const speed = (max) => fc.oneof(num(-max, -1e-3), num(1e-3, max));

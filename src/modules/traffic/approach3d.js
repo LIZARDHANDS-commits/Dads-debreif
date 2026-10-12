@@ -12,7 +12,7 @@
 import { THRESHOLD_29L } from './airfield.js';
 import { RANDOM } from './randomize.js';
 import { trueAltFt, heightFactor, approachLine, interceptOutFt } from './weather.js';
-import { KT_TO_FTPS } from '../../core/units.js';
+import { KT_TO_FTPS, FT_PER_NM } from '../../core/units.js';
 
 /** The window's true heights, ft MSL (SMM 4.7 para 12; fixed in true height, Patrick 5 Oct 07:28Z). */
 export const WINDOW_LOW_FT = 2100;
@@ -22,9 +22,9 @@ export const WINDOW_WIDTH_FT = 300;
 /** Zoomed out, the window grows with the drawn aircraft, but by no more than this, so its height still reads true-ish. */
 const WINDOW_MAX_GROW = 3;
 /** The aim line runs to the ground, or this far ahead when the aircraft is level or climbing, ft (an estimate: 2 NM). */
-export const AIM_LINE_MAX_FT = 2 * 6076;
+export const AIM_LINE_MAX_FT = 2 * FT_PER_NM;
 /** ...and is drawn to the ground only when it meets it within this, ft (an estimate: 5 NM). */
-export const AIM_GROUND_MAX_FT = 5 * 6076;
+export const AIM_GROUND_MAX_FT = 5 * FT_PER_NM;
 const AIM_COLOR = 0xff4fd8;
 const WINDOW_COLOR = 0x7dd3fc;
 const INTERCEPT_COLOR = 0xfde047;

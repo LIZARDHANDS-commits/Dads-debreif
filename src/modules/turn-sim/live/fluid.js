@@ -141,7 +141,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     let w = nextWing(e.wing, r.cue, t, rangeFt, blend);
     // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
     // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun. With the live
-    // wingman the side of the point he chases follows it (fluid-wing-live.js).
+    // wingman his side follows it (fluid-wing-live.js, ctx.side).
     if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
       const [p0, p1] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad];
       const h = SWAP_LOOK_STEPS * dt;
@@ -228,8 +228,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
       case 'terminate': {
-        // A predictable turn: on the way Lead is already turning, or away from #2 if wings level.
-        const way = Math.abs(tsBank) > 5 ? Math.sign(tsBank) : -at.wing.side;
+        // A predictable turn: on the way Lead is already turning, or away from #2 if wings level (the live wingman's own
+        // side when he is live: he may have come out of the last manoeuvre on the other side, fluid-wing-live.js).
+        const way = Math.abs(tsBank) > 5 ? Math.sign(tsBank) : -((live && liveNow?.side) || at.wing.side);
         return [terminate(way)];
       }
       default: throw new Error(`No fluid manoeuvre called ${key}`);
@@ -283,13 +284,11 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       if (queued && kNow > queued.startK) queued = null;
       const lp = leadPose(kNow);
       if (live) {
-        // #2 reads Lead as he is at the start of the step and flies one step of his own aircraft (fluid-wing-live.js),
-        // chasing a point on Lead's trail; its side and word are the planned wing's, swaps included.
+        // #2 reads Lead as he is at the start of the step and flies one step of his own aircraft (fluid-wing-live.js):
+        // pure pursuit of Lead with lead and lag by the cues; his side is the planned wing's, swaps included.
         const e = E(kNow);
         const kg = kNow - 1;
-        const rg = R(kg);
-        const ghost = { side: E(kg).wing.side, cue: rg.blend < 0.5 ? 'entry' : rg.cue };
-        liveNow = stepLiveWing(liveWs, { e: E(kg), E, k: kg, kMin, t: e.t, rangeFt, blockFt, ghost });
+        liveNow = stepLiveWing(liveWs, { e: E(kg), t: e.t, rangeFt, blockFt, side: E(kg).wing.side });
         liveWs = liveNow.ws;
         if (e.end && endSeen === null) endSeen = kNow;
         if (endSeen !== null && ended === null && (liveNow.settled || kNow - endSeen > HOLD.extraSec / dt)) ended = kNow;
@@ -427,9 +426,11 @@ export function fluidReadouts(lead, wing, prev, blockFt, manKey = null) {
     losDps = Math.acos(Math.max(-1, Math.min(1, dot3(a, b)))) / DEG / STEP_SEC;
   }
   // While Lead manoeuvres the cone is #2's aim, not a verdict (Patrick 23:02Z, SMM 16.17 para 42), and only the distance
-  // is judged (23:07Z, 23:08Z); straight and level, the full verdict: the distance and the cone.
+  // is judged (23:07Z, 23:08Z); straight and level, the full verdict: the distance and the cone. In Terminate #2 is flowing
+  // out of the cone to fighting wing (Patrick 12 Oct 2026 04:01Z), so there too only the distance is judged.
   const manoeuvring = isManoeuvring(lead);
-  const state = manoeuvring || rangeFt < FLUID.bubbleFt || rangeFt > FLUID.rangeFt.max ? rangeWord(rangeFt) : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
+  const leaving = manKey === 'terminate' || manKey === 'steady';
+  const state = manoeuvring || leaving || rangeFt < FLUID.bubbleFt || rangeFt > FLUID.rangeFt.max ? rangeWord(rangeFt) : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
   const flags = [];
   if (rangeFt < FLUID.bubbleFt) flags.push(`Inside the 500 ft bubble (${Math.round(rangeFt)} ft; SMM 16.17 para 44c).`);
   if (wing.g > FLUID.wingGLimit) flags.push(`#2 is pulling ${wing.g.toFixed(1)} G; the limit is 5 G (SMM 16.17 para 44a).`);
