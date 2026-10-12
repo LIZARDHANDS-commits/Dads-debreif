@@ -1,12 +1,12 @@
-// Size budget for the built site (R5, R15). Run after `vite build`:
+// Size budget for the built site (R5). Run after `vite build`:
 //   node tools/check-size.mjs dist
-// Fails if the home screen's code and styles, or the module-card media, go over budget.
+// Fails if the home screen's code, styles and card stills go over budget. Card videos are
+// reported but have no size limit (R15: no size limit on card videos, Patrick, 12 Oct 2026).
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const HOME_CODE_BUDGET_BYTES = 3_000_000; // R5: home screen loads in about 3 MB or less
-export const CARD_MEDIA_BUDGET_BYTES = 3_000_000; // R15: card videos total about 3 MB or less
 
 // Files the home screen needs before anything else: index.html plus its entry
 // script's static imports and styles. Dynamic imports (modules) are left out,
@@ -69,9 +69,6 @@ export function check(result) {
   if (result.homeBytes > HOME_CODE_BUDGET_BYTES) {
     problems.push(`The home screen (code, styles and card stills) is ${result.homeBytes} bytes, over the ${HOME_CODE_BUDGET_BYTES} byte budget (R5).`);
   }
-  if (result.mediaBytes > CARD_MEDIA_BUDGET_BYTES) {
-    problems.push(`Card videos are ${result.mediaBytes} bytes, over the ${CARD_MEDIA_BUDGET_BYTES} byte budget (R15).`);
-  }
   return problems;
 }
 
@@ -80,7 +77,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const result = measure(distDir);
   const kb = (n) => `${(n / 1000).toFixed(1)} kB`;
   console.log(`Home screen: ${kb(result.homeBytes)} in ${result.home.length} files (budget ${kb(HOME_CODE_BUDGET_BYTES)})`);
-  console.log(`Card videos: ${kb(result.mediaBytes)} in ${result.media.length} files (budget ${kb(CARD_MEDIA_BUDGET_BYTES)})`);
+  console.log(`Card videos: ${kb(result.mediaBytes)} in ${result.media.length} files (no limit, R15)`);
   const problems = check(result);
   for (const p of problems) console.error(p);
   process.exit(problems.length ? 1 : 0);
