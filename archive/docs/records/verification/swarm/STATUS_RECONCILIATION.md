@@ -189,7 +189,7 @@ Where actual code on `main` significantly exceeds what is marked in documentatio
 
 2. **Turn Fight Energy Sim Merged on Main**
    - **Documented in Todo:** Task 10 marked `[ ]` in `tasks/turn-fight/todo.md:66`.
-   - **Empirical Reality on `main`:** The entire physical engine for Energy Mode (`src/modules/turn-fight/energy-sim.js`, 1,360 lines, 79 KB) was merged in PRs #209, #227, and #235. It implements full NFM Mach 0.67 envelope calculations, shaker G limits, and maneuver selection. Only the UI presentation is pending on `handover/turn-fight-energy-screen`.
+   - **Empirical Reality on `main`:** The entire physical engine for Energy Mode (`src/modules/turn-fight/energy-sim.js`, 1,360 lines, 79 KB) was merged in PRs #209, #227, and #235. It implements full reference data Mach 0.67 envelope calculations, shaker G limits, and maneuver selection. Only the UI presentation is pending on `handover/turn-fight-energy-screen`.
 
 3. **Turn Sim Solver & Series Merged on Main**
    - **Documented in Todo:** Task 16 marked `[ ]` in `tasks/turn-sim/todo.md:68`.

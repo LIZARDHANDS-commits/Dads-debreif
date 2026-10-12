@@ -34,14 +34,14 @@ const ATTITUDE_HALF_SEC = 1;
 const PITCH_EASE = Object.freeze({ maxRateDps: 10, maxAccelDps2: 20 });
 
 /**
- * Crosswind on final, the wing-down method (SMM 4.12 paras 25-28; NFM p.2-26; Patrick, 11 Oct 09:03Z): from halfway
+ * Crosswind on final, the wing-down method (SMM 4.12 paras 25-28; Patrick, 11 Oct 09:03Z): from halfway
  * between the window and touchdown the crab goes and the upwind wing comes down, over `blendSec`; the nose stays on the
  * centreline on the wheels, and the crab comes back over `blendSec` once airborne again. The window is 3/4 NM before the
  * base of the numbers (Patrick). The bank is the one whose sideways pull matches the side force of the slip (standard
  * aerodynamics, slipBankDeg); the side-force slope per radian of slip is borrowed from similar aircraft and the wing
  * area is the T-6A's published figure, neither in our manuals (estimates). The blend time and how close to the
  * centreline counts as on final are estimates. Drawn heading and bank only: the ground track, the glide path and the
- * speeds don't change. The NFM's limit is 25 kt across (p.5-12), flagged elsewhere, never a wall here.
+ * speeds don't change. The reference limit is 25 kt across, flagged elsewhere, never a wall here.
  */
 /** The window, feet out from the 29L threshold: 3/4 NM before the base of the numbers (Patrick). */
 const WINDOW_OUT_FT = 0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT;

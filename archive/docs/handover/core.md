@@ -11,8 +11,8 @@ Shared flight math in `src/core/`: units, time and zones, geometry, wind triangl
 
 ## Notes
 
-- `maxKiasT6A` is the NFM airspeed-limit line for what pilots see; `modelMaxIasT6A` is the same limit on the model's IAS, used as a guard (never over Mach 0.67).
+- `maxKiasT6A` is the reference data airspeed-limit line for what pilots see; `modelMaxIasT6A` is the same limit on the model's IAS, used as a guard (never over Mach 0.67).
 - Stall 86 kt (Patrick, D158). Shaker G is stall + 7 kt, capped at 7 G.
-- The model is fitted to the NFM charts: drag from the max-glide chart (125 KIAS), thrust from the sustained-turn chart. Refit with `tests/golden/checks/t6a-fit.mjs`.
+- The model is fitted to the reference data: drag from the max glide data (125 KIAS), thrust from the sustained-turn data. Refit with `tests/golden/checks/t6a-fit.mjs`.
 - `tests/golden/checks/mutate.py` exists but is not run (no mutation testing under the current rules).
 - Browser vs Node time-zone checks: an Edmonton mismatch from 1 Nov 2026 on is time-zone data, not a bug.

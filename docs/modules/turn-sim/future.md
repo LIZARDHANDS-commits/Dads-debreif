@@ -32,7 +32,7 @@ The second wave of live mode (rejoins, fighting wing and fluid manoeuvring, old 
 
 ## Power, speed and the aircraft
 
-- A torque curve from the NFM (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
+- A torque curve from the reference data (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
 - Power on the tags for the tracker's rejoin and the other planned lines (they set no power, so none shows).
 - Speed and block height: a low or mid block choice (220 or 200 KIAS, TS-R6), the real low block height (8,000 ft is an estimate, TS-38), and a simple speed bleed in 3 G turns (constant for now, TS-38).
 - Wind (TS-R10; still air for now).

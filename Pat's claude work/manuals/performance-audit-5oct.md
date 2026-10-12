@@ -7,26 +7,26 @@ changes are realistic and physically sensical"). Nothing changed in the repo; Fo
 
 | What | Model | Manual | Verdict |
 |---|---|---|---|
-| Sustained turn, 187 KIAS at 10,000 ft | 12.5°/s (2.69 G) | NFM A9 worked example, Fig A9-4: 12.8°/s | matches within the by-eye read of the chart |
-| Best sustained rate, sea level | 20.6°/s at ~140 KIAS | NFM Fig 4-10-1 line top | fitted point; tests hold it within 0.35°/s with the chart's own 83 kt stall |
-| Max level speed, sea level, 1 G | 265 KIAS | chart's zero-rate point 260 KIAS | within the test's 6 kt |
-| Stall, 1 G clean | 86 KIAS (Patrick) | V-n ~89, turn chart ~83 (power on) | known choice; tests report the 1.1-1.6°/s gap at the line tops |
-| V-n, VO, VMO, Mmo | 7/−3.5 G, 4.7 rolling, 227, 316, 0.67 | NFM Fig 5-3 p.5-9 | matches |
-| Max glide | clean 2.0 NM per 1,000 ft at 125 KIAS; gear 1.5; landing 1.1 | max glide chart; SMM 13.5 para 7 | matches; T/O flap row is an estimate (no manual gives it) |
-| Zoom after engine failure | table | NFM Fig 3-4 p.3-12 | exact |
-| Best rate of climb speed | model's best 131-136 KIAS | NFM p.9129 and A4: 140 KIAS | model's best is 5-10 kt slow |
-| Time to climb 2,000 to 29,000 ft | 10.5 min, 28 NM | NFM A4-2/A4-3 at 6,100 lb: 11.7 min, 38 NM | model climbs about 10% fast and covers 25% less ground |
-| Climb rate at 15,000 ft | 3,100 fpm (same as sea level) | NFM: thrust flat-rated, but the climb charts fall off | optimistic above about 10,000 ft (thrust held flat to 14,000 ft, T6A_FIT.thrustFlatSigma) |
+| Sustained turn, 187 KIAS at 10,000 ft | 12.5°/s (2.69 G) | reference: 12.8°/s | matches within the by-eye read |
+| Best sustained rate, sea level | 20.6°/s at ~140 KIAS | reference (line top) | fitted point; tests hold it within 0.35°/s with the data's own 83 kt stall |
+| Max level speed, sea level, 1 G | 265 KIAS | zero-rate point 260 KIAS (reference) | within the test's 6 kt |
+| Stall, 1 G clean | 86 KIAS (Patrick) | flight envelope ~89, turn data ~83 (power on) | known choice; tests report the 1.1-1.6°/s gap at the line tops |
+| G and speed limits: VO, VMO, Mmo | 7/−3.5 G, 4.7 rolling, 227, 316, 0.67 | reference | matches |
+| Max glide | clean 2.0 NM per 1,000 ft at 125 KIAS; gear 1.5; landing 1.1 | max glide data (reference); SMM 13.5 para 7 | matches; T/O flap row is an estimate (no source gives it) |
+| Zoom after engine failure | table | reference | exact |
+| Best rate of climb speed | model's best 131-136 KIAS | reference: 140 KIAS | model's best is 5-10 kt slow |
+| Time to climb 2,000 to 29,000 ft | 10.5 min, 28 NM | reference at 6,100 lb: 11.7 min, 38 NM | model climbs about 10% fast and covers 25% less ground |
+| Climb rate at 15,000 ft | 3,100 fpm (same as sea level) | reference: thrust flat-rated, but the climb data fall off | optimistic above about 10,000 ft (thrust held flat to 14,000 ft, T6A_FIT.thrustFlatSigma) |
 | Idle prop drag | 0.16 W at 200 KIAS, about 5 kt/s level | Patrick 5 Oct 00:11Z "probably closer to 5" | his word, no manual number |
-| Speed brake drag | 0.095 W at 200 KIAS, about +1.7 kt/s | NFM p.1-39 gives the panel (70°), no size, no rate; SMM/EFIG give only its use | a GUESS (panel size); needs Patrick's number |
+| Speed brake drag | 0.095 W at 200 KIAS, about +1.7 kt/s | reference data gives the panel (70°), no size, no rate; SMM/EFIG give only its use | a GUESS (panel size); needs Patrick's number |
 | Pitch attitude (AoA) | 2.8° x G x (180/KIAS)² | SMM 3.14 para 35, EFIG p.126: 10-15° nose up at 180 KIAS | estimate matched to the cue; fine |
 
-Reading: the model is the sustained turn chart, and it is good where that chart governs (turns, speed-ups, slow-downs,
-level max speed). Climb is its weak side: thrust minus drag is right at turn-chart speeds, but the split between thrust
-and drag (from the glide chart, power off) puts the best climb a few knots slow and about 10% strong, and holding thrust
-flat to 14,000 ft keeps the climb rate up where the NFM's falls. Effects in the tool: fluid climbs and the Formation
+Reading: the model is the sustained turn data, and it is good where those data govern (turns, speed-ups, slow-downs,
+level max speed). Climb is its weak side: thrust minus drag is right at sustained-turn speeds, but the split between thrust
+and drag (from the glide data, power off) puts the best climb a few knots slow and about 10% strong, and holding thrust
+flat to 14,000 ft keeps the climb rate up where the reference data fall. Effects in the tool: fluid climbs and the Formation
 opening out's dive-and-climb-back are a little generous; a time-to-climb would read a minute short. Not worth changing
-now; if Patrick wants climb right, the fix is to fit thrustFlatSigma and the drag split to NFM Fig A4-1/A4-2 as well
+now; if Patrick wants climb right, the fix is to fit thrustFlatSigma and the drag split to the reference climb data as well
 (Formation thread, core, one PR).
 
 ## 2. Roll rates, G onset, pitch, smoothing
@@ -42,7 +42,7 @@ now; if Patrick wants climb right, the fix is to fit thrustFlatSigma and the dra
 Verdict: every smoothing method is physically sensible (rate limits with finite rate of change, G from path curvature,
 power with lag, no teleporting). Two things are not quite right:
 1. There is no aircraft roll ceiling in core: three modules each pick a pilot's roll rate (180, 90, 45°/s) with no one
-   number for what the aircraft can do, and the NFM text gives none. Fix: one T6A_LIMITS roll rate and roll acceleration
+   number for what the aircraft can do, and the reference data give none. Fix: one T6A_LIMITS roll rate and roll acceleration
    from Patrick, each module's pilot at or below it. 180°/s with 720°/s² is at the brisk end for a Harvard II full-stick
    roll (my estimate, not a manual number); Fight Sim's 6 G/s onset is quick (a 1 to 5 G pull in under a second).
 2. Fight Sim and Formation reach different G and roll rates for the same aircraft; that is pilot style, not physics, and

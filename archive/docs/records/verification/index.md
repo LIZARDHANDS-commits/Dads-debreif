@@ -18,8 +18,8 @@ First full pass, 2026-09-30 09:20-10:40Z:
 Re-checks after fixes (2026-09-30 10:40-12:40Z): core-t6a (#184), wx (#193, #198), debrief-recheck-194.md, debrief-recheck-204.md, debrief-recheck-182-186.md (#199), app-frame-recheck-195.md, sof-recheck-197.md, turn-sim-recheck-189.md (SMM turns fixed; N1/A1/N2 controls open), traffic-e2e-07c73e4.md (Traffic end to end), turn-fight-recheck-188.md, turn-fight-recheck-208.md (start geometry).
 
 
-- 12:50Z: Turn Fight Energy engine #209 checked ([turn-fight-energy-209.md](turn-fight-energy-209.md)): F1/F2 Medium, P1 for Dad, S1 wording. Core Mach limit #211 ([core-mmo-211.md](core-mmo-211.md)): line 8-9 kt under NFM, wrong figure ref.
-- 13:20Z: Core #218 re-check PASS: the Mach limit now matches NFM Fig 5-3 (see core-mmo-211.md).
+- 12:50Z: Turn Fight Energy engine #209 checked ([turn-fight-energy-209.md](turn-fight-energy-209.md)): F1/F2 Medium, P1 for Dad, S1 wording. Core Mach limit #211 ([core-mmo-211.md](core-mmo-211.md)): line 8-9 kt under reference data, wrong figure ref.
+- 13:20Z: Core #218 re-check PASS: the Mach limit now matches reference data (see core-mmo-211.md).
 - 13:40Z: Debrief #213 re-check PASS: wind arrows correct, and the live 9-point Open-Meteo reply matches the fixture's structure (see debrief-recheck-213.md). L1 is closed; 5 Low.
 - 13:55Z: Traffic #216 re-check (traffic-recheck-216.md): rewind is exact (41k comparisons) and setups round-trip. RW-01 Medium: Clear/✕ rewrites the past (D265 vs spec goal 6). Rest Low.
 - 14:10Z: Turn Fight #219 re-check PASS (turn-fight-recheck-219.md): TF3-1 to TF3-10 and Obs A fixed (TF3-8 partial); the graphics-reset fallback works. 11 Low.

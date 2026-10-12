@@ -3,7 +3,7 @@
 **Author:** Antigravity Full-Spectrum Manuals Audit Swarm  
 **Date:** 2026-10-03  
 **Ground Truth Directory:** `C:\Users\patri\OneDrive\Desktop\manuals`  
-**Governing Doctrine:** 15 Wing Moose Jaw CT-156 Harvard II SMM, Gen Book V8.9, EFIG, T-6A NFM  
+**Governing Doctrine:** 15 Wing Moose Jaw CT-156 Harvard II SMM, Gen Book V8.9, EFIG, T-6A reference data  
 **Technical Standards:** D109–D116, D368–D374, D382, D387, D407, D411, D420–D424  
 
 ---
@@ -43,15 +43,15 @@ This ledger records every discovered divergence between current codebase values,
 | # | Item / Parameter | Current Code Value | Flying Manual Ground Truth | Existing Decision | Discrepancy Analysis & Remediation Recommendation |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **TF-01** | **MPT Sustained Speed** | 160 KIAS (`energy-sim.js:131, 141`) | 160 KIAS held within ±5 kt (SMM 14.14) | **D112, D384** | **Verified (Matches).** |
-| **TF-02** | **Level MPT Bank Angle** | ~68.5°–69° aerodynamic bank | SMM states ~75° visual attitude cue; turn chart gives 69° | **D112 (Patrick ruling 09:27Z)** | **No Change (Reconciled).** Patrick explicitly approved keeping chart physics (69°) with SMM 75° noted as cockpit visual cue. |
+| **TF-02** | **Level MPT Bank Angle** | ~68.5°–69° aerodynamic bank | SMM states ~75° visual attitude cue; turn data gives 69° | **D112 (Patrick ruling 09:27Z)** | **No Change (Reconciled).** Patrick explicitly approved keeping data physics (69°) with SMM 75° noted as cockpit visual cue. |
 | **TF-03** | **Tactical Split-S Pull G** | 5.0 G (`t6-performance.js:285`) | SMM Table 14.1 states "approx. 4 G"; EFIG AIF 2410 max 5 G | **D407 (Patrick ruling 09:27Z)** | **No Change (Reconciled).** Patrick explicitly ratified 5.0 G pull in stick shaker for tactical energy retention. |
 | **TF-04** | **Immelmann Entry Envelope** | 200–250 KIAS (`energy-sim.js:139`) | 200–250 KIAS (SMM Table 14.1, SMM 14.15) | **D420, D426** | **Verified (Matches).** |
 | **TF-05** | **Pitch Back Entry Envelope** | 160–220 KIAS (`energy-sim.js:142`) | 160–220 KIAS (SMM Table 14.1, SMM 14.17) | **D420** | **Verified (Matches).** Bank 60° at 160 kt to 30° at 220 kt matches EFIG p.441. |
 | **TF-06** | **Slice Entry Envelope** | 100–160 KIAS (`energy-sim.js:143`) | 100–160 KIAS (SMM Table 14.1, SMM 14.18) | **D381, D420** | **Verified (Matches).** Bank 90° at 160 kt to 135° at 100 kt matches SMM 14.18. |
 | **TF-07** | **Vertical 8 & Vertical Roll** | Not implemented in `energy-sim.js` | 280 KIAS entry, 4–5 G pull (SMM Table 14.1, SMM 14.19) | **FF48 (Phase 2 Queue)** | **Future Feature Gap.** Correctly identified in `docs/references/smm-aerobatics-catalog.md`. To be integrated in FF48 (SMM Aerobatics Sequence Mode). |
 | **TF-08** | **Contact Aerobatics (Ch 7)** | Not in `energy-sim.js` | Loop (230 kt), Cuban 8 (230 kt), Cloverleaf (230 kt), Hesitation Roll (200 kt) | **FF48 (Phase 2 Queue)** | **Future Feature Gap.** Fully cataloged in `docs/references/smm-aerobatics-catalog.md` ready for sequence controller wiring. |
-| **TF-09** | **Stall Speed Baseline ($V_s$)** | 86 KIAS (`t6-performance.js:15`) | 86 KIAS at 1 G clean (V-n diagram / NFM) | **D158, D387** | **Verified (Matches).** |
-| **TF-10** | **Asymmetric Rolling G Limit** | 4.7 G (`energy-sim.js:147`) | +4.7 G / -1.0 G asymmetric limit (V-n diagram / SMM 14.17) | **D407** | **Verified (Matches).** Rolling rate >15°/s triggers 4.7 G clamp. |
+| **TF-09** | **Stall Speed Baseline ($V_s$)** | 86 KIAS (`t6-performance.js:15`) | 86 KIAS at 1 G clean (flight envelope / reference data) | **D158, D387** | **Verified (Matches).** |
+| **TF-10** | **Asymmetric Rolling G Limit** | 4.7 G (`energy-sim.js:147`) | +4.7 G / -1.0 G asymmetric limit (flight envelope / SMM 14.17) | **D407** | **Verified (Matches).** Rolling rate >15°/s triggers 4.7 G clamp. |
 
 ---
 

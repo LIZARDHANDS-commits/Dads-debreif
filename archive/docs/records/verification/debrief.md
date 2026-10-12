@@ -62,7 +62,7 @@ Known or planned column: I checked `tasks/debrief/todo.md`, `plan.md` and the sp
 **M4. GPS-spike G is shown as a real G**
 - Where: More detail, Live data G line.
 - Steps: Example flight, scrubber value start+2089 (about 34:45 in), read #2.
-- Expected: A T-6 tops out at +7 G (V-n in the manuals index, energy notes). V6's own function returns nothing above 9 G.
+- Expected: A T-6 tops out at +7 G (G limit in the manuals index, energy notes). V6's own function returns nothing above 9 G.
 - Actual: "G 8.29 est., bank 10 left est." at level (pitch -1). The ship's ground speed had just jumped between fixes (GS 231 to 243 kt, seconds after a bank flip), so this is jitter, not a manoeuvre.
 - Recommendation: treat an estimate above the airframe limit (7 G) as unknown, or show it flagged as a likely GPS glitch.
 - Known or planned: No. (V6 clamps at 9, so 8.29 is "correct" to V6.)

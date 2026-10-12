@@ -1,4 +1,4 @@
-// Checks: always-true properties on random inputs (fixed seeds): turn radius rises with speed and falls with G, angle wrappers, unit round trips, G never above V-n or stall line.
+// Checks: always-true properties on random inputs (fixed seeds): turn radius rises with speed and falls with G, angle wrappers, unit round trips, G never above the G limit or stall line.
 // Serves: ALL-R20, ALL-R23.
 // Expected values: standard aerodynamics and unit definitions; relationships that must always hold, not recorded numbers.
 
@@ -150,11 +150,11 @@ test('knots → ft/s → knots round-trips to V6\'s constants', () => {
   });
 });
 
-// ---------- V-n limit and stall line ----------
+// ---------- G limit and stall line ----------
 
-// This pins the min() in availableG (the V-n cap and the stall line), not the
+// This pins the min() in availableG (the G cap and the stall line), not the
 // physics: it would pass for any model that caps at the same numbers.
-test('availableG never passes the V-n limit and never passes the stall line', () => {
+test('availableG never passes the G limit and never passes the stall line', () => {
   property(4001, fc.tuple(num(0, 400), fc.boolean()), ([kias, rolling]) => {
     const g = availableG(kias, rolling);
     assert.ok(g <= (rolling ? T6A_LIMITS.rollingMaxG : T6A_LIMITS.maxG));

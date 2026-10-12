@@ -62,7 +62,7 @@ Each item names the thread that raised it and where the detail is.
 
 **7. Lightning caution radius: 20 NM? (SOF PJ3)**
 - **Question:** Is 20 NM right for the SOF's lightning caution? Should the tool allow more?
-- **Why we ask:** 20 NM (settable from 5 to 50) is V6's number, and no manual gives an NM radius. The NFM (Section VII, p. 7-4) notes lightning can travel up to 50 miles from a storm. A cell also counts as "within 20 NM" when its centre is up to about 1 NM beyond that, because the tool measures to the cell's edge.
+- **Why we ask:** 20 NM (settable from 5 to 50) is V6's number, and no manual gives an NM radius. Reference data note lightning can travel up to 50 miles from a storm. A cell also counts as "within 20 NM" when its centre is up to about 1 NM beyond that, because the tool measures to the cell's edge.
 - **Now:** 20 NM, as in V6.
 - Detail: verification/sof-recheck-207.md, PJ3.
 

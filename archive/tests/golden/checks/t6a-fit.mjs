@@ -1,12 +1,12 @@
-// Refits the T-6A thrust to the sustained turn chart and prints the constants
+// Refits the T-6A thrust to the sustained-turn data and prints the constants
 // for T6A_FIT in src/core/t6a-turn-charts.js (SPEC-core, "API, fifth PR").
-// Run after changing a chart point or the glide numbers, then copy the output:
+// Run after changing a data point or the glide numbers, then copy the output:
 //
 //     node tests/golden/checks/t6a-fit.mjs
 //
-// Drag comes from the max glide chart alone (best glide 125 KIAS, 2 NM per
+// Drag comes from the max glide data alone (best glide 125 KIAS, 2 NM per
 // 1,000 ft): at the best glide speed the two drag parts are equal, and their
-// sum is 1 ÷ L/D. Thrust is then fitted to the turn chart by least squares on
+// sum is 1 ÷ L/D. Thrust is then fitted to the turn data by least squares on
 // (T − D)/D, with a downhill simplex from a few starting guesses.
 import { T6A_TURN_POINTS } from '../../../src/core/t6a-turn-charts.js';
 import { isaDensityRatio } from '../../../src/core/flight-math.js';

@@ -160,7 +160,7 @@ Top 5:
 
 - PJ1 (with F1): keep a live lightning caution while the picture is old or failed? Recommendation: yes, marked old, until a good picture says clear.
 - PJ2 (with F3): stale limit for the cloud picture. Recommendation: 60 min; do not let the lightning limit be reached by normal lag.
-- PJ3 default radius: the default 20 NM (range 5 to 50) is V6's number. The T-6A NFM Section VII, "Lightning Strikes", p. 7-4, notes cloud-to-cloud lightning has been seen travelling up to 50 miles, and a cell reads "within 20 NM" when its centre is up to about 1 NM beyond (the reading is the cell edge). Question for Dad: is 20 NM right for a SOF's caution, and should there be a second, wider information level at 50 NM? Recommendation: keep 20 NM (Patrick's SOF-3 default), and show 50 NM as an information-only line on the strip (not the banner).
+- PJ3 default radius: the default 20 NM (range 5 to 50) is V6's number. Reference data note cloud-to-cloud lightning has been seen travelling up to 50 miles, and a cell reads "within 20 NM" when its centre is up to about 1 NM beyond (the reading is the cell edge). Question for Dad: is 20 NM right for a SOF's caution, and should there be a second, wider information level at 50 NM? Recommendation: keep 20 NM (Patrick's SOF-3 default), and show 50 NM as an information-only line on the strip (not the banner).
 
 ## What PASSED
 
@@ -188,7 +188,7 @@ Not in this PR and not re-reported. The PR touches only map files, `index.js`, `
 - D277: agrees with the as-built spec section and with my measurement (backup at 20.5 s).
 - D278: agrees with spec line 265 (as built) and with my measurement; it stops short of what happens to an existing caution (F1).
 - D279: agrees with spec (ADS-B terms); measured as logged.
-- D280: "VNC over satellite at 70%" reads as the default base, but the build and the spec table default to Satellite (L5); and the relay box timing is logged but not the move from build setting to typed setting (F7). No entry contradicts the SMM or the manuals; the map has no formation content. The NFM p. 7-4 reference is in PJ3.
+- D280: "VNC over satellite at 70%" reads as the default base, but the build and the spec table default to Satellite (L5); and the relay box timing is logged but not the move from build setting to typed setting (F7). No entry contradicts the SMM or the manuals; the map has no formation content. The reference data reference is in PJ3.
 
 ## Not built (not bugs)
 
@@ -208,4 +208,4 @@ Not in this PR and not re-reported. The PR touches only map files, `index.js`, `
 | F2 traffic polls hidden | Lowered to Low | Traffic is already off while the ADS-B view is on (map.js:400). Within the spec budget (line 164). |
 | F5 no legend | Lowered to Low | No spec line requires one. The map-lightning.js:9 comment is wrong (all pixels are alpha 255). |
 | F8 Layers menu Escape | Lowered to Low | Non-modal disclosure. The real issue is focus order: the panel sits after the canvas (map.js:112), about 7 Tabs away (WCAG 2.4.3). |
-PJ3: 20 NM is V6's number (SPEC-sof 207, SOF-3). NFM Sec VII p.7-4 gives up to 50 miles with no unit. No manual gives an NM radius, so this is for Dad.
+PJ3: 20 NM is V6's number (SPEC-sof 207, SOF-3). Reference data gives up to 50 miles with no unit. No manual gives an NM radius, so this is for Dad.

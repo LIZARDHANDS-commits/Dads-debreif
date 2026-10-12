@@ -1,18 +1,15 @@
-// The T-6A's sustained turn chart, read off by eye, and the thrust and drag
-// fitted to it (SPEC-core, "API, fifth PR"; tasks 16 and 17).
+// The T-6A's sustained turn data, and the thrust and drag fitted to it
+// (SPEC-core, "API, fifth PR"; tasks 16 and 17).
 //
-// Chart: "Sustained turn rate versus airspeed", T-6A flight manual Figure
-// 4-10-1 (PT6A-68, flight test, June 1998): maximum power, flaps and gear up,
-// standard day, maximum take-off weight less the fuel to climb. Patrick sent
-// it on 2026-09-30 (05:19Z); the picture stays in the project files, not here.
-// Its example arrow is at 10,000 ft: the radius chart's 1,690 ft at the same
-// speed confirms it.
+// Data: sustained turn rate versus airspeed (reference): maximum power,
+// flaps and gear up, standard day, maximum take-off weight less the fuel to
+// climb. Patrick sent it on 2026-09-30 (05:19Z). One point is at 10,000 ft;
+// the 1,690 ft turn radius at the same speed confirms it.
 //
-// How the points were read: by eye against the picture's grid (10 KIAS and
-// 0.5°/s per line), so each is good to a few knots and a few tenths of a
-// degree a second. Three kinds per altitude line: its top at the stall limit, where it
-// crosses 150 and 200 KIAS, and where it reaches zero turn rate (1 G). A few
-// more at sea level near zero, and the example arrow at 10,000 ft.
+// How the points were read: by eye, so each is good to a few knots and a few
+// tenths of a degree a second. Three kinds per altitude line: its top at the
+// stall limit, where it crosses 150 and 200 KIAS, and where it reaches zero
+// turn rate (1 G). A few more at sea level near zero, and the point at 10,000 ft.
 //
 // Each point is [KIAS, pressure altitude ft, sustained turn rate °/s]. In a
 // sustained turn thrust equals drag, so each gives the drag at that speed and
@@ -38,12 +35,12 @@ export const T6A_TURN_150_200 = Object.freeze([
   [200, 20000, 6.78], [200, 25000, 2.96],
 ]);
 
-/** Sea level on its steep fall toward 260 KIAS, and the chart's example arrow at 10,000 ft. */
+/** Sea level on its steep fall toward 260 KIAS, and the point at 10,000 ft. */
 export const T6A_TURN_OTHER = Object.freeze([
   [236.2, 0, 10.36], [249.6, 0, 7.5], [256.6, 0, 4.48], [187, 10000, 12.73],
 ]);
 
-/** Every chart point the fit uses. */
+/** Every data point the fit uses. */
 export const T6A_TURN_POINTS = Object.freeze([
   ...T6A_TURN_STALL_LIMIT, ...T6A_TURN_ZERO, ...T6A_TURN_150_200, ...T6A_TURN_OTHER,
 ]);
@@ -52,15 +49,15 @@ export const T6A_TURN_POINTS = Object.freeze([
  * The fitted model, as fractions of weight (tests/golden/checks/t6a-fit.mjs
  * prints these from the points above).
  *
- * Drag, D/W = dragA·KIAS² + dragB·G²/KIAS², comes from the max glide chart
+ * Drag, D/W = dragA·KIAS² + dragB·G²/KIAS², comes from the max glide data
  * alone: best glide 125 KIAS at 2 NM per 1,000 ft (L/D 12.15). In a
- * sustained turn only thrust minus drag shows, so the turn chart cannot split
- * the two; the glide chart can (SPEC-core's default for a glide miss).
+ * sustained turn only thrust minus drag shows, so the turn data cannot split
+ * the two; the glide data can (SPEC-core's default for a glide miss).
  *
  * Thrust, T/W = thrustK · min(σ, thrustFlatSigma)^thrustDensityExp ÷ (KTAS + thrustV0Kt),
  * falls with true airspeed like a constant-power propeller and holds its
  * sea-level value up to about 14,000 ft (σ 0.643), like the flat-rated
- * PT6A-68, then falls with density. Fitted to the turn chart by least squares
+ * PT6A-68, then falls with density. Fitted to the turn data by least squares
  * on (T − D)/D.
  */
 export const T6A_FIT = Object.freeze({

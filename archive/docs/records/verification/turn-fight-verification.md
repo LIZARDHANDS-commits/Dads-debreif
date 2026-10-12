@@ -68,7 +68,7 @@ Command: `npx playwright test tests/e2e/turn-fight.spec.js`
    - *Fix:* Integrated 10° elevation capture cone allowing natural 3D merge detection while respecting vertical separation.
 
 4. **Trap 4: Speed Basis Discrepancy in `state.js:194` (`topKiasAt`):**
-   - *Issue:* Incompressible EAS was compared directly against compressible CAS from core charts.
+   - *Issue:* Incompressible EAS was compared directly against compressible CAS from core data.
    - *Fix:* Standardized on `modelMaxIasT6A` / unified speed bases per D328/D345/D347.
 
 5. **Trap 5: Immelmann Below 140 KIAS Prohibition (D381) in `energy-sim.js`:**

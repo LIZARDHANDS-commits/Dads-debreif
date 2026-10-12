@@ -35,7 +35,7 @@
 The forensic audit swarm certified that **all 8 paused remote branches (+9,278 lines) are preserved and intact on GitHub**. The path to an immediate, clickable desktop prototype is completely unblocked once we resolve the primary friction points:
 
 1. **Complete V6 Decoupling & Archival Quarantine (D368, D372):**  
-   Cease using 15-year-old V6 as a mathematical ground truth. V6 contains known aero bugs (turn rates halved, $G < 1.01$ crashes, frame-rate dependent speeds). `original/` is strictly an archival UX layout reference. Zero runtime `eval()`, `new Function()`, or bit-exact float matching against `original/shell.html`. Move `tests/golden/` and `tests/unit/wx/v6-compare.test.js` to `archive/`. The true baseline is standard aerodynamics, physics, and the 15 Wing Moose Jaw flight manuals ([`../manuals/`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/manuals/README.md)).
+   Cease using 15-year-old V6 as a mathematical ground truth. V6 contains known aero bugs (turn rates halved, $G < 1.01$ crashes, frame-rate dependent speeds). `original/` is strictly an archival UX layout reference. Zero runtime `eval()`, `new Function()`, or bit-exact float matching against `original/shell.html`. Move `tests/golden/` and `tests/unit/wx/v6-compare.test.js` to `archive/`. The true baseline is standard aerodynamics, physics, and the 15 Wing Moose Jaw manuals ([`../manuals/`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/manuals/README.md)).
 
 2. **Pilot-Calibrated Loosened Tolerances (D369, D371 - Ratified by Patrick):**
    - **Airspeed:** `±10 kt` standard, `±20 kt` loose / tactical.
@@ -261,11 +261,11 @@ flowchart TD
 
 | Document | Current Obsolete Text | Ratified Text / Action | Status |
 | :--- | :--- | :--- | :---: |
-| **`docs/records/plan-requirements.md`** | **R9:** *"the new version produces the same spacing... as V6... V6's numbers are trusted as correct (Decision 29)"* | **R9 (Ratified):** *"Flight math, geometry, and simulation baselined on standard aerodynamics and 15 Wing Moose Jaw flight manuals (`../manuals/`). Verified within pilot domain tolerances (±10 kt standard, ±20 kt loose; ±100 ft standard, ±200 ft loose; ±5°/±10°; ±0.5/±1.0 G; ±2.5/±5.0°/s)."* | Milestone 4 |
+| **`docs/records/plan-requirements.md`** | **R9:** *"the new version produces the same spacing... as V6... V6's numbers are trusted as correct (Decision 29)"* | **R9 (Ratified):** *"Flight math, geometry, and simulation baselined on standard aerodynamics and 15 Wing Moose Jaw manuals (`../manuals/`). Verified within pilot domain tolerances (±10 kt standard, ±20 kt loose; ±100 ft standard, ±200 ft loose; ±5°/±10°; ±0.5/±1.0 G; ±2.5/±5.0°/s)."* | Milestone 4 |
 | **`docs/records/plan-requirements.md`** | **R24–R32:** Broad scope mixing core traffic with PFLs, closed patterns, and prediction engines into one unachievable lump. | **R24–R32 (Ratified):** Partition into **Phase 1 Prototype Core** (wind vectors, 4 aircraft types, 60° break at 3,500 ft, 45° final turn / straight-in at 2,700 ft) vs. **Phase 2 Staged Features** (`PPQ-01` to `PPQ-04`). | Milestone 4 |
 | **`docs/records/plan-decisions.md`** | **D29:** *"V6's calculated numbers... are trusted as correct"*<br/>**D38:** *"Tests allow a relative difference of 1e-12"* | **D29 (Superseded by D368, D372):** V6 is an archival UI reference only.<br/>**D38 (Superseded by D369, D371):** Replaced with pilot tolerances.<br/>**D368–D405:** Formalized and ratified. | **Done** |
 | **`docs/records/decisions-log.md`** | Rows D368–D370 logged | Added **D371–D405** (Tolerances, V6 quarantine, CYMJ truth, Closed-loop flight, Antigravity limit, Module gates, Traffic build order, CYMJ 29L LH, Turn Fight 2D default, SMM break/final, Median filter, Standard Defaults, Rollout scoring, 3D merge cone, Stall 86 kt, Alternate minima, Traffic vectors/circuits D389-D391, 3D Tactical Suite D401, Immelmann G law D402, Active Combat Pursuit D403, Merge Azimuth D404, Stall Authority Loss D405). | **Done** |
-| **`specs/SPEC-core.md`** | Cites R9 V6 golden tests as truth. | Baseline on aerodynamics and 15 Wing flight manuals. Deprecate legacy golden tests in favor of pilot domain tolerances. | Milestone 4 |
+| **`specs/SPEC-core.md`** | Cites R9 V6 golden tests as truth. | Baseline on aerodynamics and 15 Wing manuals. Deprecate legacy golden tests in favor of pilot domain tolerances. | Milestone 4 |
 | **`specs/SPEC-wx.md`** | Lines 171–178 cite `v6-compare.test.js` and `v6-sof.js`. | Quarantined both files to `archive/tests/wx/`. Eliminate V6 `new Function()` eval. | **Done** |
 | **`specs/SPEC-traffic.md`** | Mandates PFLs, engine-out glides, and fly-throughs for traffic completion. | Add **Phase 1 vs. Phase 2 Scope Declaration**: Phase 1 builds Core 4 on Runway 29L left-hand; PFLs and complex pattern rules deferred to Phase 2 (`POST_PROTOTYPE_QUEUE.md`). | Milestone 4 |
 | **`specs/SPEC-turn-sim.md`** | References bit-exact V6 turn rollout timings and 90° hook turn bug. | Base turn delays on SMM ch. 16 formulas; fly Hook Turn as true 180° turn; label reset button "Reset to Standard Defaults". | Milestone 4 |
@@ -421,5 +421,5 @@ All non-essential and complex features are preserved on remote branches and docu
   - [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md) — Judgement calls log.
   - [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md) — Session handoff state.
   - [`.agent/memory/graveyard.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/graveyard.md) — Dropped approaches register.
-- **Flight Manuals Index:**
-  - [`manuals/README.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/manuals/README.md) — Index of Harvard Gen Book, SMM, EFIG, and T-6A NFM.
+- **Manuals Index:**
+  - [`manuals/README.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/manuals/README.md) — Index of Harvard Gen Book, SMM and EFIG.
