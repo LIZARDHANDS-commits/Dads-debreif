@@ -15,7 +15,7 @@ export const CONFIG = Object.freeze({
 
 /** Past the window, the tag is the landing behaviour (Patrick, 4 Oct: "T+GO, STOP, or GO AROUND"); a low approach goes around. */
 export const LANDING_TAGS = Object.freeze({ touch_and_go: 'T+GO', overhead: 'T+GO', full_stop: 'STOP', go_around: 'GO AROUND' });
-const landingTag = (a) => (a.rndLowApproach ? LANDING_TAGS.go_around : LANDING_TAGS[a.intent] ?? LANDING_TAGS.touch_and_go);
+const landingTag = (a) => (a.random?.lowApproach ? LANDING_TAGS.go_around : LANDING_TAGS[a.intent] ?? LANDING_TAGS.touch_and_go);
 
 /** Every number the tag uses, each with its source. */
 export const BEHAVIOUR = Object.freeze({
