@@ -33,6 +33,8 @@ const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
 
 /** Most steps run in one frame, so a tab that was hidden can't freeze the page catching up. */
 const MAX_STEPS_PER_FRAME = 40;
+/** The most real time one frame may turn into flight: two 0.05 s steps (an estimate; slower than 10 frames a second the sim runs slower than real time rather than jumping). */
+const MAX_FRAME_MS = 100;
 /** The card updates at most this often while playing. */
 const READOUT_MS = 100;
 /**
@@ -564,7 +566,10 @@ function mount(root, app) {
 
   // ---- playback ---------------------------------------------------------------------------
   function onFrame(dtMs) {
-    owed += (dtMs / 1000) * speed;
+    // A slow frame (a press planned on the main thread, a busy tab) adds at most MAX_FRAME_MS of flight, so the picture
+    // pauses instead of jumping the aircraft forward many steps in one frame (J2, the Formation architecture review:
+    // a 0.9 s press used to fly about 18 steps at once).
+    owed += (Math.min(dtMs, MAX_FRAME_MS) / 1000) * speed;
     let steps = 0;
     while (owed >= STEP_SEC - 1e-9 && steps < MAX_STEPS_PER_FRAME) {
       before = state.aircraft.map((a) => ({ ...a }));
