@@ -17,10 +17,11 @@ import { bankDegFromTurnRate, easeRoll, easeValue, gFromBankDeg } from '../../co
 import { windTriangle } from '../../core/wind.js';
 import { attitudeDegFromClimb, glideDragPerWeight, glideRatio, T6A_LIMITS } from '../../core/t6-performance.js';
 import { gateRoll } from './envelope.js';
-import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
+import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT, runwayFrameFt } from './airfield.js';
 import { iasToTasKt } from './weather.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { ROLL } from './circuit.js';
+import { BEHAVIOUR, CONFIG } from './behaviour.js';
 
 /** The attitude on the wheels, degrees nose up (Patrick, 6 Oct 06:17Z), and how close to the runway's height counts as on them (an estimate). */
 const GROUND_ATTITUDE_DEG = 2.5;
@@ -82,9 +83,7 @@ export const drawBankOf = (ac) => (drawnNow(ac) ? ac.drawBankDeg : ac?.bankDeg);
 function wingDownTarget(a, trackDeg, onWheels, climbing) {
   if (onWheels) return 1;
   if (climbing) return 0;
-  const dx = a.x - THRESHOLD_29L.x, dy = a.y - THRESHOLD_29L.y;
-  const outFt = dx * RWY_OUT.x + dy * RWY_OUT.y;
-  const offFt = Math.abs(-dx * RWY_OUT.y + dy * RWY_OUT.x);
+  const { alongFt: outFt, acrossFt: offFt } = runwayFrameFt(a.x, a.y, THRESHOLD_29L, RWY_OUT.x, RWY_OUT.y);
   const lined = Math.abs(wrapDeg180(trackDeg - RWY_29L_TRACK_DEG)) <= WING_DOWN.onLineDeg;
   return lined && offFt <= WING_DOWN.onLineFt && outFt <= WING_DOWN.fromOutFt && outFt >= -RWY_LEN_FT ? 1 : 0;
 }
@@ -415,32 +414,36 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   return p;
 }
 
-/** Resolves the aerodynamic/physical configuration (flaps and gear) for an aircraft in the pattern. */
+/**
+ * The gear and flap the aircraft flies with in the pattern (its drag). The speeds and the 50 ft are behaviour.js's
+ * BEHAVIOUR, the one home of those numbers; behaviour.js configOf, which the tag shows, reads the pattern stage where
+ * this reads the phase, so the two can differ for a moment at a phase change.
+ */
 function resolveAircraftConfig(a, p, route) {
-  if (a.pflFlight) return a.config ?? 'Clean';
+  if (a.pflFlight) return a.config ?? CONFIG.clean;
   const ph = a.phase;
   const kt = a.iasKt ?? a.kt ?? 0;
   const alt = a.alt ?? 3500;
   const isSi = a.siPattern || route?.kind === 'entry';
-  if (ph === 'final_turn') return 'Gear + landing flap';
+  if (ph === 'final_turn') return CONFIG.gearLandingFlap;
   if (ph === 'final') {
-    if (isSi && p && p.seg < 5) return 'Gear + T/O flap';
-    return 'Gear + landing flap';
+    if (isSi && p && p.seg < 5) return CONFIG.gearTakeOffFlap;
+    return CONFIG.gearLandingFlap;
   }
   if (ph === 'downwind') {
-    if (isSi) return 'Gear + T/O flap';
-    return kt < 147 ? 'Gear + T/O flap' : 'Clean';
+    if (isSi) return CONFIG.gearTakeOffFlap;
+    return kt < BEHAVIOUR.downwindGearKias ? CONFIG.gearTakeOffFlap : CONFIG.clean;
   }
   // A straight-in (spec 4.14 item 3, Patrick's list 4 Oct 22:53Z): clean until on its base, gear and take-off flap on
   // base, landing flap inside the window (SMM 4.16 para 36, 4.6 para 9, 4.8 para 13); the same rule as behaviour.js.
   if (isSi && ph === 'initial' && p) {
-    const outFt = (a.x - THRESHOLD_29L.x) * RWY_OUT.x + (a.y - THRESHOLD_29L.y) * RWY_OUT.y;
-    if (p.seg >= 1 && outFt <= WINDOW_OUT_FT) return 'Gear + landing flap';
-    return p.seg >= 1 ? 'Gear + T/O flap' : 'Clean';
+    const outFt = runwayFrameFt(a.x, a.y, THRESHOLD_29L, RWY_OUT.x, RWY_OUT.y).alongFt;
+    if (p.seg >= 1 && outFt <= WINDOW_OUT_FT) return CONFIG.gearLandingFlap;
+    return p.seg >= 1 ? CONFIG.gearTakeOffFlap : CONFIG.clean;
   }
   if (ph === 'climb' || ph === 'touch_and_go') {
-    if (alt <= THRESHOLD_DATA_ELEV_FT + 50) return 'Gear + T/O flap';
-    return kt < 110 ? 'T/O flap' : 'Clean';
+    if (alt <= THRESHOLD_DATA_ELEV_FT + BEHAVIOUR.airborneFt) return CONFIG.gearTakeOffFlap;
+    return kt < BEHAVIOUR.flapsUpKias ? CONFIG.takeOffFlap : CONFIG.clean;
   }
-  return 'Clean';
+  return CONFIG.clean;
 }

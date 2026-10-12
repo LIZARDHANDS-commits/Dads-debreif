@@ -100,3 +100,20 @@ export const PFL_KEY_ALT_FT = Object.freeze({ highKey: 5000, lowKey: 3700, final
  * only about 0.42 NM over the ground).
  */
 export const PFL_CIRCLE_RADIUS_FT = 3038.06;
+
+/**
+ * Where (x, y) sits against a runway: `alongFt` from the threshold `th` in the direction (ux, uy), and `acrossFt`
+ * either side of the centreline. A unit (ux, uy) gives feet; a caller with a longer vector divides both by its length.
+ */
+export function runwayFrameFt(x, y, th, ux, uy) {
+  const dx = x - th.x, dy = y - th.y;
+  return { alongFt: dx * ux + dy * uy, acrossFt: Math.abs(dx * uy - dy * ux) };
+}
+
+/**
+ * Lined up with a runway: within `maxAcrossFt` of its centreline and tracking within `maxOffDeg` of it. Each caller
+ * names its own limits (estimates, listed for Patrick in the refactor's unsourced-numbers table).
+ */
+export function linedUp(acrossFt, offDeg, { maxAcrossFt, maxOffDeg }) {
+  return acrossFt < maxAcrossFt && offDeg < maxOffDeg;
+}

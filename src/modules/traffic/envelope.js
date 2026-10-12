@@ -5,7 +5,7 @@
 //  - G onset rate is capped at the airframe ceiling (8 G/s, twice the normal 4 G/s pilot onset);
 //  - bank is capped at the dynamic stall bank (acos(1 / stallLimitG(kias))).
 import { KT_TO_FTPS } from '../../core/units.js';
-import { easeRoll, gFromBankDeg } from '../../core/flight-math.js';
+import { bankDegFromG, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
 import { rollWithinT6A, rollLimitsAtKtasT6A, stallLimitG, T6A_G_ONSET } from '../../core/t6-performance.js';
 
 /** Steeper than this the level-turn G (1 / cos bank) is not this model's: the gate holds the roll only. */
@@ -31,19 +31,10 @@ export function rollLimitAt(tasFtps, roll = null) {
  *  - roll rate and roll onset: the lower of the pilot's (`roll`) and the T-6A's at this speed (rollLimitAt);
  *  - G onset: rolling steeper never builds the turn's G (1 / cos bank) faster than G_ONSET_CEILING (8 G/s);
  *  - stall: never steeper than the bank whose G the speed can give (core stallLimitG).
+ * `roll` is the pilot's limits, or null for the T-6A's own; `tasFtps` true airspeed, ft/s; `kias` indicated, kt.
  * Returns easeRoll's { bankDeg, rollRateDps }.
  */
-export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, rollOrTasFtps, tasFtpsOrKias, kiasMaybe) {
-  let roll, tasFtps, kias;
-  if (typeof rollOrTasFtps === 'number' && kiasMaybe === undefined) {
-    roll = null;
-    tasFtps = rollOrTasFtps;
-    kias = tasFtpsOrKias;
-  } else {
-    roll = rollOrTasFtps;
-    tasFtps = tasFtpsOrKias;
-    kias = kiasMaybe;
-  }
+export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias) {
   const limits = rollLimitAt(tasFtps, roll);
   const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps));
   if (!(dt > 0)) return { bankDeg, rollRateDps: rate0 };
@@ -51,7 +42,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, rollOrTasFtps, tas
   let target = targetDeg;
   const gStall = stallLimitG(kias);
   if (Math.abs(target) < GATE_G_MAX_BANK_DEG && gStall > 1) {
-    const stallBank = (Math.acos(1 / gStall) * 180) / Math.PI;
+    const stallBank = bankDegFromG(gStall);
     if (Math.abs(target) > stallBank) target = Math.sign(target) * stallBank;
   }
   const steeper = Math.abs(target) > Math.abs(bankDeg) && Math.sign(target) === (Math.sign(bankDeg) || Math.sign(target));
@@ -68,7 +59,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, rollOrTasFtps, tas
   if (Math.abs(r.bankDeg) > Math.abs(bankDeg) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG) {
     const gMax = gFromBankDeg(bankDeg) + G_ONSET_CEILING * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
-      const bank = Math.sign(r.bankDeg) * (Math.acos(1 / gMax) * 180) / Math.PI;
+      const bank = Math.sign(r.bankDeg) * bankDegFromG(gMax);
       return { bankDeg: bank, rollRateDps: (bank - bankDeg) / dt };
     }
   }
