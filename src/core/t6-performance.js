@@ -520,16 +520,22 @@ export function attitudeDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = n
   return pitchDegFromClimb(climbFtps, tasFtps, kias, g, config, weightLb) - T6A_PITCH.datumDeg;
 }
 
+/**
+ * The speed the point-mass callbacks hand the thrust and drag: never under 1 KIAS. A flown path can slow below that
+ * at the top of a zoom or a vertical pull (a tail slide), where the thrust and drag formulas would throw.
+ */
+const stepKias = (ktas, altFt) => Math.max(1, tasToIasKt(ktas, altFt));
+
 /** excessThrustPerWeight as stepPointMass's excessFn, which passes true airspeed. */
 export function t6aExcessFn(ktas, altFt, g) {
-  return excessThrustPerWeight(tasToIasKt(ktas, altFt), altFt, g);
+  return excessThrustPerWeight(stepKias(ktas, altFt), altFt, g);
 }
 
 /** The excess-power callback for the point-mass step at part throttle: thrust scales with `throttle` (0 to 1), drag does not. Full throttle is t6aExcessFn itself. */
 export function excessFnFor(throttle) {
   if (throttle === 1) return t6aExcessFn;
   return (ktas, altFt, g) => {
-    const kias = tasToIasKt(ktas, altFt);
+    const kias = stepKias(ktas, altFt);
     return throttle * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
   };
 }
@@ -555,7 +561,7 @@ export function flyZoomT6A(kias, altFt, weightLb = T6A_LIMITS.weightLb) {
     && weightLb >= T6A_LIMITS.basicWeightLb && weightLb <= T6A_LIMITS.maxWeightLb)) {
     throw new RangeError(`zoom from ${kias} KIAS at ${altFt} ft and ${weightLb} lb: needs 0 to ${T6A_LIMITS.vmoKias} KIAS, a finite height and ${T6A_LIMITS.basicWeightLb} to ${T6A_LIMITS.maxWeightLb} lb`);
   }
-  const engineOff = (ktas, alt, g) => -dragPerWeight(tasToIasKt(ktas, alt), alt, g, 'clean', weightLb);
+  const engineOff = (ktas, alt, g) => -dragPerWeight(stepKias(ktas, alt), alt, g, 'clean', weightLb);
   let s = pointMassState({ altFt, ktas: iasToTasKt(kias, altFt), headingRad: 0 });
   let t = 0;
   const now = () => pointMassFlight(s);
