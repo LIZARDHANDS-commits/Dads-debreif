@@ -11,6 +11,14 @@
       "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
       "port": 5173,
       "autoPort": false
+    },
+    {
+      // A second copy on 5181 for a parallel worktree session (graphics), the port the CT-156 render scripts use.
+      "name": "dads-ooda-loop-5181",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5181", "--strictPort"],
+      "port": 5181,
+      "autoPort": false
     }
   ]
 }

@@ -903,6 +903,9 @@ export function fwMoveWords(key, dir, bankDeg) {
 /**
  * One of Lead's fighting wing moves (FW_MOVES) from where the pair is now, 2-ship. bankDeg: Lead's level turn bank (the
  * fluid setting). Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec } or { ok: false, reason }.
+ * No longer called (12 Oct 2026): the moves fly only on the live law (fw-live.js planFwMoveLive), Patrick: "Live fighting
+ * wing is fine. make it the default and get rid of it". Kept until the tracker's fighting wing pieces are retired together
+ * (the architecture review's retire step), when what it did is listed first (rule book).
  */
 export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg = /** @type {number} */ (WING_BANKS.fwTurnBankDeg) } = {}) {
   const [lead, wing] = aircraft;
