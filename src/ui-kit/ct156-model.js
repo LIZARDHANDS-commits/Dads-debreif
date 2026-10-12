@@ -64,14 +64,19 @@ const rad = (d) => (d * Math.PI) / 180;
 // The canopy's sill rises toward the tail, 0.6 ft above the spinner's axis at the forward bow's feet, 0.95 ft at the rear
 // bow's (Patrick, 12 Oct 2026; it fell from 0.62 to 0.36 ft): across the cockpit the section's top is raised and its upper
 // half squared (the last column, the upper half's squareness; the lower half keeps the one before it), so the side
-// below the sill and the belly keep their shape.
+// below the sill and the belly keep their shape. Ahead of the bow's feet the windscreen's lower edge stays about 0.55 ft
+// above the axis until 1.1 ft behind its foot and then rises steeply to the foot (it rose all the way from the bow's feet, up to 5 in
+// higher): under the windscreen the section's upper half is rounder and its top lower, the cowl ahead of the foot as it was.
 const STATIONS = [
   [0.578, 0.034, 0.0363, -0.04, 2.2, 2.2],
   [0.55, 0.0387, 0.0387, -0.07, 2.3, 2.3],
   [0.518, 0.0451, 0.0414, -0.083, 2.4, 2.4],
   [0.437, 0.06, 0.048, -0.095, 2.5, 2.5],
   [0.329, 0.0677, 0.0563, -0.107, 2.6, 2.6],
-  [0.268, 0.0695, 0.0626, -0.112, 2.89, 2.89],
+  [0.292, 0.0688, 0.0601, -0.11, 2.78, 2.78],
+  [0.268, 0.0695, 0.0566, -0.112, 2.89, 2.3],
+  [0.2415, 0.0695, 0.0466, -0.1141, 3.05, 2.3],
+  [0.2, 0.0695, 0.051, -0.1174, 3.29, 2.7],
   [0.167, 0.0695, 0.0453, -0.12, 3.49, 3.49],
   [-0.009, 0.0694, 0.0426, -0.128, 3.77, 6],
   [-0.1, 0.0694, 0.0463, -0.1219, 3.53, 6],
