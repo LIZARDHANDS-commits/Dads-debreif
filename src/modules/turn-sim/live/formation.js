@@ -588,13 +588,14 @@ export function createFormation(options = {}) {
       };
       if (!FW_MOVES[key]) throw new Error(`No fighting wing move called ${key}`);
       if (state.fluid) return refuse('In fluid manoeuvring Lead flies the fluid buttons; Terminate first.');
-      if (state.aircraft.length > 2) return refuse('Fighting wing moves for the 4-ship come later.');
+      // In the 4-ship the moves fly only on the live law (TS-206): the tracker's are the 2-ship's.
+      const live = opts.fwWing === 'live';
+      if (state.aircraft.length > 2 && !live) return refuse('Fighting wing moves for the 4-ship fly on the live law: set "#2 in fighting wing" to Live in Settings, Fluid settings.');
       const c = state.current;
       if (c && !c.fwMove && c.change?.to !== 'fw') return refuse(`Wait for ${c.label} to finish.`);
       if (!c?.fwMove && whereNow().key !== 'fw') return refuse('These are fighting wing moves; change to fighting wing first.');
-      // #2 on the tracker or, with the setting at Live, on the live wingman's law (fw-live.js, TS-202), carrying on his live
-      // state from the move being flown when there is one.
-      const live = opts.fwWing === 'live';
+      // #2 on the tracker or, with the setting at Live, on the live wingman's law (fw-live.js, TS-202; the 4-ship's wingmen
+      // each off the one ahead, TS-206), carrying on their live states from the move being flown when there is one.
       const ws0 = live && c?.fwLive ? c.fwLive[Math.round((state.tSec - c.startSec) / STEP_SEC) - 1] ?? null : null;
       const fwOpts = { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank) };
       const plan = live ? planFwMoveLive(state.aircraft, key, dir, state.tSec, { ...fwOpts, ws0 }) : planFwMove(state.aircraft, key, dir, state.tSec, fwOpts);
