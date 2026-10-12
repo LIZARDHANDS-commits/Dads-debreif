@@ -22,7 +22,7 @@ import { createLink, newLinkId, consoleAddress, readConsoleHash, LOST_MS } from 
 
 const STYLESHEET = new URL('./ep-tabletop.css', import.meta.url).href;
 /** The one version number of the whole tool (rule book, Git and names), shown in the bar. */
-const VERSION = 'V2.382';
+const VERSION = 'V2.383';
 /** While running, the 3D picture is drawn at most this often (milliseconds): only the panel moves, so 10 a second is plenty (an estimate). */
 const DRAW_MS = 100;
 /**
