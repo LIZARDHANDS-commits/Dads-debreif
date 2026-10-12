@@ -43,11 +43,14 @@ export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKi
  *  - full-stick roll rate: rollPerKtasDps per knot of TRUE airspeed (a roll rate at a fixed helix angle grows with true
  *    airspeed), capped at maxRateDps: about 100°/s at 200 KIAS and 8,000 ft, the cap from about 265 KTAS. The audit's examples
  *    (65°/s at 140 KIAS, 90 at 200, 115 at 250) are the same rule read with KIAS, about 13% lower at 8,000 ft;
- *  - roll acceleration: full rate in fullRateSec;
+ *  - roll acceleration: full rate in fullRateSec, the acceleration itself built over onsetSec (Patrick's ruling 12 Oct 2026
+ *    03:37Z, "let's do .2", from Fable's estimate of a brisk full stick throw; his 02:08Z ask, "the roll rate itself just
+ *    needs to be realistic and smoothed (not instant acceleration)"). Only a roll that carries its acceleration uses it
+ *    (core easeRoll's onsetSec: the Formation's #2, TS-196); the limits below leave it out;
  *  - G onset (T6A_G_ONSET): 4 G per second, building at 16 G/s² (the Formation fluid Lead's number, design 5.3).
  * A module's own gentler rate (a pilot's) is its choice; it never goes past these (rollWithinT6A).
  */
-export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.45, maxRateDps: 120, fullRateSec: 0.3 });
+export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.45, maxRateDps: 120, fullRateSec: 0.3, onsetSec: 0.2 });
 /** The T-6A's G onset in easeValue's shape (flight-math.js): G per second, and per second². An estimate (T6A_ROLL). */
 export const T6A_G_ONSET = Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 });
 

@@ -8,7 +8,7 @@
 // Expected values: drift = wind x turn time and the crab angle asin(crosswind / true airspeed), worked out in the
 //   test (TP3); 60 degrees, 220 to about 140 KIAS, level, in the break (SMM 4.17 paras 38-42; TR-R7); up to 45 and
 //   about 35 degrees in the final turn, rolling out on the centreline (SMM 4.19 paras 43-48; TR-R9); 3,500 ft
-//   pattern height (TR-R4); runway heading 298 and the runway at 1,880 ft in the sim; 90 deg/s roll is Patrick's
+//   pattern height (TR-R4); runway heading 298 and the runway at the field's 1,892 ft in the sim (TR-149); 90 deg/s roll is Patrick's
 //   step limit (4 Oct 10:18Z, smooth-transitions). Margins from the shared table (docs/TESTING.md). No G number is
 //   checked (Patrick, 11 Oct 19:37Z): bank and shape instead. The breakout and go-around are in breakout.test.js and
 //   commands.test.js, the closed pattern in closed-pattern.test.js, the straight-in in plausibility.test.js.
@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeWindPerch, routePath, DEFAULT_ROUTE_OPTIONS } from '../../../src/modules/traffic/route.js';
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
-import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG } from '../../../src/modules/traffic/airfield.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 import { ktToFtps } from '../../../src/core/units.js';
 import { iasToTasKt } from '../../../src/core/t6-performance.js';
 import { legOffsetsFt } from '../../../src/core/geo.js';
@@ -27,7 +27,7 @@ import { TOLERANCES } from '../../helpers/tolerances.js';
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 const PAT1 = MOOSE_JAW.routes.find((r) => r.id === 'PAT1');
 const KT = TOLERANCES.AIRSPEED_KT, FT = TOLERANCES.ALTITUDE_FT, DEG = TOLERANCES.ANGLE_DEG, DIST = TOLERANCES.DISTANCE_FT;
-const PATTERN_FT = 3500, RUNWAY_FT = 1880;
+const PATTERN_FT = 3500, RUNWAY_FT = THRESHOLD_DATA_ELEV_FT;
 const MAX_ROLL_DPS = 90; // Patrick, 4 Oct 10:18Z: no step banks faster than a 90°/s roll (TR-R30)
 // Safety stop: 5 minutes, well over the one circuit (about 3 minutes) each run flies, so only a stuck aircraft reaches it.
 const STOP_SEC = 300;

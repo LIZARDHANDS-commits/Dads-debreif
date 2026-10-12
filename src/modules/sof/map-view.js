@@ -6,9 +6,9 @@
 // reference point (core makeLocalRef), so ui-kit's canvas view and the VNC
 // charts work on it as they are. The reference is the home field.
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon, mercatorY } from '../../core/geo.js';
-import { FT_PER_M } from '../../core/units.js';
+import { FT_PER_M, FT_PER_NM } from '../../core/units.js';
 
-export const FT_PER_NM = 6076.11549;
+export { FT_PER_NM };
 
 /** V6's opening zoom (SPEC-sof, Map): web-map zoom 6, which shows southern Saskatchewan and the fields around it. */
 export const HOME_ZOOM = 6;

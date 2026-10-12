@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 import { routePath, DEFAULT_ROUTE_OPTIONS } from '../../../src/modules/traffic/route.js';
 import { legOffsetsFt } from '../../../src/core/geo.js';
@@ -128,7 +129,7 @@ test('Closed Pattern Preset Point 2 on PAT1 initializes and executes full 4-phas
 // is mostly the downwind, which runs the length of the runway plus final, so the wind moves it.
 test('Closed Pattern: every closed pattern lands within 3 minutes of the pull-up', () => {
   const LIMIT_SEC = 180;
-  const RUNWAY_FT = 1880; // the runway's height in the sim, as the touch-and-go check in commands.test.js uses
+  const RUNWAY_FT = THRESHOLD_DATA_ELEV_FT; // the runway's height in the sim, as the touch-and-go check in commands.test.js uses
   const cases = [
     { label: 'from the climb-out, calm', startPoint: 2, windKt: 0, windFromDeg: 360 },
     { label: 'from the climb-out, 20 kt from 200', startPoint: 2, windKt: 20, windFromDeg: 200 },
@@ -144,7 +145,7 @@ test('Closed Pattern: every closed pattern lands within 3 minutes of the pull-up
       sim.stepTo(sim.t + 0.5);
       const a = sim.state().aircraft.find((x) => x.id === id);
       if (pullUpAt === null && a.phase === 'closed_pattern') pullUpAt = sim.t;
-      // Touchdown: down to the runway (within 10 ft of its 1,880 ft), or named as a touch-and-go or landing;
+      // Touchdown: down to the runway (within 10 ft of its 1,892 ft), or named as a touch-and-go or landing;
       // the circuit loops straight back round without either name (Patrick's card, 10:15Z).
       if (pullUpAt !== null && (a.alt <= RUNWAY_FT + 10 || a.phase === 'touch_and_go' || a.status === 'landed')) touchdownAt = sim.t;
     }

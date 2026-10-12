@@ -27,7 +27,7 @@
 // run did. So going back to before a spawn or a removal shows the run as it was, and going forward again flies it
 // in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0,
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
-import { ktToFtps, ftpsToKt } from '../../core/units.js';
+import { ktToFtps, ftpsToKt, FT_PER_NM } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
 import { tickAircraft } from './tick-aircraft.js';
@@ -273,7 +273,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x ?? 0, a.y ?? 0, rwy.th, ux, uy);
     const rwyTrack = (Math.atan2(ux, uy) * 180 / Math.PI + 360) % 360;
     const off = Math.abs((((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack) % 360 + 540) % 360 - 180);
-    return linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 60 }) && along > -3 * 6076 && along < rwy.len;
+    return linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 60 }) && along > -3 * FT_PER_NM && along < rwy.len;
   }
 
   /**
@@ -581,7 +581,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const rwyTrack = compassDegFromVector(ux, uy);
     const windowFt = Math.hypot(pat.points[12].x - th.x, pat.points[12].y - th.y);
     const limitFt = extendLimitFt(pat.points, perch);
-    const reachFt = windowFt + EVADE.finalSpacingFt + (Number.isFinite(limitFt) ? Math.max(0, limitFt) : 3 * 6076);
+    const reachFt = windowFt + EVADE.finalSpacingFt + (Number.isFinite(limitFt) ? Math.max(0, limitFt) : 3 * FT_PER_NM);
     const wind = windNow();
     const live = aircraft.filter((a) => a.active && !a.landed && t >= a.startsAt && Number.isFinite(a.x) && Number.isFinite(a.y));
     const alongOf = (p) => -runwayFrameFt(p.x, p.y, th, ux, uy).alongFt;

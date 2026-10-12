@@ -2,7 +2,7 @@
 //   carried, a trail point every 0.1 s, trails capped at 6,001 points, extent follows the trails.
 // Serves: TF-R13, TF-R23.
 // Expected values: run compared with the engine's own stepFight, on purpose; the 0.08 s frame cap "as V6 does"
-//   is a design choice, no source; 10-minute stop is TF-R23's rule; 1 NM = 6,076.12 ft.
+//   is a design choice, no source; 10-minute stop is TF-R23's rule.
 
 // Playing a fight: the frame limit, whole fight steps, and trails that keep one
 // point every 0.1 s whatever the frame rate (SPEC-turn-fight, "Frame time",
@@ -13,6 +13,7 @@ import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, createFight, stepFight } from '../../../
 import {
   MAX_FRAME_SEC, TRAIL_INTERVAL_SEC, frameDtSec, createRun, advanceRun,
 } from '../../../src/modules/turn-fight/playback.js';
+import { FT_PER_NM } from '../../../src/core/units.js';
 
 const play = (run, seconds, frameSec) => {
   for (let t = 0; t < seconds - 1e-9; t += frameSec) advanceRun(run, frameSec);
@@ -63,7 +64,7 @@ test('the trail starts at the start positions and a trail point is where the air
 
 test('extent follows every trail point: the widest reach, the x range and the tallest height', () => {
   const run = createRun({ separationNm: 2, vertical: true, bluePitchDeg: 30, redPitchDeg: -10 });
-  assert.equal(run.trails.extent.maxAbsFt, 6076.12); // 2 NM apart: each 1 NM from the centre, the furthest point
+  assert.equal(run.trails.extent.maxAbsFt, FT_PER_NM); // 2 NM apart: each 1 NM from the centre, the furthest point
   play(run, 25, 0.02);
   const e = run.trails.extent;
   const pts = [...run.trails.blue, ...run.trails.red];
