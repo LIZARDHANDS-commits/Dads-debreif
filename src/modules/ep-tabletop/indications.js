@@ -45,6 +45,7 @@ export const FLIGHT = Object.freeze([
 ]);
 
 const ALL = [...NUMBERS, ...LIGHTS, ...WORDS, ...FLIGHT];
+/** @type {Map<string, any>} */
 const BY_KEY = new Map(ALL.map((d) => [d.key, d]));
 export const definitionOf = (key) => BY_KEY.get(key) ?? null;
 export const labelOf = (key) => BY_KEY.get(key)?.label ?? key;

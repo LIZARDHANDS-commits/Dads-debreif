@@ -917,6 +917,10 @@ function altimeter(ctx, cx, cy, r, altFt) {
  * needle parked at the scale's start and its digits dashed (the sim has no engine or systems numbers).
  * bands: [[from, to, colour]] as fractions of the scale.
  */
+/**
+ * @param {any} ctx @param {number} cx @param {number} cy @param {number} r @param {string} name
+ * @param {Array<Array<number | string>>} [bands] @param {number | null} [f] the needle, a fraction of the scale @param {string} [text]
+ */
 function arcGauge(ctx, cx, cy, r, name, bands = [[0, 0.8, '#2fbf4f'], [0.8, 1, '#e03a3a']], f = null, text = '—') {
   const a0 = rad(150), sweep = rad(240), at = (f) => a0 + sweep * f;
   const needle = Number.isFinite(f) ? at(Math.max(0, Math.min(1, f))) : a0;
@@ -944,6 +948,7 @@ function arcGauge(ctx, cx, cy, r, name, bands = [[0, 0.8, '#2fbf4f'], [0.8, 1, '
  */
 function engineDisplay(ctx, s, name, e = null) {
   const px = s.h * 0.07;
+  /** @type {(u: number, v: number) => [number, number]} */
   const at = (u, v) => [s.x + s.w * u, s.y + s.h * v];
   const val = (key) => (e && Number.isFinite(e[key]) ? e[key] : null);
   const txt = (key, digits = 0) => (val(key) === null ? '—' : num(val(key), digits));
@@ -965,11 +970,11 @@ function engineDisplay(ctx, s, name, e = null) {
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ta) * r * 0.8, cy + Math.sin(ta) * r * 0.8); ctx.stroke();
     label(ctx, `${txt('torquePct')} %`, cx, cy + r * 0.2, px, INK);
     label(ctx, 'TORQUE', cx, cy + r * 0.62, px * 0.75, DIM);
-    for (const [t, v, value] of [['NP', 0.12, false], [`${txt('npPct')} %`, 0.21, true], ['IOAT', 0.33, false], ['— °C', 0.42, true]]) label(ctx, t, ...at(0.82, v), px * (value ? 0.9 : 0.7), value ? INK : DIM);
+    for (const [t, v, value] of /** @type {Array<[string, number, boolean]>} */ ([['NP', 0.12, false], [`${txt('npPct')} %`, 0.21, true], ['IOAT', 0.33, false], ['— °C', 0.42, true]])) label(ctx, t, ...at(0.82, v), px * (value ? 0.9 : 0.7), value ? INK : DIM);
     arcGauge(ctx, ...at(0.27, 0.72), s.h * 0.12, 'ITT', bands('ittC'), frac('ittC'), txt('ittC'));
     arcGauge(ctx, ...at(0.73, 0.72), s.h * 0.12, 'N1', bands('n1Pct'), frac('n1Pct'), txt('n1Pct'));
   } else if (name === 'ITT') {
-    for (const [t, u, v, key] of [['TORQUE', 0.17, 0.1, 'torquePct'], ['N1', 0.5, 0.1, 'n1Pct'], ['COCKPIT', 0.83, 0.1], ['ITT', 0.17, 0.3, 'ittC'], ['ALT', 0.83, 0.3], ['ΔP', 0.83, 0.5], ['FF', 0.83, 0.72, 'fuelFlowPph']]) {
+    for (const [t, u, v, key] of /** @type {Array<[string, number, number, string?]>} */ ([['TORQUE', 0.17, 0.1, 'torquePct'], ['N1', 0.5, 0.1, 'n1Pct'], ['COCKPIT', 0.83, 0.1], ['ITT', 0.17, 0.3, 'ittC'], ['ALT', 0.83, 0.3], ['ΔP', 0.83, 0.5], ['FF', 0.83, 0.72, 'fuelFlowPph']])) {
       label(ctx, t, ...at(u, v), px * 0.7, DIM);
       label(ctx, key ? txt(key) : '—', ...at(u, v + 0.09), px * 0.85, INK);
     }
@@ -997,7 +1002,7 @@ function engineDisplay(ctx, s, name, e = null) {
     arcGauge(ctx, ...at(0.73, 0.24), s.h * 0.13, 'PRESS', [[0, 0.15, '#e03a3a'], [0.15, 0.3, '#e0c03a'], [0.3, 0.85, '#2fbf4f'], [0.85, 1, '#e03a3a']], frac('oilPsi'), txt('oilPsi'));
     label(ctx, 'OIL', ...at(0.5, 0.08), px * 0.7, DIM);
     arcGauge(ctx, ...at(0.3, 0.68), s.h * 0.13, 'HYDR', e ? ENGINE_LIVE.hydPsi.bands : [[0, 0.75, '#2fbf4f'], [0.75, 1, '#e03a3a']], frac('hydPsi'), txt('hydPsi'));
-    for (const [t, v] of [[`${txt('volts', 1)} VOLTS`, 0.62], [`${txt('amps')} AMPS`, 0.74]]) label(ctx, t, ...at(0.72, v), px * 0.75, INK);
+    for (const [t, v] of /** @type {Array<[string, number]>} */ ([[`${txt('volts', 1)} VOLTS`, 0.62], [`${txt('amps')} AMPS`, 0.74]])) label(ctx, t, ...at(0.72, v), px * 0.75, INK);
   }
 }
 
