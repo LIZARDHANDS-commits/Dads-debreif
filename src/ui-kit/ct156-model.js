@@ -754,14 +754,18 @@ function ventralGeometry(THREE) {
   return g;
 }
 
+/** The stack's wall thickness, a share of its half-size: about 1 in (Patrick, 12 Oct 2026: the open edges read as thin
+ * ribbons from the seat; an estimate). */
+const STUB_WALL = 0.18;
 /**
- * One exhaust stack on side s (+1 left, -1 right): an oval pipe coming straight out of the cowl, turning aft round a
- * quarter circle and running aft, its open end cut on STUB's slant so it opens aft and outward, the inner wall the
- * longest; its front buried in the cowl. With `lining`, the dark lining a little inside it from the bend aft.
+ * The rings of one exhaust stack on side s (+1 left, -1 right), [x, y, z] units, M points each, from the cowl aft: an
+ * oval pipe coming straight out of the cowl, turning aft round a quarter circle and running aft, its open end cut on
+ * STUB's slant so it opens aft and outward, the inner wall the longest; its front buried in the cowl. With `lining`,
+ * the wall's sooty inside, a wall's thickness in, from the bend aft. The last ring lies on the slant: the open end.
  */
-function stackGeometry(THREE, s, lining = false) {
-  const { y0, xBend, yBend, R, yMid, halfWide, halfTall, xOut, yOut, xIn, yIn, taper, z } = STUB;
-  const M = 24, pos = [], idx = [];
+function stackRings(s, lining = false) {
+  const { y0, xBend, yBend, R, halfWide, halfTall, xOut, yOut, xIn, yIn, taper, z } = STUB;
+  const M = 24, pos = [];
   const path = [];
   // Out of the cowl, straight out to the bend's start, then round the bend (centre xBend, yBend; heading out to heading
   // aft), then straight aft past the slant's inner tip.
@@ -778,7 +782,7 @@ function stackGeometry(THREE, s, lining = false) {
   }
   // The slant: a point aft of the line from the outer corner to the inner tip comes forward onto it.
   const slant = (y) => xOut + ((y - yOut) * (xIn - xOut)) / (yIn - yOut);
-  const k0 = lining ? 0.82 : 1;
+  const k0 = lining ? 1 - STUB_WALL : 1;
   for (const p of path) {
     for (let k = 0; k < M; k++) {
       const a = (2 * Math.PI * k) / M, c = Math.cos(a);
@@ -787,13 +791,31 @@ function stackGeometry(THREE, s, lining = false) {
       pos.push(px, s * py, z + halfTall * k0 * p.h * Math.sin(a));
     }
   }
+  return { pos, M, rings: path.length };
+}
+
+/** One exhaust stack's wall (or, with `lining`, its sooty inside), from stackRings. */
+function stackGeometry(THREE, s, lining = false) {
+  const { pos, M, rings } = stackRings(s, lining), idx = [];
   const flip = (s > 0) !== lining;
-  for (let i = 0; i < path.length - 1; i++) {
+  for (let i = 0; i < rings - 1; i++) {
     for (let k = 0; k < M; k++) {
       const a = i * M + k, b = i * M + ((k + 1) % M), c = a + M, d = b + M;
       if (flip) idx.push(a, c, b, b, c, d);
       else idx.push(a, b, c, b, d, c);
     }
+  }
+  return meshOf(THREE, pos, idx);
+}
+
+/** The stack's open end: the cut face of its wall, from the outside's edge in to the lining's, so it reads as a pipe. */
+function stackLipGeometry(THREE, s) {
+  const out = stackRings(s), lin = stackRings(s, true), M = out.M;
+  const pos = [...out.pos.slice((out.rings - 1) * M * 3), ...lin.pos.slice((lin.rings - 1) * M * 3)], idx = [];
+  for (let k = 0; k < M; k++) {
+    const a = k, b = (k + 1) % M, c = a + M, d = b + M;
+    if (s > 0) idx.push(a, b, c, b, d, c);
+    else idx.push(a, c, b, b, c, d);
   }
   return meshOf(THREE, pos, idx);
 }
@@ -1054,8 +1076,13 @@ function gearDoor(THREE, outer, inward, thick, place, nu = 8, nv = 6) {
   return meshOf(THREE, pos, idx, groups);
 }
 
-/** A dark patch just outside the skin over a door's opening, seen while the door is open (as the speed brake's well);
- * span(x) its edges across. */
+/** The ribs across a gear well and the stringer along it: their spacing and width, feet (Patrick, 12 Oct 2026, "polish
+ * the gear/belly with this picture": his photo of 123 from below shows the wells' structure, light against their dark
+ * depths; spacing and width estimates). */
+const WELL_RIBS = Object.freeze({ pitchFt: 0.35, widthFt: 0.12 });
+
+/** A dark patch just outside the skin over a door's opening, seen while the door is open (as the speed brake's well),
+ * slot 0, with light ribs across it and a stringer down its middle, slot 1; span(x) its edges across. */
 function gearWell(THREE, x0, x1, span, zAt, n = 8) {
   const pos = [], idx = [];
   for (let i = 0; i <= n; i++) {
@@ -1068,7 +1095,26 @@ function gearWell(THREE, x0, x1, span, zAt, n = 8) {
     const a = i * 3 + j, b = a + 1, c = a + 3, d = c + 1;
     idx.push(a, c, b, b, c, d);
   }
-  return meshOf(THREE, pos, idx);
+  const floor = idx.length;
+  // A strip just outside the floor between (xa, ya) and (xb, yb) corners, w wide: [x0, x1] by [y0, y1] in the floor's own terms.
+  const strip = (xa, xb, ya, yb) => {
+    const base = pos.length / 3;
+    for (const [x, y] of [[xa, ya], [xb, ya], [xa, yb], [xb, yb]]) pos.push(...wingBend([x, y, zAt(x, y) - 0.0007]));
+    idx.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+  };
+  const w = WELL_RIBS.widthFt * GFT / 2, len = Math.abs(x1 - x0), k = Math.max(1, Math.round(len / (WELL_RIBS.pitchFt * GFT)));
+  for (let i = 1; i < k; i++) {
+    const x = x0 + ((x1 - x0) * i) / k, [y0, y1] = span(x);
+    strip(x - w, x + w, y0, y1);
+  }
+  const xm0 = Math.min(x0, x1), xm1 = Math.max(x0, x1), steps = 6;
+  for (let i = 0; i < steps; i++) {
+    const xa = xm0 + ((xm1 - xm0) * i) / steps, xb = xm0 + ((xm1 - xm0) * (i + 1)) / steps;
+    const mid = (x) => { const [y0, y1] = span(x); return (y0 + y1) / 2; };
+    const ya = mid((xa + xb) / 2);
+    strip(xa, xb, ya - w, ya + w);
+  }
+  return meshOf(THREE, pos, idx, [[0, floor, 0], [floor, idx.length - floor, 1]]);
 }
 
 /**
@@ -1424,6 +1470,41 @@ export function ct156CanopyHalfWidth(x, z) {
   const sp = f ** (1 / 0.75); // canopyPoint backwards: z = base + (top - base) * sin^0.75, y = w * cos^0.85
   return c.w * Math.sqrt(Math.max(1 - sp * sp, 0)) ** 0.85;
 }
+/**
+ * The two coamings as seen from outside through the canopy (Patrick, 12 Oct 2026, "you can see the glare shield for the
+ * instrument panels"): a dark moulded hood over each instrument panel, with a flat top and rounded shoulders, kept inside
+ * the glass. Units: aft and fore ends, the crown's height along it (t from aft 0 to fore 1) and the half-width. The front
+ * one is the cockpit's glareshield (ct156-cockpit.js GLARESHIELD_FT, 10.1 to 8.5 ft behind the spinner's tip, 1.63 ft
+ * up falling to 1.33 ft, about 2.3 ft across); the rear one is the hump over the front seat's back that the rear panel
+ * sits under (REAR_HUMP_FT, 15.3 to 12.6 ft, rising to about 2.06 ft up and falling to 1.65 ft). From the seat the
+ * cockpit draws its own (setCockpitView hides these).
+ */
+const COAMINGS = Object.freeze([
+  Object.freeze({ aft: 5.14 / 23.148, fore: 6.82 / 23.148, crown: (t) => (1.634 - 0.304 * t ** 1.4) / 23.148, half: 1.15 / 23.148 }),
+  Object.freeze({ aft: -0.8 / 23.148, fore: 1.88 / 23.148, crown: (t) => (t < 0.38 ? 1.9 + 0.16 * Math.sin((t / 0.38) * (Math.PI / 2)) : 2.06 - 0.41 * ((t - 0.38) / 0.62) ** 1.6) / 23.148, half: 1.2 / 23.148 }),
+]);
+function coamingGeometry(THREE) {
+  const N = 16, M = 16, parts = [];
+  for (const c of COAMINGS) {
+    const pos = [], idx = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, x = c.aft + (c.fore - c.aft) * t, base = canopyAt(x).base, top = c.crown(t);
+      for (let j = 0; j <= M; j++) {
+        const u = -1 + (2 * j) / M;
+        let y = c.half * u, z = base - 0.002 + (top - base + 0.002) * Math.max(0, 1 - Math.abs(u) ** 4) ** 0.25;
+        // Kept inside the glass: a point that would stand outside drops onto the sill instead.
+        if (Math.abs(y) > ct156CanopyHalfWidth(x, z) - 0.0015) z = Math.min(z, base - 0.0005);
+        pos.push(x, y, z);
+      }
+    }
+    for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+      const a = i * (M + 1) + j, b = a + 1, d = a + M + 1, e = d + 1;
+      idx.push(a, d, b, b, d, e);
+    }
+    parts.push({ geometry: meshOf(THREE, pos, idx), materials: [0] });
+  }
+  return joinGeometries(THREE, parts);
+}
 /** The fuselage's section at x, in model units: { halfWidth, top, bottom } (for ct156-cockpit.js). */
 export function ct156FuselageSection(x) {
   const [, halfWidth, top, bottom] = rowAt(STATIONS, x);
@@ -1452,10 +1533,12 @@ export function ct156HoopPoints(x, n = 16, grow = 0, lean = 0) {
  * A frame hoop over the canopy with its crest at x, leaning by `lean` (CT156_FRAME_LEAN): a flat band about 2.5 in wide
  * (so a close wingman sees the bows, TS-156) whose outer face lies flush with the glass, just proud of it so it doesn't
  * flicker, and whose body sits under the glass (Patrick, 11 Oct 2026 21:07Z: "the canopy bows should be flush with the
- * glass, not bulging out"; it was a round tube standing 1.7 in out). Depth under the glass an estimate.
+ * glass, not bulging out"; it was a round tube standing 1.7 in out). Depth under the glass an estimate: 0.4 in, since
+ * through the clear glass a deeper band read as a tube (Patrick, 12 Oct 2026, "the canopy bows are flush with the
+ * exterior of the glass").
  */
 function hoopGeometry(THREE, x, lean = 0, half = 0.0045) {
-  const n = 32, out = 0.0003, depth = -0.004;
+  const n = 32, out = 0.0003, depth = -0.0015; // 0.4 in deep, a flat band and not a tube through the glass (was 1.1 in; Patrick, 12 Oct 2026)
   const rows = [[-half, out], [half, out], [half, depth], [-half, depth]].map(([dx, grow]) => ct156HoopPoints(x + dx, n, grow, lean));
   const pos = [], idx = [];
   // Each face its own strip (outer, aft side, inner, fore side), so the band's edges stay sharp.
@@ -1780,6 +1863,14 @@ function skinStrip(THREE, rows, side, nz = 3) {
 }
 
 /**
+ * The pilots' build, units (Patrick, 12 Oct 2026, "the pilots head/bodies need to look more like this picture", a side
+ * view of two crew under the canopy: big pale helmets sitting low on broad shoulders): the helmet's radius (about 11.4 in
+ * across; was 10.8 in), how far the neck, collar, shoulders, chest and harness are raised so the helmet sits on the
+ * collar (about 1.7 in), the shoulders' half-width (about 18 in across; was 16) and where the arms hang from. Estimates
+ * judged off the picture.
+ */
+const PILOT = Object.freeze({ helmetR: 0.0205, raise: 0.006, shoulderHalf: 0.038, armOut: 0.035 });
+/**
  * A pilot in a seat, the helmet's centre at (x, 0, z), sitting up and looking ahead, built after a picture of
  * an aircrew in flying kit (Patrick, 11 Oct 2026 20:20Z: "better pilot models"; earlier: "o2 hose on the left ...
  * looking straight ahead"): the helmet with its visor housing on the front and ear cups at the sides, the dark visor
@@ -1819,21 +1910,21 @@ function pilotGeometry(THREE, x, z) {
     }
     return g;
   };
-  const strap = (pts) => tube(pts, 0.0017, false);
+  const strap = (pts) => tube(pts.map(([a, b, c]) => [a, b, c + PILOT.raise]), 0.0017, false);
   const arm = (side, hand) => [
-    { geometry: joint([-0.006, side * 0.031, -0.046], 0.0098), materials: [4] },
-    { geometry: limb([-0.006, side * 0.032, -0.046], [0.004, side * 0.034, -0.085], 0.0085, 0.0072), materials: [4] },
-    { geometry: joint([0.004, side * 0.034, -0.085], 0.0072), materials: [4] },
-    { geometry: limb([0.004, side * 0.034, -0.085], hand, 0.007, 0.0055), materials: [4] },
+    { geometry: joint([-0.006, side * PILOT.armOut, -0.046 + PILOT.raise], 0.0098), materials: [4] },
+    { geometry: limb([-0.006, side * PILOT.armOut, -0.046 + PILOT.raise], [0.004, side * 0.036, -0.085], 0.0085, 0.0072), materials: [4] },
+    { geometry: joint([0.004, side * 0.036, -0.085], 0.0072), materials: [4] },
+    { geometry: limb([0.004, side * 0.036, -0.085], hand, 0.007, 0.0055), materials: [4] },
     { geometry: ellipsoid(THREE, x + hand[0] + 0.004, hand[1], z + hand[2], 0.0065, 0.0045, 0.0055), materials: [7] },
   ];
   return joinGeometries(THREE, [
     // Helmet, the visor housing's raised cover across its front and top, the ear cups.
-    { geometry: shell(new THREE.SphereGeometry(0.0195, 18, 14)), materials: [0] },
-    { geometry: shell(new THREE.SphereGeometry(0.0208, 18, 8, Math.PI - 0.95, 1.9, 0.35, 0.75).rotateX(Math.PI / 2)), materials: [0] },
-    ...[1, -1].map((sd) => ({ geometry: ellipsoid(THREE, x - 0.003, sd * 0.0185, z - 0.006, 0.0075, 0.004, 0.0085), materials: [0] })),
+    { geometry: shell(new THREE.SphereGeometry(PILOT.helmetR, 18, 14)), materials: [0] },
+    { geometry: shell(new THREE.SphereGeometry(PILOT.helmetR + 0.0013, 18, 8, Math.PI - 0.95, 1.9, 0.35, 0.75).rotateX(Math.PI / 2)), materials: [0] },
+    ...[1, -1].map((sd) => ({ geometry: ellipsoid(THREE, x - 0.003, sd * (PILOT.helmetR - 0.001), z - 0.006, 0.0075, 0.004, 0.0085), materials: [0] })),
     // The visor down, under the housing.
-    { geometry: shell(new THREE.SphereGeometry(0.0205, 16, 6, Math.PI - 1.0, 2.0, 1.1, 0.62).rotateX(Math.PI / 2)), materials: [1] },
+    { geometry: shell(new THREE.SphereGeometry(PILOT.helmetR + 0.001, 16, 6, Math.PI - 1.0, 2.0, 1.1, 0.62).rotateX(Math.PI / 2)), materials: [1] },
     // The mask, its valve and its straps back to the helmet's sides.
     { geometry: ellipsoid(THREE, x + 0.0165, 0, z - 0.011, 0.0085, 0.0082, 0.0095), materials: [2] },
     { geometry: limb([0.022, 0, -0.016], [0.026, 0, -0.019], 0.0035, 0.003), materials: [3] },
@@ -1841,11 +1932,11 @@ function pilotGeometry(THREE, x, z) {
     // The hose: from the valve down the pilot's left to the connector on the harness.
     { geometry: tube([[0.026, 0.0, -0.02], [0.024, 0.006, -0.032], [0.021, 0.014, -0.048], [0.019, 0.019, -0.064], [0.018, 0.016, -0.08], [0.019, 0.01, -0.09]], 0.0028, true), materials: [3] },
     // Neck, the life preserver's collar round it, shoulders and chest in the flight suit, the vest over the chest.
-    { geometry: limb([-0.002, 0, -0.018], [-0.003, 0, -0.034], 0.0072, 0.0068), materials: [4] },
-    { geometry: new THREE.TorusGeometry(0.0115, 0.0048, 8, 20).scale(1, 1.15, 0.6).translate(x - 0.002, 0, z - 0.032), materials: [5] },
-    { geometry: ellipsoid(THREE, x - 0.006, 0, z - 0.044, 0.016, 0.034, 0.012), materials: [4] },
-    { geometry: ellipsoid(THREE, x - 0.005, 0, z - 0.072, 0.019, 0.027, 0.036), materials: [4] },
-    { geometry: ellipsoid(THREE, x - 0.002, 0, z - 0.07, 0.0195, 0.0262, 0.031), materials: [5] },
+    { geometry: limb([-0.002, 0, -0.018], [-0.003, 0, -0.034 + PILOT.raise], 0.0072, 0.0068), materials: [4] },
+    { geometry: new THREE.TorusGeometry(0.0125, 0.0052, 8, 20).scale(1, 1.15, 0.6).translate(x - 0.002, 0, z - 0.032 + PILOT.raise), materials: [5] },
+    { geometry: ellipsoid(THREE, x - 0.006, 0, z - 0.044 + PILOT.raise, 0.016, PILOT.shoulderHalf, 0.012), materials: [4] },
+    { geometry: ellipsoid(THREE, x - 0.005, 0, z - 0.072 + PILOT.raise, 0.019, 0.029, 0.036), materials: [4] },
+    { geometry: ellipsoid(THREE, x - 0.002, 0, z - 0.07 + PILOT.raise, 0.0195, 0.0282, 0.031), materials: [5] },
     // The harness: shoulder straps over the vest down to the buckle, and the chest strap across.
     ...[1, -1].map((sd) => ({ geometry: strap([[-0.02, sd * 0.014, -0.04], [-0.007, sd * 0.015, -0.031], [0.012, sd * 0.014, -0.045], [0.017, sd * 0.011, -0.07], [0.018, sd * 0.006, -0.095]]), materials: [6] })),
     { geometry: strap([[0.012, -0.022, -0.062], [0.0175, -0.01, -0.062], [0.0185, 0, -0.062], [0.0175, 0.01, -0.062], [0.012, 0.022, -0.062]]), materials: [6] },
@@ -1856,6 +1947,10 @@ function pilotGeometry(THREE, x, z) {
   ]);
 }
 
+/** The canopy breakers on top of each ejection seat's headbox, units: their base radius, height and how far each is out
+ * from the middle (Patrick, 12 Oct 2026, "there are spikes for the ejection seats"; about 0.9 in across, 3.5 in tall and
+ * 5 in apart, estimates; they were 0.1 in across and 1.7 in tall). The flat-topped headbox sits under them. */
+const SEAT_SPIKES = Object.freeze({ r: 0.0016, h: 0.0125, apart: 0.009 });
 /**
  * The ejection seat's headbox behind a pilot whose helmet's centre is at (x, 0, z): a dark box standing up behind the
  * helmet, its top `above` over the helmet's centre, with the two canopy breakers on top, so from outside it shows
@@ -1863,9 +1958,11 @@ function pilotGeometry(THREE, x, z) {
  */
 function headboxGeometry(THREE, x, z, above) {
   const top = z + above, foot = 0.045;
+  const { r, h, apart } = SEAT_SPIKES;
   return joinGeometries(THREE, [
     { geometry: new THREE.BoxGeometry(0.02, 0.034, top - foot).translate(x - 0.032, 0, (top + foot) / 2), materials: [0] },
-    ...[1, -1].map((s) => ({ geometry: new THREE.ConeGeometry(0.0018, 0.006, 6).rotateX(Math.PI / 2).translate(x - 0.03, s * 0.009, top + 0.003), materials: [0] })),
+    // The canopy breakers, leaning a little forward.
+    ...[1, -1].map((s) => ({ geometry: new THREE.ConeGeometry(r, h, 8).rotateX(Math.PI / 2).rotateY(rad(15)).translate(x - 0.028, s * apart, top + h / 2 - 0.001), materials: [0] })),
   ]);
 }
 
@@ -1963,6 +2060,7 @@ function buildKit(THREE) {
   floor.scale(0.2, 0.05, 1);
   floor.translate(-0.035, 0, 0.046);
   geo.floor = floor;
+  geo.coamings = coamingGeometry(THREE);
   // The two pilots apart, so the Cockpit view can leave out the one the camera sits in (setCockpitView), and the
   // ejection seats' headboxes behind them (the rear one lower, under the canopy's falling top).
   [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
@@ -1972,6 +2070,7 @@ function buildKit(THREE) {
   geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
     { geometry: stackGeometry(THREE, s), materials: [0] },
     { geometry: stackGeometry(THREE, s, true), materials: [1] },
+    { geometry: stackLipGeometry(THREE, s), materials: [0] },
     { geometry: new THREE.CircleGeometry(1, 16).scale(STUB.halfTall * 0.85, STUB.halfWide * 0.85, 1).rotateY(-Math.PI / 2).translate(STUB.xBend + 0.002, s * STUB.yMid, STUB.z), materials: [1] },
     // The dark gap in the cowl round the stack's root (the 156102 photo shows it as a dark rim, widest over the stack).
     { geometry: ellipsoid(THREE, STUB.xBend + STUB.R, s * (fuseSurf(STUB.xBend + STUB.R, STUB.z) - 0.0045), STUB.z + 0.002, STUB.halfWide * 1.3, 0.003, STUB.halfTall * 1.45), materials: [1] },
@@ -2162,7 +2261,7 @@ function buildKit(THREE) {
     // The pilots (pilotGeometry): helmet, visor, mask, hose, flight suit, vest and collar, harness, gloves (colours
     // estimates); and the seats' headboxes.
     pilot: [
-      mat({ color: '#c3c9d0', roughness: 0.35 }),
+      mat({ color: '#dde1e5', roughness: 0.35 }),
       mat({ color: '#141920', roughness: 0.12, metalness: 0.5, envMap: env, envMapIntensity: 1, side: two }),
       mat({ color: '#4c5348', roughness: 0.6 }),
       mat({ color: '#2f3329', roughness: 0.7 }),
@@ -2187,6 +2286,8 @@ function buildKit(THREE) {
       mat({ color: '#eef1f4', roughness: 0.12, metalness: 1, envMap: env, envMapIntensity: 1.1 }),
     ],
     gearInside: mat({ color: '#9da3a8', roughness: 0.6, side: two }),
+    // A gear well's depths: dark, but lighter than a vent's, so its ribs read as structure (Patrick's photo of 123).
+    gearWell: mat({ color: '#2a2e33', roughness: 0.8, side: two }),
     // The position lights, lit whatever the sun (TS-156): red, green, white.
     lights: ['#ff2b2b', '#2bff6a', '#ffffff'].map((color) => keep(new THREE.MeshBasicMaterial({ color, fog: false }))),
     roundel: decalMat(tex.roundel),
@@ -2329,6 +2430,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const addGear = (paintMat) => {
     const L = gearLayout();
     const doorMats = [paintMat, mats.gearInside];
+    const wellMats = [mats.gearWell, mats.gearInside];
     const gear = new THREE.Group();
     gear.name = 'ct156-gear';
     gear.visible = false;
@@ -2355,7 +2457,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       const door = hinge(L.inboardHinge, s);
       add(geo.gearInboardDoor, doorMats, door);
       const k = s > 0 ? 'L' : 'R';
-      return { leg, splay, door, legWell: add(geo[`gearLegWell${k}`], mats.vent, gear), inboardWell: add(geo[`gearInboardWell${k}`], mats.vent, gear) };
+      return { leg, splay, door, legWell: add(geo[`gearLegWell${k}`], wellMats, gear), inboardWell: add(geo[`gearInboardWell${k}`], wellMats, gear) };
     });
     const nose = new THREE.Group();
     nose.name = 'ct156-gear-nose';
@@ -2367,7 +2469,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(geo.gearNoseDoor, doorMats, door);
       return door;
     });
-    return { group: gear, sides, nose, noseDoors, noseWell: add(geo.gearNoseWell, mats.vent, gear), t: 0 };
+    return { group: gear, sides, nose, noseDoors, noseWell: add(geo.gearNoseWell, wellMats, gear), t: 0 };
   };
 
   // The flight surfaces (SURFACES, ALL-35): each on its hinge (setControls turns them), the right aileron and flaps the
@@ -2398,7 +2500,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return { sides, elevator: pivot('elevator', geo.elevator, paintMat), rudder: pivot('rudder', geo.rudder, rudderMat) };
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -2485,6 +2587,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     gear = addGear(mats.navy);
     add(geo.lights, mats.lights, detail);
     floor = add(geo.floor, mats.floor, detail);
+    coamings = add(geo.coamings, mats.headbox, detail);
     add(geo.frames, mats.frame, detail);
     bowFront = add(geo.bowFront, mats.frame, detail);
     helmetFront = add(geo.helmetFront, mats.pilot, detail);
@@ -2505,7 +2608,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     setDetail(THREE, root, camera, renderer);
     turnProp(root);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, prop, disc, bowFront, speedBrake, gear, surfaces, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, coamings, prop, disc, bowFront, speedBrake, gear, surfaces, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 
@@ -2585,7 +2688,8 @@ export function setGear(root, t) {
  * The ship seen from one of its own seats (the Formation Sim's Cockpit and Padlock views, with ct156-cockpit.js) or from
  * outside again. seat 'front' or 'rear': the pilot in that seat goes (the camera is in it) and the other seat's shows,
  * the still prop blades go (a turning prop is a blur from the seat; the faint disc stays), the canopy turns to clear
- * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155) in place of the floor disc, and the frames
+ * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155) in place of the floor disc and the outside
+ * coamings, and the frames
  * (the centre and rear canopy bows; the forward one goes, as ct156-cockpit.js draws it from the seat, TS-156), sill
  * rails show (both paints draw them up close from V2.208; 'ship' paint's pilots are added from the shared kit); the
  * outside headboxes go, as ct156-cockpit.js draws the seats. seat null: the ship as built. Only the ship the camera sits in is ever changed, so every
@@ -2603,6 +2707,7 @@ export function setCockpitView(root, { seat = null } = {}) {
   d.canopy.material = inside ? mats.glassInside : d.canopy.userData.outsideMaterial;
   d.fuselage.geometry = inside ? geo.fuselageCut : geo.fuselage;
   if (d.floor) d.floor.visible = !inside;
+  if (d.coamings) d.coamings.visible = !inside; // from the seat, ct156-cockpit.js draws the coamings
   if (d.prop) d.prop.visible = !inside;
   if (d.bowFront) d.bowFront.visible = !inside; // from the seat, ct156-cockpit.js's band is the forward bow (TS-156)
   if (d.seats) d.seats.visible = !inside; // from the seat, ct156-cockpit.js draws both seats (TS-157)
