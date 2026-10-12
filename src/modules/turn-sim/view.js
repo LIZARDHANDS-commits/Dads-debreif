@@ -773,7 +773,7 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = nu
 }
 
 /** The Data tag's arrow (Patrick, 6 Oct): yellow, from each wingman toward Lead, with the distance and closure on it. */
-const LEAD_ARROW_YELLOW = '#ffd23f';
+export const LEAD_ARROW_YELLOW = '#ffd23f';
 export function drawLeadArrows(ctx, map, state, links) {
   const at = (a) => (map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt));
   const lead = state.aircraft.find((a) => a.id === 1);

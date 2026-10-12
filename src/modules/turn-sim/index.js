@@ -23,7 +23,7 @@ import { rejoinReadout } from './live/judge.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { OFFSET_BOX_KEYS } from './live/offset-box-turns.js';
 import { createChangeUi } from './transitions-panel.js';
-import { createFluidUi } from './fluid-panel.js';
+import { createFluidUi, pursuitWord } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
 import { tagLines, formatTag, closeTagsOff } from './tags.js';
@@ -299,15 +299,18 @@ function mount(root, app) {
 
   /**
    * Each wingman's link to Lead for the Data tag's arrow (Patrick, 6 Oct): distance and closure (judge.js rejoinReadout),
-   * or null when the arrow is off.
+   * or null when the arrow is off. rangeFt and, in fluid manoeuvring, #2's pursuit word (LAG, PURE, LEAD, as his tag)
+   * for the cockpit's corner readout (Patrick 12 Oct 2026 04:01Z and 04:04Z).
    */
   function leadLinks() {
     if (!layout.get().tagArrow) return null;
     const lead = state.aircraft[0];
+    const fluidNow = state.fluid?.session.now();
     return state.aircraft.slice(1).map((a) => {
       const r = rejoinReadout(lead, a);
       const kt = Math.abs(r.closureKt) < 1 ? '0 kt' : `${r.closureKt > 0 ? '+' : ''}${Math.round(r.closureKt)} kt`;
-      return { id: a.id, text: `${Math.round(r.rangeFt).toLocaleString('en-CA')} ft · ${kt}` };
+      const word = fluidNow && a.id === 2 ? (a.stretched ? 'STRETCHED' : pursuitWord(fluidNow.wingCue)) : null;
+      return { id: a.id, text: `${Math.round(r.rangeFt).toLocaleString('en-CA')} ft · ${kt}`, rangeFt: r.rangeFt, word };
     });
   }
 

@@ -227,12 +227,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
-      case 'terminate': {
-        // A predictable turn: on the way Lead is already turning, or away from #2 if wings level (the live wingman's own
-        // side when he is live: he may have come out of the last manoeuvre on the other side, fluid-wing-live.js).
-        const way = Math.abs(tsBank) > 5 ? Math.sign(tsBank) : -((live && liveNow?.side) || at.wing.side);
-        return [terminate(way)];
-      }
+      // Wings level and straight while #2 flows back to fighting wing (Patrick 12 Oct 2026 04:01Z).
+      case 'terminate': return [terminate()];
       default: throw new Error(`No fluid manoeuvre called ${key}`);
     }
   }
@@ -426,9 +422,11 @@ export function fluidReadouts(lead, wing, prev, blockFt, manKey = null) {
     losDps = Math.acos(Math.max(-1, Math.min(1, dot3(a, b)))) / DEG / STEP_SEC;
   }
   // While Lead manoeuvres the cone is #2's aim, not a verdict (Patrick 23:02Z, SMM 16.17 para 42), and only the distance
-  // is judged (23:07Z, 23:08Z); straight and level, the full verdict: the distance and the cone.
+  // is judged (23:07Z, 23:08Z); straight and level, the full verdict: the distance and the cone. In Terminate #2 is flowing
+  // out of the cone to fighting wing (Patrick 12 Oct 2026 04:01Z), so there too only the distance is judged.
   const manoeuvring = isManoeuvring(lead);
-  const state = manoeuvring || rangeFt < FLUID.bubbleFt || rangeFt > FLUID.rangeFt.max ? rangeWord(rangeFt) : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
+  const leaving = manKey === 'terminate' || manKey === 'steady';
+  const state = manoeuvring || leaving || rangeFt < FLUID.bubbleFt || rangeFt > FLUID.rangeFt.max ? rangeWord(rangeFt) : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
   const flags = [];
   if (rangeFt < FLUID.bubbleFt) flags.push(`Inside the 500 ft bubble (${Math.round(rangeFt)} ft; SMM 16.17 para 44c).`);
   if (wing.g > FLUID.wingGLimit) flags.push(`#2 is pulling ${wing.g.toFixed(1)} G; the limit is 5 G (SMM 16.17 para 44a).`);
