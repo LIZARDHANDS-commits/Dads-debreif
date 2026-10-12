@@ -352,7 +352,15 @@ function mount(root, app) {
       g: a.g ?? a.nz ?? 1,
       kias: a.kias,
       headingDeg: compassDeg(a.headingRad),
+      rangeFt: rangeToLead(a),
     };
+  }
+  /** A wingman's straight-line range to Lead in feet, for the HUD's RANGE (Patrick 12 Oct 2026 01:37Z); null for Lead. */
+  function rangeToLead(a) {
+    const lead = state.aircraft[0];
+    if (!lead || a.id === lead.id) return null;
+    const rel = relativeTo(lead, a);
+    return Math.hypot(rel.fwd, rel.left, (a.altAboveFt ?? 0) - (lead.altAboveFt ?? 0));
   }
 
   function dataTags() {
