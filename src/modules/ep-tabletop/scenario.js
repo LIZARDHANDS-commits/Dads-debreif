@@ -88,9 +88,9 @@ function changeOne(s, change, atS) {
   const g = changeFault(f, change, atS);
   return log({ ...s, faults: s.faults.map((x) => (x.id === f.id ? g : x)) }, `Cause changed: ${faultWords(g)}`);
 }
-/** A new fault id, not used by a fault set or waiting. */
+/** A new fault id, not used by a fault set or waiting, or by one a development will set. */
 function newFaultId(s, kind) {
-  const used = new Set([...s.faults.map((f) => f.id), ...Object.keys(s.pendingFaults)]);
+  const used = new Set([...s.faults.map((f) => f.id), ...Object.keys(s.pendingFaults), ...s.developments.flatMap((d) => list(d.fault).map((f) => String(f.id ?? f.kind)))]);
   let n = 1;
   while (used.has(`${kind}-${n}`)) n += 1;
   return `${kind}-${n}`;
