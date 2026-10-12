@@ -1,6 +1,6 @@
 # EP Tabletop: spec
 
-Dad's ask (12 Oct 2026), Patrick approved as a new module (relayed by Dad; ALL-36). Source for the method: AETCMAN 11-248 (13 Aug 2025) para 1.19 to 1.20.3.7 and Fig 1.4, p.29 to 31, cited by paragraph only. **Waiting on Patrick's approval; nothing is built until he approves it.**
+Dad's ask (12 Oct 2026), Patrick approved as a new module (relayed by Dad; ALL-36). Source for the method: AETCMAN 11-248 (13 Aug 2025) para 1.19 to 1.20.3.7 and Fig 1.4, p.29 to 31, cited by paragraph only. **Approved by Patrick (relayed by Dad, 12 Oct 2026): "start building the one screen version and use the moose jaw 3d environment".**
 
 ## What it is for
 
@@ -10,7 +10,7 @@ The purpose of tabletop and standup EPs is to expose student pilots to as many e
 
 Picture: `screen-mockup.png` in this folder (a mock-up, not the built screen; the cockpit is today's CT-156 model). V6 had no such screen.
 
-- **Student's screen** (a laptop or the big screen in the briefing room): the CT-156 front cockpit from the shared cockpit model (ui-kit `ct156-cockpit.js`, ALL-31 to ALL-33), its instruments showing what the scenario and the instructor say, the outside view (the shared 3D sky, terrain and airfield), and the **step track** down one side. Nothing about the script, what comes next, or how it ends ever shows here (EP-R3).
+- **Student's screen** (a laptop or the big screen in the briefing room): the CT-156 front cockpit from the shared cockpit model (ui-kit `ct156-cockpit.js`, ALL-31 to ALL-33), its instruments showing what the scenario and the instructor say, the outside view (the Moose Jaw 3D environment: the shared terrain, satellite picture, runways and sky round CYMJ, EP-7), and the **step track** down one side, with the situation the student is given at the start and a Revealed list. The view looks along the nose (Boresight); dragging turns the head a little, double-click looks ahead again, Shift zooms (EP-4). Nothing about the script, what comes next, or how it ends ever shows here (EP-R3).
 - **Instructor's console** (the instructor's phone, opened by scanning the QR code the student's screen shows at the start; EP-Q1, EP-Q2): the scenario, its planned developments, pause and resume, every indication to change, the student's questions to answer, the step marks and notes. Until the phone link is built, and whenever it isn't wanted, the same console opens on the student's screen behind an **Instructor** switch.
 
 ## The step track (EP-R2)
@@ -33,13 +33,13 @@ A-A-B-C-D-E-F, as Fig 1.4 draws it, with the current step lit:
 
 A scenario is: the start (phase of flight: take-off and departure, area/contact, formation, low level, instruments or pattern; altitude, airspeed, heading, position from home field, weather, fuel), and a list of **developments**, each a set of indication changes that happens at a time, at a step, or when the instructor taps it.
 
-**Indications the instructor can set** (the panel draws them live): torque, N1, Np, ITT, fuel flow, oil pressure and temperature, fuel quantity, volts and amps, hydraulic pressure, the warning and caution lights, the fire light, gear and flap indications, attitude, heading, altitude and airspeed; outside cues the student can ask for (smoke, flames, oil on the windscreen, roughness, noises) shown as words when revealed. Each shipped number comes from the open-source baseline (ALL-30, `docs/references/open-source-performance-baseline.md`) or is marked an estimate; the instructor can type any value (EP-Q3).
+**Indications the instructor can set** (the panel draws them live; one not yet revealed shows as the static panel does, needle at rest and dashes, and the flight instruments always show, EP-4): torque, N1, Np, ITT, fuel flow, oil pressure and temperature, fuel quantity, volts and amps, hydraulic pressure, the warning and caution lights, the fire light, gear and flap indications, attitude, heading, altitude and airspeed; outside cues the student can ask for (smoke, flames, oil on the windscreen, roughness, noises) shown as words when revealed. Each shipped number comes from the open-source baseline (ALL-30, `docs/references/open-source-performance-baseline.md`) or is marked an estimate; the instructor can type any value (EP-Q3).
 
 **Example scenarios** (working answer to EP-Q3: indications only, no checklist text): engine roughness with fluctuating fuel flow in the area; chip light; oil pressure dropping on departure; generator failure (volts and amps); fire light on climb-out. Instructors write and save their own (a file on their device; nothing leaves it).
 
 ## Pause and live changes (EP-R4, EP-R5)
 
-- **Pause** freezes the student's screen ("time stands still"): the aircraft, the clocks and the planned developments stop. The step track says "Time stands still".
+- **Pause** freezes the student's screen ("time stands still"): the aircraft, the clocks and the planned developments stop. The step track says "Time stands still". Going to Analyse pauses and going to Boldface resumes by itself; the instructor can override either (EP-5).
 - While paused, or while running, the instructor can change any indication, move a development earlier or later, add one, or send the student back to Aircraft control or Analyse. The student's screen updates only when the instructor taps **Apply** (or at once if the instructor prefers), so the student never sees a change half-made.
 - **Resume** restarts time.
 
