@@ -121,25 +121,29 @@ export const FORWARD_BOW_FT = Object.freeze({
   glassInset: 0.01,
   bandDepth: 0.13,
   tubeR: 0,
-  section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.1, innerT: 0.025 }),
-  foot: Object.freeze({ reach: 0.27, rise: 0.32, r: 0.06, rivets: Object.freeze({ n: 5, up: 0.06, r: 0.012 }) }),
+  section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.1, inner: 0.1, innerT: 0.025 }),
+  foot: Object.freeze({ reach: 0.27, rise: 0.32, r: 0.06, rivets: Object.freeze({ n: 6, up: 0.06, r: 0.012 }) }),
   studs: Object.freeze({ n: 40, r: 0.008, nut: 0.018, nutH: 0.017, tip: 0.021 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
   footFillet: null,
 });
-// Its section is an I, as Patrick sketched it and read it off his reference picture of the cockpit (Patrick, 12 Oct
-// 2026, "It looks to me like it has a cross section SOMETHING like this? not to scale?", and "the inner flange is only
-// about as thick as the outer part of the canopy bow. and the bolts extend to its surface"): a flange along the glass
-// `section.outer` (1.9 in) fore and aft, a web down its middle `section.web` thick and a flange `section.inner` (1.2 in)
-// fore and aft along the web's inner edge, both flanges 0.3 in thick, `bandDepth` (1.6 in) from the glass inward
-// ("this side should be thinner?"), its aft face at bandX. A row of bolts (`studs`) runs through the inner flange aft of
-// the web, a flat hex head on its glass side and a hex nut `nut` round (3/8 in across the flats) on its inner face, the tip
+// Its section is a T (Patrick, 12 Oct 2026, with his in-flight photos: "I feel like we lost the t shape? Theres a thin
+// wider part that faces the glass and a thicker protrusion (no thicker than we have now) in the middle of both the
+// feet and the bow"): a thin flange along the glass `section.outer` (1.9 in) fore and aft and `outerT` (0.3 in) thick,
+// and down its middle a solid rib `section.web` (= `inner`, 1.2 in, the old inner flange's width) standing `bandDepth`
+// (1.6 in) in from the glass ("this side should be thinner?"), its aft face at bandX. Until V2.405 an I, after his
+// sketch ("It looks to me like it has a cross section SOMETHING like this? not to scale?", "the inner flange is only
+// about as thick as the outer part of the canopy bow. and the bolts extend to its surface"): the same flanges with a
+// web 0.6 in thick between, its aft face dark. A row of bolts (`studs`) runs down the middle of the rib, a flat hex
+// head on its glass side and a hex nut `nut` round (3/8 in across the flats) on its inner face, the tip
 // `tip` (1/4 in) out of that face ("See here?" on that picture; "the bolts are sized wrong in ours for the canopy bow",
 // with his cockpit photo; until then 1/2 in round heads and thin 1/4 in pegs, reading as two rows), and the web's aft
 // face is dark, so from the seat it reads as two flanges with a shadowed groove between ("Construction only"). At each
-// foot the whole leg flares into a gusset plate, as Patrick's in-flight photos from the front seat show it (12 Oct 2026,
-// card "Build the gusset"): from the canopy's lower frame's top it widens `foot.reach` (3.2 in) both fore and aft over
+// foot the flange flares into a gusset plate while the rib runs on down its middle to the sill, as Patrick's in-flight
+// photos from the front seat show it (12 Oct 2026, card "Build the gusset"; the plate was the whole section's depth
+// until V2.405, "a thin wider part ... and a thicker protrusion ... in the middle of both the feet and the bow"): from
+// the canopy's lower frame's top the plate widens `foot.reach` (3.2 in) both fore and aft over
 // `foot.rise` (3.8 in) in straight slanted edges, rounded `foot.r` (0.7 in) where they meet the leg, so the plate's
 // base is about 8.4 in across, with a row of `foot.rivets` along it; below the frame's top it keeps that width down to
 // the sill. Sizes estimates scaled off those photos by the bow's bolt spacing. From V2.396 to V2.403 concave quarter
@@ -1823,12 +1827,15 @@ function bandGeometries(THREE, b) {
     };
     const hoops = new Map([...ring.map(([dx]) => dx), c - web / 2 - 0.002].map((dx) => [dx, hoop(dx)]));
     band = loft(THREE, pts.map((_, j) => ring.map(([dx, d]) => hoops.get(dx)[j](d))), { closed: true });
+    // An I's web is dark on its aft face (the groove between its flanges); a T's rib (web as wide as `inner`) is not.
+    const rib = web >= I;
     const rec = hoops.get(c - web / 2 - 0.002);
-    recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + outerT)), pts.map((_, j) => rec[j](d1 - innerT))], { closed: false });
-    // The bolts: one row through the inner flange's aft overhang, each a flat hex head on its glass side and a hex nut on its
-    // inner face with the bolt's tip just out of it, evenly spaced by length, half a spacing in from each sill.
+    if (!rib) recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + outerT)), pts.map((_, j) => rec[j](d1 - innerT))], { closed: false });
+    // The bolts: one row down the middle of a T's rib (through an I's inner flange aft of its web), each a flat hex head on
+    // its glass side and a hex nut on its inner face with the bolt's tip just out of it, evenly spaced by length, half a
+    // spacing in from each sill.
     if (b.studs) {
-      const { n: ns, r, nut, nutH, tip } = b.studs, dxRow = (c - I / 2 + c - web / 2) / 2, line = hoop(dxRow);
+      const { n: ns, r, nut, nutH, tip } = b.studs, dxRow = rib ? c : (c - I / 2 + c - web / 2) / 2, line = hoop(dxRow);
       const at = (d) => pts.map((_, j) => line[j](d)), mid = at(d1 - innerT);
       const along = [0];
       for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(...[0, 1, 2].map((i) => mid[j][i] - mid[j - 1][i])));
@@ -1872,14 +1879,15 @@ function bandGeometries(THREE, b) {
 }
 
 /**
- * The forward bow's feet (FORWARD_BOW_FT.foot): on each side the leg's whole section flaring into a gusset plate, fore
- * and aft alike, `reach` out at the canopy's lower frame's top and running in along a straight slant to the leg `rise`
- * above it, the corner with the leg rounded `r`; below the frame's top the plate keeps its full width down to the sill.
- * A row of `rivets.n` rivet heads across the plate's inner face `rivets.up` above the frame's top. Geometries, feet.
+ * The forward bow's feet (FORWARD_BOW_FT.foot): on each side the flange along the glass flaring into a gusset plate as
+ * thin as the flange, fore and aft alike, `reach` out at the canopy's lower frame's top and running in along a straight
+ * slant to the leg `rise` above it, the corner with the leg rounded `r`; below the frame's top the plate keeps its full
+ * width down to the sill. The rib runs on down the plate's middle (the band's own). A row of `rivets.n` rivet heads
+ * across the plate's inner face `rivets.up` above the frame's top, clear of the rib. Geometries, feet.
  */
 function bowFeet(THREE, b) {
-  const { reach: R, rise, r, rivets } = b.foot, { outer: W } = b.section;
-  const d0 = b.glassInset, d1 = b.glassInset + b.bandDepth, n = 600, out = [];
+  const { reach: R, rise, r, rivets } = b.foot, { outer: W, outerT, web } = b.section;
+  const d0 = b.glassInset, d1 = b.glassInset + outerT, n = 600, out = [];
   // The hoop at fore-and-aft offset dx, as a function of (point index, inward distance).
   const at = (dx) => {
     const x = b.bandX + dx, bs = ct156CanopySection(x / F).base * F, pts = ct156HoopPoints(x / F, n, 0, b.lean ?? 0);
@@ -1907,9 +1915,11 @@ function bowFeet(THREE, b) {
     // The rivets: domes on the plate's inner face, evenly across it at rivets.up over the frame's top.
     let kr = 0;
     while (kr < n / 2 && mid.pts[idx(kr)].z * F - mid.bs - SIDE_FRAME_FT.height < rivets.up) kr++;
-    const span = reach(rivets.up) - 0.035;
+    const span = reach(rivets.up) - 0.035, c = W / 2;
     for (let i = 0; i < rivets.n; i++) {
-      const dx = -span + ((W + 2 * span) * i) / (rivets.n - 1), [x, y, z] = hoopAt(dx).p(idx(kr), d1);
+      const dx = -span + ((W + 2 * span) * i) / (rivets.n - 1);
+      if (Math.abs(dx - c) < web / 2 + 0.02) continue; // under the rib
+      const [x, y, z] = hoopAt(dx).p(idx(kr), d1);
       const g = new THREE.SphereGeometry(rivets.r, 8, 6).translate(x, y, z);
       g.userData.rivet = true;
       out.push(g);
