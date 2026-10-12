@@ -192,11 +192,13 @@ PANEL_CORNER_FT = 0.25
 # The wing (top view), by chord fraction (0 the leading edge) and span station s (units along the bent wing): a spar
 # line along x = WING_SPAR_X on the top; the ailerons behind AILERON_HINGE from AILERON_ROOT out to the tip cap joint
 # TIP_CAP, a trim tab on each aileron's inboard end (TAB_S, behind TAB_F); the flaps behind FLAP_HINGE on the underside
-# (dashed from above) from the fuselage to AILERON_ROOT; the centre section's joint at WING_BREAK.
+# (dashed from above) from the fuselage to AILERON_ROOT; the centre section's joint at WING_BREAK. The flight surfaces'
+# lines are the code model's SURFACES (ALL-35), where the app cuts them out to move.
+SURF = S['SURFACES']
 WING_SPAR_X = 0.0923  # 13.1 ft behind the spinner's tip
-AILERON_HINGE, AILERON_ROOT, TIP_CAP = 0.765, 0.40, 0.718
-TAB_S, TAB_F = 0.462, 0.93
-FLAP_HINGE = 0.79
+AILERON_HINGE, AILERON_ROOT, TIP_CAP = SURF['aileron']['hinge'], SURF['aileron']['s0'], SURF['aileron']['s1']
+TAB_S, TAB_F = SURF['aileron']['tabS'], SURF['aileron']['tab']
+FLAP_HINGE = SURF['flap']['hinge']
 # The gear doors underneath (Patrick, 11 Oct 2026 20:20Z: "I also want the gear doors ... modeled on the bottom"),
 # shut, as seen from below: [front, back, inboard, outboard] feet (behind the spinner's tip, out from the middle). The
 # Each main gear has an outboard door on its leg and two inboard doors; the reference side and top views put the
@@ -210,13 +212,14 @@ INBOARD_DOOR_CORNERS_FT = (1.0, 0.2)
 # The speed brake's outline under the belly: hinged 16.0 ft behind the tip, 2.3 ft long, 1.8 ft across (ESTIMATE; the
 # code model's SPEED_BRAKE, whose plate is drawn there).
 SPEED_BRAKE_FT = (16.0, 18.3, 0.9)
-# The tailplane (top view): elevators behind STAB_HINGE, their horn balances reaching forward to STAB_HORN over the
-# outer STAB_HORN_SPAN of each half; a trim tab on the right elevator from STAB_TAB_S[0] to [1] of the half-span,
-# behind STAB_TAB_F.
-STAB_HINGE, STAB_HORN, STAB_HORN_SPAN = 0.58, 0.37, 0.18
-STAB_TAB_S, STAB_TAB_F = (0.11, 0.48), 0.9
+# The tailplane (top view): elevators behind STAB_HINGE from STAB_ROOT out, their horn balances reaching forward to
+# STAB_HORN over the outer STAB_HORN_SPAN of each half; a trim tab on the right elevator from STAB_TAB_S[0] to [1] of the
+# half-span, behind STAB_TAB_F.
+STAB_HINGE, STAB_HORN, STAB_HORN_SPAN = SURF['elevator']['hinge'], SURF['elevator']['horn'], SURF['elevator']['hornSpan']
+STAB_ROOT = SURF['elevator']['s0']
+STAB_TAB_S, STAB_TAB_F = tuple(SURF['elevator']['tabS']), SURF['elevator']['tab']
 # The fin (side view): the rudder behind FIN_HINGE; its trim tab behind FIN_TAB_F from the root up to FIN_TAB_TOP units.
-FIN_HINGE, FIN_TAB_F, FIN_TAB_TOP = 0.55, 0.88, 0.13
+FIN_HINGE, FIN_TAB_F, FIN_TAB_TOP = SURF['rudder']['hinge'], SURF['rudder']['tab'], SURF['rudder']['tabTop']
 
 # The skin's relief (Patrick, 11 Oct 2026 21:07Z card "Surface texture"), a second picture the app bump-maps: the
 # panel lines a groove, and a row of rivet heads each side of the lines marked with one, RIVET_PITCH_FT apart and
@@ -282,7 +285,7 @@ draw(fus & between(x, x0, x1), z - low_z)
 for f0, f1, top, bottom in PANELS_FT:
     oblong(fus, (ft_x(f0), ft_x(f1)), x, (top * U, bottom * U), z, PANEL_CORNER_FT * U, rivets=True)
 
-air = part == PART_IDS['airframe']
+air = np.isin(part, [PART_IDS[n] for n in ('airframe', 'aileron', 'elevator', 'flapIn', 'flapOut')])
 # The wings: span along the dihedral (the outer panel bends up at WING_BREAK); top or underside by the side of the
 # chord plane a texel is on.
 ay = np.abs(y)
@@ -322,13 +325,13 @@ horn = ay > half * (1 - STAB_HORN_SPAN)
 draw(stab & ~horn, (f - STAB_HINGE) * ch, ay)
 draw(stab & horn, (f - STAB_HORN) * ch)
 draw(stab & between(f, STAB_HORN, STAB_HINGE), ay - half * (1 - STAB_HORN_SPAN))
-draw(stab & (f > STAB_HINGE), ay - 0.035)
+draw(stab & (f > STAB_HINGE), ay - STAB_ROOT)
 right = stab & (y < 0)
 draw(right & between(ay, STAB_TAB_S[0] * half, STAB_TAB_S[1] * half), (f - STAB_TAB_F) * ch)
 for t in STAB_TAB_S:
     draw(right & (f > STAB_TAB_F), ay - t * half)
 # The fin and rudder (span up the fin).
-fin = part == PART_IDS['fin']
+fin = np.isin(part, [PART_IDS['fin'], PART_IDS['rudder']])
 le, ch = chord_at(S['FIN'], z, half=False)
 f = (le - x) / ch
 draw(fin & (z > 0.0), (f - FIN_HINGE) * ch, z)
@@ -349,7 +352,7 @@ SOOT_FROM_FT, SOOT_FADE_FT = 4.3, 7.0
 OIL_FROM_FT, OIL_FADE_FT, OIL_HALF_FT = 8.35, 9.0, 0.35
 GRIME = 0.07
 DIRT_SIZE = 1024
-painted = fus | air | (part == PART_IDS['fin'])
+painted = fus | air | fin
 dirt = painted * (GRIME * (1 + 0.6 * np.sin(x / U * 0.9 + 0.4) * np.sin(y / U * 1.3) + 0.4 * np.sin(z / U * 2.1 + x / U * 0.5)))
 dx = (ft_x(SOOT_FROM_FT) - x) / U
 zc, wd = (-0.15 - 0.05 * dx) * U, (0.35 + 0.07 * dx) * U
