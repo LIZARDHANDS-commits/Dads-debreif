@@ -139,9 +139,10 @@ export const FORWARD_BOW_FT = Object.freeze({
 // web 0.6 in thick between, its aft face dark. A row of bolts (`studs`) runs down the middle of the web and lip, a flat
 // hex head on its glass side and a hex nut `nut` round (3/8 in across the flats) on its inner face, the tip
 // `tip` (1/4 in) out of that face ("See here?" on that picture; "the bolts are sized wrong in ours for the canopy bow",
-// with his cockpit photo; until then 1/2 in round heads and thin 1/4 in pegs, reading as two rows). The web is the
-// band's colour, shaded only by the Blender cockpit's baked shadows ("render it nicely"; until V2.405 painted dark,
-// which with those shadows read as a black stripe that hid the web and lip). At each
+// with his cockpit photo; until then 1/2 in round heads and thin 1/4 in pegs, reading as two rows). The web's aft face is
+// the cockpit's grey without the bow's slight self-lighting, so the Blender cockpit's baked shadows darken the groove
+// between flange and lip and the T reads ("render it nicely"; until V2.405 painted dark, which with those shadows read
+// as a black stripe). At each
 // foot the flange flares into a gusset plate while the web and lip run on down its middle to the sill, as Patrick's in-flight
 // photos from the front seat show it (12 Oct 2026, card "Build the gusset"; the plate was the whole section's depth
 // until V2.405, "a thin wider part ... and a thicker protrusion ... in the middle of both the feet and the bow"): from
@@ -1808,7 +1809,7 @@ function bandGeometries(THREE, b) {
     return [x * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
   };
   const outer = pts.map((q) => inward(q, b.glassInset)), inner = pts.map((q) => inward(q, b.glassInset + b.bandDepth));
-  let band = null, tube = null;
+  let band = null, tube = null, recess = null;
   const studs = [];
   if (b.section) {
     // A T (an I with `inner`): a flange along the glass, a web down its middle (and a flange at its inner edge), closed, so
@@ -1826,8 +1827,11 @@ function bandGeometries(THREE, b) {
         return (d) => [hx * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
       });
     };
-    const hoops = new Map(ring.map(([dx]) => [dx, hoop(dx)]));
+    const hoops = new Map([...ring.map(([dx]) => dx), c - web / 2 - 0.002].map((dx) => [dx, hoop(dx)]));
     band = loft(THREE, pts.map((_, j) => ring.map(([dx, d]) => hoops.get(dx)[j](d))), { closed: true });
+    // The web's aft face, a skin just off it in its own colour (FORWARD_BOW_FT).
+    const rec = hoops.get(c - web / 2 - 0.002);
+    if (web < I) recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + outerT)), pts.map((_, j) => rec[j](d1 - innerT))], { closed: false });
     // The bolts: one row down the middle of the web and lip, each a flat hex head on its glass side and a hex nut on
     // its inner face with the bolt's tip just out of it, evenly spaced by length, half a
     // spacing in from each sill.
@@ -1872,7 +1876,7 @@ function bandGeometries(THREE, b) {
       dots.push(new THREE.CircleGeometry(row.dia / 2, 16).rotateY(-Math.PI / 2).translate(x - 0.004, y, z));
     }
   }
-  return { band, dots, tube, studs, feet: b.foot ? bowFeet(THREE, b) : [] };
+  return { band, dots, tube, recess, studs, feet: b.foot ? bowFeet(THREE, b) : [] };
 }
 
 /**
@@ -2838,6 +2842,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const fb = bandGeometries(THREE, FORWARD_BOW_FT);
   const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }];
   if (fb.tube) bowParts.push({ geometry: fb.tube, materials: [SLOT.black] });
+  if (fb.recess) bowParts.push({ geometry: fb.recess, materials: [SLOT.grey] });
   for (const g of fb.feet) bowParts.push({ geometry: g, materials: [g.userData.rivet ? SLOT.metal : SLOT.band] });
   for (const g of fb.studs ?? []) bowParts.push({ geometry: g, materials: [SLOT.metal] });
   bowParts.push(...bowFootParts(THREE).map(([geometry, slot]) => ({ geometry, materials: [slot] })));
