@@ -146,6 +146,7 @@ export const TURNING_REJOIN = Object.freeze({
   rideKias: 210, // on the line he holds this to the decision point (Patrick 8 Oct 20:16: "maintain 210 to the decision point")
   windowEntryOverKt: 0.5, // a plan counts as on the line only if it enters the window at no more than rideKias + this (Patrick's G3: 210.5 KIAS, HANDOVER_REPORT_V2.210_TRJ.md; 5.5 until the clean-up, Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 10)
   fwLeastKias: 195, // on the way to fighting wing a plan never below this counts (5 kt under the 200 floor, which TS-169 lets bleed; estimate; row 10)
+  fwQuickerBySec: 10, // into fighting wing, a start that misses the line speed above still wins when it is in this much sooner than one that meets it (Patrick's card 12 Oct 2026 00:05Z, "Quicker 78°": from line abreast the 78° start in 21 s over a 60° one in 34 s that met 210 KIAS; the 10 s is an estimate)
   // The turning rejoin to fighting wing's ride (turning-rejoin.js REJOIN_WAYS.fw), all estimates (Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 9)
   fwApproach: Object.freeze({ windowFt: 1200, carrotWindowFt: 250, decisionFt: 1000, coneEaseFarFt: 1500, captureFt: 250 }),
   rideCaptureAlongFt: 1750, // he joins (the middle of Patrick's 1,500-2,000 ft, G6) the line no closer to Lead than this, or where he already is if closer (Patrick G1: established by 1,500 ft; 8 Oct 20:16 inside 2,000 ft get on it where he is)

@@ -873,10 +873,15 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // (instead of giving an error that a rejoin isnt possible)"): the same search with it, only when nothing else plans.
   // A candidate replaces the best so far when it is established and the best is not, or when it is quicker by more than
   // BETTER_BY_SEC; one that puts him ahead of the lane is kept apart (bestAny), used only when no candidate keeps behind it.
+  // Into fighting wing a start that misses the line speed still wins when it is in TURNING_REJOIN.fwQuickerBySec sooner (Patrick's
+  // card 12 Oct 2026 00:05Z, "Quicker 78°"), so the search goes on through the bank caps after one that meets it.
+  const quickerSec = to === 'fw' ? TURNING_REJOIN.fwQuickerBySec : Infinity;
   const better = (flown, than) => {
     const est = flown.part?.rideEstablished !== false;
     const thanEst = than?.part?.rideEstablished !== false;
-    return !than || (est && !thanEst) || (est === thanEst && flown.durationSec < than.durationSec - BETTER_BY_SEC);
+    if (!than) return true;
+    if (est !== thanEst) return est ? flown.durationSec < than.durationSec + quickerSec : flown.durationSec < than.durationSec - quickerSec;
+    return flown.durationSec < than.durationSec - BETTER_BY_SEC;
   };
   const consider = (flown, labels) => {
     if (!flown) return;
@@ -903,7 +908,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
             const aims = xLaw ? [TURNING_REJOIN.aimsFt[0]] : hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
             const common = { lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, allowAcross, crossIn, element };
             for (const aimFt of aims) {
-              const limitSec = done() ? best.durationSec - BETTER_BY_SEC : Infinity;
+              const limitSec = done() ? best.durationSec - (to === 'fw' ? quickerSec : BETTER_BY_SEC) : Infinity;
               // From line abreast the SMM's start first (pointing turn, wings level, reversal; TS-182), else the capture alone
               // (V2.245's, Patrick 04:10Z: "If that doesn't work we can stick to what we had").
               const fly = (point) => flyTurningRejoinWith({ ...common, aimFt, hardSec: 0, limitSec, point });
@@ -916,8 +921,9 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
                 consider(flyTurningRejoinWith({ ...common, aimFt, hardSec, limitSec: Infinity }), { overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross });
               }
             }
-            if (done()) break search;
+            if (done() && to !== 'fw') break search;
           }
+          if (done()) break search;
         }
       }
     }
