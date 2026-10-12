@@ -1,6 +1,6 @@
 # The traffic relay
 
-A very small server program that lets the SOF's map show live aircraft.
+A very small server program that lets the SOF's map show live aircraft, and carries the EP Tabletop's phone link (`/ep-link`, below).
 
 ## Why it exists
 
@@ -94,6 +94,22 @@ The key is two values, a client id and a client secret, from a free FAA account.
 | `SECOND_FEED` | `none` turns adsb.fi off (on by default on Netlify) | `/traffic` |
 | `FAA_CLIENT_ID` | The FAA NOTAM API client id (secret: never in the repository) | `/notam` for K sites |
 | `FAA_CLIENT_SECRET` | The FAA NOTAM API client secret (secret: never in the repository) | `/notam` for K sites |
+
+## The EP Tabletop's phone link: `/ep-link` (`ep-link.js`, EP-8 to EP-10, 12 Oct 2026)
+
+The instructor's phone runs the tabletop and puts what the student may see here; the student's screen reads it about once a second (`docs/modules/ep-tabletop/spec.md`, "The phone link"). It is a small mailbox kept in **Netlify Blobs** (Patrick's yes, relayed by Dad, 12 Oct 2026), the relay's one package (`package.json`, `@netlify/blobs` 11.1.1, with its lockfile).
+
+- `GET /ep-link?s=<session>`: the latest student view, as `{ "ageMs": <how long since the phone last wrote>, "view": {...} }`, or 404 when there is no such session yet (the phone hasn't connected) or it has gone.
+- `PUT /ep-link?s=<session>` with the header `x-ep-key: <key>` and a JSON object of at most 16 KB as the body: stores it. The first PUT for a session keeps a SHA-256 hash of the key (201); a later PUT must carry the same key (200), otherwise 403.
+- `DELETE /ep-link?s=<session>` with the same header: ends the session (204). The student's screen does this when "Stop phone link" is pressed or the page is closed.
+- The session id and the key are each 128 random bits in base64url (22 characters) and are checked by strict pattern; anything else in the address is refused (400).
+- Each entry holds only the key's hash, when it was made, when it was last written and the student view. An entry more than 6 hours old (from its first PUT) reads as gone and is deleted when touched; each new session also looks through up to 100 entries and deletes the old ones. Nothing about who asked is logged.
+- The same allowed origins as every other answer (`ALLOWED_ORIGINS`, else the live site and local development); never "allow all". OPTIONS answers the browser's check for GET, PUT, DELETE and the `x-ep-key` header.
+- The logic is `ep-link.js` (no install needed; the store is passed in), wrapped by `netlify/functions/ep-link.mjs`, which gives it a Blobs store named `ep-link` with strong consistency.
+
+**Deploying it (Dad):** in `relay/`, run `npm ci` once (it installs Netlify Blobs from the lockfile into `relay/node_modules`, which is never committed), then the same command as above: `npx netlify-cli deploy --prod --site dads-sof-relay --dir netlify/public --functions netlify/functions --no-build`. Blobs needs no setting on a Netlify site. Check it: `https://dads-sof-relay.netlify.app/ep-link?s=AAAAAAAAAAAAAAAAAAAAAA` in a browser tab should answer `{"error":"no such session"}` (404).
+
+**Cost (estimate):** a linked tabletop costs about one call a second from the student's screen and one every 4 s or so from the phone, about 4,500 function calls an hour, so the free plan's 125,000 a month allow roughly 25 hours of linked tabletops a month alongside the SOF's use. Press "Stop phone link" or close the page when done.
 
 ## Credit and terms for adsb.lol
 

@@ -3,6 +3,8 @@
 The policy is `../../TESTING.md`. This module adds:
 
 - The one light test, `tests/unit/ep-tabletop/scenario.test.js` (Step 1): a scenario's development changes the panel only when its time or step comes or the instructor applies it, and a pause stops the clock (what an instructor would recognise). Expected values come from the scenario itself.
+- The one light test for Step 2, `tests/unit/ep-tabletop/student-view.test.js`: the student view (what the phone sends and the student's screen draws) never carries a development to come, an edit not yet applied, marks, notes, Declare answers or anything about the scenario's name or end, before start, paused with edits waiting, with a development pending and after Boldface (EP-2, EP-9). Expected values come from the scenario itself and words typed in the test.
+- The QR encoder is checked by decoding, not by a test: its code for a real console address, and codes of every length it takes, were read back with an open decoder kept outside the repository (Step 2).
 - The shared cockpit's `liveEngine` change is checked by picture, not by a test: the default cockpit rendered before and after the change is pixel for pixel the same (Step 1).
 - No test checks a checklist or boldface step: none is stored (EP-3).
 
