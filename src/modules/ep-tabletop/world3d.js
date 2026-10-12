@@ -213,7 +213,10 @@ export async function createWorld3d({ host, timers, doc = globalThis.document })
       pose = { x: keep(x, pose.x), y: keep(y, pose.y), altFt: keep(altFt, pose.altFt), headingDegM: keep(headingDegM, pose.headingDegM), pitchDeg: keep(pitchDeg, pose.pitchDeg), bankDeg: keep(bankDeg, pose.bankDeg) };
       const shake = Number.isFinite(shakeDeg) ? shakeDeg : 0;
       ship.position.set(pose.x, pose.y, pose.altFt);
-      ship.rotation.set(-degToRad(pose.bankDeg + shake / 2), -degToRad(pose.pitchDeg + shake), compassDegToHeadingRad(pose.headingDegM + MAG_VARIATION_DEG_E), 'ZYX');
+      // The model takes rotation.set(-bank, -pitch, heading) with the bank LEFT wing down positive (ct156-model.js axes: nose +X, left +Y;
+      // Traffic's applyPose); this pose's bank is right wing down positive, so it goes in without the minus. Until plan Step 5 the sign was
+      // the other way, unseen while the bank was always level: a right turn drew the outside world banked left.
+      ship.rotation.set(degToRad(pose.bankDeg + shake / 2), -degToRad(pose.pitchDeg + shake), compassDegToHeadingRad(pose.headingDegM + MAG_VARIATION_DEG_E), 'ZYX');
     },
     /** The panel's numbers (ct156-cockpit.js update's `hud`, with `engine` for the live engine displays). */
     setHud(next) {
