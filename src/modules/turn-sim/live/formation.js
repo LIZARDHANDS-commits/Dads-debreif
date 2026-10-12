@@ -22,7 +22,7 @@ import { classify, judge, judgeFluid4 } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFluid4Turn, planFwMove } from './formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn, planFwMove } from './formation-turns.js';
 import { planFwMoveLive } from './fw-live.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -619,6 +619,40 @@ export function createFormation(options = {}) {
       state.current = {
         key: `fw:${key}`, dir: FW_MOVES[key].sided ? dir : 0, label, note: plan.note, firstId: null, shape: 'formation',
         formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, fwLive: plan.wsTrack ?? null, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
+      };
+      state.queued = null;
+      state.judged = null;
+      state.refusal = null;
+      state.errorOutcome = null;
+      return 'started';
+    },
+    /**
+     * Lead's Wings level or Reversal in a 2-ship close formation (formation-turns.js CLOSE_MOVES, planCloseMove): flown at
+     * once, also part way through a close turn, which it replaces. Returns 'started' or 'refused' (state.refusal says why).
+     */
+    pressClose(key) {
+      const refuse = (why) => {
+        state.refusal = why;
+        return 'refused';
+      };
+      if (!CLOSE_MOVES[key]) throw new Error(`No close formation move called ${key}`);
+      if (state.fluid) return refuse('In fluid manoeuvring Lead flies the fluid buttons; Terminate first.');
+      const c = state.current;
+      if (c && !(c.formationTurn && c.formationTurn.key !== 'fw')) return refuse(`Wait for ${c.label} to finish.`);
+      const where = c ? c.formationTurn : whereNow();
+      const plan = planCloseMove(state.aircraft, where, key, state.tSec);
+      if (!plan.ok) return refuse(plan.reason);
+      state.plans = plan.plans;
+      state.planned = {};
+      let endSec = state.tSec;
+      for (const a of state.aircraft) {
+        const run = dryRunT(a, state.plans[a.id], state.tSec);
+        state.planned[a.id] = run.points;
+        endSec = Math.max(endSec, state.tSec + run.durationSec);
+      }
+      state.current = {
+        key, dir: 0, label: CLOSE_MOVES[key].label, note: plan.note, firstId: null, shape: 'formation',
+        formationTurn: where, closeMove: true, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
       };
       state.queued = null;
       state.judged = null;
