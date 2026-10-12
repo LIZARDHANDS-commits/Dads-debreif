@@ -85,7 +85,7 @@ export function planOffsetBoxTurn(aircraft, key, dir, t0, { spacingFt = 5000 } =
   const slotAcross = sNow * spacingFt / 2;
   const slotAircraft = Math.abs(relativeTo(lead, four).left - slotAcross) < Math.abs(relativeTo(lead, three).left - slotAcross) ? four : three;
   const missFor = (delaySec) => {
-    const rear = rearPlans(three, four, key, dir, t0, delaySec, lead.kias);
+    const rear = rearPlans(three, four, key, dir, t0, delaySec, lead.homeKias ?? lead.kias);
     const rSlot = dryRun(slotAircraft, rear[slotAircraft.id], t0);
     const T = Math.max(t0 + leadEnd.durationSec, t0 + twoEnd.durationSec, t0 + rSlot.durationSec);
     const L = poseAt(lead, frontPlans[lead.id], t0, T);
@@ -109,7 +109,7 @@ export function planOffsetBoxTurn(aircraft, key, dir, t0, { spacingFt = 5000 } =
     }
     delaySec = onStep(best.d);
   }
-  const rear = rearPlans(three, four, key, dir, t0, delaySec, lead.kias);
+  const rear = rearPlans(three, four, key, dir, t0, delaySec, lead.homeKias ?? lead.kias);
   const plans = { ...frontPlans, ...rear };
   // A wingman still a few knots off Lead's speed as the box settled takes it off as he goes (the turns are planned at Lead's).
   for (const a of [two, three, four]) {
