@@ -31,7 +31,7 @@ import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, POWER, closeBankNow, experienceNow } from './tuning.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
-import { thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
+import { thrustPerWeight, dragPerWeight, iasToTasKt, T6A_LIMITS } from '../../../core/t6-performance.js';
 import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { throttleAtTorque } from './power.js';
 
@@ -791,7 +791,7 @@ export const FW_MOVES = Object.freeze({
 });
 /** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
  * pair is; climbs and descents of 2,000 ft, at what the T-6 holds at Lead's speed (TS-203). */
-const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: 80, descentShare: 0.8, floorKias: 170 }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentShare: 80% of the model's idle descent at Lead's speed (estimate); floorKias: the slowest Lead lets a turn too steep for 80% torque bleed him to before he eases his bank (estimate, TS-204)
+const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: 80, descentShare: 0.8 }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentShare: 80% of the model's idle descent at Lead's speed (estimate)
 
 /**
  * Lead's plan for one of his fighting wing moves (FW_MOVES) from where he is now: { ok, segments, profile, turning, nowDir }
@@ -814,13 +814,15 @@ export function fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt = 8000) {
     return lo;
   };
   // A held turn. Too steep for 80% torque at his speed (the steep 70°, 3 G turn needs about 115% at 200 KIAS in the model),
-  // he holds the bank and lets the speed bleed, to floorKias, then eases to the bank 80% torque holds there. Until V2.394 he
-  // held 200 KIAS at 3 G, more than full power, and #2 on Live, at full power on the real energy, was stretched past 1,000 ft.
+  // he holds the bank and lets the speed bleed with no floor (Patrick's card 12 Oct 2026 09:31Z, "Bleed, no floor"; TS-204),
+  // until the stall at that G, where the aircraft can pull no more and he flies the bank 80% torque holds there (a physical
+  // limit, not a floor). Until V2.394 he held 200 KIAS at 3 G, more than full power, and #2 on Live, at full power on the
+  // real energy, was stretched past 1,000 ft.
   const held = (d, bank) => {
     const g = 1 / Math.cos(bank * DEG);
     const total = FW_MOVE.heldTurnDeg * DEG;
     if (excess(lead.kias, g) >= 0) return leadTurnSegs(lead.headingRad, d, total, bank, true);
-    const floor = Math.min(lead.kias, FW_MOVE.floorKias);
+    const floor = Math.min(lead.kias, T6A_LIMITS.stallKias * Math.sqrt(g)); // the stall at the turn's G (core stallLimitG)
     const easeBank = Math.min(bank, Math.floor(heldBank(floor)));
     if (lead.kias - floor < 1) return leadTurnSegs(lead.headingRad, d, total, easeBank, true);
     const mid = (lead.kias + floor) / 2;
