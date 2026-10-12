@@ -1099,7 +1099,8 @@ function gearGeometries(THREE) {
   }, [0, 0, 1], t, ([x, y, z]) => [x, y - nh[1], z - nh[2]]);
   // The wells, model frame, each side: the leg door's and the inboard door's openings, and the nose bay's.
   const wing = (x, y) => wingSurfZ(x, y, -1) + 0.0017; // the well 0.0002 outside the skin, under the shut door
-  for (const [s, k] of [[1, 'L'], [-1, 'R']]) {
+  for (const k of ['L', 'R']) {
+    const s = k === 'L' ? 1 : -1;
     const ys = (a, b) => (s > 0 ? [a * GFT, b * GFT] : [-b * GFT, -a * GFT]);
     geo[`gearLegWell${k}`] = gearWell(THREE, gearX(ld.x0Ft), gearX(ld.x1Ft), ...ys(ld.y0Ft, ld.y1Ft), wing);
     geo[`gearInboardWell${k}`] = gearWell(THREE, gearX(ib.x0Ft), gearX(ib.x1Ft), ...ys(ib.y0Ft, ib.y1Ft), wing);
