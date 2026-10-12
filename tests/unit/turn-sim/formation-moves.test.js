@@ -279,30 +279,26 @@ test('the 4-ship: rejoining wingmen come off the stack first, and fighting wing 
   for (const [id, ref] of [[2, 1], [3, 2], [4, 3]]) assert.ok(inEchelon(link(a.get(ref), a.get(id))), `#${id} in echelon on #${ref}`);
 });
 
-test('2-ship close station changes: no wings overlap, the crossing is below and behind Lead, and #2 stops behind the new slot before moving up', () => {
+test('2-ship close station changes: no wings overlap, the crossing is below and behind Lead, and #2 passes behind the new slot before moving up', () => {
   for (const [from, to, side] of [['echelon', 'echelon', 'left'], ['echelon', 'astern', 'keep'], ['astern', 'echelon', 'left']]) {
     const f = createFormation();
     f.change(from);
     fly(f, `to ${from}`);
     const what = `${from} to ${to} (${side})`;
     assert.equal(f.change(to, { side }), 'started', what);
-    let prevRel = null;
-    let stoppedBehind = false;
+    let passedBehind = false;
     fly(f, what, (_b, [lead, wing], t) => {
       const l = link(lead, wing);
       assert.ok(!(l.across < WINGSPAN_FT && l.back < LENGTH_FT + 5), `${what} at ${t.toFixed(1)} s: wings overlap (${l.rel.fwd.toFixed(0)}, ${l.rel.left.toFixed(0)} ft)`);
       if (l.across < WINGSPAN_FT) assert.ok(l.down > 0, `${what} at ${t.toFixed(1)} s: crossing at or above Lead's height`);
-      if (prevRel && to === 'echelon') {
-        const relSpeed = Math.hypot(l.rel.fwd - prevRel.fwd, l.rel.left - prevRel.left) / STEP_SEC;
-        // behind the new echelon slot (left of Lead), well back of it, and at a stop (under about 1 kt against Lead)
-        if (l.rel.left > 30 && l.back > LENGTH_FT + 5 && relSpeed < 1.7) stoppedBehind = true;
-      }
-      prevRel = l.rel;
+      // behind the new echelon slot (left of Lead) and well back of it; he need not stop there (Patrick's card 12 Oct 2026
+      // 00:05Z, "Change to 'passes'"; until then the test asked for a stop under about 1 kt against Lead)
+      if (to === 'echelon' && l.rel.left > 30 && l.back > LENGTH_FT + 5) passedBehind = true;
     });
     const [lead, wing] = f.state.aircraft;
     const l = link(lead, wing);
     assert.ok(to === 'echelon' ? inEchelon(l) && l.rel.left > 0 : inAstern(l), `${what} ends in ${to}`);
-    if (to === 'echelon') assert.ok(stoppedBehind, `${what}: stopped behind the new slot before moving up`);
+    if (to === 'echelon') assert.ok(passedBehind, `${what}: passed behind the new slot before moving up`);
   }
 });
 
