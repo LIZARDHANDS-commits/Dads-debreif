@@ -28,6 +28,13 @@
 //    flown by geometry alone, the entry included (Patrick 22:33Z and 22:55Z). While Lead holds a speed (Terminate) power flies his range, from Lead's new
 //    speed.
 //
+// In fluid manoeuvring (the entry and Terminate included) he chases a point (Patrick 12 Oct 2026 01:50Z: "Look at how we
+// did it with 'planned', that seemed to work well?", card 01:52Z "Chase Planned's point"; Fable's v6, Patrick "Build it"
+// 02:16Z): on Lead's trail the set distance back along it, on his side. He pulls Lead's bend there at his own speed, plus
+// a gentle correction toward the point, moved inside the bend when he is behind it and outside when he is ahead (lead
+// and lag), through the T-6A's G onset and roll rate; its side and word are the planned wing's (fluid-wing.js, passed in
+// as ctx.ghost). The path law above flies only without it.
+//
 // Units: feet, seconds, x east, y north, z up; Lead's positions are heights above the block (fluid.js), #2's point mass
 // is absolute (as Lead's st.pm). Every number with no manual or ruling beside it is an estimate and says so.
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
@@ -39,7 +46,7 @@ import { G_RULE, WING, HOLD } from './tuning.js';
 import { FW_BAND } from './slots.js';
 import { leadStateOf, stepLead, leadThrottle } from './fluid-lead.js';
 import { powerFrom } from './power.js';
-import { swapWanted } from './fluid-wing.js';
+import { swapWanted, wingValues } from './fluid-wing.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3, poseOf3d } from './attitude.js';
 
 const dt = STEP_SEC;
@@ -80,6 +87,14 @@ export const LIVE = Object.freeze({
   bubbleMarginFt: HOLD.bubbleMarginFt, // the 500 ft bubble's margin, about 50 ft (estimate, TS-74)
   wordShare: Object.freeze({ on: 0.35, off: 0.15 }), // LAG or LEAD shows past 35% of full and goes under 15%, so the word doesn't flicker (estimate)
   settleKt: 2, // Terminate ends with him in the fighting wing band and within 2 kt of Lead (spec section 9)
+  // Chasing the planned #2's point (v5; Patrick 12 Oct 2026 01:52Z, "Chase Planned's point"):
+  chaseOmega: 0.5, // the correction toward the point, critically damped at 0.5 rad/s (estimate)
+  chaseMaxG: 1, // ... and no more than 1 G of it (estimate): a big gap means he is behind the picture and may correct hard, smoothly (Patrick 11 Oct 20:26Z, targets not walls)
+  gapK: 1, // the gap along the point's path (behind it positive) moves his target inside the point's turn (lead, the short way) or outside it (lag), 1 ft per ft (estimate; Fable 12 Oct 02:03Z) ...
+  gapLookSec: 2, // ... for the gap he will have in 2 s at the rate it is changing (estimate) ...
+  gapMaxFt: 300, // ... no more than 300 ft either way (estimate); full with the point turning at 1 G (turnFullG), none straight: on a straight leg the gap waits for the next turn
+  farFt: 300, // over 300 ft from the point he points at it instead (estimate) ...
+  farBlendFt: 100, // ... blended over 100 ft (estimate)
 });
 
 /** Lead's level frame at an entry: nose, level up (his path, not his roll) and left wing line. */
@@ -105,6 +120,41 @@ function carryBank(prev, next) {
   const bodyUp = unit3(add3(scale3(next.pm.up, Math.cos(b)), scale3(right, Math.sin(b))));
   const accPerp = perp3(sub3(scale3(bodyUp, next.g * G_FTPS2), { x: 0, y: 0, z: G_FTPS2 }), next.nose);
   return { ...next, bank: ((bankDeg + 540) % 360) - 180, bodyUp, accPerp };
+}
+
+/**
+ * The lift (in G) that chases the point g ({ p, v, a }: place, velocity, and the bend of Lead's path there flown at #2's
+ * speed): that bend (square to his path) plus a critically damped correction toward the point (moved inside or outside
+ * the bend by the gap along its path: lead and lag), square to
+ * his path too (power is MAX throughout, so only lift flies it) and no more than chaseMaxG. Over farFt from the point
+ * he points at it instead (the pursuit lift at the L1 gain, at the point a look ahead along its path), blended over
+ * farBlendFt.
+ */
+function chaseLift(g, st, pw) {
+  const vHat = st.nose;
+  const w = LIVE.chaseOmega;
+  // Lead and lag (Patrick 11 Oct 2026, "you lead and lag because at certain points he's faster or slower than you"): at
+  // MAX only geometry moves him along the point's path, so the gap along it moves his target inside the point's turn
+  // when he is behind (a shorter way round, closing) and outside it when he is ahead (a longer way, opening).
+  const gNose = unit3(g.v);
+  const turn = perp3(g.a, gNose);
+  const turnFrac = Math.min(1, len3(turn) / (LIVE.turnFullG * G_FTPS2));
+  const gap = dot3(sub3(g.p, pw), gNose);
+  const gapRate = dot3(sub3(g.v, st.vel), gNose);
+  const shiftFt = Math.max(-LIVE.gapMaxFt, Math.min(LIVE.gapMaxFt, LIVE.gapK * (gap + LIVE.gapLookSec * gapRate))) * turnFrac;
+  const target = len3(turn) > 1e-6 ? add3(g.p, scale3(unit3(turn), shiftFt)) : g.p;
+  const err = sub3(target, pw);
+  let corr = perp3(add3(scale3(err, w * w), scale3(sub3(g.v, st.vel), 2 * w)), vHat);
+  const m = len3(corr);
+  if (m > LIVE.chaseMaxG * G_FTPS2) corr = scale3(corr, (LIVE.chaseMaxG * G_FTPS2) / m);
+  const weightPerp = perp3({ x: 0, y: 0, z: 1 }, vHat);
+  const near = add3(weightPerp, scale3(add3(perp3(g.a, vHat), corr), 1 / G_FTPS2));
+  const far = Math.max(0, Math.min(1, (len3(err) - LIVE.farFt) / LIVE.farBlendFt));
+  if (far <= 0) return near;
+  const aim = add3(g.p, scale3(unit3(g.v), st.V * LIVE.l1Sec));
+  const toAim = sub3(aim, pw);
+  const point = liftTowardAim(vHat, toAim, st.V, (2 * st.V) / Math.max(len3(toAim), LIVE.l1MinFt)).wanted;
+  return add3(scale3(near, 1 - far), scale3(point, far));
 }
 
 /** A value moved toward a target at no more than rate per second. */
@@ -159,6 +209,8 @@ export function stepLiveWing(ws, ctx) {
   // over the top earlier"; Lead's own phase word, fluid-lead.js loopMode and overTheTopMode), power left at MAX.
   const overTop = !toSlot && LIVE.overTop.includes(e.ctl?.key) && e.mem?.stage !== 'exit';
   const topPhase = overTop && e.mem?.stage !== 'setup';
+  // He chases the point (chaseLift), Terminate included (its power below); the path law flies only without one.
+  const chase = Boolean(ctx.ghost);
   // How much of Lead's turn is sideways in his level frame (1 in a level turn, 0 in a loop or straight): the side swap
   // (TS-60) is a sideways matter, flown only with Lead's nose near level; in the vertical #2 stays on his side.
   const aLead = len3(e.accPerp);
@@ -167,7 +219,8 @@ export function stepLiveWing(ws, ctx) {
   let topSwaps = overTop ? ws.topSwaps ?? 0 : 0;
   let outside = overTop ? ws.outside ?? null : null;
   const rollingOver = overTop && (e.ctl.key === 'barrelRoll' || (e.ctl.key === 'wingover' && e.mem.stage === 'setup'));
-  if (!toSlot && !entering && !rollingOver && levelish && latFrac > 0.5 && swapWanted(side * latDeg, aDot, { blend: 1, t, swapUntil })) {
+  if (chase) side = ctx.ghost.side;
+  else if (!toSlot && !entering && !rollingOver && levelish && latFrac > 0.5 && swapWanted(side * latDeg, aDot, { blend: 1, t, swapUntil })) {
     side = -side;
     swapUntil = t + (2 * LIVE.latDeg) / LIVE.acrossDps;
   } else if (rollingOver) {
@@ -284,6 +337,50 @@ export function stepLiveWing(ws, ctx) {
   const keepSteps = Math.ceil(30 / dt);
   for (let j = Math.max(ctx.kMin, kNow - keepSteps); j <= kNow; j++) trailAt(j);
   for (const j of trail.keys()) if (j < kNow - keepSteps) trail.delete(j);
+  // The point he chases (Fable 12 Oct 2026 02:20Z, Patrick "Build it" 02:16Z): on Lead's trail the set distance back ALONG
+  // it (arc length, the sum of the step distances), across to his side by the planned wing's across offset (fluid-wing.js,
+  // its swaps included) in the trail's own frame, blended from his fighting wing slot in the entry and back to it in
+  // Terminate. It moves at Lead's speed and bends as his path bends: a place an aircraft with Lead's energy can hold.
+  // bend: Lead's turning there; vl: Lead's speed there.
+  const pointAt = (kk) => {
+    const ek = ctx.E(kk);
+    const v = wingValues(ek.wing, ek.t);
+    let s = 0;
+    let j = kk;
+    let u = 0;
+    while (j > ctx.kMin + 1) {
+      const d = len3(sub3(ctx.E(j).pos, ctx.E(j - 1).pos));
+      if (s + d >= v.rangeFt) {
+        u = (v.rangeFt - s) / Math.max(d, 1e-6);
+        break;
+      }
+      s += d;
+      j--;
+    }
+    const a = ctx.E(j);
+    const b = ctx.E(j - 1);
+    const lerp = (x, y, f = u) => add3(x, scale3(sub3(y, x), f));
+    const across = unit3(lerp(trailAt(j).left, trailAt(j - 1).left));
+    let p = add3(lerp(a.pos, b.pos), scale3(across, v.latFt));
+    let bend = lerp(a.accPerp, b.accPerp);
+    if (v.blend < 1) {
+      const h = unit3({ x: ek.vel.x, y: ek.vel.y, z: 0 });
+      const sl = ek.wing.slot;
+      const slotP = add3(ek.pos, { x: h.x * sl.fwd - h.y * sl.left, y: h.y * sl.fwd + h.x * sl.left, z: sl.alt });
+      p = lerp(slotP, p, v.blend);
+      bend = lerp(ek.accPerp, bend, v.blend);
+    }
+    return { p, bend, vl: len3(lerp(a.vel, b.vel)) };
+  };
+  let point = null;
+  if (ctx.ghost) {
+    const [p0, p1, p2] = [pointAt(kNow - 1), pointAt(kNow), pointAt(kNow + 1)];
+    const v = scale3(sub3(p2.p, p0.p), 1 / (2 * dt));
+    // Lead's bend there flown at #2's own speed (aFF = aLead x (V2 / V_lead)^2), so he is never asked for more G than his
+    // speed on that path needs.
+    const a = scale3(perp3(p1.bend, unit3(v)), (st.V / Math.max(p1.vl, 1)) ** 2);
+    point = { p: p1.p, v, a };
+  }
   // In the vertical: lead cuts inside Lead's turn (the short way down) and lag goes outside it, both as Lead's phase sets
   // them; to stay out of the bubble he moves out of Lead's plane, wider to his own side, rather than higher.
   const nVert = off.n * (off.n < 0 ? LIVE.vertLag : LIVE.vertLead);
@@ -334,7 +431,7 @@ export function stepLiveWing(ws, ctx) {
   // ---- the lift: core's pursuit lift at the path-following gain (2V over L1), then the caps ----
   const vHat = st.nose;
   const gain = (2 * st.V) / l1;
-  let lift = liftTowardAim(vHat, sub3(A, pw), st.V, gain).wanted;
+  let lift = chase ? chaseLift(point, st, pw) : liftTowardAim(vHat, sub3(A, pw), st.V, gain).wanted;
   const onUp = dot3(lift, st.bodyUp);
   if (onUp < LIVE.minG) {
     // No push: he unloads to 0.5 G and keeps his wings where they are, so a wish to push never becomes a roll toward what
@@ -372,7 +469,7 @@ export function stepLiveWing(ws, ctx) {
   let word = ws.word;
   if (word === 'pure') word = share > LIVE.wordShare.on ? 'lead' : share < -LIVE.wordShare.on ? 'lag' : 'pure';
   else if (Math.abs(share) < LIVE.wordShare.off || Math.sign(share) !== (word === 'lead' ? 1 : -1)) word = 'pure';
-  const cue = toSlot ? 'back to fighting wing' : entering ? 'entry' : swapUntil > t ? 'swap' : word;
+  const cue = toSlot ? 'back to fighting wing' : entering ? 'entry' : chase ? ctx.ghost.cue : swapUntil > t ? 'swap' : word;
 
   // Terminate is over once he is in the fighting wing band and within 2 kt of Lead (spec section 9).
   const aspect = Math.abs(latDeg);

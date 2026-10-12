@@ -13,14 +13,14 @@
 // rulings as cited on each number.
 
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
-import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
-import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
+import { DEG, RAD, wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
+import { bankDegFromG, turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
 import { glideDragPerWeight, glideRatio, stallLimitG } from '../../core/t6-performance.js';
 import { iasToTasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
-import { startJoin } from './path-follower.js';
+import { startJoin, setFlown, flownOf } from './path-follower.js';
 import { routeLengthFt } from './route.js';
 import {
   THRESHOLD_29L,
@@ -32,8 +32,6 @@ import {
   FIELD_ELEV_FT,
 } from './airfield.js';
 
-const DEG = Math.PI / 180;
-const RAD = 180 / Math.PI;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
 const bearing = (a, b) => compassDegFromVector(b.x - a.x, b.y - a.y);
@@ -169,7 +167,7 @@ function directTurnRadiusFt(altFt = 2500) {
 }
 
 function glideJoinMinRadiusFt(altFt = 3500) {
-  const stallBankDeg = Math.acos(1 / Math.max(stallG(PFL.glideCleanKias, 0), 1.0001)) / DEG;
+  const stallBankDeg = bankDegFromG(Math.max(stallG(PFL.glideCleanKias, 0), 1.0001));
   return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideCleanKias, altFt)), Math.min(PFL.maxBankDeg, stallBankDeg));
 }
 
@@ -689,7 +687,7 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
   const nl = { x: -geo.u.y, y: geo.u.x };
   const off = (from.x - geo.th.x) * nl.x + (from.y - geo.th.y) * nl.y;
   const vMax = ktToFtps(iasToTasKt(kias, altFt) + (wind?.windKt ?? 0));
-  const bankMax = Math.min(PFL.maxBankDeg, Math.acos(1 / Math.max(stallG(kias, 0), 1.0001)) / DEG);
+  const bankMax = Math.min(PFL.maxBankDeg, bankDegFromG(Math.max(stallG(kias, 0), 1.0001)));
   const rMin = turnRadiusFromBankFt(vMax, bankMax);
   const rMax = turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, altFt)), PFL.directMinBankDeg);
   const out = [];
@@ -1401,8 +1399,7 @@ export function startPflFlight(a, wind, options = {}) {
     options
   );
 
-  a.pflFlight = {
-    route: { id: 'PFL_FLOWN', kind: 'pfl', name: 'Engine-out glide', points: flight.points },
+  const fl = setFlown(a, 'pfl', { id: 'PFL_FLOWN', kind: 'pfl', name: 'Engine-out glide', points: flight.points }, {
     outcome: flight.outcome,
     touchdown: flight.touchdown,
     eject: flight.eject,
@@ -1410,13 +1407,13 @@ export function startPflFlight(a, wind, options = {}) {
     practice: Boolean(options.practice),
     patternPfl: flight.patternPfl,
     planLog: flight.planLog,
-  };
+  });
 
   const behind = flownBehind(a, flight.points[0], wind);
-  a.pflFlight.behindCount = behind.length;
-  a.pflFlight.route.points = [...behind, ...flight.points];
+  fl.behindCount = behind.length;
+  fl.route.points = [...behind, ...flight.points];
 
-  startJoin(a, a.pflFlight.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
+  startJoin(a, fl.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
 
   a.engineFailed = true;
   a.landed = false;
@@ -1432,14 +1429,12 @@ export function startPflFlight(a, wind, options = {}) {
   delete a._blendStart;
   delete a._blendTarget;
   delete a._blendTimer;
-  delete a.goAroundFlight;
-  delete a.highKeyFlight;
 
-  return a.pflFlight;
+  return fl;
 }
 
 export function resumePflFlight(a, wind, settings = undefined) {
-  const prev = a.pflFlight;
+  const prev = flownOf(a, 'pfl');
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a.config ?? PFL_CONFIG_LABELS[0]));
   return startPflFlight(a, wind, {
     practice: prev?.practice,
@@ -1470,10 +1465,7 @@ function flownBehind(a, first, wind) {
   const alt = Number.isFinite(a.alt) ? a.alt : 3500;
   const tasFtps = ktToFtps(iasToTasKt(a.iasKt ?? a.kt ?? 125, alt));
   const omegaDeg = Number.isFinite(a.bankDeg) ? turnRateFromBankRadPerSec(Math.max(tasFtps, 1), a.bankDeg) * RAD : 0;
-  const w = {
-    x: -Math.sin((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0),
-    y: -Math.cos((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0),
-  };
+  const w = windVectorFtps(wind?.windFromDeg ?? 360, wind?.windKt ?? 0);
   const pts = [];
   let x = Number.isFinite(a.x) ? a.x : 0, y = Number.isFinite(a.y) ? a.y : 0, hdg = a.headingDeg ?? RUNWAY_29L_HDG_DEG;
   const dt = 0.4;

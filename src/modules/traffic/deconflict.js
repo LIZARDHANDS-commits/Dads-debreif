@@ -35,9 +35,9 @@ export const DECONFLICT = Object.freeze({
 
 /** Where each aircraft stands, for the right-of-way table: keyed on route kind and phase, never a route name. */
 function standingOf(a, route) {
-  if (a.pflFlight) return 'pfl';
-  if (a.deconflict?.move === 'fly_through' && a.goAroundFlight) return 'fly_through';
-  if (a.goAroundFlight || a.highKeyFlight || a.command === 'breakout' || a.command === 'closed_pattern') return 'manoeuvring';
+  if (a.flown?.kind === 'pfl') return 'pfl';
+  if (a.deconflict?.move === 'fly_through' && a.flown?.kind === 'move') return 'fly_through';
+  if (a.flown || a.command === 'breakout' || a.command === 'closed_pattern') return 'manoeuvring';
   if (route && (route.kind === 'entry' || route.kind === 'split')) {
     return +route.mergeIndex > 0 || route.kind === 'split' ? 'joining' : 'straight_in';
   }

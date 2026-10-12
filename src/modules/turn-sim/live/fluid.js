@@ -140,8 +140,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const t = t0 + (kMax + 1) * dt;
     let w = nextWing(e.wing, r.cue, t, rangeFt, blend);
     // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
-    // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun.
-    if (!live && kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
+    // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun. With the live
+    // wingman the side of the point he chases follows it (fluid-wing-live.js).
+    if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
       const [p0, p1] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad];
       const h = SWAP_LOOK_STEPS * dt;
       const rate = (p0 - p1) / h;
@@ -282,15 +283,14 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       if (queued && kNow > queued.startK) queued = null;
       const lp = leadPose(kNow);
       if (live) {
-        // #2 reads Lead as he is at the start of the step and flies one step of his own aircraft (fluid-wing-live.js).
+        // #2 reads Lead as he is at the start of the step and flies one step of his own aircraft (fluid-wing-live.js),
+        // chasing a point on Lead's trail; its side and word are the planned wing's, swaps included.
         const e = E(kNow);
-        liveNow = stepLiveWing(liveWs, { e: E(kNow - 1), E, k: kNow - 1, kMin, t: e.t, rangeFt, blockFt });
+        const kg = kNow - 1;
+        const rg = R(kg);
+        const ghost = { side: E(kg).wing.side, cue: rg.blend < 0.5 ? 'entry' : rg.cue };
+        liveNow = stepLiveWing(liveWs, { e: E(kg), E, k: kg, kMin, t: e.t, rangeFt, blockFt, ghost });
         liveWs = liveNow.ws;
-        // Lead's turns that read #2's side (Terminate's turn away from him, the entry) read the side he is really on.
-        for (let j = kNow; j <= kMax; j++) {
-          const en = entries.get(j);
-          if (en.wing.side !== liveWs.side) en.wing = { ...en.wing, side: liveWs.side };
-        }
         if (e.end && endSeen === null) endSeen = kNow;
         if (endSeen !== null && ended === null && (liveNow.settled || kNow - endSeen > HOLD.extraSec / dt)) ended = kNow;
         const pose = liveNow.pose;

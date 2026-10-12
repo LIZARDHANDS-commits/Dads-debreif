@@ -79,7 +79,7 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 
 ---
 
-## 2. Architecture (as built, V2.351)
+## 2. Architecture (as built, V2.362)
 
 ### 2.1 One mover
 Every aircraft rides a path on the path follower (`path-follower.js` `followRoute`), which moves it along the path at the path's speed and height and takes heading, bank, roll and pitch from the path. There is no second way to move an aircraft.
@@ -88,7 +88,7 @@ Every aircraft rides a path on the path follower (`path-follower.js` `followRout
 The paths are flown once, ahead of time, by the simulated pilot in `circuit.js` (`makePilot`): the circuit itself (`buildCircuit`, Pattern 1 built by flying it in the day's wind, section 1), and every manoeuvre from where the aircraft is when it starts: the go-around, the closed pattern (`closed-pattern.js`), the climb to High Key (`high-key.js`), the PFL (`pfl.js` `flyPfl`, section 4.5), the breakout (`breakout.js`) and the evasions (`evade.js`, section 4.12). The pilot flies by bank, power and pitch within the T-6A model in `src/core/t6-performance.js`, so the path is one a pilot could fly.
 
 ### 2.3 Flown-path carriers
-An aircraft on a manoeuvre carries its flown path on one of three slots (`goAroundFlight`, `highKeyFlight`, `pflFlight`); `tick-aircraft.js` follows the slot that is set, else the route the aircraft is on. When a flown path ends, `sim.js` puts the aircraft back on its route (`goAroundEnded`, `pflEnded`). Refactor step 3 makes the three slots one carrier.
+An aircraft on a manoeuvre carries its flown path in one carrier, `a.flown` = { kind, route, ... }, set by `path-follower.js` `setFlown`: kind `move` (the go-around, closed pattern, breakout, the deconfliction's moves, the extended downwind, the straight-in from the downwind), `high_key` (the climb to High Key) or `pfl` (the glide). `tick-aircraft.js` follows it, with each kind's own lines in one table (`FLOWN_STEP`), else the route the aircraft is on. When a flown path ends, `sim.js` `flownEnded` puts the aircraft back on its route (`goAroundEnded`, `pflEnded`). A new flown path replaces the one before, and any later command except a touch-and-go cancels a closed pattern still waiting for the upwind end, so the newest order wins (refactor step 3).
 
 ### 2.4 The step
 `sim.js` steps in whole 0.05 s steps. Every tenth step it runs the SI pattern, the randomiser, the deconfliction and the runway check; then, for each aircraft, the follow, the end of a flown path, the land-or-split decisions, the end of a route and a pending closed pattern; then the collision check and, every 10 s, the snapshot that rewind restores. The day's temperature (`weather.js`) is set from the setup before each step.
@@ -535,7 +535,7 @@ Every setting starts filled in so the first look is clean and intuitive:
 
 ---
 
-## 8. Files and the core they use (as built, V2.351)
+## 8. Files and the core they use (as built, V2.362)
 
 ### 8.1 The flying files
 | File | What it does |
@@ -549,7 +549,7 @@ Every setting starts filled in so the first look is clean and intuitive:
 | `closed-pattern.js`, `high-key.js`, `breakout.js`, `evade.js` | The manoeuvres flown by the pilot |
 | `deconflict.js`, `envelope.js` | The spacing (4.12) and its limits |
 | `randomize.js`, `behaviour.js` | Random behaviour (4.13) and the behaviour tag (4.14) |
-| `weather.js`, `airfield.js` | The day's temperature, true heights and the straight-in descent; Moose Jaw's numbers |
+| `weather.js`, `airfield.js` | The day's temperature, true heights and the straight-in descent; Moose Jaw's numbers and the runway frame (along and across the centreline, lined up) |
 | `taxi.js`, `ejection.js`, `scenario-timing.js`, `glue.js`, `dice.js` | Taxi-in, ejection, the straight-in's timing, settings into the setup, the seeded dice |
 
 ### 8.2 Core used
