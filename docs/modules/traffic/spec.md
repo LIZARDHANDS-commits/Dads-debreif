@@ -79,7 +79,7 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 
 ---
 
-## 2. Architecture (as built, V2.364)
+## 2. Architecture (as built, V2.366)
 
 ### 2.1 One mover
 Every aircraft rides a path on the path follower (`path-follower.js` `followRoute`), which moves it along the path at the path's speed and height and takes heading, bank, roll and pitch from the path. There is no second way to move an aircraft.
@@ -537,7 +537,7 @@ Every setting starts filled in so the first look is clean and intuitive:
 
 ---
 
-## 8. Files and the core they use (as built, V2.364)
+## 8. Files and the core they use (as built, V2.366)
 
 ### 8.1 The flying files
 | File | What it does |
