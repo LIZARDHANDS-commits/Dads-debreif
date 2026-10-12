@@ -173,6 +173,21 @@ function pathGroundVelocity(route, distFt, env, options) {
 }
 
 /**
+ * The one flown-path carrier (Traffic refactor step 3): a path flown once from where the aircraft is, followed in
+ * place of the route it is on. `kind` is 'move' (the go-around, closed pattern, breakout, the deconfliction's
+ * moves, the extended downwind and the straight-in from the downwind), 'high_key' (the climb to High Key) or 'pfl'
+ * (the engine-out glide). `extra` carries the kind's own fields: `then` and `joinId` for a move, `settings` for the
+ * climb to High Key, the outcome and plan for the PFL. A new flown path replaces the one before.
+ */
+export function setFlown(a, kind, route, extra = {}) {
+  a.flown = { kind, route, ...extra };
+  return a.flown;
+}
+
+/** The aircraft's flown path when it is of this kind, else null. */
+export const flownOf = (a, kind) => (a.flown?.kind === kind ? a.flown : null);
+
+/**
  * Puts `a` onto `route` at `distFt` from wherever it is and however it is moving
  * (Patrick, 4 Oct 09:21Z: at the hand-over the aircraft's vector lines up with its
  * own track, so nothing snaps). The gap and the difference in ground velocity both
@@ -336,7 +351,7 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   if (p.phase) a.phase = p.phase;
   if (p.tag) a.tag = p.tag;
   else if (route?.points?.[p.seg]?.tag) a.tag = route.points[p.seg].tag;
-  if (!a.pflFlight) {
+  if (!flownOf(a, 'pfl')) {
     a.config = resolveAircraftConfig(a, p, route);
   }
 
@@ -420,7 +435,7 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
  * this reads the phase, so the two can differ for a moment at a phase change.
  */
 function resolveAircraftConfig(a, p, route) {
-  if (a.pflFlight) return a.config ?? CONFIG.clean;
+  if (flownOf(a, 'pfl')) return a.config ?? CONFIG.clean;
   const ph = a.phase;
   const kt = a.iasKt ?? a.kt ?? 0;
   const alt = a.alt ?? 3500;

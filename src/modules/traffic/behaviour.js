@@ -55,12 +55,12 @@ export function behaviourLabel(b, deconflictLabel = null) {
 
 /** The pattern and next step, from the move it is flying, then the route and phase. */
 function patternOf(a, ctx) {
-  if (!a.active || a.landed || a.pflFlight || a.engineFailed) return null;
-  const flown = a.goAroundFlight?.route.id;
+  if (!a.active || a.landed || a.flown?.kind === 'pfl' || a.engineFailed) return null;
+  const flown = a.flown?.kind === 'move' ? a.flown.route.id : undefined;
   // Lined up on final and past the window: what it will do at the runway (Patrick, 4 Oct).
   const pastWindow = ctx.onFinal && Number.isFinite(ctx.toThresholdFt) && Number.isFinite(ctx.windowFt) && ctx.toThresholdFt <= ctx.windowFt;
   if (pastWindow && (!flown || flown === 'EXTEND_FLOWN')) return { pattern: landingTag(a), next: null, stage: ctx.route?.kind === 'entry' ? 'final_straight_in' : 'final' };
-  if (a.highKeyFlight) return { pattern: 'CLOSED TO HIGH KEY', next: 'PFL next', stage: 'climb' };
+  if (a.flown?.kind === 'high_key') return { pattern: 'CLOSED TO HIGH KEY', next: 'PFL next', stage: 'climb' };
   if (flown === 'CLOSED_FLOWN') return { pattern: 'CLOSED', next: 'downwind next', stage: 'closed' };
   if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: 'outer downwind next', stage: 'go_around' };
   if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'SI', next: null, stage: 'straight_in_downwind' };
