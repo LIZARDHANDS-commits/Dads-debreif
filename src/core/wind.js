@@ -6,13 +6,8 @@
 // because a wind is given that way in a METAR and routes are laid out that
 // way. Speeds are in knots. One steady wind: a direction it
 // blows FROM, and a speed.
-import { degToRad, radToDeg } from './angles.js';
+import { degToRad, radToDeg, wrapDeg360 } from './angles.js';
 import { ktToFtps } from './units.js';
-
-/** 0 to 360. */
-function wrap360(deg) {
-  return ((deg % 360) + 360) % 360;
-}
 
 /**
  * The wind triangle for a straight leg.
@@ -41,13 +36,13 @@ export function windTriangle(trackDeg, tasKt, windFromDeg, windKt) {
   const headwindKt = windKt * Math.cos(rel) + 0;
   if (!(tasKt > 0 && Math.abs(crosswindKt) <= tasKt)) {
     const crabDeg = 90 * Math.sign(crosswindKt);
-    return { crabDeg, headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: 0, headwindKt, crosswindKt, canHoldTrack: false };
+    return { crabDeg, headingDeg: wrapDeg360(trackDeg + crabDeg), groundSpeedKt: 0, headwindKt, crosswindKt, canHoldTrack: false };
   }
   const crab = Math.asin(crosswindKt / tasKt);
   const crabDeg = radToDeg(crab);
   const groundSpeedKt = tasKt * Math.cos(crab) - headwindKt;
   const canHoldTrack = groundSpeedKt > 0;
-  return { crabDeg, headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack ? groundSpeedKt : 0, headwindKt, crosswindKt, canHoldTrack };
+  return { crabDeg, headingDeg: wrapDeg360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack ? groundSpeedKt : 0, headwindKt, crosswindKt, canHoldTrack };
 }
 
 

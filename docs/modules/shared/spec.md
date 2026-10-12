@@ -16,7 +16,7 @@ One set of small, pure, tested functions for the numbers every module shows: uni
 
 ### What core is
 
-Plain JavaScript ES modules with no dependencies, which run as they are in a browser and in Node. No state, no screen, no fetches: numbers in, numbers out (the terrain files decode tiles a caller has fetched). Nothing in core imports from outside core. Inside core the files form a tree with no cycles: everything reads `units.js` and `angles.js`; `t6-performance.js` reads `flight-math.js`, `t6a-turn-data.js` and `point-mass.js`; `terrain-grid.js` reads `geo.js` and `terrain-tiles.js`.
+Plain JavaScript ES modules with no dependencies, which run as they are in a browser and in Node. No state, no screen, no fetches: numbers in, numbers out (the terrain files decode tiles a caller has fetched). Nothing in core imports from outside core. Inside core the files form a tree with no cycles: everything reads `units.js` and `angles.js`; `flight-math.js` and `t6-performance.js` read `atmosphere.js`; `t6-performance.js` also reads `t6a-turn-data.js` and `point-mass.js`; `terrain-grid.js` reads `geo.js` and `terrain-tiles.js`.
 
 | File | Holds |
 |---|---|
@@ -24,7 +24,8 @@ Plain JavaScript ES modules with no dependencies, which run as they are in a bro
 | `angles.js` | The one heading convention, wrapping, relative bearing, clock positions, aspect and HCA (2D and 3D), compass conversions |
 | `geo.js` | The flat local map (lat/lon to feet and back), map tiles, Mercator, distance along and off a leg |
 | `wind.js` | The wind triangle (crab, heading, ground speed) and the wind as a vector |
-| `flight-math.js` | Turn radius, rate and bank from G or bank; the standard atmosphere's density ratio; the EM chart point; closure and G from recorded tracks; the smooth roll (`easeRoll`, `easeValue`), `rollToward`, `dampedClimbG` |
+| `atmosphere.js` | The standard day once: temperature, pressure and density ratios and the speed of sound at a height, with an optional temperature deviation |
+| `flight-math.js` | Turn radius, rate and bank from G or bank; the EM chart point; closure and G from recorded tracks; the smooth roll (`easeRoll`, `easeValue`), `rollToward`, `dampedClimbG` |
 | `point-mass.js` | One step of an aircraft flown by G and bank as a point, through loops and straight up or down, and the frames a pursuit needs |
 | `t6-performance.js` | The one T-6A performance model: limits and stall line, roll and G onset, IAS and TAS, Mach, thrust and drag, pitch attitude, energy height, glide, the engine-out zoom, the stick shaker and the split S |
 | `t6a-turn-data.js` | The sustained turn points, read by eye, and the thrust and drag fitted to them (`T6A_FIT`) |
@@ -35,7 +36,7 @@ Plain JavaScript ES modules with no dependencies, which run as they are in a bro
 | `time.js` | Zulu and zone-aware formatting, ISO time parsing, the Zulu DTG |
 | `terrain-tiles.js`, `terrain-grid.js` | The public elevation tiles decoded, and the height grids a 3D ground is drawn from (a picture only) |
 
-Not in `core`: resolving a TAF's day-of-month into a date (`src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`src/flight-data/`); weather parsing (`src/wx/`); drawing. Traffic's temperature-aware airspeed pair is in `src/modules/traffic/weather.js` until core step 2 gives the atmosphere one home.
+Not in `core`: resolving a TAF's day-of-month into a date (`src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`src/flight-data/`); weather parsing (`src/wx/`); drawing. Traffic's temperature-aware airspeed pair stays in `src/modules/traffic/weather.js`, which holds the day's temperature, and calls `atmosphere.js` with it.
 
 ### The heading convention (checked by `tests/unit/core/angles.test.js`)
 

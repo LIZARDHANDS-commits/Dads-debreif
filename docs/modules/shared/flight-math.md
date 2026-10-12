@@ -37,8 +37,9 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | Function | File | What it gives | Source |
 |---|---|---|---|
 | `iasToTasKt(kias, alt)`, `tasToIasKt` | t6-performance.js | Indicated to true airspeed and back, standard day, no compressibility | aero |
-| `machToKiasKt`, `speedOfSoundKt` | t6-performance.js | KIAS for a Mach number; speed of sound | aero |
-| `isaDensityRatio(alt)` | flight-math.js | Air density as a fraction of sea level | standard atmosphere |
+| `machToKiasKt` | t6-performance.js | KIAS for a Mach number, with compressibility | aero |
+| `isaTempK(alt, dev)`, `isaPressureRatio(alt)`, `isaDensityRatio(alt)`, `speedOfSoundKt(alt, dev)` | atmosphere.js | The standard day once: temperature, pressure and density as a fraction of sea level, and the speed of sound; `dev` is today's temperature deviation, °C (0 by default). `isaDensityRatio` is also exported from flight-math.js and `speedOfSoundKt` from t6-performance.js, under the same names | standard atmosphere |
+| `densityRatio(alt, dev)` | atmosphere.js | Air density at a pressure height on a day `dev` °C off standard: the standard ratio times T ÷ (T + dev). Traffic's airspeed pair in `weather.js` uses it with the day's deviation (TR-77) | standard atmosphere |
 | `energyHeightFt(alt, ktas)` | t6-performance.js | Height plus the height the speed is worth | aero |
 | `excessFnFor(throttle)` | t6-performance.js | The point-mass step's excess-power callback at part throttle: thrust scales with the throttle, drag does not | aero |
 | Idle prop and speed brake drag (not in core) | Formation Sim (planned) | Extra drag at idle, full-fine prop: about 0.16 of the weight at 200 KIAS, growing with dynamic pressure; speed brake as a perforated flat plate. Used by the Formation Sim only; the core curves do not change | Patrick's break and "about 5 kt/s" (TS-61, `docs/modules/turn-sim/decisions.md`); brake size pending his number |
@@ -101,7 +102,7 @@ These live in `src/modules/traffic/` today. The refactor moves or replaces them 
 
 | What | Where now | What happens to it |
 |---|---|---|
-| Indicated to true airspeed and back on today's temperature (`iasToTasKt`, `tasToIasKt`, `densityRatio`, with the day's deviation from the standard day, TR-77) | `weather.js` | Same names as core's standard-day pair; core step 2 gives the atmosphere one home (`src/core/atmosphere.js`) and this pair calls it |
+| Indicated to true airspeed and back on today's temperature (`iasToTasKt`, `tasToIasKt`, with the day's deviation from the standard day, TR-77) | `weather.js` | Same names as core's standard-day pair; each is one line calling core's `densityRatio` (`atmosphere.js`) with the day's deviation (core step 2) |
 | Moose Jaw numbers (threshold, runway heading, field elevation, pattern and key heights, PFL circle) | `airfield.js` | Stays there; any number still typed elsewhere moves in by PR 5 |
 | The circuit, built by flying it: climb-out, crosswind at 220 KIAS, fixed downwind and base, break, perch moved so the final turn rolls out at the window | `circuit.js` (`buildCircuit`, `breakPointAlongFt`, `CIRCUIT`, `ROLL`) | New in PR 2; `generateWindAdjustedTrack` in `route.js` now calls it |
 | The path follower: moves an aircraft along a built path, with heading, bank, roll and pitch from the path | `path-follower.js` (`followRoute`, `trackAt`) | New in PR 2; uses the core functions above |

@@ -5,8 +5,9 @@
 //
 // Speeds are true airspeed in feet per second (units.ktToFtps). G is the load
 // factor; a level turn needs more than 1 G.
-import { G_FTPS2, KT_TO_FTPS, FTPS_TO_KT, M_PER_FT } from './units.js';
+import { G_FTPS2, KT_TO_FTPS, FTPS_TO_KT } from './units.js';
 import { degToRad, radToDeg, headingRad, wrapPi } from './angles.js';
+import { isaDensityRatio } from './atmosphere.js';
 
 /** The least G any turn uses: at exactly 1 G there is no turn (D74). */
 export const MIN_TURN_G = 1.01;
@@ -72,19 +73,9 @@ export function bankDegFromTurnRate(speedFtps, rateRadPerSec) {
 
 // ── Air data and the EM chart point ──────────────────────────────────────────
 
-/**
- * Air density at altFt as a fraction of sea level, in the standard atmosphere
- * (temperature falling 6.5 °C per km from 15 °C). Above 11 km it is held at
- * 0.297, about the ratio at 11 km.
- */
-export function isaDensityRatio(altFt) {
-  const h = altFt * M_PER_FT, T0 = 288.15, L = .0065, g = 9.80665, R = 287.05287;
-  if (h < 11000) {
-    const T = T0 - L * h;
-    return Math.pow(T / T0, g / (R * L) - 1);
-  }
-  return .297;
-}
+// The standard day's density ratio lives in atmosphere.js; it is exported here
+// too, under the same name, for the modules that read it from this file.
+export { isaDensityRatio };
 
 /**
  * Where an aircraft sits on the EM chart, from

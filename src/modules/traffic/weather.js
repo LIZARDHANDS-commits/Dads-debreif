@@ -7,14 +7,8 @@
 // Pressure is taken as standard (a correct altimeter setting cancels it); humidity is left out (a few feet).
 // The temperature is one value for the whole run, set by the sim from its setup before each step.
 
-import { isaDensityRatio } from '../../core/flight-math.js';
-import { M_PER_FT } from '../../core/units.js';
+import { isaTempK, densityRatio } from '../../core/atmosphere.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, FLARE_FROM_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
-
-const T0_K = 288.15;
-const LAPSE_K_PER_M = 0.0065;
-/** Standard-day temperature at altFt, kelvin (the same atmosphere as core's isaDensityRatio). */
-const isaTempK = (altFt) => T0_K - LAPSE_K_PER_M * Math.min(altFt * M_PER_FT, 11000);
 
 /** The standard day's temperature at Moose Jaw's field elevation, °C: about 11°C. */
 export const STANDARD_FIELD_TEMP_C = Math.round((isaTempK(FIELD_ELEV_FT) - 273.15) * 10) / 10;
@@ -45,20 +39,14 @@ export function temperatureKey() {
   return deviationC;
 }
 
-/** Air density over sea-level standard at an altimeter height: the standard pressure there, at today's temperature. */
-export function densityRatio(altFt) {
-  const t = isaTempK(altFt);
-  return isaDensityRatio(altFt) * t / (t + deviationC);
-}
-
 /** True airspeed from indicated: IAS ÷ √σ, with today's temperature (no compressibility). */
 export function iasToTasKt(kias, altFt) {
-  return kias / Math.sqrt(densityRatio(altFt));
+  return kias / Math.sqrt(densityRatio(altFt, deviationC));
 }
 
 /** Indicated airspeed from true: TAS × √σ. */
 export function tasToIasKt(ktas, altFt) {
-  return ktas * Math.sqrt(densityRatio(altFt));
+  return ktas * Math.sqrt(densityRatio(altFt, deviationC));
 }
 
 /** True height ÷ indicated height above the field, for the air between the field and altFt. 1 on a standard day. */

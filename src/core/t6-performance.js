@@ -6,8 +6,8 @@
 // Speeds are knots: KIAS where the reference data use indicated airspeed, KTAS where
 // the motion needs true airspeed. Altitudes are feet, pressure altitude on a
 // standard day. G is the load factor.
-import { FT_PER_NM, G_FTPS2, KT_TO_FTPS, M_PER_FT } from './units.js';
-import { isaDensityRatio } from './flight-math.js';
+import { FT_PER_NM, G_FTPS2, KT_TO_FTPS } from './units.js';
+import { isaDensityRatio, isaPressureRatio, speedOfSoundKt } from './atmosphere.js';
 import { T6A_FIT } from './t6a-turn-data.js';
 import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js';
 
@@ -76,29 +76,9 @@ export function tasToIasKt(ktas, altFt) {
   return ktas * Math.sqrt(isaDensityRatio(altFt));
 }
 
-/** Metres per second per knot. */
-const MPS_PER_KT = 1852 / 3600;
-
-/**
- * The speed of sound in knots at altFt on a standard day: √(γRT), with the
- * temperature falling 6.5 °C per km to 11 km (the same atmosphere as
- * isaDensityRatio) and −56.5 °C above. altFt must be finite, or it throws a RangeError.
- */
-export function speedOfSoundKt(altFt) {
-  if (!Number.isFinite(altFt)) throw new RangeError(`speed of sound at ${altFt} ft: needs a finite height`);
-  const h = Math.min(altFt * M_PER_FT, 11000);
-  return Math.sqrt(1.4 * 287.05287 * (288.15 - 0.0065 * h)) / MPS_PER_KT;
-}
-
-/**
- * Standard-day static pressure as a fraction of sea level: θ^5.25588 to
- * 11 km, then falling exponentially at −56.5 °C.
- */
-function isaPressureRatio(altFt) {
-  const h = altFt * M_PER_FT;
-  if (h <= 11000) return ((288.15 - 0.0065 * h) / 288.15) ** 5.25588;
-  return (216.65 / 288.15) ** 5.25588 * Math.exp(-9.80665 * (h - 11000) / (287.05287 * 216.65));
-}
+// The speed of sound and the pressure ratio live in atmosphere.js; speedOfSoundKt
+// is exported here too, under the same name, for the modules that read it from this file.
+export { speedOfSoundKt };
 
 /**
  * The KIAS an airspeed indicator reads at this Mach number and altFt: the
