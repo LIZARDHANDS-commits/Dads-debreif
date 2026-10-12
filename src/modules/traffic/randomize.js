@@ -18,7 +18,7 @@
 //
 // Positions in map feet (x east, y north), headings compass degrees true, speeds KIAS. Nothing here reads a
 // setting or the page.
-import { ktToFtps } from '../../core/units.js';
+import { ktToFtps, FT_PER_NM } from '../../core/units.js';
 import { gFromBankDeg, turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { iasToTasKt } from './weather.js';
 import { legOffsetsFt } from '../../core/geo.js';
@@ -28,12 +28,12 @@ import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, accelFor, id
 /** Every number Randomize uses, each with its source. */
 export const RANDOM = Object.freeze({
   /** The upwind roll is made up to this far past the departure end, ft: 3/4 mile (Patrick, 4 Oct 21:54Z; 1 NM = 6,076 ft). */
-  upwindWindowFt: 0.75 * 6076,
+  upwindWindowFt: 0.75 * FT_PER_NM,
   /** The outer-downwind roll, and the SI pattern's straight-in, start within this far past abeam the departure end, ft
    *  (Pattern 1 point 5; an engineering window: the 0.5 s decision step at 220 KIAS covers about 190 ft). */
   downwindWindowFt: 3000,
   /** The final roll is made this far from the threshold, ft: about a mile (an estimate). */
-  finalRollFt: 6076,
+  finalRollFt: FT_PER_NM,
   /** A low approach goes around this far from the threshold, ft (an estimate: about a quarter mile, low over the runway end). */
   lowApproachFt: 1500,
   /** The straight-in from the outer downwind (TR-3; SMM 4.5 para 8, 4.7 para 12). */

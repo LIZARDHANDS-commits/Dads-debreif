@@ -9,7 +9,7 @@
 //
 // Positions in map feet (x east, y north), headings compass degrees true, speeds KIAS. Nothing here reads a
 // setting or the page.
-import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
+import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { compassDegFromVector, wrapDeg180 } from '../../core/angles.js';
 import { gFromBankDeg, bankDegFromG, turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { excessThrustPerWeight, stallLimitG } from '../../core/t6-performance.js';
@@ -41,7 +41,7 @@ export const EVADE = Object.freeze({
    * A broken-out straight-in rejoins its first leg this far before the leg's end, ft: 2 NM, as the overhead
    * rejoin does before the Entry Gate (breakout.js REJOIN_INTERCEPT_PT; TR-R34: at least 1 NM out).
    */
-  rejoinOutFt: 2 * 6076,
+  rejoinOutFt: 2 * FT_PER_NM,
   /** Bank of the rejoin turn onto the line, degrees. An estimate (the overhead rejoin uses 25-35°, breakout.js). */
   rejoinBankDeg: 45,
   /** Steepest climb or descent on the way back to the line, ft/s (1,000 ft/min). An estimate. */
@@ -195,7 +195,7 @@ export function spacingExtensionFt({ rolloutSec, rolloutFt, downwindGsFtps, fina
       return true;
     });
   };
-  const most = Math.min(limitFt, 20 * 6076); // a guard: never more than 20 NM
+  const most = Math.min(limitFt, 20 * FT_PER_NM); // a guard: never more than 20 NM
   for (let e = 0; e <= most; e += 100) if (clearAt(e)) return e;
   return null;
 }

@@ -6,6 +6,7 @@
 import { compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromG } from '../../core/flight-math.js';
 import { stallLimitG } from '../../core/t6-performance.js';
+import { FT_PER_NM } from '../../core/units.js';
 import { makePilot, bankFor, powerClimb, CIRCUIT, PILOT_DT } from './circuit.js';
 import { flyRejoin } from './evade.js';
 import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG } from './airfield.js';
@@ -120,7 +121,7 @@ const UX_ENT1 = DX_ENT1 / LEN_ENT1;
 const UY_ENT1 = DY_ENT1 / LEN_ENT1;
 
 /** 2 NM before the Entry Gate along ENT1. */
-export const REJOIN_INTERCEPT_PT = Object.freeze({ x: Math.round(ENTRY_GATE_PT.x - 2 * 6076 * UX_ENT1), y: Math.round(ENTRY_GATE_PT.y - 2 * 6076 * UY_ENT1) });
+export const REJOIN_INTERCEPT_PT = Object.freeze({ x: Math.round(ENTRY_GATE_PT.x - 2 * FT_PER_NM * UX_ENT1), y: Math.round(ENTRY_GATE_PT.y - 2 * FT_PER_NM * UY_ENT1) });
 
 // Canonical ENT1 route definition (the same points as data/moose-jaw.json)
 export const ENT1_ROUTE = Object.freeze({
