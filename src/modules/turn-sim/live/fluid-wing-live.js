@@ -432,7 +432,14 @@ export function stepLiveWing(ws, ctx) {
     const across = sub3(lift, scale3(st.bodyUp, onUp));
     // In fighting wing he rolls toward the aim even with a push wanted: no aerobatics to pull through there, and with his
     // wings held a wingman banked away from his aim sat at 0.5 G and flew off (the 4-ship's #4, measured 12 Oct 2026).
-    const rollShare = fw ? 1 : Math.min(1, Math.max(0, onUp) / (LIVE.minG / 2));
+    // The same in fluid while Lead is not over the top (upright, nose near the horizon: a level turn, a reversal, straight
+    // and level): nothing to pull through, so he rolls to put his lift on Lead as a pilot does. Measured on V2.415: Lead's
+    // 360 into #2 from a close or high place in the cone (550 ft, or 140 ft above) rolled #2 away first, as meant, and
+    // then, banked 25° away (or past 90° from the hard lag) with Lead now on his other side, his wings were held at 0.5 G:
+    // he never rolled back, ran downhill to 460 KIAS and 20,000 ft away (Patrick, "lead turned in to me and I turned left
+    // and we lost him"). Over the top the wings are held as before.
+    const noAerobatics = fw || !overTop;
+    const rollShare = noAerobatics ? 1 : Math.min(1, Math.max(0, onUp) / (LIVE.minG / 2));
     lift = add3(scale3(st.bodyUp, LIVE.minG), scale3(across, rollShare));
   }
   // Eased hands in Terminate: the lift wanted is eased over about a second (spec section 10.11, "the aim itself is eased

@@ -248,6 +248,10 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
     )
     : null;
   const viewSwitch = available.view3d ? controls.viewSwitch() : null; // the ui-kit's shared 2D | 3D switch
+  // Graphics, beside it (TR-152; Patrick, 12 Oct 2026: "move the toggle up next to the 2d/3d view"); it was on the 3D camera bar.
+  const graphicsSwitch = available.view3d
+    ? controls.choice('graphicsQuality', { label: 'Graphics', options: [{ value: 'high', label: 'High' }, { value: 'low', label: 'Performance' }] })
+    : null;
 
   const runwaySelect = h(
     'select',
@@ -443,7 +447,8 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
       h('label', { class: 'bar-speed' }, h('span', { class: 'visually-hidden' }, 'Speed '), speed),
       clock, status, versionBadge,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, fit, layers?.element),
+    // The Fit button left the bar (Patrick, 12 Oct 2026: "get rid of this button"); the 3D camera bar keeps its own Fit view.
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, graphicsSwitch, layers?.element),
   );
 
   const write = (node, text) => {

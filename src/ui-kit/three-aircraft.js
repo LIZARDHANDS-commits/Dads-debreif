@@ -315,3 +315,95 @@ export function addSky(THREE, scene, { horizon = HORIZON, document: doc = global
     },
   };
 }
+
+// ---- The turning prop as a blurred disc (moved here from Traffic's view3d.js for the Formation sim too; TS-210) ----
+
+/** The see-through blurred disc of a turning prop (Patrick, 5 Oct 02:42Z: "a still graphic that looks like spinning"). */
+function drawPropBlur(ctx, w, h) {
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = w / 2;
+  const g = ctx.createRadialGradient(cx, cy, r * 0.12, cx, cy, r);
+  g.addColorStop(0, 'rgba(40, 44, 52, 0)');
+  g.addColorStop(0.35, 'rgba(40, 44, 52, 0.22)');
+  g.addColorStop(0.8, 'rgba(30, 34, 40, 0.30)');
+  g.addColorStop(0.88, 'rgba(210, 32, 44, 0.32)'); // the red blade tips as a faint ring
+  g.addColorStop(0.97, 'rgba(210, 32, 44, 0.12)');
+  g.addColorStop(1, 'rgba(210, 32, 44, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(20, 22, 28, 0.10)';
+  for (let k = 0; k < 4; k++) { // faint blade streaks
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * (0.5 + k * 0.1), k * 0.9, k * 0.9 + 1.1);
+    ctx.lineWidth = r * 0.06;
+    ctx.stroke();
+  }
+}
+
+// One small blur picture for the whole page, made on first use and kept (a 128-pixel texture).
+const propBlurMaps = new WeakMap();
+function propBlurMap(THREE) {
+  if (propBlurMaps.has(THREE)) return propBlurMaps.get(THREE);
+  const doc = globalThis.document;
+  const canvas = doc?.createElement ? doc.createElement('canvas') : null;
+  const ctx = canvas?.getContext?.('2d');
+  let map = null;
+  if (ctx) {
+    canvas.width = 128;
+    canvas.height = 128;
+    drawPropBlur(ctx, 128, 128);
+    map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+  }
+  propBlurMaps.set(THREE, map);
+  return map;
+}
+
+function propBlurMaterial(THREE) {
+  const map = propBlurMap(THREE);
+  return new THREE.MeshBasicMaterial({
+    color: map ? '#ffffff' : '#2c3036', map, transparent: true, opacity: map ? 1 : 0.22, side: THREE.DoubleSide, depthWrite: false, fog: false,
+  });
+}
+
+/** Shows a T-6 model's prop as turning: its blades hidden and its disc given the blurred look. Only this model changes. */
+export function blurProp(THREE, mesh) {
+  const ct = mesh.userData?.ct156;
+  const blades = ct ? new Set([ct.kit.geo.blade, ct.kit.geo.bladeTip]) : new Set();
+  const material = propBlurMaterial(THREE);
+  let used = false;
+  mesh.traverse((o) => {
+    if (!o.isMesh) return;
+    if (blades.has(o.geometry)) o.visible = false;
+    else if (o.geometry?.type === 'CircleGeometry') {
+      if (!ct) o.material.dispose(); // the plain model's own disc material; the full model's is shared, so kept
+      o.material = material;
+      used = true;
+    }
+  });
+  if (!used) material.dispose();
+  else if (ct) ct.mine.push({ dispose: () => material.dispose() }); // freed with the model; the shared picture stays
+}
+
+// ---- The light Harvard (SH-, Patrick 12 Oct 2026: only the aircraft being viewed or flown in is the detailed model) ----
+
+/** The Harvard paint's navy (ct156-model.js NAVY). */
+const HARVARD_NAVY = '#151d31';
+
+/**
+ * A light Harvard for every aircraft that isn't being looked at closely: the plain T-6 shape (createAircraftMesh, a few draw
+ * calls against the full CT-156's 55 or so), navy in the Harvard paint or the ship's own colour in ship paint, in the same frame
+ * and size as the full model (nose +X, left +Y, up +Z, CT156_UNIT_LENGTH long). parked: no turning prop's disc. Free it with
+ * disposeAircraftMesh.
+ * @param {any} THREE
+ * @param {{ color?: string, paint?: string, parked?: boolean }} [options]
+ */
+export function createLightHarvard(THREE, { color = HARVARD_NAVY, paint = 'harvard', parked = false } = {}) {
+  const mesh = createAircraftMesh(THREE, { color: paint === 'ship' ? color : HARVARD_NAVY, outline: '#0b1620' });
+  mesh.userData.lightHarvard = true;
+  if (parked) mesh.traverse((o) => { if (o.geometry?.type === 'CircleGeometry') o.visible = false; });
+  else blurProp(THREE, mesh);
+  return mesh;
+}
+

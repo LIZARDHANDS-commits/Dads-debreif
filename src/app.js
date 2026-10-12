@@ -15,6 +15,7 @@ import { createSettingsDialog } from './shell/settings-dialog.js';
 import { createTime, startClock } from './shell/header.js';
 import { createUpdateBar, watchForUpdates } from './shell/update-bar.js';
 import { updatedLabel } from './shell/version.js';
+import { TRAFFIC_VERSION } from './modules/traffic/version.js';
 import home from './shell/home.js';
 import about from './shell/about.js';
 import aboutAlternate from './shell/about-alternate.js';
@@ -154,6 +155,9 @@ function showAirfieldsFor(entryId) {
 document.body.append(dialog.element);
 $('open-settings').addEventListener('click', () => dialog.open());
 const updated = $('app-updated');
+// The header's version badge reads the one version number (traffic/version.js), so it can't fall behind the home screen's.
+const headerBadge = document.querySelector('a.brand .version-badge');
+if (headerBadge) headerBadge.textContent = TRAFFIC_VERSION;
 updated.textContent = updatedLabel(/** @type {HTMLMetaElement | null} */ (document.querySelector('meta[name="app-built"]'))?.content);
 updated.title = `Version ${version}`;
 

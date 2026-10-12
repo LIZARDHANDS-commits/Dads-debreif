@@ -12,6 +12,12 @@
  * The sun keeps its direction (its position less its target's when this is made). The sun's target must be in the
  * scene. Map size and softness are estimates by eye; a smaller map (1024) is lighter on phones.
  */
+/**
+ * Real-time shadows are off in every module for now (Patrick, 12 Oct 2026: "turn off real time shadows in all modules for now").
+ * Set true to bring them back; each module's own switch (Formation's Graphics setting, SOF's) then works again.
+ */
+export const AIRCRAFT_SHADOWS_ALLOWED = false;
+
 export function createAircraftShadows(THREE, renderer, sun, { mapSize = 2048, enabled = true } = {}) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   sun.shadow.mapSize.set(mapSize, mapSize);
@@ -26,7 +32,7 @@ export function createAircraftShadows(THREE, renderer, sun, { mapSize = 2048, en
     enabled: false,
     /** Switches the shadows on or off (the renderer recompiles its materials once). */
     setEnabled(on) {
-      on = Boolean(on);
+      on = Boolean(on) && AIRCRAFT_SHADOWS_ALLOWED;
       if (on === shadows.enabled) return;
       shadows.enabled = on;
       renderer.shadowMap.enabled = on;

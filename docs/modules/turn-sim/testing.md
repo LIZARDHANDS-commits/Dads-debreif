@@ -166,6 +166,7 @@ Changed to keep their intent when the turns came to the close formations: `trans
 | Barrel roll (V2.19, TS-60) | Flight path about 45° up and down (±5°), pitch attitude under 60°, level (±5°) and inverted (bank within 5° of 180°) at 90° off the line (±5°), entry and exit 230 KIAS (±10 kt), back on the line (±5°) wings level | SMM 14.8 para 19, Fig 14.1, Table 14.1; AFM7 brief p.17; Patrick 19:20Z rows 5-6 |
 | Standard sequence (V2.19, TS-60) | One press flies a level turn, a loop, the wingovers and a barrel roll, in that order, then straight and level | SMM 16.17 para 42 |
 | Distance-only tags (V2.19, TS-60) | `tags.test.js`: with Lead manoeuvring a wingman 15° or 75° back from the wing line is not OUT OF CONE; inside 500 ft TIGHT, past 1,000 ft STRETCHED; ahead of the 3/9 line AHEAD OF 3/9 either way | Patrick 23:07Z, 23:08Z; SMM 12.29 para 69 |
+| Live: Lead turns into #2 from high and close (V2.417) | Standard sequence R from fighting wing at 550 ft, 45°, 140 ft above Lead keeps #2 within 1,500 ft of Lead through the 360 | Patrick 12 Oct 2026 19:17Z ("no matter where we are in the cone we shouldn't lose lead when they turn in to us") |
 
 **Fighting wing spacing and sweep** (`fw-shape.test.js`, TS-58; `spec.md` section 8). Retired 12 Oct 2026 with the settings (TS-195, Patrick's card 01:52Z).
 

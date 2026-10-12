@@ -4,6 +4,7 @@
 // (R15, #41). See specs/SPEC-shell.md.
 import { h } from '../ui-kit/dom.js';
 import { MODULES, isBuilt } from './registry.js';
+import { TRAFFIC_VERSION } from '../modules/traffic/version.js';
 
 // 'system' follows the computer's reduced-motion setting; 'full' and 'reduced' override it.
 export function motionAllowed(setting, systemPrefersReduced) {
@@ -162,7 +163,7 @@ export default {
           'div',
           { class: 'hero' },
           h('p', { class: 'eyebrow' }, 'Aviators webtool suite'),
-          h('h1', {}, 'OODA LOOP ', h('span', { class: 'version-badge' }, 'V2.413')),
+          h('h1', {}, 'OODA LOOP ', h('span', { class: 'version-badge' }, TRAFFIC_VERSION)),
           h('p', { class: 'lede' }, 'Debrief, formation, BFM, traffic and SOF tools for T-6 flying training. Open one below.'),
         ),
         h('div', { class: 'card-grid' }, cards.map((c) => c.card), aboutCard()),

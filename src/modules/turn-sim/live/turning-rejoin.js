@@ -39,7 +39,7 @@ import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot, LENGTH_FT, sideFor, LANE, LI
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, WING_BANKS, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './closures.js';
 import { leadTurnInto } from './lead-turn-in.js';
-import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
+import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec, hermiteBlend } from './flight.js';
 import { RATE_SETS, CLOSE_SHAPING, G_RULE_BANK_DEG } from './rates.js';
 import { laggedBank, centredBank, handOverAt } from './kinematic.js';
 import { trackPhases, runTracker, phase } from './tracker.js';
@@ -284,6 +284,22 @@ function bodyIn(L, W) {
 }
 
 /**
+ * The shortest drop onto Lead's wing plane from the decision point (tailPath): heightFt above the plane (below, negative),
+ * starting at upFtps (his rate across the plane there, + up), flown as hermiteBlend so the pull or push it adds is no more
+ * than TURNING_REJOIN.tailDropG anywhere, and at least tailMinSec. Seconds.
+ */
+function tailDropSec(heightFt, upFtps) {
+  const maxFtps2 = TURNING_REJOIN.tailDropG * G_FTPS2;
+  const fits = (T) => {
+    for (let k = 1; k < 40; k++) if (Math.abs(hermiteBlend.accelShare(heightFt, upFtps, T, k / 40)) > maxFtps2) return false;
+    return true;
+  };
+  let T = TURNING_REJOIN.tailMinSec;
+  while (T < 60 && !fits(T)) T += 0.1;
+  return T;
+}
+
+/**
  * The turning rejoin from the decision point (TS-182 (4)-(5); SMM 12.24 para 58): a place in Lead's banked wing plane that
  * moves from where #2 is, down into the plane and forward towards route, then up the spinner-wingtip line into echelon,
  * carrying the closure he brings and taking it off evenly to none in the slot. holdInPlane flies him after it with his own
@@ -322,11 +338,18 @@ function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null, notBefor
   const lens = legs.map((leg, k) => Math.hypot(leg.fwd - pts[k].fwd, leg.left - pts[k].left));
   const total = lens.reduce((a, x) => a + x, 0);
   const v0 = Math.max(TURNING_REJOIN.windowFtps, Math.hypot(vel.fwd, vel.left));
-  // The drop into Lead's plane comes off the same way, from the rate he brings down at the decision point (at least
-  // tailUpFtps) to none in the plane (Patrick 05:31Z: "smaller, smoother movements").
+  // On his own side he is down in Lead's plane by the time he is out at route's spacing, then goes up the spinner-wingtip
+  // line in it (Patrick 12 Oct 2026 18:41Z: "it needs to move down on to the line at route spacing, then up into echelon in
+  // one smooth move"; TS-181 (3), TS-182). The drop starts from the rate he brings at the decision point and ends in the
+  // plane with no rate and no pull at either end (hermiteBlend), within tailDropG; it is done when the way reaches route
+  // (routeShare of the way's time, the closure coming off evenly), and the way takes longer when the drop needs it.
+  // Through V2.412 the drop was timed from the rate he brought (at least 5 ft/s) over the whole way, so on the 30° line from
+  // line abreast he was still about 25 ft above the plane at route's spacing and came up into echelon from above it.
   const dUp = legs[0].up - from.up;
-  const upSec = Math.max(TURNING_REJOIN.tailMinSec, (2 * Math.abs(dUp)) / Math.max(TURNING_REJOIN.tailUpFtps, Math.sign(dUp) * vel.up));
-  const t1 = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, upAlong ? 0 : upSec);
+  const routeShare = total > 0 ? 1 - Math.sqrt(Math.max(0, 1 - lens[0] / total)) : 0;
+  const dropSec = upAlong ? 0 : tailDropSec(-dUp, vel.up);
+  const t1 = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, routeShare > 0 ? dropSec / routeShare : 0);
+  const upSec = Math.max(dropSec, t1 * routeShare); // the drop's time: until he reaches route's spacing (already there: dropSec)
   // The 4-ship element crosses behind Lead only once the one ahead is in (SMM 16.34 para 96: "#3 should not cross behind
   // lead until #2 is stabilized"). When the one way would have him behind Lead before that (notBeforeStep, steps after the
   // decision point), he closes to that point with his closure coming off to none, holds it in Lead's frame until then, and
@@ -346,18 +369,17 @@ function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null, notBefor
   const steps = Math.ceil(t / dt);
   const rawAt = (i) => {
     // Before the decision point, where he was coming from (so the first corner is rounded too).
-    if (i < 0) return { fwd: from.fwd + vel.fwd * i * dt, left: from.left + vel.left * i * dt, up: from.up + vel.up * i * dt };
+    if (i < 0) return { fwd: from.fwd + vel.fwd * i * dt, left: from.left + vel.left * i * dt, up: upAlong ? from.up + vel.up * i * dt : legs[0].up };
     let d = distAt(i * dt); // how far along: closure v0 at the start, off evenly to none at the end
     let k = 0;
     while (k < lens.length - 1 && d > lens[k]) d -= lens[k++];
     const f = lens[k] > 0 ? Math.min(1, d / lens[k]) : 1;
     const a = pts[k];
     const z = legs[k];
-    const x = Math.min(1, (i * dt) / upSec);
-    const drop = (1 - x) * (1 - x);
-    // Up: Lead's plane at route, then the line's own up into the slot, with what is left of the drop on top.
+    // Up: across, with the way; on his own side Lead's plane at route, then the line's own up into the slot (the drop onto
+    // the plane is added after the corners are rounded, dropAt, so the rounding does not smear it past route).
     const upLine = k === 0 ? legs[0].up : legs[0].up + f * (z.up - legs[0].up);
-    const up = upAlong ? a.up + f * (z.up - a.up) : upLine + drop * (from.up - legs[0].up);
+    const up = upAlong ? a.up + f * (z.up - a.up) : upLine;
     return { fwd: a.fwd + f * (z.fwd - a.fwd), left: a.left + f * (z.left - a.left), up };
   };
   // The corners (off the line at the decision point, at route onto the spinner-wingtip line) rounded: the place averaged over
@@ -382,15 +404,22 @@ function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null, notBefor
   const smooth = average(average(raw)); // smooth[j] is centred on raw[j + 2w], step lo + j + 2w = j
   // The averaging moves the start off where he is; that difference fades out smoothly over the first 2w steps, so the way
   // starts on him with no step in his place or G (V2.253: a 0.45 G kick at the decision point).
-  const off0 = { fwd: from.fwd - smooth[0].fwd, left: from.left - smooth[0].left, up: from.up - smooth[0].up };
+  const off0 = { fwd: from.fwd - smooth[0].fwd, left: from.left - smooth[0].left, up: upAlong ? from.up - smooth[0].up : 0 };
   const fade = (i) => {
     const x = Math.min(1, i / (2 * w));
     return 1 - x * x * x * (10 - 15 * x + 6 * x * x);
   };
+  // His own side's drop onto Lead's plane: what is left of his height above it (or below), from where he is and the rate he
+  // brings at the decision point to none at route's spacing.
+  const dropAt = (i) => {
+    if (upAlong) return 0;
+    const u = Math.min(1, (Math.max(0, i) * dt) / upSec);
+    return (from.up - smooth[0].up) * hermiteBlend.placeShare(u) + vel.up * upSec * hermiteBlend.velShare(u);
+  };
   const bodyAt = (i) => {
     const p = smooth[Math.max(0, Math.min(smooth.length - 1, i))];
     const f = fade(Math.max(0, i));
-    return { fwd: p.fwd + f * off0.fwd, left: p.left + f * off0.left, up: p.up + f * off0.up };
+    return { fwd: p.fwd + f * off0.fwd, left: p.left + f * off0.left, up: p.up + f * off0.up + dropAt(i) };
   };
   // He is in his place, as a pilot sees it, once the way is within tailInFt of its end: Lead rolls out from there (Patrick
   // 11 Oct 06:10Z: "as soon as the plane is in echelon, the formation can roll out"), not when its last inch has settled.

@@ -81,13 +81,14 @@ export const legMarks = (routes) =>
   routes.filter(isShowing).flatMap((route) => legDistances(route).map(({ routeId, x, y, ft }) => ({ routeId, x, y, ft })));
 
 /**
- * The scene map2d draws (see the top of map2d.js). `state` is `sim.state()`, `trailOf` is
- * `sim.trailOf`, and the setup gives the routes and their options.
+ * Each route as drawn, with its wind-adjusted track (TR-151). Building the circuit's track for the wind is the heaviest work on the
+ * screen (measured 12 Oct 2026: 73% of Traffic's time, rebuilt for every route on every frame by both the 2D map and the 3D view),
+ * yet it changes only when the routes, their options or the wind change, so the last answer is kept until one of those does.
  */
-export function buildScene({ setup, state, selectedRouteId, trailOf }) {
-  const options = setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
-  const windKt = setup.windKt ?? 0;
-  const windFromDeg = setup.windFromDeg ?? 360;
+let drawnCache = { key: '', routes: [] };
+function drawnRoutes(setup, options, windKt, windFromDeg) {
+  const key = JSON.stringify([setup.routes, options, windKt, windFromDeg]);
+  if (key === drawnCache.key) return drawnCache.routes;
   const routes = setup.routes.map((route) => {
     const decisions = decisionPoints(route, setup.routes);
     const isPat1 = route.id === 'PAT1' && route.points?.length >= 4;
@@ -106,6 +107,19 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
       windPerch: isShowing(route) && isPat1Wind ? computeWindPerch(route, windFromDeg, windKt, options) : null,
     };
   });
+  drawnCache = { key, routes };
+  return routes;
+}
+
+/**
+ * The scene map2d draws (see the top of map2d.js). `state` is `sim.state()`, `trailOf` is
+ * `sim.trailOf`, and the setup gives the routes and their options.
+ */
+export function buildScene({ setup, state, selectedRouteId, trailOf }) {
+  const options = setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+  const windKt = setup.windKt ?? 0;
+  const windFromDeg = setup.windFromDeg ?? 360;
+  const routes = [...drawnRoutes(setup, options, windKt, windFromDeg)]; // a fresh list: callers add to it (TR-151)
   for (const a of state.aircraft ?? []) {
     if (a.pflRoute?.points?.length > 1) {
       const isSelected = selectedRouteId === `PFL_${a.id}` || selectedRouteId === a.id;

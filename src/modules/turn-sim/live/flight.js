@@ -314,6 +314,17 @@ export const SMOOTHER_PEAK = 1.875;
 /** The smootherstep's greatest curvature (at u = 1/2 - 1/sqrt(12)): a height leg's greatest vertical acceleration is rise x this / span². */
 export const SMOOTHER_CURVE_PEAK = 10 / Math.sqrt(3);
 
+/**
+ * The quintic Hermite blend (u from 0 to 1 over a span of T seconds): a place difference times placeShare(u) plus a
+ * velocity difference times T times velShare(u) starts with both differences and ends with neither, with no acceleration
+ * at either end. accelShare(d, v, T, u): the blend's acceleration at u for a place difference d and velocity difference v.
+ */
+export const hermiteBlend = Object.freeze({
+  placeShare: (u) => 1 - smoother(u),
+  velShare: (u) => u - 6 * u ** 3 + 8 * u ** 4 - 3 * u ** 5,
+  accelShare: (d, v, T, u) => (-d * smootherCurve(u)) / (T * T) + (v * (-36 * u + 96 * u * u - 60 * u ** 3)) / T,
+});
+
 /** The shortest smooth height leg for a change of riseFt whose push and pull stay within g of level flight, seconds. */
 export function smoothLegSec(riseFt, g) {
   return Math.sqrt((SMOOTHER_CURVE_PEAK * Math.abs(riseFt)) / (g * G_FTPS2));
