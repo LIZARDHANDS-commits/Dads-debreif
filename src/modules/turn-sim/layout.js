@@ -47,7 +47,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   eyeLean: true,
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   // The 3D graphics (TS-210; Patrick, 12 Oct 2026): 'high' as built, or 'performance' for weaker computers: no real-time shadows,
-  // normal resolution on high-resolution screens, no edge smoothing (that one from the next time the page opens).
+  // normal resolution on high-resolution screens, no edge smoothing. Switching reloads the page (index.js).
   graphics: 'high',
   paint: 'harvard', // the 3D aircraft's paint: the Harvard scheme (Patrick, 11 Oct 2026: "I want all 3d models to default to the Harvard"); 'ship' colours were the default from 5 Oct
 });

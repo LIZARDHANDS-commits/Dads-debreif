@@ -213,7 +213,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   const size = () => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
 
   function build() {
-    // Graphics (TS-210): Performance draws without edge smoothing, set when the 3D view starts (a page's 3D canvas keeps it).
+    // Graphics (TS-210): Performance draws without edge smoothing, set when the 3D view starts (a switch reloads the page).
     const performanceAtStart = source.layers?.().graphics === 'performance';
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: !performanceAtStart });
     const scene = new THREE.Scene();
