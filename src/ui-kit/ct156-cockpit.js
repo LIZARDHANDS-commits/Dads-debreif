@@ -131,7 +131,7 @@ export const FORWARD_BOW_FT = Object.freeze({
 // flange along the glass `section.outer` (1.9 in) fore and aft, a web down its middle `section.web` thick, and a flange
 // `section.inner` (0.8 in) fore and aft at the web's inner edge, `bandDepth` (1.6 in) from the glass inward ("this side
 // should be thinner?"), its aft face at bandX. A row of `studs` stands on the outer flange either side of the web, and the
-// web's aft face mid grey, so from the seat it reads as the light flanges with a shadowed groove between, as Patrick's
+// web's aft face dark, so from the seat it reads as two flanges with a shadowed groove between, as Patrick's
 // reference picture of the cockpit shows ("Construction only"). Its legs run straight down into the canopy's lower frame
 // (footFillet null). Sizes are estimates off his sketch, that picture and Fig 3.5's band. Before: a channel open aft
 // with one row of studs (12 Oct 2026); before that a T, an aft face 1 in deep with a flange 3 in forward along its inner
@@ -1932,9 +1932,12 @@ function canopyHandleParts(THREE) {
   return out;
 }
 
-/** The sill bands, both sides, from the forward bow to the rear bow (feet): 0.2 ft inside the canopy's foot, and out over the cut edge. */
+/** The sill bands, both sides, from under the windscreen to the rear bow (feet): 0.2 ft inside the canopy's foot, and out over the cut edge. */
+// Since 12 Oct 2026 they start SILL_AHEAD_FT ahead of the forward bow's hoop, under the windscreen, closing the slit
+// between the tub's wall and the fuselage there that showed the sky beside the panel (Patrick, 12 Oct 2026, "Gap?").
+const SILL_AHEAD_FT = 0.45;
 function sillGeometry(THREE) {
-  const x0 = CT156_FRAME_X[0] * F, x1 = CT156_FRAME_X[2] * F, N = 20;
+  const x0 = CT156_FRAME_X[0] * F + SILL_AHEAD_FT, x1 = CT156_FRAME_X[2] * F, N = 22;
   const parts = [];
   for (const s of [1, -1]) {
     const sections = [];
@@ -2071,10 +2074,10 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // housing, FIRE a separate square box to their right. Each lamp: [y, slot, lens half-width, lens half-height].
   const lx = h.aftX - 0.003, lz = front ? h.top - RIM_FT.r - LAMP_STRIP_FT / 2 : h.top - lipDrop / 2 - 0.015;
   const lamps = front
-    ? [[0.19, SLOT.lampRed, 0.035, 0.017], [0, SLOT.lampAmber, 0.035, 0.017], [-0.25, SLOT.lampRed, 0.021, 0.021]]
+    ? [[0.19, SLOT.lampRed, 0.035, 0.017], [0, SLOT.lampAmber, 0.035, 0.017], [-0.21, SLOT.lampRed, 0.021, 0.021]]
     : [[0.16, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.16, SLOT.lampRed, 0.042, 0.025]];
   if (front) {
-    // On a grey strip across the panel's top under the lip, each in its own housing, MASTER CAUTION 2.3 in from MASTER WARN and 3 in from FIRE, a small screw
+    // On a grey strip across the panel's top under the lip, each in its own housing, MASTER CAUTION 2.3 in from MASTER WARN and 2.5 in from FIRE (3 in until Patrick, 12 Oct 2026, "Buttons still not spaced right?", measured again off his photo), a small screw
     // either side of each oblong lamp (Patrick, 12 Oct 2026, "there is a grey surface the buttons are on" and "these
     // are more spaced out"; sizes off his photo, scaled on the lamps' width; until then 1.3 in apart in one housing,
     // the oblong lenses 1 x 0.6 in and FIRE 0.6 in square, then 1 x 0.8 in and 0.7 x 0.9 in). Since Patrick's 12 Oct
@@ -2557,8 +2560,9 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     // The mirrors chrome (Patrick, 12 Oct 2026, "Construction only", from his reference picture; were blue-grey).
     solid('#e4e8ec', { roughness: 0.12, metalness: 0.85, emissive: '#8f969d' }), solid('#c9ced4', { roughness: 0.5 }),
     lamp('#3a1414'), lamp('#3a2c0e'), lamp('#10301a'),
-    // The forward bow band, white to light grey (TS-156), a little self-lit so it stays light with the sun ahead.
-    solid('#d3d6d9', { roughness: 0.7, emissive: '#7a7d80' }),
+    // The forward bow and the arch, the cockpit's own grey (Patrick, 12 Oct 2026, "color of the bow should match our
+    // interior too right", a little self-lit as the panel reads; was '#d3d6d9' self-lit '#7a7d80', white to light grey, TS-156).
+    solid(PANEL_GREY, { roughness: 0.7, emissive: '#26282a' }),
     solid('#3a3c3f', { roughness: 0.9 }), solid('#3b3f44', { roughness: 0.8 }), solid('#4d6a2f', { roughness: 0.7 }),
     solid('#a9aeb4', { roughness: 0.35, metalness: 0.7 }), solid('#7d8185', { roughness: 0.75, emissive: '#26282a' }),
   ];
@@ -2694,7 +2698,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const fb = bandGeometries(THREE, FORWARD_BOW_FT);
   const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }];
   if (fb.tube) bowParts.push({ geometry: fb.tube, materials: [SLOT.black] });
-  if (fb.recess) bowParts.push({ geometry: fb.recess, materials: [SLOT.frame] });
+  if (fb.recess) bowParts.push({ geometry: fb.recess, materials: [SLOT.dark] });
   for (const g of fb.studs ?? []) bowParts.push({ geometry: g, materials: [SLOT.metal] });
   bowParts.push(...bowFootParts(THREE).map(([geometry, slot]) => ({ geometry, materials: [slot] })));
   for (const g of fb.dots) bowParts.push({ geometry: g, materials: [SLOT.black] });
