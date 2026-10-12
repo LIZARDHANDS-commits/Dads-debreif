@@ -5,7 +5,7 @@
 // consoles (power lever, flap lever, striped handles, knobs); the stick in its boot; the rudder pedals; the ejection
 // seat with its cushions, harness, headbox, canopy breakers, yellow and black seat handle and green oxygen hose. Round
 // the canopy: the forward bow band with its ring of holes and its two curved mirrors, the canopy's side frames with
-// their rows of fasteners, and the inter-cockpit arch with its fasteners, mirrors and the clear
+// their rows of fasteners, and the inter-cockpit arch with its fasteners and the clear
 // inter-cockpit shield. The rear cockpit's panel sits under a big moulded hump over the front seat's back, with its own
 // grab rails, AOA indexer and compass. The canopy glass, the round bow tubes, the sill rails, the seat backs' frames,
 // the tub (floor and walls), the wings and the tail are the ship's own (ct156-model.js setCockpitView). A picture only:
@@ -1794,18 +1794,6 @@ function bowMirrorGeometries(THREE, b, t0, t1) {
   return { frame, face };
 }
 
-/** A mirror at `pos` (feet) turned to face `eye`: [back, face, stalk to the glass at `mount`]. w x h feet. */
-function mirrorGeometries(THREE, pos, eye, mount, w = 0.34, h = 0.17) {
-  const p = new THREE.Vector3(...pos);
-  const m = new THREE.Matrix4().lookAt(new THREE.Vector3(eye.x, eye.y, eye.z), p, new THREE.Vector3(0, 0, 1));
-  m.setPosition(p);
-  return [
-    new THREE.BoxGeometry(w, h, 0.03).applyMatrix4(m),
-    new THREE.PlaneGeometry(w * 0.9, h * 0.85).translate(0, 0, 0.0155).applyMatrix4(m),
-    tubeThrough(THREE, [pos, mount], 0.018, 1, { radial: 5 }),
-  ];
-}
-
 /** The canopy's side frames inside the glass, both sides, from the forward bow to the rear frame, with their fasteners (TS-157). */
 function sideFrameParts(THREE) {
   const x0 = FORWARD_BOW_FT.bandX, x1 = CT156_FRAME_X[2] * F + 0.2, N = 28;
@@ -2648,24 +2636,12 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     const { frame, face } = bowMirrorGeometries(THREE, FORWARD_BOW_FT, t0, t1);
     solidParts.push({ geometry: frame, materials: [SLOT.black] }, { geometry: face, materials: [SLOT.mirror] });
   }
-  // The inter-cockpit arch's light band with its fastener rows and inner tube, its two mirrors a third of the way down
-  // from the crest turned to the rear eye (Dad's pictures 21, 27; TS-155's places), and the clear inter-cockpit shield
-  // under it, down to the rear hump (Dad's picture 28).
+  // The inter-cockpit arch's light band with its fastener rows and inner tube, and the clear inter-cockpit shield
+  // under it, down to the rear hump (Dad's picture 28). No mirrors: the rear seat has none (Patrick, 12 Oct 2026; two
+  // were turned to the rear eye a third of the way down from the crest, Dad's pictures 21, 27, TS-155).
   const ab = bandGeometries(THREE, ARCH_FT);
   solidParts.push({ geometry: ab.band, materials: [SLOT.band] }, { geometry: ab.tube, materials: [SLOT.black] });
   for (const g of ab.dots) solidParts.push({ geometry: g, materials: [SLOT.black] });
-  {
-    const pts = ct156HoopPoints(ARCH_FT.bandX / F, 18, 0, ARCH_FT.lean);
-    const base = ct156CanopySection(ARCH_FT.bandX / F).base * F;
-    for (const j of [6, 12]) {
-      const { x, y, z } = pts[j];
-      const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz);
-      const d = ARCH_FT.bandDepth + 0.12;
-      const pos = [x * F - 0.15, y * F + (dy / l) * d, z * F + (dz / l) * d];
-      const [back, face, stalk] = mirrorGeometries(THREE, pos, EYES_FT.rear, [x * F - 0.01, y * F + (dy / l) * 0.05, z * F + (dz / l) * 0.05], 0.3, 0.16);
-      solidParts.push({ geometry: back, materials: [SLOT.black] }, { geometry: face, materials: [SLOT.mirror] }, { geometry: stalk, materials: [SLOT.black] });
-    }
-  }
   const rearTs = tombstone(REAR_PANEL_FT);
   {
     const x = ARCH_FT.x + 0.04;
