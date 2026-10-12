@@ -121,7 +121,7 @@ export const TURNING_REJOIN = Object.freeze({
   windowFtps: 15, // ...and out to route he moves at the station-change rate, about 9 kt (Patrick 10 Oct 2026 23:54Z card; TS-181; an estimate, Fable's trace C). From route into the slot it is the close moves' own (CLOSE_SHAPING)
   tailMinSec: 3, // the way from the decision point takes at least this long; his closure and his drop into Lead's plane come off evenly from what he brings there (Patrick 11 Oct 2026 06:11Z: "we do not have to stop at any spot"; estimate)
   tailBlendSec: 2.5, // ...its corners rounded over this either side, twice (estimate; 1.5 s once until V2.255, Patrick 05:31Z "still too jerky")
-  tailUpFtps: 5, // ...the drop into Lead's wing plane starting at no less than this (estimate)
+  tailDropG: 0.2, // ...and the drop into Lead's wing plane is done by route's spacing, adding no more than this many g of push or pull (Patrick 12 Oct 2026 18:41Z: "move down on to the line at route spacing, then up into echelon in one smooth move"; estimate: 0.3 (TS-126's planeEaseG) took #2 to 1.48 G, 0.15 stretched the rejoin 4 s; was tailUpFtps 5, the drop timed over the whole way)
   underExtraFt: 8, // to the other side he passes under Lead's tail this much below the crossover's corner, which the rounding of the way takes back, so he is below the wake there (estimate)
   tailInFt: 3, // ...and he is in his place once within this of the slot...
   tailStillFtps: 1, // ...and moving on it at under this, when Lead may roll out (Patrick 11 Oct 2026 06:10Z: "as soon as the plane is in echelon, the formation can roll out"; estimates)

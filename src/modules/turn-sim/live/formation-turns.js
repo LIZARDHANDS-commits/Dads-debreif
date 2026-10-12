@@ -20,7 +20,7 @@
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
-import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
+import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll, hermiteBlend } from './flight.js';
 import { MANOEUVRES, relativeTo, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT, speedSeg, leadExcessPerWeight } from './replay.js';
 import { trackPhases, phase } from './tracker.js';
@@ -543,8 +543,8 @@ function turnFromRolledBank(track, poses, own, wing) {
   for (let k = k0 + 1; k <= k0 + blendSteps; k++) {
     // The quintic Hermite blend: the place and velocity differences at the start, none at the end, no acceleration step at either.
     const u = (k - k0) / blendSteps;
-    const placeShare = 1 - u ** 3 * (10 - 15 * u + 6 * u * u);
-    const velShare = (u - 6 * u ** 3 + 8 * u ** 4 - 3 * u ** 5) * T;
+    const placeShare = hermiteBlend.placeShare(u);
+    const velShare = hermiteBlend.velShare(u) * T;
     const px = k <= poses.length ? poses[k - 1].x : track.x[row(k)];
     const py = k <= poses.length ? poses[k - 1].y : track.y[row(k)];
     setTrackStep(track, k, px + dp.x * placeShare + dv.x * velShare, py + dp.y * placeShare + dv.y * velShare, track.z[row(k)]);
