@@ -34,6 +34,7 @@ import { wrapPi, DEG } from '../../../core/angles.js';
 import { thrustPerWeight, dragPerWeight, iasToTasKt, T6A_LIMITS, T6A_MANOEUVRE } from '../../../core/t6-performance.js';
 import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { throttleAtTorque } from './power.js';
+import { telegraphRoll } from './rates.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
 export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));
@@ -655,7 +656,9 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) 
     const near = slot && Math.hypot(slot.fwd - now.fwd, slot.left - now.left, slot.alt - now.up) <= SLOT_TOL_FT;
     return [wing.id, near ? { fwd: slot.fwd, left: slot.left, up: slot.alt } : now];
   }));
-  const roll = closeTurnRoll(echelon2 ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll, [...bodies.values()]);
+  // Lead telegraphs the turn: a slow, smooth roll to his bank (rates.js TELEGRAPH, Patrick 12 Oct 2026 18:45Z), still no
+  // faster than his farthest wingman can follow (closeTurnRoll).
+  const roll = closeTurnRoll(telegraphRoll(bank), [...bodies.values()]);
   const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll }));
   const leadSteps = Math.round(dryRunT(lead, { segments: leadSegs }, t0).durationSec / STEP_SEC);
   const by = new Map(aircraft.map((a) => [a.id, a]));
@@ -757,7 +760,7 @@ export function leadTurnPlan(lead, formation, key, dir) {
   const closeBank = closeBankNow();
   const isClose = formation === 'echelon' || formation === 'route' || formation === 'astern';
   const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : isClose ? closeBank : CLOSE_TURN.bankDeg;
-  return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: formation === 'echelon' ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll })) };
+  return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: telegraphRoll(bank) })) };
 }
 
 const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', astern: 'line astern', trail: 'line astern', finger: 'finger', box: 'box', fw: 'fighting wing' })[key] ?? (four ? 'the formation' : key);

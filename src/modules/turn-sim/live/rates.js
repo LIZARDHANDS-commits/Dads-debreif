@@ -70,6 +70,19 @@ export const RATE_SETS = Object.freeze({
 });
 
 /**
+ * Lead "telegraphs" a close formation turn (Patrick 12 Oct 2026 18:45Z): the roll rate builds smoothly over easeSec, holds
+ * steady, and eases back to zero over easeSec, rolledSec from wings level to the bank (and the roll-out the same, his "yes"
+ * 18:45Z). A steeper bank rolls faster and builds faster: 30° at 6°/s (4°/s²), 45° at 9°/s (6°/s²), 60° at 12°/s (8°/s²).
+ * "It's to quick and suddent right now. this should also make it much easioer for 2 to stay in position."
+ */
+export const TELEGRAPH = Object.freeze({ rolledSec: 6.5, easeSec: 1.5 });
+/** Lead's close formation roll for a turn to bankDeg: { maxRateDps, maxAccelDps2 } (TELEGRAPH). */
+export function telegraphRoll(bankDeg) {
+  const rate = Math.abs(bankDeg) / (TELEGRAPH.rolledSec - TELEGRAPH.easeSec);
+  return { maxRateDps: rate, maxAccelDps2: rate / TELEGRAPH.easeSec };
+}
+
+/**
  * Nominal shaping targets and soft envelope caps for close-in formation work (SMM 12.4, 12.6, 12.20).
  * Targets, not walls: guidance steers toward the nominal targets, with progressive soft cushion
  * expanding toward the envelope cap if displaced.
