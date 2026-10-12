@@ -152,15 +152,17 @@ export function fwShapeNow() {
 }
 
 /**
- * Four-ship fighting wing: each link 650 ft; #2 at 60°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says).
+ * Four-ship fighting wing: each link 650 ft; #2 at 60°, #3 and #4 at 45° (Patrick, 4 Oct 11:44Z and 12 Oct 2026; estimates until
+ * Dad says).
  * The angles are sweep back from the wing line of the aircraft flown off, the manual's way (SMM 12.29 para 69, Fig 12.19).
  * #2's 60° is the aft edge of the cone, about 30° off Lead's tail, so a turn into him has room to lag (Patrick 12 Oct 2026
  * 18:17Z: "hold 2 closer to the edge of the cone near to lead"; 45° until then, an estimate). In Fluid 4, #2 off Lead and #4
  * off #3 keep the 45° (fluidDeg; not part of that ruling). #3 and #4 sit on the side opposite #2 (SMM 16.38 para 104; AFM7
- * brief p.14). Their 30° matches Fig 16.29's picture; the para 104 text says a 60° sweep: both are written down (Patrick set
+ * brief p.14). Their 45° sits between Fig 16.29's picture (30°) and the para 104 text (60°): at 30°, with the 60 ft start stack, #3 came
+ * to 276 ft of #2 in a turn away from #2; at 45° 435 ft (Patrick's card 12 Oct 2026 18:39Z, "45°"). Both manual figures are written down (Patrick set
  * it through a setting, TS-58, until V2.359; TS-195).
  */
-export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 60, otherDeg: 30, fluidDeg: 45 });
+export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 60, otherDeg: 45, fluidDeg: 45 });
 /** The four-ship's desired places: #2's pair (spacing and sweep off Lead; #4 off #3 in Fluid 4 at fluidDeg) and #3/#4's pair (each off the one ahead in fighting wing). */
 const fw4 = Object.freeze({ twoRangeFt: FW4.rangeFt, twoDeg: FW4.twoDeg, fluidDeg: FW4.fluidDeg, otherRangeFt: FW4.rangeFt, otherDeg: FW4.otherDeg });
 
