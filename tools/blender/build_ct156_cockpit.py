@@ -65,7 +65,9 @@ def new_object(name, bm, mats, bevel=0.0, smooth=True):
 # empty holding its pieces; the loader merges them by colour.
 SEAT_ROUND = (0.03, 4)   # (width ft, segments): the cushions and bolsters (estimate, judged off Patrick's photos)
 EDGE_ROUND = (0.006, 2)  # about 0.07 in: machined and moulded edges (estimate)
-ROUND_BY_SLOT = {'seat': SEAT_ROUND, 'green': None}
+BOW_ROUND = (0.012, 3)   # about 0.14 in: the bows' formed edges, so the flange, web and lip catch the light (estimate;
+                         # Patrick, 12 Oct 2026, "render it nicely")
+ROUND_BY_SLOT = {'seat': SEAT_ROUND, 'green': None, 'band': BOW_ROUND}
 if pieces_path:
     with open(pieces_path) as f:
         PIECES = json.load(f)
