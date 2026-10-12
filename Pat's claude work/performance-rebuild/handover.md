@@ -1,6 +1,6 @@
 # Handover: the performance model rebuild
 
-12 Oct 2026, about 07:10Z. Branch `claude/project-thread-swv8zh`, head `aabab26`, which contains main V2.382. Main has never received any of it.
+12 Oct 2026, about 07:10Z. Branch `claude/project-thread-swv8zh`, head `238878a`, which contains main V2.382. Main has never received any of it.
 
 **Patrick, 12 Oct 2026:**
 - 03:14Z: "do not replace any of the files yet or push this to main".
@@ -20,7 +20,7 @@ Nothing on this branch goes to main, or into a pull request, until Patrick says 
 | 10eec49 | Full power to 16,000 ft; pitch fitted to his attitudes; weight in the stall, shaker and pitch | 12 Oct 05:55Z |
 | 2c19567 | A tail slide under 1 KIAS no longer stops the split S, zoom or fight step | bug fix |
 | cc82530 | The split S settings test checks what a pilot sees, not earlier numbers | 12 Oct 06:31Z |
-| (see below) | Idle propeller drag full to 220 KIAS, gone by 250 | 12 Oct 07:18Z |
+| 238878a | Idle propeller drag full to 220 KIAS, gone by 250 | 12 Oct 07:18Z |
 | aabab26 | No extra drag near the stall: the level MPT is about 147 / 144 / 141 KIAS at sea level, 6,000 and 10,000 ft (SMM 14.14) | 12 Oct 06:42Z |
 
 `tools/trj-casadi/model.py` carries the same inputs.
