@@ -251,32 +251,19 @@ export function thrustPerWeight(kias, altFt, weightLb = T6A_LIMITS.weightLb) {
 }
 
 /**
- * The drag polar, clean: CD = zeroLiftCd + CL² ÷ (π × aspect ratio × spanEfficiency) + the rise near the stall.
+ * The drag polar, clean: CD = zeroLiftCd + CL² ÷ (π × aspect ratio × spanEfficiency).
  * - zeroLiftCd 0.027: fitted with the propeller curve (T6A_PROP) to the level torque table (EFIG p.222; SMM 4.14
  *   para 32; Patrick, 12 Oct 2026 00:13Z) and Patrick's top speeds and climbs; Patrick chose it on 12 Oct 2026 04:03Z.
  *   The torque comes out 64/51/41/34/29% at 220/200/180/160/140 KIAS against about 65/55/45/35/25%. Draggier than a
  *   textbook 0.020 to 0.024.
  * - spanEfficiency 0.8: ESTIMATE (0.75 to 0.85 for a straight tapered wing).
- * - stallRiseCd 0.04 over the last stallRiseKt 10 kt: the polar steepens as the wing nears the stall line, from nothing
- *   10 kt above it (at 1 G, 96 KIAS) to 0.04 on it, growing with the square of how far in, and held there past it.
- *   ESTIMATE, standard aerodynamics.
+ * - No extra drag near the stall: the same polar holds up to the stall line, which keeps the level MPT on the SMM's
+ *   150 KIAS less 1 kt per 1,000 ft (SMM 14.14) and the best turn rate near 140 KIAS (Patrick, 12 Oct 2026).
  */
-export const T6A_DRAG = Object.freeze({ zeroLiftCd: 0.027, spanEfficiency: 0.8, stallRiseCd: 0.04, stallRiseKt: 10 });
+export const T6A_DRAG = Object.freeze({ zeroLiftCd: 0.027, spanEfficiency: 0.8 });
 
 /** The induced drag factor, 1 ÷ (π × aspect ratio × span efficiency): the induced part of CD is this × CL². */
 const INDUCED_K = 1 / (Math.PI * T6A_AIRFRAME.aspectRatio * T6A_DRAG.spanEfficiency);
-// The rise starts where the load is this share of the stall line's: (86 ÷ 96)² at 1 G.
-const STALL_RISE_FROM = (T6A_LIMITS.stallKias / (T6A_LIMITS.stallKias + T6A_DRAG.stallRiseKt)) ** 2;
-
-/**
- * The extra drag coefficient near the stall line at kias and g (T6A_DRAG): nothing until 10 kt above it, the whole
- * 0.04 on it, and no more past it (beyond the stall line the wing is stalled and the polar does not apply).
- */
-function stallRiseCd(kias, g) {
-  const share = Math.min(1, Math.abs(g) / stallLimitG(kias));
-  if (share <= STALL_RISE_FROM) return 0;
-  return T6A_DRAG.stallRiseCd * ((share - STALL_RISE_FROM) / (1 - STALL_RISE_FROM)) ** 2;
-}
 
 /** Lift coefficient at kias, g and weightLb: CL = n W ÷ (q S). */
 function liftCoefficient(kias, g, weightLb) {
@@ -384,7 +371,7 @@ export const T6A_CONFIG_DRAG = (() => {
   const p = TAKEOFF_FLAP_LEVEL;
   const cl = liftCoefficient(p.kias, 1, T6A_LIMITS.weightLb);
   const neededCd = p.torque * fullThrustLb(p.kias, p.altFt) / (qPsf(p.kias) * T6A_AIRFRAME.wingAreaSqFt);
-  const flapsTakeoff = neededCd - T6A_DRAG.zeroLiftCd - INDUCED_K * cl * cl - stallRiseCd(p.kias, 1);
+  const flapsTakeoff = neededCd - T6A_DRAG.zeroLiftCd - INDUCED_K * cl * cl;
   return Object.freeze({ clean: 0, gearDown: step('gearDown'), flapsTakeoff, landing: step('landing') });
 })();
 
@@ -397,7 +384,7 @@ export function dragPerWeight(kias, altFt, g, config = 'clean', weightLb = T6A_L
   if (!Object.hasOwn(T6A_CONFIG_DRAG, config)) throw new RangeError(`drag configuration ${config}: use one of ${Object.keys(T6A_CONFIG_DRAG).join(', ')}`);
   checkInputs('drag', kias, altFt, g, weightLb);
   const cl = liftCoefficient(kias, g, weightLb);
-  const cd = T6A_DRAG.zeroLiftCd + T6A_CONFIG_DRAG[config] + INDUCED_K * cl * cl + stallRiseCd(kias, g);
+  const cd = T6A_DRAG.zeroLiftCd + T6A_CONFIG_DRAG[config] + INDUCED_K * cl * cl;
   return qPsf(kias) * T6A_AIRFRAME.wingAreaSqFt * cd / weightLb;
 }
 

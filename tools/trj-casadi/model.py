@@ -30,8 +30,6 @@ PROP_STATIC_LB = 3100.0
 PROP_FALL_WIDTH = 1.1
 ZERO_LIFT_CD = 0.027
 SPAN_EFFICIENCY = 0.8
-STALL_RISE_CD = 0.04
-STALL_RISE_KT = 10.0
 FULL_POWER = SHAFT_HP * 550.0
 PROP_RISE_EXP = PROP_STATIC_LB * PROP_ND_FTPS * PROP_PEAK_J / (FULL_POWER * PROP_PEAK_EFF)
 INDUCED_K = 1.0 / (3.141592653589793 * ASPECT_RATIO * SPAN_EFFICIENCY)
@@ -93,10 +91,7 @@ def drag_per_weight(kias, alt_ft, g, boards=0.0):
     """
     q = 0.5 * RHO0_SLUG_FT3 * (kias * KT_TO_FTPS) ** 2 + 1e-9
     cl = g * WEIGHT_LB / (q * WING_AREA_SQFT)
-    rise_from = (T6A_LIMITS['stallKias'] / (T6A_LIMITS['stallKias'] + STALL_RISE_KT)) ** 2
-    share = ca.fmin(1.0, ca.fabs(g) / ((kias / T6A_LIMITS['stallKias']) ** 2 + 1e-9))
-    rise = STALL_RISE_CD * (ca.fmax(0.0, share - rise_from) / (1.0 - rise_from)) ** 2
-    clean_drag = q * WING_AREA_SQFT * (ZERO_LIFT_CD + INDUCED_K * cl ** 2 + rise) / WEIGHT_LB
+    clean_drag = q * WING_AREA_SQFT * (ZERO_LIFT_CD + INDUCED_K * cl ** 2) / WEIGHT_LB
     boards_drag = boards * BOARDS_DRAG_PER_W * ((kias / REF_KIAS) ** 2)
     return clean_drag + boards_drag
 
