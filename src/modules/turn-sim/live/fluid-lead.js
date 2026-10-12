@@ -17,8 +17,9 @@
 //    levels off at the new height, keeping the bank he had (a climbing or descending turn if he was turning; the
 //    climbing and descending turns of Fig 12.22's box). PCL stays MAX (SMM 16.17 para 43: constant power), so the speed
 //    bleeds in the climb and builds in the descent on the shared point mass.
-//  - Terminate: Lead's gentle, predictable level turn while #2 goes back to fighting wing (SMM 16.17 paras 45-46, 48;
-//    AFM7 brief p.17; Patrick's pick 19:20Z row 7).
+//  - Terminate: Lead rolls wings level and flies straight and level while #2 flows back to fighting wing (Patrick 12 Oct
+//    2026 04:01Z: "terminate just has 2 flow back in to fighting wing instead of the formation turning"; until then the
+//    gentle turn of SMM 16.17 paras 45-46, 48 and AFM7 brief p.17).
 //  - Loop (V2.18; SMM 7.5 paras 10-13 and Fig 7.2; Table 7.1; EFIG p.170-171): wings level on the heading Lead has,
 //    PCL MAX, 230 KIAS (Table 7.1; Fig 7.2 "Entry MAX TQ, 230 KIAS"), a wings-level pull at 3.5 G (EFIG p.171, inside
 //    the SMM's 3-4 G) until the nose nears the vertical, then the nose kept moving at a constant rate (paras 11-13): the
@@ -66,8 +67,6 @@ export const LEAD = Object.freeze({
   // should just move into position to begin, not start a turn yet. the 360 happens when we hit sequence"; TS-86). true
   // flies AFM7's entry turn as before.
   entryTurn: false,
-  terminateBankDeg: 30, // "gentle" (AFM7 p.17), "predictable" (SMM 16.17 para 46): 30° is an estimate
-  terminateTurnDeg: 90, // how far the terminate turn goes before rolling out: an estimate
   fwKias: 200, // fighting wing speed (TS-53; SMM 12.23 para 53)
   earlyCueSec: 4, // how long a new turn's lag (into #2) or lead (away from #2) lasts before pure: an estimate
   climbDeg: 15, // the climb or descent angle (design 5.1, an estimate)
@@ -676,28 +675,21 @@ export function entry(dir, bankDeg) {
 }
 
 /**
- * Terminate (SMM 16.17 paras 45-46, 48; AFM7 brief p.17): Lead recovers to level flight, flies a gentle predictable turn
- * (30°, estimate) for 90° (estimate) with the power back to fighting wing's 200 KIAS, then rolls out; #2 goes back to
- * his fighting wing slot on the side he is on.
+ * Terminate (Patrick 12 Oct 2026 04:01Z: "terminate just has 2 flow back in to fighting wing instead of the formation
+ * turning"): Lead rolls wings level and flies straight and level with the power back to fighting wing's 200 KIAS; #2 flows
+ * back to his fighting wing slot on the side he is on.
  */
-export function terminate(dir) {
+export function terminate() {
   return {
     key: 'terminate',
     label: 'Terminate',
     interruptible: false,
-    init: (st) => ({ hPrev: headingOf(st), turned: 0, rollingOut: false, steady: 0, t: 0 }),
+    init: () => ({ steady: 0, t: 0 }),
     step(st, mem, ctx) {
-      const h = headingOf(st);
-      mem.turned += wrapPi(h - mem.hPrev) * dir;
-      mem.hPrev = h;
-      let bank = -dir * LEAD.terminateBankDeg;
-      const rollOut = Math.abs(headingChangeRollingOut(-st.bank, -st.rollRate, st.V));
-      if (mem.rollingOut || mem.turned >= LEAD.terminateTurnDeg * DEG - rollOut) mem.rollingOut = true;
-      if (mem.rollingOut) bank = 0;
-      const steady = mem.rollingOut && level(st) && Math.abs(st.kias - LEAD.fwKias) < 0.5;
+      const steady = level(st) && Math.abs(st.kias - LEAD.fwKias) < 0.5;
       mem.steady = steady ? mem.steady + STEP_SEC : 0;
       mem.t += STEP_SEC;
-      return { g: gForClimb(st, 0), bank, holdKias: LEAD.fwKias, phase: mem.rollingOut ? 'rolling out' : 'gentle turn', cue: { mode: 'pure', latDeg: 15, blend: 0 }, done: mem.steady >= 3 && mem.t > (ctx?.blendOutSec ?? WING.blendOutSec) + 1 };
+      return { g: gForClimb(st, 0), bank: 0, holdKias: LEAD.fwKias, phase: Math.abs(wrapDeg(st.bank)) > 1 ? 'rolling out' : 'straight and level', cue: { mode: 'pure', latDeg: 15, blend: 0 }, done: mem.steady >= 3 && mem.t > (ctx?.blendOutSec ?? WING.blendOutSec) + 1 };
     },
   };
 }
