@@ -14,7 +14,7 @@ import { copyAircraft } from './flight.js';
 import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, refsFor, fourWords } from './slots.js';
 import { FOUR_CHANGE_LIMIT_SEC, statesAt, joinLegs } from './four-legs.js';
-import { fingerToEchelon, echelonToFinger, echelonToEchelon, fingerBox, fingerTrail, slideTo, openToFw } from './four-close.js';
+import { fingerToEchelon, echelonToFinger, echelonToEchelon, fingerBox, fingerTrail, slideTo, openToFw, fwStartPhases } from './four-close.js';
 import { rejoinToFw, turningToFinger, turningToEchelon, turningAway, closeFromFw, straightToEchelon, straightToFinger } from './four-rejoin.js';
 import { entryToSpread, fwFluid, fluidToBox } from './four-open.js';
 
@@ -173,8 +173,16 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   const flags = []; // references the plan went past, flown anyway and shown on screen (TS-179's cross)
   for (const step of path) {
     const s = step.s === 0 ? (step.sTo || sNow) : step.s;
-    const r = step.move.fly(now, t, opts, s, step.sTo);
+    // Into fighting wing the last move ends at the start place (TS-208): each wingman from where he settled in the cone to
+    // his place in the table (four-close.js fwStartPhases), with Lead's plan held straight until they are there, so the
+    // change is not called done while they are still moving to it (events.js fourInBandAndSteady waits for Lead's plan).
+    const toStart = to === 'fw' && step === path[path.length - 1];
+    const r = step.move.fly(now, t, toStart ? { ...opts, endPhases: fwStartPhases(sTo) } : opts, s, step.sTo);
     if (!r.ok) return { ok: false, reason: `No safe change from here: ${r.reason}`, from: from.key, to };
+    if (toStart) {
+      const leg = r.legs[r.legs.length - 1];
+      leg.plans[1].segments.push({ kind: 'hold', untilSec: leg.settleSec });
+    }
     const how = r.how ?? (typeof step.move.how === 'function' ? step.move.how(opts, s, step.sTo) : step.move.how);
     hows.push(r.straightFallback ? `${how} (straight ahead: no turn kept the lane)` : how);
     if (r.flag) flags.push(r.flag);

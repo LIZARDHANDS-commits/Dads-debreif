@@ -152,14 +152,17 @@ export function fwShapeNow() {
 }
 
 /**
- * Four-ship fighting wing: each link 650 ft; #2 at 45°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says).
+ * Four-ship fighting wing: each link 650 ft; #2 at 60°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says).
  * The angles are sweep back from the wing line of the aircraft flown off, the manual's way (SMM 12.29 para 69, Fig 12.19).
- * #3 and #4 sit on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14). Their 30° matches Fig 16.29's picture; the
- * para 104 text says a 60° sweep: both are written down (Patrick set it through a setting, TS-58, until V2.359; TS-195).
+ * #2's 60° is the aft edge of the cone, about 30° off Lead's tail, so a turn into him has room to lag (Patrick 12 Oct 2026
+ * 18:17Z: "hold 2 closer to the edge of the cone near to lead"; 45° until then, an estimate). In Fluid 4, #2 off Lead and #4
+ * off #3 keep the 45° (fluidDeg; not part of that ruling). #3 and #4 sit on the side opposite #2 (SMM 16.38 para 104; AFM7
+ * brief p.14). Their 30° matches Fig 16.29's picture; the para 104 text says a 60° sweep: both are written down (Patrick set
+ * it through a setting, TS-58, until V2.359; TS-195).
  */
-export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 45, otherDeg: 30 });
-/** The four-ship's desired places: #2's pair (spacing and sweep off Lead; #4 off #3 in Fluid 4 too) and #3/#4's pair (each off the one ahead in fighting wing). */
-const fw4 = Object.freeze({ twoRangeFt: FW4.rangeFt, twoDeg: FW4.twoDeg, otherRangeFt: FW4.rangeFt, otherDeg: FW4.otherDeg });
+export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 60, otherDeg: 30, fluidDeg: 45 });
+/** The four-ship's desired places: #2's pair (spacing and sweep off Lead; #4 off #3 in Fluid 4 at fluidDeg) and #3/#4's pair (each off the one ahead in fighting wing). */
+const fw4 = Object.freeze({ twoRangeFt: FW4.rangeFt, twoDeg: FW4.twoDeg, fluidDeg: FW4.fluidDeg, otherRangeFt: FW4.rangeFt, otherDeg: FW4.otherDeg });
 
 /** Fighting wing with no stack (entered from a close formation): each aircraft 60 ft below the one it flies off, the 2-ship's estimate. */
 export const FW_STEP_DOWN_FT = 60;
@@ -216,11 +219,11 @@ export function slotsFor(key, s, { ships = 2, spacingFt = 6000, stacked = true }
         4: { ref: 3, fwd: 0, left: s * spacingFt, alt: STACK_FT[4] },
       };
     case 'fluid4':
-      // #4 flies fighting wing off #3 as #2 does off Lead: #2's spacing and sweep setting (FW4: 650 ft at 45° by default, an estimate).
+      // #4 flies fighting wing off #3 as #2 does off Lead: 650 ft at 45° (FW4 fluidDeg, an estimate).
       return {
-        2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, s), alt: STACK_FT[2] },
+        2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.fluidDeg, s), alt: STACK_FT[2] },
         3: { ref: 1, fwd: 0, left: -s * spacingFt, alt: STACK_FT[3] }, // abeam of Lead at the Setup's line abreast spacing (AFM8 brief p.20; Patrick ratified the 4-ship moves table, 5 Oct)
-        4: { ref: 3, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, -s), alt: STACK_FT[4] },
+        4: { ref: 3, ...fwAt(fw4.twoRangeFt, fw4.fluidDeg, -s), alt: STACK_FT[4] },
       };
     case 'fw':
     case 'fluidMan':

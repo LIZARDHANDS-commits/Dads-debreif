@@ -290,6 +290,15 @@ export function inLeadFrame(slots, id) {
   return { fwd, left, alt: slots[id].alt };
 }
 
+/** A wingman's part with one more phase after his own last one: after his tracker legs, or after his held part (withTail). */
+function thenTo(w, ph) {
+  return {
+    ...w,
+    phases: w.phases ? (done, recs) => [...w.phases(done, recs), ph] : w.phases,
+    then: w.fly ? (done, recs) => [...(w.then ? w.then(done, recs) : []), ph] : w.then,
+  };
+}
+
 /**
  * Runs a list of leg makers one after another: each gets the context at its own start. A step starts as soon as everyone in
  * the one before has settled in place (when #2 sees room, SMM 16.32 para 87; Patrick 6 Oct 05:29Z), not after each has also
@@ -301,9 +310,26 @@ export function legsInTurn(start, t0, opts, makers) {
   let now = start;
   let t = t0;
   let before = null; // the last leg flown, cut at its settle time: { leg, from (the states it started from), whole (its uncut plans) }
-  for (const make of makers) {
+  const all = [...makers];
+  for (let k = 0; k < all.length; k++) {
     const c = context(now, t, opts);
-    const spec = make(c);
+    let spec = all[k](c);
+    // opts.endPhases(c): { id: phase }, where each wingman ends the move, flown after his own last phase (four-plan.js: the
+    // fighting wing start, TS-208). With Lead straight each flies on into it as soon as he is through his last phase; with
+    // Lead turning on until they are in (a turning rejoin) it is a leg of its own once Lead has rolled out, so his turn is
+    // the move's own.
+    if (opts.endPhases && k === all.length - 1 && !opts.endPhasesDone) {
+      if (!spec || (spec.lead && !Array.isArray(spec.lead))) {
+        all.push((c2) => {
+          const ends = opts.endPhases(c2);
+          return { lead: [], wings: [2, 3, 4].map((id) => ({ id, phases: () => [ends[id]] })) };
+        });
+        opts = { ...opts, endPhasesDone: true };
+      } else {
+        const ends = opts.endPhases(c);
+        spec = { ...spec, wings: spec.wings.map((w) => thenTo(w, ends[w.id])) };
+      }
+    }
     if (!spec) continue;
     const leg = flyLeg(now, t, spec.lead ?? [], spec.wings, opts.blockFt);
     if (!leg.ok) return { ok: false, reason: leg.reason, legs };
