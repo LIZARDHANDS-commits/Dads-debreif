@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>surfaces</title><style>html,body{margin:0;background:#fff}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import * as M from '/src/ui-kit/ct156-model.js';
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+const F = 23.148, X = (ft) => 0.66 - ft / F;
+const ship = M.createCt156Model(THREE, { color: '#c03030', number: 104 });
+window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, pitch = 0, ground = false, sky = '#9fb8d6', ortho = 0, controls = {}, hide = [] }) => {
+  const d = ship.userData.ct156; for (const k of Object.keys(d)) if (d[k] && d[k].isObject3D) d[k].visible = !hide.includes(k);
+  renderer.setSize(w, h, false);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(sky);
+  sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', 1.6));
+  const sun = new THREE.DirectionalLight('#ffffff', 2.0); sun.position.set(0.3, 0.6, 2); sc.add(sun, sun.target);
+  M.setGear(ship, t); M.setControls(ship, controls);
+  ship.rotation.order = 'ZYX'; ship.rotation.set(0, -pitch * Math.PI / 180, 0);
+  sc.add(ship); ship.updateMatrixWorld(true);
+  if (ground) {
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial({ color: '#7d8a74' }));
+    g.position.set(0, 0, -5.35 / F + 0.0005); sc.add(g);
+  }
+  let cam;
+  if (ortho) { const a = w / h; cam = new THREE.OrthographicCamera(-ortho * a / 2, ortho * a / 2, ortho / 2, -ortho / 2, 0.001, 100); }
+  else cam = new THREE.PerspectiveCamera(fov, w / h, 0.001, 100);
+  cam.position.set(X(eye[0]), eye[1] / F, eye[2] / F); cam.up.set(0, 0, 1);
+  cam.lookAt(X(at[0]), at[1] / F, at[2] / F); cam.updateMatrixWorld(true);
+  window.lastView = { sc, cam }; window.THREE = THREE;
+  renderer.render(sc, cam);
+  return true;
+};
+window.ready = true;
+</script></body></html>

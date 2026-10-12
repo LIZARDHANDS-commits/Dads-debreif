@@ -22,6 +22,7 @@ The plan's steps, in order: Step 1: Refresh spec.md against the new requirements
 | `future.md` | Ideas not being built until Patrick moves them up |
 | `flight-math.md` | Every shared flight formula, where it lives and its source: read it before writing flight math |
 | `REFACTOR_HANDOVER_CORE_V2.350.md` | Fable's audit of `src/core/` and the step-by-step refactor plan, being built (Patrick, 11 Oct 2026 23:31Z) |
+| `graphics-handover/` | The CT-156 3D model's handover (12 Oct 2026): how it is built from code and Blender, what each version changed and why, and what is open |
 
 ## Open questions
 
