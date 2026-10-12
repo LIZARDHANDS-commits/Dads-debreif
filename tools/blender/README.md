@@ -1,6 +1,6 @@
 # Blender CT-156
 
-The CT-156's outside (ALL-33) and cockpit (ALL-32) are model files built here by script from the code model's own
+The CT-156's outside (ALL-33), landing gear (ALL-34) and cockpit (ALL-32) are model files built here by script from the code model's own
 shapes, so the code's tables stay the one source for the aircraft's shape and size. Blender adds what code can't easily:
 smooth shading with sharp edges where they belong, baked soft shadows, and the panel lines and control-surface gaps.
 If a file is missing, or a part's shape has changed since it was built, the code-drawn part shows.
@@ -10,6 +10,8 @@ If a file is missing, or a part's shape has changed since it was built, the code
 | `ct156-shape.mjs` | Prints the code model's shape tables (fuselage stations, canopy, wing, tailplane, fin) as JSON. |
 | `ct156-exterior-pieces.mjs` | Prints the code model's outside parts (fuselage, airframe, fin, frames, stacks and the rest) piece by piece, with each part's fingerprint. |
 | `build_ct156_exterior.py` | Builds the outside: smooth-shades the parts, bakes one soft-shadow picture over all of them with the panel lines drawn in (places measured off reference side and top views and Patrick's photos, cited in the script), and exports `public/models/ct156-exterior.glb` and `ct156-exterior-ao.jpg`, plus `ct156-exterior-bump.jpg` (panel line grooves and rivets, bump-mapped) and `ct156-exterior-dirt.jpg` (exhaust soot, belly oil and grime, which darken and dull the paint). The app swaps each part in once the file loads (`src/ui-kit/ct156-model.js`); the decals, cheat line, glass, lights, pilots and prop stay the code's. |
+| `ct156-gear-pieces.mjs` | Prints the code model's landing gear (main leg and wheel, leg door, inboard door, nose leg and wheel, nose door; the left side's, each in its hinge's own frame) piece by piece, with each part's fingerprint and its place gear down. |
+| `build_ct156_gear.py` | Builds the gear: smooth-shades the parts, sets each in its place gear down with the right side's gear and the fuselage and wings round it, bakes one soft-shadow picture, puts each part back in its hinge's frame and exports `public/models/ct156-gear.glb` and `ct156-gear-ao.jpg`. The app swaps each part in once the file loads and swings it with `setGear`. |
 | `ct156-cockpit-shape.mjs` | Prints the cockpit's numbers (eye, forward bow, canopy rails), worked out by the code cockpit's own helpers. |
 | `ct156-cockpit-pieces.mjs` | Prints the code cockpit's solid parts (body, seat, pcl, stick) piece by piece, with each part's fingerprint, and the pictured faces that shade them. |
 | `build_ct156_cockpit.py` | Builds the cockpit parts drawn as a model (ALL-32), rounds the code cockpit's pieces, bakes their soft shadows and exports `public/models/ct156-cockpit.glb` plus one `ct156-cockpit-ao-<part>.jpg` per part. The app uses these: each part replaces the code cockpit's part of the same name once the file loads (`src/ui-kit/ct156-cockpit-model.js`). |
@@ -28,6 +30,20 @@ blender -b --factory-startup -P tools/blender/build_ct156_exterior.py -- ct156-e
 
 The shadow bake (Cycles, on the processor) takes about five minutes. The file is used only whole: if any part's shape
 has changed since it was built, the console says "out of date" and every ship stays as the code draws it.
+
+## Rebuild the landing gear
+
+Rebuild it after every change to the gear's shape in the code (ct156-model.js):
+
+```
+node tools/blender/ct156-gear-pieces.mjs > ct156-gear-pieces.json
+node tools/blender/ct156-exterior-pieces.mjs > ct156-exterior-pieces.json
+node tools/blender/ct156-shape.mjs > ct156-shape.json
+blender -b --factory-startup -P tools/blender/build_ct156_gear.py -- ct156-gear-pieces.json ct156-exterior-pieces.json ct156-shape.json public/models/ct156-gear.glb
+```
+
+The shadow bake takes under a minute. As with the outside, the file is used only whole: if any gear part's shape has
+changed since it was built, the console says "out of date" and the code's own gear shows.
 
 ## Rebuild the cockpit parts
 

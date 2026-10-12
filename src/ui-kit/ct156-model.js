@@ -375,6 +375,28 @@ const TIE_DOWN = Object.freeze({ x: 0.66 - 12.8 / 23.148, s: 0.36, r: 0.15 / 23.
 // estimates (no page gives them): hinged 16.0 ft behind the spinner's tip, where the flaps start, 2.3 ft long and 1.8
 // ft across (about 4.1 sq ft; the Formation sim's drag guesses about 5, slow-down.js BOARDS). Units.
 const SPEED_BRAKE = Object.freeze({ x0: 0.66 - 16.0 / 23.148, length: 2.3 / 23.148, half: 0.9 / 23.148, thick: 0.03 / 23.148, hole: 0.19 / 23.148, openDeg: 70 });
+// The landing gear (ALL-34, Patrick 12 Oct 2026): a tricycle, each main wheel on the outboard side of its leg, the legs
+// folding inboard into the wing's centre section, the nose leg folding aft into the bay over the fairing under the nose.
+// Feet, measured 12 Oct 2026 off the reference side and front views (side scaled by its 33 ft 4 in, front by the model's
+// span; about +-2 in) and Patrick's photos: main wheels 13.87 ft behind the spinner's tip and 4.08 ft out (the views
+// give 3.9 to 4.1), tyres 1.64 ft across and 0.45 ft wide; nose wheel 6.0 ft behind the tip, tyre 1.34 ft across and
+// 0.5 ft wide; the main wheels' ground 5.35 ft under the spinner's axis. On level ground the gear holds the nose GEAR_SIT_DEG up (Patrick's ruling,
+// with the core's on-gear pitch), so the nose leg is about 4 in longer than the side view, which draws the axis level on
+// the wheels. Pivots, door edges and leg sizes are estimates that fit the folded gear inside the skin under the doors
+// the Blender outside already outlines (build_ct156_exterior.py GEAR_DOORS_FT, the nose fairing split down its middle).
+// Each main gear: its leg door (on the leg, splayed out GEAR.legDoorSplayDeg when down, as the front view and the view
+// from below show) and an inboard door hinged on its inboard edge, hanging down while open (Patrick's photo of 104).
+const GEAR_SIT_DEG = 2.5;
+const GEAR = Object.freeze({
+  groundFt: -5.35, // the main wheels' ground, feet under the spinner's axis
+  main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.82, tyreWFt: 0.45, legRFt: 0.11, pistonRFt: 0.075 }),
+  legDoor: Object.freeze({ x0Ft: 13.45, x1Ft: 14.55, y0Ft: 2.3, y1Ft: 4.25 }),
+  inboardDoor: Object.freeze({ x0Ft: 12.9, x1Ft: 15.1, y0Ft: 0.45, y1Ft: 2.35 }),
+  legDoorSplayDeg: 12,
+  nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.67, tyreWFt: 0.5, legRFt: 0.09, pistonRFt: 0.065, forkYFt: 0.31 }),
+  noseDoor: Object.freeze({ x0Ft: 6.1, x1Ft: 10.0, halfFt: 0.36, openDeg: 85 }),
+  doorThickFt: 0.03,
+});
 
 /**
  * Points on the outside of the aircraft, model units (nose +X, left +Y, up +Z from the origin on the spinner's axis), each
@@ -574,14 +596,25 @@ export function ct156ExteriorPieces(THREE) {
   return Object.fromEntries(EXTERIOR_PARTS.map((name) => [name, { geometry: geo[name], hash: hashes[name] }]));
 }
 
-/** A ship's mesh drawn with its materials darkened by the baked picture (aoShaded), each copy made once. */
-function shadeMesh(kit, mesh) {
+/** The shapes the gear's Blender file is built from (tools/blender/ct156-gear-pieces.mjs): each with its pose gear down. */
+export function ct156GearPieces(THREE) {
+  const { geo, gearHashes } = getKit(THREE);
+  const poses = gearPoses(THREE);
+  return Object.fromEntries(GEAR_PARTS.map((name) => [name, { geometry: geo[name], hash: gearHashes[name], pose: poses[name].elements.slice() }]));
+}
+
+/**
+ * A ship's mesh drawn with its materials darkened by a baked picture (aoShaded; the outside's, or with `gear` the gear's),
+ * each copy made once.
+ */
+function shadeMesh(kit, mesh, gear = false) {
+  const cache = gear ? kit.gearShaded : kit.shaded;
   const swap = (mat) => {
     if (!mat?.isMeshStandardMaterial) return mat;
-    let copy = kit.shaded.get(mat);
+    let copy = cache.get(mat);
     if (!copy) {
-      copy = aoShaded(mat, kit.ao, kit.skin);
-      kit.shaded.set(mat, copy);
+      copy = gear ? aoShaded(mat, kit.gearAo) : aoShaded(mat, kit.ao, kit.skin);
+      cache.set(mat, copy);
       const mine = mesh.userData.ct156Mine;
       (mine?.includes(mat) ? mine : kit.own).push(copy);
     }
@@ -630,6 +663,23 @@ function attachExterior(kit) {
     kit.skin = { bump: loadAo(kit.THREE, EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, EXTERIOR_DIRT) };
     for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
   }, () => {}); // no file: the code model shows
+}
+
+/** The gear's Blender file (ALL-34), as attachExterior: all its parts or none; without it the code's gear shows. */
+function attachGear(kit) {
+  loadParts(GEAR_FILE).then((list) => {
+    if (kit.disposed) return;
+    const byName = new Map(list.map((p) => [p.name, p]));
+    const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
+    const stale = GEAR_PARTS.filter((name) => byName.get(name)?.extras.ct156_hash !== kit.gearHashes[name] || !usable(byName.get(name)));
+    if (stale.length) {
+      console.warn(`${GEAR_FILE}: ${stale.join(', ')} out of date with the code; the code's gear shows (rebuild: tools/blender/README.md)`);
+      return;
+    }
+    for (const name of GEAR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
+    kit.gearAo = loadAo(kit.THREE, GEAR_AO);
+    for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
+  }, () => {});
 }
 
 const kits = new WeakMap(); // THREE namespace -> kit
@@ -861,6 +911,239 @@ function speedBrakeGeometry(THREE) {
   }
   return new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false, curveSegments: 10 }).translate(0, 0, -thick);
 }
+
+// ---------- the landing gear (GEAR, ALL-34) ----------
+const GFT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
+const gearX = (ft) => 0.66 - ft * GFT; // feet behind the spinner's tip to the model's x
+
+/** The nose fairing's skin underneath at x, y (noseFairingGeometry's section, inverted), units; y 0 its lowest line. */
+function fairingBottomAt(x, y = 0) {
+  const { x0, x1, depth0, depth1, half } = NOSE_FAIRING, sink = 0.004;
+  const t = clamp01((x - x0) / (x1 - x0));
+  const ease = Math.sin((Math.PI / 2) * Math.min(1, t / 0.1, (1 - t) / 0.1)) ** 0.5;
+  const w = half * (0.6 + 0.4 * ease), c = Math.min(1, Math.abs(y) / w) ** 1.5;
+  return bellyAt(x) + sink - ((depth0 + (depth1 - depth0) * t) * ease + sink) * Math.sqrt(1 - c * c) ** (2 / 3);
+}
+
+let gearLayoutCache = null;
+/**
+ * Where the gear's hinges and wheels are, model units, the left side (+y; the right is its mirror): the main leg's
+ * pivot (its leg door's outer face then lies on the wing's underside when folded), the leg's length to the axle, the
+ * leg door's splay hinge in the leg's own frame, the inboard door's and nose door's hinge lines (y, z), the nose leg's
+ * pivot and its axle's offset from it, and the ground under the main and nose wheels (the nose's lower by
+ * GEAR_SIT_DEG over the wheelbase, so the aircraft sits nose up on level ground).
+ */
+function gearLayout() {
+  if (gearLayoutCache) return gearLayoutCache;
+  const m = GEAR.main, n = GEAR.nose, ib = GEAR.inboardDoor, nd = GEAR.noseDoor;
+  const mx = gearX(m.xFt);
+  const pivot = [mx, m.pivotYFt * GFT, wingSurfZ(mx, m.pivotYFt * GFT, -1) + m.doorOutFt * GFT];
+  const mainGround = GEAR.groundFt * GFT;
+  const legLen = pivot[2] - (mainGround + m.tyreRFt * GFT);
+  const nx = gearX(n.xFt);
+  const noseGround = mainGround - (nx - mx) * Math.tan(rad(GEAR_SIT_DEG));
+  const nosePivot = [gearX(n.pivotXFt), 0, n.pivotZFt * GFT];
+  const noseAxle = [nx - nosePivot[0], 0, noseGround + n.tyreRFt * GFT - nosePivot[2]];
+  const ibMid = gearX((ib.x0Ft + ib.x1Ft) / 2);
+  const ndMid = gearX((nd.x0Ft + nd.x1Ft) / 2);
+  gearLayoutCache = {
+    pivot, legLen, mainGround, noseGround, nosePivot, noseAxle,
+    legDoorHinge: [0, m.doorOutFt * GFT, (GEAR.legDoor.y1Ft - m.pivotYFt) * GFT],
+    inboardHinge: [0, ib.y0Ft * GFT, wingSurfZ(ibMid, ib.y0Ft * GFT, -1)],
+    noseHinge: [0, nd.halfFt * GFT, fairingBottomAt(ndMid)],
+  };
+  return gearLayoutCache;
+}
+
+/** A round rod from a to b ([x, y, z]), radius r. */
+function gearRod(THREE, a, b, r, seg = 10) {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const g = new THREE.CylinderGeometry(r, r, d.length(), seg);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
+  return g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+}
+
+/** A wheel on an axle along y, centred at c: the tyre (slot 1) round the hub (slot 2). Feet in, units out. */
+function gearWheel(THREE, c, rFt, wFt) {
+  const R = rFt * GFT, W = (wFt * GFT) / 2, h = R * 0.36, rc = R - h / 2, n = 2.6;
+  const tyre = [];
+  for (let k = 0; k <= 28; k++) { // the tyre's section, a rounded box, round from its inner edge
+    const a = -Math.PI / 2 + (k / 28) * 2 * Math.PI, c2 = Math.cos(a), s2 = Math.sin(a);
+    tyre.push(new THREE.Vector2(rc + (h / 2) * Math.sign(c2) * Math.abs(c2) ** (2 / n), W * Math.sign(s2) * Math.abs(s2) ** (2 / n)));
+  }
+  const rim = rc - h / 2;
+  const hub = [[0.0005, -W * 0.7], [rim * 0.45, -W * 0.72], [rim * 0.55, -W * 0.85], [rim, -W * 0.85], [rim, W * 0.85], [rim * 0.55, W * 0.85], [rim * 0.45, W * 0.72], [0.0005, W * 0.7]]
+    .map(([x, y]) => new THREE.Vector2(x, y));
+  return [
+    { geometry: new THREE.LatheGeometry(tyre, 28).translate(c[0], c[1], c[2]), materials: [1] },
+    { geometry: new THREE.LatheGeometry(hub, 20).translate(c[0], c[1], c[2]), materials: [2] },
+  ];
+}
+
+/**
+ * A door: a thin plate whose outer face (slot 0, the paint) runs through outer(u, v) for u, v in [0, 1] and whose inner
+ * face (slot 1) lies thick inward, along `inward`; each point then moved by place(p). Units.
+ */
+function gearDoor(THREE, outer, inward, thick, place, nu = 8, nv = 6) {
+  const pos = [], idx = [], groups = [];
+  const face = (off, flip) => {
+    const start = idx.length, base = pos.length / 3;
+    for (let i = 0; i <= nu; i++) {
+      for (let j = 0; j <= nv; j++) {
+        const p = outer(i / nu, j / nv);
+        pos.push(...place([p[0] + inward[0] * off, p[1] + inward[1] * off, p[2] + inward[2] * off]));
+      }
+    }
+    for (let i = 0; i < nu; i++) {
+      for (let j = 0; j < nv; j++) {
+        const a = base + i * (nv + 1) + j, b = a + 1, c = a + nv + 1, d = c + 1;
+        idx.push(...(flip ? [a, b, c, b, d, c] : [a, c, b, b, c, d]));
+      }
+    }
+    return [start, idx.length - start];
+  };
+  const [s0, c0] = face(0, false);
+  groups.push([s0, c0, 0]);
+  const [s1, c1] = face(thick, true);
+  // The edges: a strip round the rim between the two faces.
+  const start = idx.length, rim = [];
+  for (let i = 0; i <= nu; i++) rim.push([i / nu, 0]);
+  for (let j = 1; j <= nv; j++) rim.push([1, j / nv]);
+  for (let i = nu - 1; i >= 0; i--) rim.push([i / nu, 1]);
+  for (let j = nv - 1; j >= 1; j--) rim.push([0, j / nv]);
+  const base = pos.length / 3;
+  for (const [u, v] of rim) {
+    const p = outer(u, v);
+    pos.push(...place(p), ...place([p[0] + inward[0] * thick, p[1] + inward[1] * thick, p[2] + inward[2] * thick]));
+  }
+  for (let k = 0; k < rim.length; k++) {
+    const a = base + 2 * k, b = base + 2 * ((k + 1) % rim.length);
+    idx.push(a, b, a + 1, b, b + 1, a + 1);
+  }
+  groups.push([s1, c1 + idx.length - start, 1]);
+  return meshOf(THREE, pos, idx, groups);
+}
+
+/** A dark patch just outside the skin over a door's opening, seen while the door is open (as the speed brake's well). */
+function gearWell(THREE, x0, x1, y0, y1, zAt, n = 8) {
+  const pos = [], idx = [];
+  for (let i = 0; i <= n; i++) {
+    for (let j = 0; j <= 2; j++) {
+      const x = x0 + ((x1 - x0) * i) / n, y = y0 + ((y1 - y0) * j) / 2;
+      pos.push(...wingBend([x, y, zAt(x, y) - 0.0004]));
+    }
+  }
+  for (let i = 0; i < n; i++) for (let j = 0; j < 2; j++) {
+    const a = i * 3 + j, b = a + 1, c = a + 3, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  return meshOf(THREE, pos, idx);
+}
+
+/**
+ * The gear's shapes, each in its own hinge's frame, the left side's (the right side draws them mirrored), gear down and
+ * doors shut: gearMain (leg, piston, torque link, axle and wheel about the main leg's pivot; slots metal, tyre, hub,
+ * chrome), gearMainDoor (the leg door about its splay hinge), gearInboardDoor (about its hinge line, shut),
+ * gearNose (strut, fork and wheel about the nose leg's pivot), gearNoseDoor (the left nose door about its hinge line,
+ * shut), and the dark wells (model frame).
+ */
+function gearGeometries(THREE) {
+  const L = gearLayout(), m = GEAR.main, n = GEAR.nose, t = GEAR.doorThickFt * GFT;
+  const geo = {};
+  const len = L.legLen, wheelY = m.wheelOutFt * GFT;
+  geo.gearMain = joinGeometries(THREE, [
+    { geometry: gearRod(THREE, [0, 0, 0.1 * GFT], [0, 0, -0.56 * len], m.legRFt * GFT, 12), materials: [0] },
+    { geometry: gearRod(THREE, [0, 0, -0.5 * len], [0, 0, -len], m.pistonRFt * GFT, 12), materials: [3] },
+    { geometry: gearRod(THREE, [0, 0, -len], [0, wheelY, -len], 0.07 * GFT, 10), materials: [0] },
+    { geometry: gearRod(THREE, [0, 0, -0.5 * len], [0.17 * GFT, 0, -0.7 * len], 0.025 * GFT, 6), materials: [0] },
+    { geometry: gearRod(THREE, [0.17 * GFT, 0, -0.7 * len], [0, 0, -0.92 * len], 0.025 * GFT, 6), materials: [0] },
+    ...gearWheel(THREE, [0, wheelY, -len], m.tyreRFt, m.tyreWFt),
+  ]);
+  // Doors are drawn where they lie shut (on the skin) and moved into their hinge's frame.
+  const ld = GEAR.legDoor, ib = GEAR.inboardDoor, nd = GEAR.noseDoor;
+  // On the skin itself (wingSurfZ sits 0.0015 out for decals) and bent with the outer panel, just proud of it.
+  const under = (x, y) => wingBend([x, y, wingSurfZ(x, y, -1) + 0.001]);
+  const [px, py, pz] = L.pivot, hd = L.legDoorHinge;
+  // Folded, the leg lies turned -90° about x from down; into the leg's frame is +90° about x, (y, z) -> (-z, y).
+  const intoLeg = ([x, y, z]) => {
+    const dy = y - py, dz = z - pz;
+    return [x - px - hd[0], -dz - hd[1], dy - hd[2]];
+  };
+  geo.gearMainDoor = gearDoor(THREE, (u, v) => {
+    const x = gearX(ld.x0Ft + (ld.x1Ft - ld.x0Ft) * u), y = (ld.y0Ft + (ld.y1Ft - ld.y0Ft) * v) * GFT;
+    return under(x, y);
+  }, [0, 0, 1], t, intoLeg);
+  const ih = L.inboardHinge;
+  geo.gearInboardDoor = gearDoor(THREE, (u, v) => {
+    const x = gearX(ib.x0Ft + (ib.x1Ft - ib.x0Ft) * u), y = (ib.y0Ft + (ib.y1Ft - ib.y0Ft) * v) * GFT;
+    return under(x, y);
+  }, [0, 0, 1], t, ([x, y, z]) => [x, y - ih[1], z - ih[2]]);
+  // The nose leg, raked along its pivot-to-axle line: strut, piston, fork crown, two fork blades, axle, torque link.
+  const A = L.noseAxle, at = (f, dx = 0, dy = 0) => [A[0] * f + dx, dy, A[2] * f];
+  const fy = n.forkYFt * GFT, crown = 0.8;
+  geo.gearNose = joinGeometries(THREE, [
+    { geometry: gearRod(THREE, at(-0.04), at(0.5), n.legRFt * GFT, 12), materials: [0] },
+    { geometry: gearRod(THREE, at(0.45), at(crown), n.pistonRFt * GFT, 12), materials: [3] },
+    { geometry: gearRod(THREE, at(crown, 0, -fy - 0.03 * GFT), at(crown, 0, fy + 0.03 * GFT), 0.05 * GFT, 8), materials: [0] },
+    { geometry: gearRod(THREE, at(crown, 0, fy), at(1, 0, fy), 0.035 * GFT, 8), materials: [0] },
+    { geometry: gearRod(THREE, at(crown, 0, -fy), at(1, 0, -fy), 0.035 * GFT, 8), materials: [0] },
+    { geometry: gearRod(THREE, at(1, 0, -fy - 0.03 * GFT), at(1, 0, fy + 0.03 * GFT), 0.04 * GFT, 8), materials: [0] },
+    { geometry: gearRod(THREE, at(0.47), at(0.6, 0.15 * GFT), 0.022 * GFT, 6), materials: [0] },
+    { geometry: gearRod(THREE, at(0.6, 0.15 * GFT), at(0.76), 0.022 * GFT, 6), materials: [0] },
+    ...gearWheel(THREE, A, n.tyreRFt, n.tyreWFt),
+  ]);
+  const nh = L.noseHinge, half = nd.halfFt * GFT;
+  geo.gearNoseDoor = gearDoor(THREE, (u, v) => {
+    const x = gearX(nd.x0Ft + (nd.x1Ft - nd.x0Ft) * u);
+    return [x, half * v, fairingBottomAt(x, half * v) - 0.0005];
+  }, [0, 0, 1], t, ([x, y, z]) => [x, y - nh[1], z - nh[2]]);
+  // The wells, model frame, each side: the leg door's and the inboard door's openings, and the nose bay's.
+  const wing = (x, y) => wingSurfZ(x, y, -1) + 0.0017; // the well 0.0002 outside the skin, under the shut door
+  for (const [s, k] of [[1, 'L'], [-1, 'R']]) {
+    const ys = (a, b) => (s > 0 ? [a * GFT, b * GFT] : [-b * GFT, -a * GFT]);
+    geo[`gearLegWell${k}`] = gearWell(THREE, gearX(ld.x0Ft), gearX(ld.x1Ft), ...ys(ld.y0Ft, ld.y1Ft), wing);
+    geo[`gearInboardWell${k}`] = gearWell(THREE, gearX(ib.x0Ft), gearX(ib.x1Ft), ...ys(ib.y0Ft, ib.y1Ft), wing);
+  }
+  geo.gearNoseWell = gearWell(THREE, gearX(nd.x0Ft), gearX(nd.x1Ft), -half, half, (x) => fairingBottomAt(x));
+  return geo;
+}
+
+/** The gear's parts drawn from the Blender file (ALL-34): the left side's, each in its hinge's frame. */
+const GEAR_PARTS = Object.freeze(['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor']);
+const GEAR_FILE = 'ct156-gear.glb';
+const GEAR_AO = 'ct156-gear-ao.jpg';
+
+/**
+ * Where each gear part sits, gear down, as a column-major 4x4 matrix from its hinge's frame to the model's (the left
+ * side's), for the Blender file to bake its soft shadows in place (tools/blender/ct156-gear-pieces.mjs).
+ */
+function gearPoses(THREE) {
+  const L = gearLayout();
+  const T = (p) => new THREE.Matrix4().makeTranslation(p[0], p[1], p[2]);
+  const Rx = (deg) => new THREE.Matrix4().makeRotationX(rad(deg));
+  return {
+    gearMain: T(L.pivot),
+    gearMainDoor: T(L.pivot).multiply(T(L.legDoorHinge)).multiply(Rx(GEAR.legDoorSplayDeg)),
+    gearInboardDoor: T(L.inboardHinge),
+    gearNose: T(L.nosePivot),
+    gearNoseDoor: T(L.noseHinge).multiply(Rx(GEAR.noseDoor.openDeg)),
+  };
+}
+
+/**
+ * Where the gear is at t, 0 up to 1 down (ALL-34): the inboard main doors open over the first fifth, the legs travel
+ * over the middle three fifths (easing in and out) with the leg doors and nose doors going with them, and the inboard
+ * doors close over the last fifth. Gear up runs the same way backwards. { doors, legs }, each 0 to 1.
+ */
+export function ct156GearPhase(t) {
+  const v = clamp01(Number(t) || 0);
+  const doors = v < 0.2 ? v / 0.2 : v > 0.8 ? (1 - v) / 0.2 : 1;
+  const u = clamp01((v - 0.2) / 0.6);
+  return { doors, legs: u * u * (3 - 2 * u) };
+}
+
+/** About how long the gear takes each way, seconds, for a module that animates it (Patrick, 12 Oct 2026). */
+export const CT156_GEAR_TRAVEL_S = 6;
 
 /** A pitot probe (PITOT) on one wing (side +1 left, -1 right): a short mast down from under the leading edge and a tube forward. */
 function pitotGeometry(THREE, side) {
@@ -1568,6 +1851,8 @@ function buildKit(THREE) {
     }
     geo.speedBrakeWell = meshOf(THREE, pos, idx);
   }
+  // The landing gear (GEAR, ALL-34): each part in its hinge's frame (each ship moves them, setGear) and the dark wells.
+  Object.assign(geo, gearGeometries(THREE));
   for (const o of Object.values(geo)) keep(o);
 
   // Shared decal textures and geometry.
@@ -1686,6 +1971,15 @@ function buildKit(THREE) {
     propBlade: mat({ color: '#0a0c10', roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
     propTip: mat({ color: '#d2202c', roughness: 0.5, transparent: true, opacity: 0.55, depthWrite: false, side: two }),
     disc: keep(new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, fog: false })),
+    // The landing gear (gearMain's and gearNose's slots): light grey legs, the tyres, the wheels' hubs and the chrome
+    // pistons; and the doors' insides, primer grey (colours estimates off Patrick's photos of 104 and 126).
+    gear: [
+      mat({ color: '#c9cdd1', roughness: 0.45, metalness: 0.3, envMap: env, envMapIntensity: 0.6 }),
+      mat({ color: '#18191b', roughness: 0.92 }),
+      mat({ color: '#d4d7da', roughness: 0.4, metalness: 0.45, envMap: env, envMapIntensity: 0.7 }),
+      mat({ color: '#eef1f4', roughness: 0.12, metalness: 1, envMap: env, envMapIntensity: 1.1 }),
+    ],
+    gearInside: mat({ color: '#9da3a8', roughness: 0.6, side: two }),
     // The position lights, lit whatever the sun (TS-156): red, green, white.
     lights: ['#ff2b2b', '#2bff6a', '#ffffff'].map((color) => keep(new THREE.MeshBasicMaterial({ color, fog: false }))),
     roundel: decalMat(tex.roundel),
@@ -1702,7 +1996,16 @@ function buildKit(THREE) {
   kit.exteriorMeshes = new Set();
   kit.shaded = new WeakMap();
   kit.ao = null;
-  if (typeof window !== 'undefined') attachExterior(kit);
+  // The gear from its own Blender file (ALL-34), the same way: its parts' fingerprints, swapped in only all together.
+  kit.gearHashes = Object.fromEntries(GEAR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
+  kit.gearGeos = new Set(GEAR_PARTS.map((name) => geo[name]));
+  kit.gearMeshes = new Set();
+  kit.gearShaded = new WeakMap();
+  kit.gearAo = null;
+  if (typeof window !== 'undefined') {
+    attachExterior(kit);
+    attachGear(kit);
+  }
   return kit;
 }
 
@@ -1807,11 +2110,60 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       m.userData.ct156Mine = mine;
       kit.exteriorMeshes.add(m);
       if (kit.ao) shadeMesh(kit, m);
+    } else if (kit.gearGeos.has(geometry)) { // the gear's Blender part (ALL-34), shaded by its own picture
+      m.userData.ct156Mine = mine;
+      kit.gearMeshes.add(m);
+      if (kit.gearAo) shadeMesh(kit, m, true);
     }
     return m;
   };
+  // The landing gear (GEAR, ALL-34): each part on its hinge (setGear turns them), the right side the left's mirror,
+  // hidden while the gear is up, so a ship looks as it always has until its module lowers the gear.
+  const addGear = (paintMat) => {
+    const L = gearLayout();
+    const doorMats = [paintMat, mats.gearInside];
+    const gear = new THREE.Group();
+    gear.name = 'ct156-gear';
+    gear.visible = false;
+    g.add(gear);
+    const hinge = (p, s, parent = gear) => { // a hinge at p (its y mirrored on the right), turning in the left side's frame
+      const at = new THREE.Group();
+      at.position.set(p[0], s * p[1], p[2]);
+      parent.add(at);
+      const mirror = new THREE.Group();
+      mirror.scale.y = s;
+      at.add(mirror);
+      const turn = new THREE.Group();
+      mirror.add(turn);
+      return turn;
+    };
+    const sides = [1, -1].map((s) => {
+      const leg = hinge(L.pivot, s);
+      leg.name = `ct156-gear-main-${s > 0 ? 'left' : 'right'}`;
+      add(geo.gearMain, mats.gear, leg);
+      const splay = new THREE.Group();
+      splay.position.set(...L.legDoorHinge);
+      leg.add(splay);
+      add(geo.gearMainDoor, doorMats, splay);
+      const door = hinge(L.inboardHinge, s);
+      add(geo.gearInboardDoor, doorMats, door);
+      const k = s > 0 ? 'L' : 'R';
+      return { leg, splay, door, legWell: add(geo[`gearLegWell${k}`], mats.vent, gear), inboardWell: add(geo[`gearInboardWell${k}`], mats.vent, gear) };
+    });
+    const nose = new THREE.Group();
+    nose.name = 'ct156-gear-nose';
+    nose.position.set(...L.nosePivot);
+    gear.add(nose);
+    add(geo.gearNose, mats.gear, nose);
+    const noseDoors = [1, -1].map((s) => {
+      const door = hinge(L.noseHinge, s);
+      add(geo.gearNoseDoor, doorMats, door);
+      return door;
+    });
+    return { group: gear, sides, nose, noseDoors, noseWell: add(geo.gearNoseWell, mats.vent, gear), t: 0 };
+  };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null, gear = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -1845,6 +2197,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     seats = add(geo.seats, mats.frame, detail);
     bowFront = add(geo.bowFront, mats.frame, detail);
     speedBrake = addSpeedBrake(light);
+    gear = addGear(light);
     const serialTex = own(canvasTexture(THREE, 512, 512, serialCanvas(number)));
     const serialMat = own(new THREE.MeshBasicMaterial({ map: serialTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     for (const s of ['1', '-1']) add(decalGeo.tail[s], serialMat, detail);
@@ -1891,6 +2244,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.antenna, mats.antenna, detail);
     add(geo.beacon, mats.beacon, detail);
     speedBrake = addSpeedBrake(mats.navy);
+    gear = addGear(mats.navy);
     add(geo.lights, mats.lights, detail);
     floor = add(geo.floor, mats.floor, detail);
     add(geo.frames, mats.frame, detail);
@@ -1913,7 +2267,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     setDetail(THREE, root, camera, renderer);
     turnProp(root);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, prop, disc, bowFront, speedBrake, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, prop, disc, bowFront, speedBrake, gear, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 
@@ -1930,6 +2284,31 @@ export function setSpeedBrake(root, out) {
   const f = clamp01(typeof out === 'number' ? out : out ? 1 : 0);
   b.hinge.rotation.y = b.shut - rad(b.openDeg) * f;
   b.well.visible = f > 0;
+}
+
+/**
+ * Lowers or raises a ship's landing gear (ALL-34): t from 0 (up) to 1 (down), through the real sequence
+ * (ct156GearPhase): the inboard doors open, the legs travel, the inboard doors close; a module that animates it takes
+ * about CT156_GEAR_TRAVEL_S each way. A new ship is gear up, the gear hidden, until a module lowers it.
+ * @param {any} root a ship from createCt156Model
+ * @param {number} t
+ */
+export function setGear(root, t) {
+  const d = root?.userData?.ct156?.gear;
+  if (!d) return;
+  d.t = clamp01(Number(t) || 0);
+  const { doors, legs } = ct156GearPhase(d.t);
+  d.group.visible = d.t > 0;
+  for (const s of d.sides) {
+    s.leg.rotation.x = -(Math.PI / 2) * (1 - legs);
+    s.splay.rotation.x = rad(GEAR.legDoorSplayDeg) * legs;
+    s.door.rotation.x = -(Math.PI / 2) * doors;
+    s.legWell.visible = legs > 0;
+    s.inboardWell.visible = doors > 0;
+  }
+  d.nose.rotation.y = (Math.PI / 2) * (1 - legs);
+  for (const door of d.noseDoors) door.rotation.x = rad(GEAR.noseDoor.openDeg) * legs;
+  d.noseWell.visible = legs > 0;
 }
 
 /**
