@@ -76,6 +76,12 @@ How each fix was checked: a fresh Blender rebuild, then renders from the same se
 
 More close-ups, old above new: [nose](closeup-nose.jpg), [tail](closeup-tail.jpg), [underside](closeup-under.jpg).
 
+### After this thread (12 Oct, V2.418)
+
+- **The light Harvard** (SH-59): `createLightHarvard` in `ui-kit/three-aircraft.js`, the plain T-6 shape in navy, for every aircraft that isn't being looked at closely. Traffic draws the full CT-156 only for the aircraft followed or flown in (TR-152).
+- **The blurred prop disc** (`blurProp`) moved to `ui-kit/three-aircraft.js`; Traffic and the Formation sim both use it, faint (20%) from the own seat.
+- **Real-time shadows are off in every module** for now (ALL-37), one switch in `ui-kit/aircraft-shadows.js`.
+
 ## 3. The logic we kept to
 
 - **Patrick's photos and words beat a figure.** His reference picture set the construction (how parts are built) but not the colours, which stay our cockpit grey and black.

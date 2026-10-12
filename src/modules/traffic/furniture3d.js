@@ -13,7 +13,7 @@
 
 import { RUNWAY_ENDS, AIM_FROM_FT, holdingPositions } from './runway-markings.js';
 import { disposeCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
-import { createAircraftMesh } from '../../ui-kit/three-aircraft.js';
+import { createLightHarvard } from '../../ui-kit/three-aircraft.js';
 import { batchByMaterial } from './batch3d.js';
 
 /** Light layout, ft (estimates from standard practice; see the header). */
@@ -276,9 +276,8 @@ function parkedAircraft(THREE) {
   g.name = 'parked-aircraft';
   const lift = (0.15 * T6_FT) / CT156_UNIT_LENGTH; // the light model has no gear: its belly about 3.5 ft up (estimate)
   for (const [x, y, hdg] of PARKED) {
-    const ship = createAircraftMesh(THREE, { color: '#151d31', outline: '#0b1620' });
+    const ship = createLightHarvard(THREE, { parked: true }); // the shared light Harvard, no prop disc
     ship.scale.setScalar(T6_FT / CT156_UNIT_LENGTH);
-    ship.traverse((o) => { if (o.geometry?.type === 'CircleGeometry') o.visible = false; }); // parked: no prop blur
     ship.position.set(x, y, lift);
     ship.rotation.z = (hdg * Math.PI) / 180;
     ship.name = 'parked-harvard';

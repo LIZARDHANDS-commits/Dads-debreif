@@ -386,3 +386,24 @@ export function blurProp(THREE, mesh) {
   else if (ct) ct.mine.push({ dispose: () => material.dispose() }); // freed with the model; the shared picture stays
 }
 
+// ---- The light Harvard (SH-, Patrick 12 Oct 2026: only the aircraft being viewed or flown in is the detailed model) ----
+
+/** The Harvard paint's navy (ct156-model.js NAVY). */
+const HARVARD_NAVY = '#151d31';
+
+/**
+ * A light Harvard for every aircraft that isn't being looked at closely: the plain T-6 shape (createAircraftMesh, a few draw
+ * calls against the full CT-156's 55 or so), navy in the Harvard paint or the ship's own colour in ship paint, in the same frame
+ * and size as the full model (nose +X, left +Y, up +Z, CT156_UNIT_LENGTH long). parked: no turning prop's disc. Free it with
+ * disposeAircraftMesh.
+ * @param {any} THREE
+ * @param {{ color?: string, paint?: string, parked?: boolean }} [options]
+ */
+export function createLightHarvard(THREE, { color = HARVARD_NAVY, paint = 'harvard', parked = false } = {}) {
+  const mesh = createAircraftMesh(THREE, { color: paint === 'ship' ? color : HARVARD_NAVY, outline: '#0b1620' });
+  mesh.userData.lightHarvard = true;
+  if (parked) mesh.traverse((o) => { if (o.geometry?.type === 'CircleGeometry') o.visible = false; });
+  else blurProp(THREE, mesh);
+  return mesh;
+}
+

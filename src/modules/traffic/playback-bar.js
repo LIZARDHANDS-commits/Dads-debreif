@@ -447,7 +447,8 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
       h('label', { class: 'bar-speed' }, h('span', { class: 'visually-hidden' }, 'Speed '), speed),
       clock, status, versionBadge,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, graphicsSwitch, fit, layers?.element),
+    // The Fit button left the bar (Patrick, 12 Oct 2026: "get rid of this button"); the 3D camera bar keeps its own Fit view.
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, graphicsSwitch, layers?.element),
   );
 
   const write = (node, text) => {

@@ -14,7 +14,7 @@
 //   createSceneKit       the three.js objects for the routes, aircraft, rings and ground, with their freeing
 //   createView3d         the canvases, the renderer, the camera's hands (drag, wheel, keys) and the frame
 import {
-  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh, blurProp,
+  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, disposeAircraftMesh, blurProp, createLightHarvard,
 } from '../../ui-kit/three-aircraft.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
@@ -938,7 +938,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     if (have) disposeAircraftMesh(have.mesh); // the T-6 in another paint or another detail: built again
     const options = { color: aircraftColor(ac), number: numberOf(ac.id), paint, type: ac.type };
     const mesh = models[kind](THREE, options);
-    if (kind !== 'standin') blurProp(THREE, mesh);
+    if (kind === 'ct156') blurProp(THREE, mesh); // the light Harvard brings its own
     mesh.rotation.order = 'ZYX';
     root.add(mesh);
     planes.set(ac.id, { mesh, kind, paint });
@@ -1347,8 +1347,7 @@ export function threeStats(kit) {
 function defaultModels() {
   return {
     ct156: (THREE, { color, number, paint }) => createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH }),
-    // The light Harvard (TR-152): the plain T-6 shape, navy in the Harvard paint (ct156-model.js's NAVY), its own colour in ship paint.
-    t6plain: (THREE, { color, paint }) => createAircraftMesh(THREE, { color: paint === 'ship' ? color : '#151d31', outline: '#0b1620' }),
+    t6plain: (THREE, { color, paint }) => createLightHarvard(THREE, { color, paint }), // the shared light Harvard (TR-152)
     standin: (THREE, { color, type }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) }),
   };
 }
