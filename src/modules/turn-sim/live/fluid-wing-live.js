@@ -105,6 +105,12 @@ export const LIVE = Object.freeze({
   wordShare: Object.freeze({ on: 0.35, off: 0.15 }), // LAG or LEAD shows past 35% of the cap and goes under 15%, so the word doesn't flicker (estimate)
   settleKt: 2, // Terminate ends with him in the fighting wing band and within 2 kt of Lead (spec section 9)
   fwAltFtps: 8, // ... and moved up or down at no more than 8 ft/s, so a change of height is a gentle climb or descent, not a bob (estimate)
+  // In fighting wing his aim moves round Lead (in Lead's own frame) no faster than this and builds to it at fwAimAccel, so a
+  // press of Lead's never asks him for a snap: from the 4-ship's place (543 ft, 45° off the tail) the aim swept about 400 ft
+  // across in 3.6 s at a level turn's press and rolled him to 85° in 2 s (Patrick 12 Oct 2026 10:02Z: "There should be roll
+  // rates and roll acceleration build ups built in"; his card 10:08Z "Ease the aim"). Estimates.
+  fwAimFtps: 60,
+  fwAimAccelFtps2: 40,
   fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
@@ -386,7 +392,30 @@ export function stepLiveWing(ws, ctx) {
   }
   const heightFt = toward(ws.heightFt ?? 0, heightWanted, LIVE.altFtps);
   sideVec = add3(sideVec, scale3(Z, heightFt));
-  const aim = add3(add3(add3(L, scale3(ahead, offFt)), sideVec), scale3(Z, place.alt));
+  let aim = add3(add3(add3(L, scale3(ahead, offFt)), sideVec), scale3(Z, place.alt));
+  // Fighting wing: the aim eased in Lead's frame (fwAimFtps, fwAimAccelFtps2), so it moves with Lead as he turns but never
+  // jumps across him.
+  let aimRel = null;
+  let aimVel = null;
+  if (fw) {
+    const up = unit3(cross3(nose, left));
+    const want = sub3(aim, L);
+    const wantRel = { f: dot3(want, nose), l: dot3(want, left), u: dot3(want, up) };
+    const was = ws.aimRel ?? wantRel;
+    const v0 = ws.aimVel ?? { f: 0, l: 0, u: 0 };
+    const gap = { f: wantRel.f - was.f, l: wantRel.l - was.l, u: wantRel.u - was.u };
+    const dist = Math.hypot(gap.f, gap.l, gap.u);
+    const speed = Math.min(LIVE.fwAimFtps, Math.sqrt(2 * LIVE.fwAimAccelFtps2 * dist));
+    const vWant = dist > 1e-6 ? { f: (gap.f / dist) * speed, l: (gap.l / dist) * speed, u: (gap.u / dist) * speed } : { f: 0, l: 0, u: 0 };
+    const dv = { f: vWant.f - v0.f, l: vWant.l - v0.l, u: vWant.u - v0.u };
+    const dvMag = Math.hypot(dv.f, dv.l, dv.u);
+    const k = dvMag > LIVE.fwAimAccelFtps2 * dt ? (LIVE.fwAimAccelFtps2 * dt) / dvMag : 1;
+    aimVel = { f: v0.f + dv.f * k, l: v0.l + dv.l * k, u: v0.u + dv.u * k };
+    const stepFt = Math.hypot(aimVel.f, aimVel.l, aimVel.u) * dt;
+    aimRel = stepFt >= dist ? wantRel : { f: was.f + aimVel.f * dt, l: was.l + aimVel.l * dt, u: was.u + aimVel.u * dt };
+    if (stepFt >= dist) aimVel = { f: 0, l: 0, u: 0 };
+    aim = add3(L, add3(add3(scale3(nose, aimRel.f), scale3(left, aimRel.l)), scale3(up, aimRel.u)));
+  }
   const toAim = sub3(aim, pw);
 
   // ---- the lift: core's pursuit lift at the L1 gain (2V over the distance to the aim), then the caps ----
@@ -466,7 +495,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, fwLevel, fwPlace, liftEased, holdSince, heightFt, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
+    ws: { ...ws, st: next, aimRel, aimVel, fwLevel, fwPlace, liftEased, holdSince, heightFt, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, slotSide, latDeg, latDot, swapUntil },
     pose,
     power,
     cue,
