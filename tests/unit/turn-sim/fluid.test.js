@@ -236,3 +236,32 @@ test('Live #2: through a barrel roll he stays in range, and once Lead is level h
   assert.ok(judgeFormation('fw', lead, wing).inBand);
   assert.equal(sideOf(f), sideOut, `fighting wing on the ${sideOut}, the side he came out of the roll on`);
 });
+
+test('Live #2: from high and close in the cone, Lead\'s standard sequence turning into him never loses him', () => {
+  // Patrick on V2.415: "when I went into FM, lead turned in to me and I turned left and we lost him", and "no matter where
+  // we are in the cone we shouldn't lose Lead when they turn in to us". From a place inside the fighting wing cone, 550 ft
+  // and 45° off Lead's tail on his right (the SMM band, 12.29 para 69) and 140 ft above him (inside the cone's 150 ft,
+  // TS-96), Fluid and then Standard sequence R: Lead's 360° turns into him. What a pilot would recognise: he keeps Lead,
+  // never more than 1,500 ft away through the 360° (fluid's 1,000 ft top, SMM 16.17 para 42, with a generous 500 ft for a
+  // turn flown into him; lost, he was 20,000 ft away at 460 KIAS). 60 s for the entry and 60 s for the 360° are generous.
+  const f = inFightingWing();
+  {
+    const [lead, wing] = f.state.aircraft;
+    const horiz = Math.sqrt(550 ** 2 - 140 ** 2);
+    const back = -horiz * Math.cos(45 * DEG);
+    const left = -horiz * Math.sin(45 * DEG); // his right, the side fighting wing is flown on from the default start
+    wing.xFt = lead.xFt + back * Math.cos(lead.headingRad) - left * Math.sin(lead.headingRad);
+    wing.yFt = lead.yFt + back * Math.sin(lead.headingRad) + left * Math.cos(lead.headingRad);
+    wing.altAboveFt = lead.altAboveFt + 140;
+    wing.headingRad = lead.headingRad;
+  }
+  assert.equal(f.change('fluid'), 'started');
+  for (let i = 0; i < 1200 && f.state.fluid.session.now().key === 'entry'; i++) f.step();
+  assert.equal(f.pressFluid('sequence', -1), 'started');
+  let farFt = 0;
+  for (let i = 0; i < 1200 && f.state.fluid.session.now().key === 'levelTurn'; i++) {
+    f.step();
+    farFt = Math.max(farFt, f.state.fluid.readouts.rangeFt);
+  }
+  assert.ok(farFt < 1500, `#2 kept Lead through the 360° into him: farthest ${Math.round(farFt)} ft`);
+});
