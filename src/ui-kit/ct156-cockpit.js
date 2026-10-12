@@ -122,7 +122,7 @@ export const FORWARD_BOW_FT = Object.freeze({
   tubeR: 0,
   section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.1, innerT: 0.025 }),
   foot: Object.freeze({ len: 0.35, rise: 0.2, plateT: 0.025 }),
-  studs: Object.freeze({ n: 25, r: 0.009, head: 0.02, tip: 0.02 }),
+  studs: Object.freeze({ n: 40, r: 0.009, head: 0.02, tip: 0.02 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
   footFillet: null,
