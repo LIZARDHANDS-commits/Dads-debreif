@@ -37,7 +37,7 @@
 // the manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's
 // own panel may differ.
 import {
-  CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
+  CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_X, CT156_HELMET_Z, CT156_SEAT_BACK_FT, ct156SeatRakeFt, ct156SeatRaiseFt, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
   CT156_TUB_FLOOR_FT, CT156_RAIL_FORE_X, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
@@ -49,12 +49,13 @@ export const CT156_FT_PER_UNIT = CT156_LENGTH_FT / CT156_UNIT_LENGTH;
 const F = CT156_FT_PER_UNIT;
 
 /**
- * Where each eye sits from its helmet's centre, feet (ALL-31): at the front third of the helmet in the reference
- * side view, 0.1 ft ahead of its centre and 0.09 ft below (read to about ±0.15 ft). Until V2.234 the eye sat 0.13 ft
- * under the helmet's centre, fitted to AETCMAN 11-248 Fig 2.7 (TS-156).
+ * Where each eye sits from its helmet's centre, feet: at the front of the helmet, 0.4 ft ahead of its centre and
+ * 0.07 ft above it, since the helmets moved 0.3 ft aft and down off the eyes (Patrick, 12 Oct 2026; the front eye
+ * stayed where it was, the rear one came down 0.12 ft with its helmet). Until then 0.1 ft ahead and 0.09 ft below
+ * (ALL-31), and until V2.234 0.13 ft under the helmet's centre, fitted to AETCMAN 11-248 Fig 2.7 (TS-156).
  */
-export const EYE_AHEAD_OF_HELMET_FT = 0.1;
-export const EYE_BELOW_HELMET_FT = 0.09;
+export const EYE_AHEAD_OF_HELMET_FT = 0.4;
+export const EYE_ABOVE_HELMET_FT = 0.07;
 /**
  * How far the front seat is raised above the side view's, feet: 2 in (Patrick, 11 Oct 2026: "we raise the
  * seat until the bottom of the surface just under the three buttons is just covering the top of the EADI"; he chose
@@ -71,7 +72,7 @@ export const FRONT_SEAT_RAISE_FT = 2 / 12;
  * 11 Oct 2026; the model's CT156_SEAT_X) raised FRONT_SEAT_RAISE_FT (ALL-31; was 1.4 ft and 2.14 ft, then 1.9 ft up
  * until V2.238, then 2.06 ft ahead until the front cockpit moved 11 in forward, Patrick 11 Oct 2026 07:39Z).
  */
-export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
+export const EYE_FT = Object.freeze({ x: CT156_HELMET_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F + EYE_ABOVE_HELMET_FT + FRONT_SEAT_RAISE_FT });
 
 /**
  * How far the rear seat is raised above the side view's, feet: 5.5 in (Patrick, 11 Oct 2026 08:34Z, "Raise
@@ -88,7 +89,7 @@ export const REAR_SEAT_RAISE_FT = 5.5 / 12;
  */
 export const EYES_FT = Object.freeze({
   front: EYE_FT,
-  rear: Object.freeze({ x: CT156_SEAT_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F - EYE_BELOW_HELMET_FT + REAR_SEAT_RAISE_FT }),
+  rear: Object.freeze({ x: CT156_HELMET_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F + EYE_ABOVE_HELMET_FT + REAR_SEAT_RAISE_FT }),
 });
 /**
  * The seat stations SEAT_FT and the seats' parts are drawn for (model units: the front seat's until V2.234), and how
@@ -268,12 +269,16 @@ export const REAR_HUMP_FT = Object.freeze({
  * The seats and their cockpits, feet (estimates off Dad's reference pictures; the seat back's frame is the model's).
  * The rear seat's are the same moved aft by REAR_DX.
  */
-const SEAT_BACK_X = [(SEAT_DRAWN_X - 0.042) * F, (SEAT_DRAWN_X - 0.028) * F]; // the model's seat back, aft and front faces
+const SB = CT156_SEAT_BACK_FT;
+const SEAT_BACK_X = [SEAT_DRAWN_X * F + SB.aft, SEAT_DRAWN_X * F + SB.aft + SB.cushion]; // the model's seat back, aft and front faces
+// The back cushion, headbox and breakers lean aft (ct156SeatRakeFt) and the rear seat's whole seat is raised as its
+// helmet is (ct156SeatRaiseFt) (Patrick, 12 Oct 2026); the headbox until then 0.36 ft deep from 2.1 to 2.7 ft up,
+// the breakers' tops 2.95 ft up.
 export const SEAT_FT = Object.freeze({
-  pan: { aft: SEAT_BACK_X[1], fore: SEAT_BACK_X[1] + 1.2, z0: -0.48, z1: -0.33, halfWidth: 0.5 }, // the front eye about 2.2 ft above its top (2.5 ft until ALL-31 lowered the eye)
-  backCushion: { depth: 0.1, z1: 2.1, halfWidth: 0.42 },
-  headbox: { aft: SEAT_BACK_X[0], fore: SEAT_BACK_X[1] + 0.04, z0: 2.1, z1: 2.7, halfWidth: 0.4 }, // Martin-Baker headbox
-  breakers: { y: 0.24, top: 2.95 }, // the canopy breakers on the headbox (Dad's picture 27)
+  pan: { aft: SEAT_BACK_X[1], fore: SEAT_BACK_X[1] + 1.2, z0: -0.48, z1: SB.pivotZ, halfWidth: 0.5 }, // the front eye about 2.4 ft above its top (2.5 ft until ALL-31 lowered the eye)
+  backCushion: { depth: 0.1, z1: SB.z0, halfWidth: 0.42 },
+  headbox: { aft: SEAT_BACK_X[0], fore: SEAT_BACK_X[0] + SB.deep, z0: SB.z0, z1: SB.z1, halfWidth: 0.4 }, // Martin-Baker headbox
+  breakers: { y: 0.24, top: SB.z1 + SB.breakers }, // the canopy breakers on the headbox (Dad's picture 27)
   // The side consoles: tops 0.45 ft below the spinner's axis, 0.67 ft under the main face's bottom, so the lower panel's
   // gear handle panel and park brake show above them as the front panel layout shows them;
   // 0.48 ft wide, the console figure's proportions on our length, narrowed to clear the knee wells.
@@ -340,7 +345,7 @@ export function windscreenFrom(eyeFt = EYE_FT, seat = 'front') {
   const crest = ct156CanopySection(b.bandX / F).top * F;
   const topDeg = tubeEdgeDeg(eyeFt, b.bandX, crest - b.glassInset - b.bandDepth, b.tubeR, -1);
   const out = { topDeg, bottomDeg, heightDeg: topDeg - bottomDeg };
-  if (rear) out.headboxDeg = deg(Math.atan2(SEAT_FT.headbox.z1 - eyeFt.z, SEAT_FT.headbox.fore + FRONT_DX - eyeFt.x));
+  if (rear) out.headboxDeg = deg(Math.atan2(SEAT_FT.headbox.z1 - eyeFt.z, SEAT_FT.headbox.fore + FRONT_DX - ct156SeatRakeFt(SEAT_FT.headbox.z1) - eyeFt.x));
   return out;
 }
 
@@ -2185,25 +2190,33 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // oxygen hose to the right console.
   const { pan, backCushion: bc, headbox: hb, breakers: br } = S;
   tag = 'seat';
+  // The back, its headbox and breakers lean aft (ct156SeatRakeFt); the whole seat then rises as its helmet does.
+  const leanAft = (g) => {
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setX(i, pos.getX(i) - ct156SeatRakeFt(pos.getZ(i)));
+    g.computeVertexNormals();
+    return g;
+  };
+  const seatFrom = parts.length, stripedFrom = striped.length;
   put(box(THREE, fx(pan.aft), fx(pan.fore) - 0.05, -pan.halfWidth, pan.halfWidth, floor + 0.15, pan.z0), SLOT.dark);
   for (const s of [1, -1]) put(box(THREE, fx(pan.aft) - 0.1, fx(pan.fore) - 0.1, s * pan.halfWidth, s * (pan.halfWidth + 0.06), floor + 0.1, pan.z1 + 0.12), SLOT.dark);
   put(box(THREE, fx(pan.aft), fx(pan.fore) - 0.06, -pan.halfWidth + 0.02, pan.halfWidth - 0.02, pan.z0, pan.z1), SLOT.seat);
   put(new THREE.CylinderGeometry(0.075, 0.075, 2 * pan.halfWidth - 0.04, 12).translate(fx(pan.fore) - 0.075, 0, (pan.z0 + pan.z1) / 2), SLOT.seat);
   for (const s of [1, -1]) put(new THREE.SphereGeometry(1, 14, 7).scale(0.26, 0.14, 0.085).translate(fx(pan.fore) - 0.3, s * 0.33, pan.z1 + 0.01), SLOT.seat);
-  put(box(THREE, fx(pan.aft), fx(pan.aft) + bc.depth, -bc.halfWidth, bc.halfWidth, pan.z1 - 0.02, bc.z1), SLOT.seat);
-  put(box(THREE, fx(hb.aft), fx(hb.fore), -hb.halfWidth, hb.halfWidth, hb.z0, hb.z1), SLOT.dark);
+  put(leanAft(box(THREE, fx(pan.aft), fx(pan.aft) + bc.depth, -bc.halfWidth, bc.halfWidth, pan.z1 - 0.02, bc.z1)), SLOT.seat);
+  put(leanAft(box(THREE, fx(hb.aft), fx(hb.fore), -hb.halfWidth, hb.halfWidth, hb.z0, hb.z1)), SLOT.dark);
   for (const s of [1, -1]) {
-    const y = s * br.y, x = fx(hb.aft) + 0.12;
+    const y = s * br.y, x = fx(hb.aft) + 0.3 - ct156SeatRakeFt(hb.z1);
     put(box(THREE, x - 0.03, x + 0.03, y - 0.025, y + 0.025, hb.z1, br.top - 0.08), SLOT.dark);
     put(new THREE.ConeGeometry(0.035, 0.08, 4).rotateX(Math.PI / 2).translate(x, y, br.top - 0.04), SLOT.dark);
   }
-  put(box(THREE, fx(hb.aft) + 0.08, fx(hb.aft) + 0.16, -br.y, br.y, hb.z1 + 0.08, hb.z1 + 0.12), SLOT.dark); // their crossbar
+  put(leanAft(box(THREE, fx(hb.aft) + 0.26, fx(hb.aft) + 0.34, -br.y, br.y, hb.z1 + 0.08, hb.z1 + 0.12)), SLOT.dark); // their crossbar
   // The seat's side beams.
-  for (const s of [1, -1]) put(box(THREE, fx(pan.aft) - 0.32, fx(pan.aft) - 0.1, s * 0.5, s * 0.6, pan.z0, 2.0), SLOT.dark);
+  for (const s of [1, -1]) put(leanAft(box(THREE, fx(pan.aft) - 0.32, fx(pan.aft) - 0.1, s * 0.5, s * 0.6, pan.z0, hb.z0 + 0.4)), SLOT.dark);
   // Harness: two shoulder straps down the back cushion, two lap belts across the cushion to a buckle.
   const bx = fx(pan.aft) + bc.depth + 0.008;
   for (const s of [1, -1]) {
-    put(box(THREE, bx, bx + 0.016, s * 0.13, s * 0.27, pan.z1 + 0.05, bc.z1 - 0.15), SLOT.frame);
+    put(leanAft(box(THREE, bx, bx + 0.016, s * 0.13, s * 0.27, pan.z1 + 0.05, bc.z1 - 0.15)), SLOT.frame);
     put(box(THREE, fx(pan.aft) + 0.15, fx(pan.aft) + 0.6, s * 0.08, s * 0.45, pan.z1, pan.z1 + 0.016), SLOT.frame);
   }
   put(box(THREE, fx(pan.aft) + 0.5, fx(pan.aft) + 0.64, -0.08, 0.08, pan.z1 + 0.005, pan.z1 + 0.04), SLOT.metal);
@@ -2215,6 +2228,8 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // The oxygen hose, from the cushion's front right round to the right console.
   put(tubeThrough(THREE, [[fx(pan.fore) - 0.25, -0.12, pan.z1 + 0.03], [fx(pan.fore) - 0.15, -0.42, pan.z1 + 0.06], [fx(1.45), -0.78, pan.z1 + 0.18],
     [fx(1.15), -c.inner - 0.02, c.top - 0.05]], 0.035, 36, { smooth: true, radial: 6 }), SLOT.green);
+  const seatUp = front ? 0 : ct156SeatRaiseFt(1);
+  if (seatUp) for (const g of [...parts.slice(seatFrom, -1).map((q) => q.geometry), ...striped.slice(stripedFrom)]) g.translate(0, 0, seatUp);
   tag = null;
 
   // The side consoles, from beside the seat to the panel: grey bodies, their tops pictures (drawConsoles).

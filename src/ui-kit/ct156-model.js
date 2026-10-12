@@ -157,9 +157,13 @@ const CANOPY = [
 // helmet's centre is now 2.91 ft ahead of the origin; its height and the rear seat unchanged. The rear cockpit then moved
 // forward (Patrick, 12 Oct 2026): the centre arch's crest 0.93 ft (to 0.41 ft ahead of the origin), the rear bow's 1.5 ft
 // (to 4.03 ft aft of it) and the rear helmet 1.27 ft (to 2.13 ft aft of it, 5.04 ft behind the front one), its height kept.
+// Then the helmets moved off their seats' stations (Patrick, 12 Oct 2026, "With the seat"): each helmet's centre 0.3 ft
+// aft of its station (CT156_HELMET_X), the front one 0.16 ft lower (to 1.83 ft up) and the rear one 0.27 ft lower (to
+// 2.02 ft up), so each sits back against its headbox with its eye at the front of the helmet (ct156-cockpit.js).
 export const CT156_FRAME_X = Object.freeze([0.196, 0.0177, -0.174]);
 export const CT156_SEAT_X = Object.freeze([0.1257, -0.092]);
-export const CT156_HELMET_Z = Object.freeze([0.086, 0.0989]);
+export const CT156_HELMET_X = Object.freeze([0.1127, -0.105]);
+export const CT156_HELMET_Z = Object.freeze([0.0791, 0.0872]);
 /** The spinner's radius at its base less its 0.001-unit tip: 0.67 ft at the base, the side view's (ALL-31; was 0.79 ft). */
 export const CT156_SPINNER_R = 0.0279;
 /** The spinner's outline, tip to base, as [x, radius] in model units: an ogive 0.085 units (2 ft) long (shape an estimate off the photo). */
@@ -2041,17 +2045,42 @@ function pilotGeometry(THREE, x, z) {
  * 5 in apart, estimates; they were 0.1 in across and 1.7 in tall). The flat-topped headbox sits under them. */
 const SEAT_SPIKES = Object.freeze({ r: 0.0016, h: 0.0125, apart: 0.009 });
 /**
- * The ejection seat's headbox behind a pilot whose helmet's centre is at (x, 0, z): a dark box standing up behind the
- * helmet, its top `above` over the helmet's centre, with the two canopy breakers on top, so from outside it shows
- * between the pilot's head and the canopy bow behind (Patrick, 11 Oct 2026). Sizes estimates.
+ * The ejection seats' backs, feet (Patrick, 12 Oct 2026: back raked aft, headbox lower and closer to the head; sizes
+ * estimates): each back's aft face `aft` from its seat's station (CT156_SEAT_X), its cushion `cushion` thick, the
+ * headbox `deep` from that aft face, from z0 to z1 above the spinner's axis with the breakers `breakers` above it,
+ * all of it leaning `rakeDeg` aft about the seat cushion's top (pivotZ). The front seat's; the rear seat's is the
+ * same raised as its helmet is (ct156SeatRaiseFt). Until then upright, the headbox 0.36 ft deep from 2.1 to 2.7 ft up
+ * in the cockpit and 0.46 ft deep with its top 2.27 ft up outside.
  */
-function headboxGeometry(THREE, x, z, above) {
-  const top = z + above, foot = 0.045;
-  const { r, h, apart } = SEAT_SPIKES;
+export const CT156_SEAT_BACK_FT = Object.freeze({ aft: -0.972, cushion: 0.324, deep: 0.52, z0: 1.58, z1: 2.18, breakers: 0.25, pivotZ: -0.33, rakeDeg: 10 });
+/** How far a seat's back has leant aft at height z above the front seat's cushion, feet (CT156_SEAT_BACK_FT). */
+export function ct156SeatRakeFt(z) {
+  const B = CT156_SEAT_BACK_FT;
+  return Math.tan((B.rakeDeg * Math.PI) / 180) * (z - B.pivotZ);
+}
+/** How far seat i (0 front, 1 rear) sits above the front one, feet: as its helmet does. */
+export const ct156SeatRaiseFt = (i) => (CT156_HELMET_Z[i] - CT156_HELMET_Z[0]) / FT;
+/**
+ * Seat i's headbox and the top of its back, seen from outside (Patrick, 11 Oct 2026): a dark box leaning aft as
+ * CT156_SEAT_BACK_FT has it, from below the sill to the headbox's top, with the two canopy breakers on top, so from
+ * outside it shows between the pilot's head and the canopy bow behind. Sizes estimates.
+ */
+function headboxGeometry(THREE, i) {
+  const B = CT156_SEAT_BACK_FT, up = ct156SeatRaiseFt(i), x0 = CT156_SEAT_X[i] / FT + B.aft, wide = 0.8, foot = 1.04;
+  // A box from x0 + a to x0 + b (feet), za to zb up (the front seat's), leant aft and raised, in units.
+  const box = (a, b, za, zb) => {
+    const g = new THREE.BoxGeometry(b - a, wide, zb - za).translate(x0 + (a + b) / 2, 0, (za + zb) / 2);
+    const pos = g.attributes.position;
+    for (let k = 0; k < pos.count; k++) pos.setXYZ(k, (pos.getX(k) - ct156SeatRakeFt(pos.getZ(k))) * FT, pos.getY(k) * FT, (pos.getZ(k) + up) * FT);
+    g.computeVertexNormals();
+    return g;
+  };
+  const { r, h, apart } = SEAT_SPIKES, bx = (x0 + 0.3 - ct156SeatRakeFt(B.z1)) * FT, top = (B.z1 + up) * FT;
   return joinGeometries(THREE, [
-    { geometry: new THREE.BoxGeometry(0.02, 0.034, top - foot).translate(x - 0.032, 0, (top + foot) / 2), materials: [0] },
+    { geometry: box(0, B.cushion, foot, B.z0), materials: [0] },
+    { geometry: box(0, B.deep, B.z0, B.z1), materials: [0] },
     // The canopy breakers, leaning a little forward.
-    ...[1, -1].map((s) => ({ geometry: new THREE.ConeGeometry(r, h, 8).rotateX(Math.PI / 2).rotateY(rad(15)).translate(x - 0.028, s * apart, top + h / 2 - 0.001), materials: [0] })),
+    ...[1, -1].map((s) => ({ geometry: new THREE.ConeGeometry(r, h, 8).rotateX(Math.PI / 2).rotateY(rad(15)).translate(bx, s * apart, top + h / 2 - 0.001), materials: [0] })),
   ]);
 }
 
@@ -2152,8 +2181,8 @@ function buildKit(THREE) {
   geo.coamings = coamingGeometry(THREE);
   // The two pilots apart, so the Cockpit view can leave out the one the camera sits in (setCockpitView), and the
   // ejection seats' headboxes behind them (the rear one lower, under the canopy's falling top).
-  [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
-  geo.seats = joinGeometries(THREE, CT156_SEAT_X.map((x, i) => ({ geometry: headboxGeometry(THREE, x, CT156_HELMET_Z[i], [0.012, 0.008][i]), materials: [0] })));
+  [geo.helmetFront, geo.helmetRear] = CT156_HELMET_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
+  geo.seats = joinGeometries(THREE, CT156_SEAT_X.map((x, i) => ({ geometry: headboxGeometry(THREE, i), materials: [0] })));
   // The exhaust stacks either side of the nose (photo), each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17:
   // a fore-and-aft reference from #2; TS-156).
   geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
