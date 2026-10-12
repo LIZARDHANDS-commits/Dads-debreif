@@ -184,6 +184,19 @@ export function setFlown(a, kind, route, extra = {}) {
   return a.flown;
 }
 
+/**
+ * One of the aircraft's named groups of state (refactor step 4), made empty on first use: `random` (Randomize's rolls),
+ * `spacing` (the deconfliction's move and the avoidance breakout), `landing` (the SI lap, the closed pattern asked for
+ * short of the upwind end, the perch roll) and `pfl` (the glide's segment, decision, margin and end). Snapshots copy
+ * each group (sim.js), so a rewind replays the same state.
+ */
+export const groupOf = (a, name) => (a[name] ??= {});
+
+/** The PFL tag's fields cleared, as at the end of a glide or a new command. */
+export function clearPfl(a) {
+  Object.assign(groupOf(a, 'pfl'), { segment: null, decision: null, marginFt: null, marginTag: null });
+}
+
 /** The aircraft's flown path when it is of this kind, else null. */
 export const flownOf = (a, kind) => (a.flown?.kind === kind ? a.flown : null);
 

@@ -20,7 +20,7 @@ import { iasToTasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
-import { startJoin, setFlown, flownOf } from './path-follower.js';
+import { startJoin, setFlown, flownOf, groupOf } from './path-follower.js';
 import { routeLengthFt } from './route.js';
 import {
   THRESHOLD_29L,
@@ -1418,12 +1418,13 @@ export function startPflFlight(a, wind, options = {}) {
   a.engineFailed = true;
   a.landed = false;
   a.active = true;
-  a.pflDecision = flight.points[0]?.decision ?? '';
+  const pf = groupOf(a, 'pfl');
+  pf.decision = flight.points[0]?.decision ?? '';
   a.config = flight.points[0]?.config ?? PFL_CONFIG_LABELS[0];
   a.phase = flight.points[0]?.phase ?? 'pfl';
-  a.pflSegment = flight.points[0]?.segmentType ?? flight.points[0]?.segment ?? flight.points[0]?.phase ?? 'pfl';
-  a.pflMarginFt = flight.points[0]?.marginFt ?? null;
-  a.pflMarginTag = flight.points[0]?.marginTag ?? null;
+  pf.segment = flight.points[0]?.segmentType ?? flight.points[0]?.segment ?? flight.points[0]?.phase ?? 'pfl';
+  pf.marginFt = flight.points[0]?.marginFt ?? null;
+  pf.marginTag = flight.points[0]?.marginTag ?? null;
 
   delete a.navPlan;
   delete a._blendStart;
@@ -1439,7 +1440,7 @@ export function resumePflFlight(a, wind, settings = undefined) {
   return startPflFlight(a, wind, {
     practice: prev?.practice,
     settings,
-    midGlide: { cfgIndex, patternPfl: prev?.patternPfl, plan: planNow(a, prev), decision: a.pflDecision },
+    midGlide: { cfgIndex, patternPfl: prev?.patternPfl, plan: planNow(a, prev), decision: a.pfl?.decision },
   });
 }
 

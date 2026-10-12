@@ -36,7 +36,7 @@ export const DECONFLICT = Object.freeze({
 /** Where each aircraft stands, for the right-of-way table: keyed on route kind and phase, never a route name. */
 function standingOf(a, route) {
   if (a.flown?.kind === 'pfl') return 'pfl';
-  if (a.deconflict?.move === 'fly_through' && a.flown?.kind === 'move') return 'fly_through';
+  if (a.spacing?.deconflict?.move === 'fly_through' && a.flown?.kind === 'move') return 'fly_through';
   if (a.flown || a.command === 'breakout' || a.command === 'closed_pattern') return 'manoeuvring';
   if (route && (route.kind === 'entry' || route.kind === 'split')) {
     return +route.mergeIndex > 0 || route.kind === 'split' ? 'joining' : 'straight_in';
@@ -174,7 +174,7 @@ export function freeze(aircraft, pathOf, routeOf) {
     // A straight-in is on final only on its last leg; further out it breaks out like anyone else (Patrick's Q3, Q7).
     const finalLeg = standing === 'straight_in' && route?.points?.length >= 2 && Number.isFinite(a.distFt)
       ? a.distFt >= pointDistFt(route, route.points.length - 2, path?.options) : undefined;
-    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing, finalLeg, perchAnyway: a.perchRoll === 'perch', busy: Boolean(a.deconflict), track });
+    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing, finalLeg, perchAnyway: a.landing?.perchRoll === 'perch', busy: Boolean(a.spacing?.deconflict), track });
   }
   return out.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
 }
