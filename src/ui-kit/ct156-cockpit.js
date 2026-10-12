@@ -42,6 +42,7 @@ import {
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
 import { attachCockpitModel } from './ct156-cockpit-model.js';
+import { paintGrain } from './ct156-blender.js';
 import { browserStorage, createStore } from '../storage/store.js';
 
 /** Feet per model unit (the model's 1.44 units are the T-6A's 33 ft 4 in). */
@@ -275,9 +276,12 @@ export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.2
  * right of the middle (V2.264, from Patrick's cockpit frame; V2.266 tried the diagram's size). Since Patrick's
  * reference picture of the cockpit (12 Oct 2026, "Compass is too big? and sits too low?") the ball is 1.6 in across
  * (r 0.065, was 0.1), its bottom `clear` 2.1 in over the coaming (was 0.36 in) and 0.56 ft right of the middle (was
- * 0.71), scaled off that picture on the EADI's width. Sizes estimates; the rear seat's is unseen.
+ * 0.71), scaled off that picture on the EADI's width. Since Patrick's "the compass is too high now, look at the other
+ * cockpit for what it should be" (12 Oct 2026) the bottom is 0.7 in over the coaming (clear 0.06, was 2.1 in), so from
+ * the seat the ball's middle sits about half its width over the glareshield's edge, as on his reference picture. Sizes
+ * estimates; the rear seat's is unseen.
  */
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, cardR: 0.055, cardBandDeg: 35, clear: 0.175, flange: 0.68, cornerR: 0.018, flangeT: 0.02, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.56, yRear: -0.8 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, cardR: 0.055, cardBandDeg: 35, clear: 0.06, flange: 0.68, cornerR: 0.018, flangeT: 0.02, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.56, yRear: -0.8 });
 // Since 12 Oct 2026 (Patrick, from his photo) the flange is smaller (0.68 of the ball's width, so turned 45° its corners
 // stay inside the ball's outline; was 0.95, and 1.3 before that, "smaller footprint for the compass mount"), its corners
 // rounded and turned 45°, it and its strap light grey, and the card black with white marks (was cream with black).
@@ -2047,6 +2051,9 @@ function ventParts(THREE, x, y, z, put, SLOT) {
   for (let k = 0; k < 4; k++) put(turn(box(THREE, -0.05, -0.04, -0.11, 0.11, -0.055 + k * 0.037, -0.045 + k * 0.037)), SLOT.black);
 }
 
+/** The interior's paint grain (paintGrain's sizes, feet): estimates, judged on renders beside Patrick's reference picture. */
+export const INTERIOR_GRAIN = Object.freeze({ grain: 0.012, bump: 0.0012, speckle: 0.08, mottle: 0.12, mottleSize: 0.4, wear: 0.18, wearSize: 0.05, shine: 0.15 });
+
 // Material slots for the joined solid parts.
 const SLOT = Object.freeze({
   grey: 0, black: 1, rail: 2, red: 3, mirror: 4, knob: 5, lampRed: 6, lampAmber: 7, lampGreen: 8, band: 9, seat: 10,
@@ -2673,6 +2680,10 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     solid('#3a3c3f', { roughness: 0.9 }), solid('#3b3f44', { roughness: 0.8 }), solid('#4d6a2f', { roughness: 0.7 }),
     solid('#a9aeb4', { roughness: 0.35, metalness: 0.7 }), solid('#7d8185', { roughness: 0.75, emissive: '#26282a' }),
   ];
+  // The painted and covered surfaces take a grain and a faint mottling (paintGrain; Patrick, 12 Oct 2026: "give the
+  // whole interior a texture, its not quite right"): the grey, the coaming and rail, the bow, the seats, the dark parts
+  // and the frames. The chrome, metal, red, green, knobs and lamps stay smooth.
+  for (const k of ['grey', 'black', 'rail', 'band', 'seat', 'dark', 'frame']) paintGrain(slotMats[SLOT[k]], INTERIOR_GRAIN);
   const geometries = [];
   const add = (geometry, material) => {
     geometries.push(geometry);
@@ -2691,7 +2702,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const consolePic = canvasTexture(512, 2048);
   drawConsoles(consolePic.ctx, 512, 2048);
   consolePic.texture.needsUpdate = true;
-  const consoleMat = own(new THREE.MeshStandardMaterial({ map: consolePic.texture, roughness: 0.85, side: THREE.DoubleSide, fog: false }));
+  const consoleMat = own(paintGrain(new THREE.MeshStandardMaterial({ map: consolePic.texture, roughness: 0.85, side: THREE.DoubleSide, fog: false }), INTERIOR_GRAIN));
 
   const shade = canvasTexture(4, 256);
   const fade = shade.ctx.createLinearGradient(0, 0, 0, 256);
