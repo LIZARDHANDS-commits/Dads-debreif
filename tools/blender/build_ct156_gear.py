@@ -23,6 +23,9 @@ import bmesh
 import bpy
 from mathutils import Matrix
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bake_device import use_bake_device  # noqa: E402  the graphics card when there is one
+
 argv = sys.argv[sys.argv.index('--') + 1:]
 gear_path, exterior_path, shape_path, out_path = argv[:4]
 out_dir = os.path.dirname(os.path.abspath(out_path))
@@ -117,7 +120,7 @@ bpy.ops.object.mode_set(mode='OBJECT')
 
 scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
-scene.cycles.device = 'CPU'
+use_bake_device(scene)
 scene.cycles.samples = AO_SAMPLES
 scene.world = bpy.data.worlds.new('world')
 scene.world.light_settings.distance = AO_DISTANCE_FT * U
@@ -145,12 +148,16 @@ for i in range(0, len(px), 4):
     v = px[i] ** AO_CONTRAST
     px[i] = px[i + 1] = px[i + 2] = v
 ao_img.pixels = px
+# Saved from a data (Non-Color) copy: Blender 5 otherwise saves these sRGB values as linear, much darker.
+ao_save = bpy.data.images.new('ao-save', AO_SIZE, AO_SIZE)
+ao_save.colorspace_settings.name = 'Non-Color'
+ao_save.pixels = px
 scene.render.image_settings.file_format = 'JPEG'
 scene.render.image_settings.color_mode = 'BW'
 scene.render.image_settings.quality = 85
 scene.view_settings.view_transform = 'Raw'  # the values as they are: the picture is data, not colour
 ao_file = os.path.splitext(os.path.basename(out_path))[0] + '-ao.jpg'
-ao_img.save_render(os.path.join(out_dir, ao_file))
+ao_save.save_render(os.path.join(out_dir, ao_file))
 print(f'baked {ao_file}')
 
 # ---------- the parts again, each under its own name, back in its hinge's frame ----------

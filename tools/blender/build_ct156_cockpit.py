@@ -17,11 +17,15 @@
 # Z-up (export_yup off). Materials are named by the code cockpit's colour slots (band, black, frame, dark).
 import json
 import math
+import os
 import sys
 
 import bpy
 import bmesh
 import mathutils
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bake_device import use_bake_device  # noqa: E402  the graphics card when there is one
 
 argv = sys.argv[sys.argv.index('--') + 1:]
 shape_path, out_path = argv[0], argv[1]
@@ -131,10 +135,9 @@ def join_part(top):
 
 
 if ao_dir:
-    import os
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
-    scene.cycles.device = 'CPU'
+    use_bake_device(scene)
     scene.cycles.samples = AO_SAMPLES
     scene.world = bpy.data.worlds.new('world')
     scene.world.light_settings.distance = AO_DISTANCE

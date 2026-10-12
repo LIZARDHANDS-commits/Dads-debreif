@@ -16,7 +16,28 @@ If a file is missing, or a part's shape has changed since it was built, the code
 | `ct156-cockpit-pieces.mjs` | Prints the code cockpit's solid parts (forward bow, canopy rails, body, seat, pcl, stick) piece by piece, with each part's fingerprint, and the pictured faces that shade them. Until 12 Oct 2026 the bow and rails were drawn in Blender from a few numbers with no fingerprint, so the app showed them whatever the code drew. |
 | `build_ct156_cockpit.py` | Builds the cockpit parts drawn as a model (ALL-32), rounds the code cockpit's pieces, bakes their soft shadows and exports `public/models/ct156-cockpit.glb` plus one `ct156-cockpit-ao-<part>.jpg` per part. The app uses these: each part replaces the code cockpit's part of the same name once the file loads (`src/ui-kit/ct156-cockpit-model.js`). |
 
-Blender 4.2 LTS, the free official release from blender.org, run without its window.
+Blender 4.2 LTS or 5.2 LTS, the free official release from blender.org, run without its window. The CT-156 files were
+first built on 4.2 in the cloud; on 12 Oct 2026 all three were rebuilt on 5.2 on Patrick's PC and match: same parts,
+materials and triangles, the same baked pictures (each picture's mean brightness within about 1%, the rest is bake
+grain) and seat and outside renders under 0.1% of pixels apart. Blender 5 saves a picture set pixel by pixel as linear,
+much darker, unless it is marked as data (Non-Color); the outside's bump and dirt pictures and the gear's shadow picture
+are now saved that way, so 4.2 and 5.2 write the same files. 5.2 prints a warning that `Material.use_nodes` goes in
+Blender 6.0; it still works.
+
+## Setting up Blender for this work
+
+- **Graphics card.** `bake_device.py` bakes on the graphics card when Blender finds one (OptiX, CUDA or HIP) and on
+  the processor otherwise, as in the cloud. Each build prints `bake device: ...`. On an RTX 3070 the three files take
+  about 66 s instead of about 3.5 min, with the same pictures. Set `CT156_BAKE_DEVICE=CPU` to force the processor.
+- **On Windows** Blender is not on the path: use `"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"` in
+  place of `blender` below, with Windows paths for the output file.
+- **Check every file you build.** `gltf-transform inspect <file>` (glTF-Transform, `npm install -g @gltf-transform/cli`)
+  lists triangles, sizes and draw calls; the Khronos glTF Validator (`gltf_validator -o <file>`, from the Khronos
+  glTF-Validator releases on GitHub) must report 0 errors and 0 warnings. Both run on the computer, not in the app.
+- **Blender connector (optional).** The official Blender Lab MCP server (Blender 5.1 or newer) lets a Claude session
+  drive an open Blender: the add-on from `https://lab.blender.org/`, the server registered with Claude Code. Blender's
+  own page warns that it runs AI-written code in Blender with no guards: open only project files while it runs, and
+  stop it when not in use. The build scripts never need it.
 
 To look at the result, the render scripts in `render/` take pictures from the seats and outside, and from past versions (see `render/README.md`).
 
