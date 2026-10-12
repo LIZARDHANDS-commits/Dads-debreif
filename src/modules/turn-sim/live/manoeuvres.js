@@ -91,8 +91,10 @@ export const tacticalSeg = (toRad, dir, bankDeg = TURN_BANK_DEG, rollOut = true)
  */
 export function backToSpeed(plans, aircraft, t0, kias = aircraft[0].homeKias ?? aircraft[0].kias) {
   const runs = aircraft.filter((a) => plans[a.id]).map((a) => ({ a, run: dryRun(a, plans[a.id], t0) }));
-  const tEnd = onStep(Math.max(...runs.map((r) => r.run.durationSec))) + t0;
-  // All take the same time to get back, so the few tenths of a knot between them (the 4-ship's chain) cost no spacing.
+  // Each sets power back the moment he rolls out, over the same time, so every aircraft flies the same speed profile from
+  // his own roll-out: the delayed turns' copies of one turn stay copies, and the wait for a steady speed puts them abeam
+  // at the original spacing once all are back (with a common start the first to roll out flew slow longest and the line
+  // opened about 100 ft, measured V2.405).
   const spanSec = Math.max(0, ...runs.map(({ run }) => {
     const seg = speedSeg(run.end.kias, kias);
     return Math.abs(kias - run.end.kias) / Math.abs(seg.rateKtps);
@@ -100,7 +102,7 @@ export function backToSpeed(plans, aircraft, t0, kias = aircraft[0].homeKias ?? 
   for (const { a, run } of runs) {
     if (Math.abs(run.end.kias - kias) < 0.5 || spanSec <= 0) continue;
     const seg = speedSeg(run.end.kias, kias);
-    plans[a.id].segments.push({ kind: 'hold', untilSec: tEnd, thenNext: true, background: true }, { ...seg, rateKtps: Math.sign(seg.rateKtps || 1) * Math.abs(kias - run.end.kias) / spanSec, background: true });
+    plans[a.id].segments.push({ kind: 'hold', untilSec: t0 + onStep(run.durationSec), thenNext: true, background: true }, { ...seg, rateKtps: Math.sign(seg.rateKtps || 1) * Math.abs(kias - run.end.kias) / spanSec, background: true });
   }
   return plans;
 }
@@ -125,11 +127,12 @@ export function leadTurnSegs(h0, dir, total, bankDeg, rollOut) {
  * where the second is from the first (feet): (rel · u1) / (v (1 − u0 · u1)). Shared by the
  * 2-ship delayed turns and the four-ship chain (four-ship.js). `extraAlongFt` is for a
  * second aircraft whose programme is not an exact copy of the first's (the four-ship's
- * check turn): how much further it is along the new heading, once rolled out, than a copy would be. `vEnd`: the true
- * airspeed the turn leaves them at (a full-power turn bleeds, TS-204), so the first flies on slower than the second waits.
+ * check turn): how much further it is along the new heading, once rolled out, than a copy would be. A full-power turn
+ * bleeds (TS-204): v is still the steady speed, because each sets power back from his own roll-out (backToSpeed), so
+ * once all are back their paths are copies again.
  */
-export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0, vEnd = v) {
-  return (dot(rel, u1) + extraAlongFt) / (vEnd - v * dot(u0, u1));
+export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0) {
+  return (dot(rel, u1) + extraAlongFt) / (v * (1 - dot(u0, u1)));
 }
 
 /**
@@ -156,7 +159,7 @@ function delayed(pair, m, dir, t0, kias) {
   // at, from a dry run.
   const turned = dryRun(lead, { segments: turn.map((seg) => ({ ...seg })) }, t0).end;
   const u1 = unit(turned.headingRad);
-  const waitFor = (first, second) => exactWaitSec({ x: second.xFt - first.xFt, y: second.yFt - first.yFt }, u0, u1, v, 0, turned.tasFtps);
+  const waitFor = (first, second) => exactWaitSec({ x: second.xFt - first.xFt, y: second.yFt - first.yFt }, u0, u1, v);
   // Outside of the turn: the aircraft whose partner is on the turning side.
   const wingLeft = relativeTo(lead, wing).left;
   const leadOutside = Math.sign(wingLeft) === dir;
