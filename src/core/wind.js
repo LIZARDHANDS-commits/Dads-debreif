@@ -1,6 +1,6 @@
-// Wind: the crab and ground speed that hold a track. V6 has no wind; this is
-// new for the Traffic Sim (SPEC-traffic, "Wind and aircraft types") and later
-// the SOF crosswind (FF21). With the wind calm it gives V6's numbers exactly.
+// Wind: the crab and ground speed that hold a track (the wind triangle,
+// standard navigation), used by the Traffic Sim and the SOF's crosswind. With
+// the wind calm the heading is the track and the ground speed the airspeed.
 //
 // Unlike the rest of core, these take compass degrees (000 north, 090 east),
 // because a wind is given that way in a METAR and routes are laid out that
