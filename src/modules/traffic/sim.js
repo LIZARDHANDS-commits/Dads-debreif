@@ -31,7 +31,7 @@ import { ktToFtps, ftpsToKt } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
 import { tickAircraft } from './tick-aircraft.js';
-import { startJoin, startSideStep, setFlown, flownOf } from './path-follower.js';
+import { startJoin, startSideStep, setFlown, flownOf, groupOf, clearPfl } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight, resumePflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 import { buildGoAround, buildExtendedDownwind, CIRCUIT } from './circuit.js';
@@ -54,6 +54,9 @@ import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
+
+/** The aircraft's named groups of state (path-follower.js groupOf), copied into each snapshot. */
+const GROUPS = Object.freeze(['random', 'spacing', 'landing', 'pfl']);
 
 /** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
 export const TYPE_COLORS = Object.freeze({
@@ -176,7 +179,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.trail = [];
     a.command = null;
     a.engineFailed = false;
-    delete a.touchAndGo;
 
     // Continuous 3D Cartesian vector state initialization (Slice A & B)
     const p = posOnRoute(route, a.distFt, routeOptions());
@@ -288,7 +290,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * at its end Pattern 1 carries on from the downwind (goAroundEnded).
    */
   function startClosedPattern(a) {
-    a.pendingClosed = false;
+    if (a.landing) a.landing.pendingClosed = false;
     const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
     const downwind = pat && innerDownwind(pat);
     if (!downwind) return;
@@ -364,13 +366,13 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const touchdownFt = NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT;
     for (const a of aircraft) {
       if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
-      if (a.intent === 'full_stop' || a.flown || a.engineFailed || a.deconflict) continue;
+      if (a.intent === 'full_stop' || a.flown || a.engineFailed || a.spacing?.deconflict) continue;
       const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
       const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }));
       if (!onFinal || along <= -RANDOM.lowApproachFt || along >= touchdownFt) continue;
-      a.rndLowApproach = false;
+      if (a.random) a.random.lowApproach = false;
       startGoAround(a);
     }
   }
@@ -494,7 +496,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     delete a.rejoinRouteId;
     a.phase = 'breakout';
     a.intent = 'overhead';
-    if (toAvoidCollision) a.avoidanceBreakout = true;
+    if (toAvoidCollision) groupOf(a, 'spacing').avoidanceBreakout = true;
   }
 
 
@@ -595,8 +597,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
     if (!leaders.length) return;
     for (const f of live) {
-      if (f.phase !== 'downwind') delete f.perchRoll; // rolled once each time round the downwind
-      if (f.routeId !== pat.id || f.phase !== 'downwind' || f.deconflict) continue;
+      if (f.phase !== 'downwind' && f.landing) delete f.landing.perchRoll; // rolled once each time round the downwind
+      if (f.routeId !== pat.id || f.phase !== 'downwind' || f.spacing?.deconflict) continue;
       if (f.flown || f.sideStep) continue;
       const ahead = leaders.filter((l) => l.a !== f);
       if (!ahead.length) continue;
@@ -613,8 +615,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const leader = ahead.find((l) => spacingExtensionFt({ ...ask, leaders: [l], limitFt: 0 }) === null) ?? ahead[0];
       // Behind a straight-in, one in four doesn't extend: it perches anyway and the straight-in moves over (TR-74).
       if (isStraightIn(routeOf(leader.a))) {
-        f.perchRoll ??= rollFor(seed, `${f.id}:perch`, f.perchRolls = (f.perchRolls ?? 0) + 1) < EVADE.perchAnywayShare ? 'perch' : 'extend';
-        if (f.perchRoll === 'perch') continue;
+        const lg = groupOf(f, 'landing');
+        lg.perchRoll ??= rollFor(seed, `${f.id}:perch`, lg.perchRolls = (lg.perchRolls ?? 0) + 1) < EVADE.perchAnywayShare ? 'perch' : 'extend';
+        if (lg.perchRoll === 'perch') continue;
       }
       let flight = extendFt === null ? null : buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, extendFt);
       // The final turn rolls out a little short of a full extension: make up the shortfall once.
@@ -625,14 +628,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       }
       if (!flight) {
         startBreakout(f);
-        f.deconflict = { move: 'breakout', layer: 'rules', rule: 'spacing on final: no room to extend', with: leader.a.id, label: deconflictLabel('breakout', 'rules') };
+        groupOf(f, 'spacing').deconflict = { move: 'breakout', layer: 'rules', rule: 'spacing on final: no room to extend', with: leader.a.id, label: deconflictLabel('breakout', 'rules') };
         continue;
       }
       setFlown(f, 'move', { id: 'EXTEND_FLOWN', kind: 'flown', name: 'Extended downwind', points: flight.track }, { then: 'final' });
       f.distFt = 0;
       f.phase = 'downwind';
       delete f.joinOffset;
-      f.deconflict = { move: 'extend_downwind', layer: 'rules', rule: 'spacing on final', with: leader.a.id, extendFt, label: deconflictLabel('extend_downwind', 'rules') };
+      groupOf(f, 'spacing').deconflict = { move: 'extend_downwind', layer: 'rules', rule: 'spacing on final', with: leader.a.id, extendFt, label: deconflictLabel('extend_downwind', 'rules') };
     }
   }
 
@@ -649,42 +652,42 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const th = rwy.th, ux = (rwy.up.x - th.x) / rwy.len, uy = (rwy.up.y - th.y) / rwy.len;
     const rwyTrack = compassDegFromVector(ux, uy);
     const odds = oddsFor(setup.randomizeSharePct);
-    const roll = (a, odds) => pick(odds, rollFor(seed, a.id, a.rndCount = (a.rndCount ?? 0) + 1));
+    const roll = (a, odds) => { const rnd = groupOf(a, 'random'); return pick(odds, rollFor(seed, a.id, rnd.count = (rnd.count ?? 0) + 1)); };
     for (const a of aircraft) {
       if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
-      if (flownOf(a, 'pfl') || flownOf(a, 'high_key') || a.engineFailed || a.deconflict) continue;
+      if (flownOf(a, 'pfl') || flownOf(a, 'high_key') || a.engineFailed || a.spacing?.deconflict) continue;
       const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
       // A low approach chosen on final goes around low over the runway end.
-      if (a.rndLowApproach && !flownOf(a, 'move')) {
-        if (along > -RANDOM.lowApproachFt && off < 30) { a.rndLowApproach = false; startGoAround(a); }
+      if (a.random?.lowApproach && !flownOf(a, 'move')) {
+        if (along > -RANDOM.lowApproachFt && off < 30) { a.random.lowApproach = false; startGoAround(a); }
         continue;
       }
       if (flownOf(a, 'move')) continue;
       // On final, about a mile out: touch-and-go, full stop or low approach.
       const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }));
-      if (onFinal && !a.rndFinal && along < 0 && -along <= RANDOM.finalRollFt) {
-        Object.assign(a, { rndFinal: true, rndUpwind: false, rndDownwind: false });
+      if (onFinal && !a.random?.final && along < 0 && -along <= RANDOM.finalRollFt) {
+        Object.assign(groupOf(a, 'random'), { final: true, upwind: false, downwind: false });
         const choice = roll(a, odds.final);
-        if (choice === 'low_approach') { a.rndLowApproach = true; a.intent = 'touch_and_go'; }
+        if (choice === 'low_approach') { a.random.lowApproach = true; a.intent = 'touch_and_go'; }
         else a.intent = choice;
         continue;
       }
       if (route?.id !== pat.id) continue;
       // On the upwind after take-off, from the departure end to 3/4 mile past it (before the crosswind turn).
-      if (!a.rndUpwind && off < 30 && across < 2000 && along >= rwy.len && along <= rwy.len + RANDOM.upwindWindowFt) {
-        Object.assign(a, { rndUpwind: true, rndFinal: false });
+      if (!a.random?.upwind && off < 30 && across < 2000 && along >= rwy.len && along <= rwy.len + RANDOM.upwindWindowFt) {
+        Object.assign(groupOf(a, 'random'), { upwind: true, final: false });
         const choice = roll(a, odds.upwind);
         if (choice === 'closed_pattern') startClosedPattern(a);
         else if (choice === 'closed_high_key') startHighKeyClimb(a);
         continue;
       }
       // Abeam the departure end on the outer downwind (an SI-pattern aircraft always flies its straight-in: siPatternTick).
-      if (!a.rndDownwind && !onSiPattern(a) && a.phase === 'outer_downwind' && pat.points[5] && pat.points[6]) {
+      if (!a.random?.downwind && !onSiPattern(a) && a.phase === 'outer_downwind' && pat.points[5] && pat.points[6]) {
         const o = legOffsetsFt(pat.points[5], pat.points[6], a);
         if (o.alongFt < 0 || o.alongFt > RANDOM.downwindWindowFt) continue;
-        Object.assign(a, { rndDownwind: true, rndFinal: false });
+        Object.assign(groupOf(a, 'random'), { downwind: true, final: false });
         const choice = roll(a, odds.downwind);
         const ent2 = routeById('ENT2');
         if (choice === 'straight_in' && ent2) startStraightInFromDownwind(a, pat, ent2);
@@ -716,13 +719,13 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (!pat || !ent2 || !pat.points[5] || !pat.points[6]) return;
     for (const a of aircraft) {
       if (!onSiPattern(a)) continue;
-      if (a.phase === 'climb') { a.siLap = false; continue; }
-      if (a.siLap || !a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
+      if (a.phase === 'climb') { if (a.landing) a.landing.siLap = false; continue; }
+      if (a.landing?.siLap || !a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
       if (a.routeId !== pat.id || a.phase !== 'outer_downwind') continue;
-      if (a.flown || a.engineFailed || a.deconflict) continue;
+      if (a.flown || a.engineFailed || a.spacing?.deconflict) continue;
       const o = legOffsetsFt(pat.points[5], pat.points[6], a);
       if (o.alongFt < 0 || o.alongFt > RANDOM.downwindWindowFt) continue;
-      a.siLap = true;
+      groupOf(a, 'landing').siLap = true;
       startStraightInFromDownwind(a, pat, ent2);
     }
   }
@@ -742,11 +745,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function deconflictTick() {
     const BREAKING_OUT = new Set(['breakout', 'flinch', 'climb_breakout']);
     for (const a of aircraft) {
-      const d = a.deconflict;
+      const d = a.spacing?.deconflict;
       if (!d) continue;
       const flying = BREAKING_OUT.has(d.move) ? a.command === 'breakout' || Boolean(flownOf(a, 'move'))
         : d.move === 'bank_away' ? Boolean(a.sideStep) : Boolean(flownOf(a, 'move'));
-      if (!a.active || a.landed || !flying) delete a.deconflict;
+      if (!a.active || a.landed || !flying) delete a.spacing.deconflict; // d is set, so a.spacing exists
     }
     spacingTick();
     const limits = setup.conflictLimits ?? DEFAULT_CONFLICT_LIMITS;
@@ -763,20 +766,20 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       else if (d.move === 'move_over') startGoAround(a, EVADE.moveOverFt, EVADE.moveOverLevelAltFt, EVADE.moveOverKias);
       else if (d.move === 'bank_away') startBankAway(a, other);
       else startGoAround(a); // a go-around, or a fly-through: the same flown path from where it is at pattern height
-      a.deconflict = { move: d.move, layer: d.layer, rule: d.rule, with: d.with, label: deconflictLabel(d.move, d.layer) };
+      groupOf(a, 'spacing').deconflict = { move: d.move, layer: d.layer, rule: d.rule, with: d.with, label: deconflictLabel(d.move, d.layer) };
     }
     // If an aircraft in an avoidance breakout near the runway climbs past 2,500 ft and is past the runway:
     // "if theres no more conflicts it moves back over" (Patrick, 6 Oct).
     const rwyLen = Math.hypot(DEPARTURE_END_29L.x - THRESHOLD_29L.x, DEPARTURE_END_29L.y - THRESHOLD_29L.y);
     for (const a of aircraft) {
-      if (a.avoidanceBreakout && a.command === 'breakout') {
+      if (a.spacing?.avoidanceBreakout && a.command === 'breakout') {
         const off = legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, a);
         const pastGate = (a.alt ?? 0) >= 2500 && off.alongFt >= rwyLen;
         if (pastGate) {
           const hasConflict = activeDecisions.some((d) => d.id === a.id || d.with === a.id);
           if (!hasConflict) {
-            delete a.avoidanceBreakout;
-            delete a.deconflict;
+            delete a.spacing.avoidanceBreakout;
+            delete a.spacing.deconflict;
             startGoAround(a);
           }
         }
@@ -814,10 +817,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.active = true;
     a.phase = 'climb_high_key';
     a.config = 'Clean';
-    a.pflSegment = null;
-    a.pflDecision = null;
-    a.pflMarginFt = null;
-    a.pflMarginTag = null;
+    clearPfl(a);
     delete a.joinOffset;
   }
 
@@ -828,7 +828,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const then = move?.then, joinId = move?.joinId;
     if (move) delete a.flown;
     // The deconfliction's short moves: the breakout follows, or the straight-in is joined again.
-    if (then === 'breakout') { startBreakout(a, a.deconflict?.layer === 'skill'); return; }
+    if (then === 'breakout') { startBreakout(a, a.spacing?.deconflict?.layer === 'skill'); return; }
     if (then === 'final') {
       // An extended downwind ends on Pattern 1's own straight final, inside the window: join it there, never on
       // the initial above it (same centreline).
@@ -914,12 +914,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), windNow(), opt);
     a.phase = 'touch_and_go';
     a.command = null;
-    a.touchAndGo = true;
   }
 
   /** The end of a flown path, by kind: a PFL that has flown its glide, then a move that has flown its path. */
   function flownEnded(a) {
-    if (a.pflDone) pflEnded(a);
+    if (a.pfl?.done) pflEnded(a);
     if (a.goAroundDone) goAroundEnded(a);
   }
 
@@ -929,30 +928,24 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * a practice that missed the gate goes around; one that can't make the runway ejects.
    */
   function pflEnded(a) {
-    const done = a.pflDone;
-    delete a.pflDone;
+    const done = a.pfl?.done;
+    if (a.pfl) delete a.pfl.done;
     if (flownOf(a, 'pfl')) delete a.flown;
-    a.pflEndedThisStep = true;
+    groupOf(a, 'pfl').endedThisStep = true;
     a.engineFailed = false;
     if (done === 'landed') {
       goFromRunway(a);
-      a.pflDecision = null;
-      a.pflSegment = null;
-      a.pflMarginFt = null;
-      a.pflMarginTag = null;
+      clearPfl(a);
       a.config = undefined;
       a.tag = undefined;
     } else if (done === 'go_around') {
-      a.pflDecision = null;
-      a.pflSegment = null;
-      a.pflMarginFt = null;
-      a.pflMarginTag = null;
+      clearPfl(a);
       a.config = undefined;
       a.tag = undefined;
       startGoAround(a);
     } else {
       eject(a);
-      a.pflDecision = 'Eject';
+      groupOf(a, 'pfl').decision = 'Eject';
     }
   }
 
@@ -967,13 +960,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.command = null;
     // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
     a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
-    a.pflDecision = null;
-    a.pflSegment = null;
-    a.pflMarginFt = null;
-    a.pflMarginTag = null;
+    clearPfl(a);
     a.config = undefined;
     delete a.flown;
-    delete a.deconflict;
+    if (a.spacing) delete a.spacing.deconflict;
     delete a.sideStep;
   }
 
@@ -1004,6 +994,22 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
   }
 
+  /**
+   * One step of the sim, in this order (refactor step 4: the order is read here, in one place):
+   *  1. every half second (DECONFLICT.decideEverySteps), HALF_SECOND_TICKS: the SI pattern, Randomize, the
+   *     deconfliction, the runway-busy go-around;
+   *  2. each aircraft in turn, aircraftTick: taxi, or follow its path, end a flown path, the route's decisions and
+   *     end, a closed pattern waiting for the upwind end;
+   *  3. collisions (collisionTick), from where each aircraft was before the step;
+   *  4. a snapshot every so often (remember).
+   */
+  const HALF_SECOND_TICKS = [
+    () => siPatternTick(),
+    () => { if (setup.randomize) randomizeTick(); },
+    () => { if (setup.deconflict) deconflictTick(); },
+    () => runwayBusyTick(),
+  ];
+
   function stepOnce() {
     setFieldTemperature(setup.fieldTempC); // set each step, so two sims in one page each fly their own day
     placeStraightInDescent(setup.routes);
@@ -1011,49 +1017,54 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     steps++;
     const opt = routeOptions();
     const wind = windNow();
-    if (steps % DECONFLICT.decideEverySteps === 0) siPatternTick();
-    if (setup.randomize && steps % DECONFLICT.decideEverySteps === 0) randomizeTick();
-    if (setup.deconflict && steps % DECONFLICT.decideEverySteps === 0) deconflictTick();
-    if (steps % DECONFLICT.decideEverySteps === 0) runwayBusyTick();
-    // Where each flying aircraft was before this step, for the collision check after it.
+    if (steps % DECONFLICT.decideEverySteps === 0) for (const tick of HALF_SECOND_TICKS) tick();
+    const before = positionsNow();
+    for (const a of aircraft) aircraftTick(a, wind, opt);
+    collisionTick(before);
+    if (steps % every === 0 && !history.has(steps)) remember();
+  }
+
+  /** Where each flying aircraft is, for the collision check after the step. */
+  function positionsNow() {
     const before = new Map();
     for (const a of aircraft) {
       if (a.active && !a.landed && t >= a.startsAt && [a.x, a.y, a.alt].every(Number.isFinite)) before.set(a.id, { x: a.x, y: a.y, alt: a.alt });
     }
-    for (const a of aircraft) {
-      if (!a.active || t < a.startsAt) continue;
-      if (a.taxi) {
-        taxiTick(a);
-        recordTrail(a);
-        continue;
-      }
-      const route = routeOf(a);
-      const beforeDist = a.distFt;
-      const sideStepping = Boolean(a.sideStep);
-      tickAircraft(a, STEP_SEC, wind, route, opt);
-      // A PFL's bank away has ended, its height charged: re-plan the glide from where it really is (TR-55).
-      if (sideStepping && !a.sideStep && flownOf(a, 'pfl') && !a.pflDone) resumePflFlight(a, wind, setup.settings);
-      flownEnded(a);
-      if (route && !a.flown && !a.pflEndedThisStep) {
-        const len = routeLengthFt(route, opt);
-        if (route.kind === 'pattern' && a.distFt >= beforeDist) {
-          checkDecisions(a, beforeDist, a.distFt);
-        }
-        if (a.active && len && a.distFt >= len && !isClosedRoute(route)) {
-          handleRouteEnd(a, a.distFt - len);
-        } else if (a.active) {
-          joinWhenAligned(a, route, opt);
-        }
-      }
+    return before;
+  }
 
-      // A closed pattern asked for short of the upwind end pulls up once past it (TR-R33).
-      if (a.active && a.pendingClosed && !beforeUpwindEnd(a)) startClosedPattern(a);
-
-      delete a.pflEndedThisStep;
+  /** One aircraft's step: taxi, or its path; then the end of a flown path, the route's decisions and end. */
+  function aircraftTick(a, wind, opt) {
+    if (!a.active || t < a.startsAt) return;
+    if (a.taxi) {
+      taxiTick(a);
       recordTrail(a);
+      return;
     }
-    collisionTick(before);
-    if (steps % every === 0 && !history.has(steps)) remember();
+    const route = routeOf(a);
+    const beforeDist = a.distFt;
+    const sideStepping = Boolean(a.sideStep);
+    tickAircraft(a, STEP_SEC, wind, route, opt);
+    // A PFL's bank away has ended, its height charged: re-plan the glide from where it really is (TR-55).
+    if (sideStepping && !a.sideStep && flownOf(a, 'pfl') && !a.pfl?.done) resumePflFlight(a, wind, setup.settings);
+    flownEnded(a);
+    if (route && !a.flown && !a.pfl?.endedThisStep) {
+      const len = routeLengthFt(route, opt);
+      if (route.kind === 'pattern' && a.distFt >= beforeDist) {
+        checkDecisions(a, beforeDist, a.distFt);
+      }
+      if (a.active && len && a.distFt >= len && !isClosedRoute(route)) {
+        handleRouteEnd(a, a.distFt - len);
+      } else if (a.active) {
+        joinWhenAligned(a, route, opt);
+      }
+    }
+
+    // A closed pattern asked for short of the upwind end pulls up once past it (TR-R33).
+    if (a.active && a.landing?.pendingClosed && !beforeUpwindEnd(a)) startClosedPattern(a);
+
+    if (a.pfl) delete a.pfl.endedThisStep;
+    recordTrail(a);
   }
 
   /** A trail point every TRAIL_EVERY_STEPS steps, the oldest dropped past TRAIL_POINTS. */
@@ -1100,6 +1111,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── Snapshots ──────────────────────────────────────────────────────────────
 
+  /** Fresh copies of an aircraft's named groups (path-follower.js groupOf), so a snapshot and the live run never share one. */
+  const copyGroups = (rec) => Object.fromEntries(GROUPS.filter((g) => rec[g]).map((g) => [g, { ...rec[g] }]));
+
   /** Everything a later step depends on. The trail is kept flat (x, y, x, y, ...): it is up to 240 points an aircraft. */
   function takeSnapshot() {
     return {
@@ -1110,6 +1124,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         trail.forEach((p, i) => { flat[2 * i] = p.x; flat[2 * i + 1] = p.y; });
         return {
           ...rest,
+          ...copyGroups(rest),
           splitTaken: { ...splitTaken },
           trail: flat,
         };
@@ -1125,6 +1140,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     dice.setState(snap.dice);
     aircraft = snap.aircraft.map(({ trail, splitTaken, ...rest }) => ({
       ...rest,
+      ...copyGroups(rest),
       splitTaken: { ...splitTaken },
       trail: Array.from({ length: trail.length / 2 }, (_, i) => ({ x: trail[2 * i], y: trail[2 * i + 1] })),
     }));
@@ -1453,12 +1469,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // A new command stops the flown PFL glide; the command then flies from where the aircraft is.
       if (action !== 'touch_and_go' && action !== 'pfl_current' && action !== 'engine_fail') {
         if (flownOf(a, 'pfl')) delete a.flown;
-        delete a.pflDone;
+        if (a.pfl) delete a.pfl.done;
         a.engineFailed = false;
-        a.pflSegment = null;
-        a.pflDecision = null;
-        a.pflMarginFt = null;
-        a.pflMarginTag = null;
+        clearPfl(a);
         a.config = undefined;
       }
       if (action === 'breakout') {
@@ -1468,7 +1481,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         // The pull-up starts at or after the upwind end of the runway (TR-R33, WFO art 402): an aircraft
         // on final or on the runway touches and goes, and pulls up once past the upwind end.
         if (beforeUpwindEnd(a)) {
-          a.pendingClosed = true;
+          groupOf(a, 'landing').pendingClosed = true;
           a.intent = 'touch_and_go';
           a.landed = false;
           a.active = true;
@@ -1541,7 +1554,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         }
         const b = behaviourOf({ ...a, kt, alt, leg, siPattern: onSiPattern(a) }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });
         return {
-          label: behaviourLabel(b, a.deconflict?.label ?? null) ?? a.deconflict?.label ?? null,
+          label: behaviourLabel(b, a.spacing?.deconflict?.label ?? null) ?? a.spacing?.deconflict?.label ?? null,
           config: b?.config,
         };
       };
@@ -1583,15 +1596,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           pattern: onSiPattern(a) ? 'si' : 'ohb',
           closedPatternBankDeg: a.closedPatternBankDeg,
           config: a.config ?? tag?.config,
-          pflSegment: a.pflSegment ?? null,
-          pflDecision: a.pflDecision ?? null,
-          pflMarginFt: a.pflMarginFt ?? null,
-          pflMarginTag: a.pflMarginTag ?? null,
+          pflSegment: a.pfl?.segment ?? null,
+          pflDecision: a.pfl?.decision ?? null,
+          pflMarginFt: a.pfl?.marginFt ?? null,
+          pflMarginTag: a.pfl?.marginTag ?? null,
           pflFlight: Boolean(flownOf(a, 'pfl')),
           pflRoute: flownOf(a, 'pfl')?.route ?? null,
           highKeyFlight: Boolean(flownOf(a, 'high_key')),
           ejectAt: a.ejectAt ?? null,
-          deconflict: a.deconflict?.label ?? null,
+          deconflict: a.spacing?.deconflict?.label ?? null,
           behaviour: tag?.label ?? null,
         };
       });
