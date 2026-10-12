@@ -49,7 +49,7 @@ const rad = (d) => (d * Math.PI) / 180;
 // nose to tail is the T-6A's 33 ft 4 in (1.44 units; the photo's fin top then sits 10.6 ft above the wheels, against
 // the published 10.7 ft). x is along the nose, z up from the spinner's axis.
 
-// Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The top line runs almost flat from the
+// Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness, upper squareness]. The top line runs almost flat from the
 // spinner back to the fin. Squareness 2 is an ellipse, higher is boxier (flat sides at the cockpit). The nose's top
 // line, spinner to windscreen foot, is the side view's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind
 // the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's foot (was 0.65 to 1.0 ft off the photo), so from the front seat
@@ -61,23 +61,28 @@ const rad = (d) => (d * Math.PI) / 180;
 // the spinner's backplate to the cowl and from the rear bow to the tail (the front view, scaled by its 97 in prop, gives
 // 3 ft 2.2 in; was 3 ft 8.4 in, an estimate). Across the canopy the squareness is set so the canopy's sill stays within
 // a quarter inch of where it was (flat sides, as the front view draws them).
+// The canopy's sill rises toward the tail, 0.6 ft above the spinner's axis at the forward bow's feet, 0.95 ft at the rear
+// bow's (Patrick, 12 Oct 2026; it fell from 0.62 to 0.36 ft): across the cockpit the section's top is raised and its upper
+// half squared (the last column, the upper half's squareness; the lower half keeps the one before it), so the side
+// below the sill and the belly keep their shape.
 const STATIONS = [
-  [0.578, 0.034, 0.0363, -0.04, 2.2],
-  [0.55, 0.0387, 0.0387, -0.07, 2.3],
-  [0.518, 0.0451, 0.0414, -0.083, 2.4],
-  [0.437, 0.06, 0.048, -0.095, 2.5],
-  [0.329, 0.0677, 0.0563, -0.107, 2.6],
-  [0.268, 0.0695, 0.0626, -0.112, 2.89],
-  [0.167, 0.0695, 0.043, -0.12, 3.49],
-  [-0.009, 0.0694, 0.04, -0.128, 3.77],
-  [-0.158, 0.0694, 0.034, -0.118, 3.38],
-  [-0.215, 0.0694, 0.0312, -0.112, 2.97],
-  [-0.32, 0.052, 0.026, -0.103, 3.0],
-  [-0.482, 0.034, 0.014, -0.0958, 2.69],
-  [-0.59, 0.023, 0.0, -0.092, 2.4],
-  [-0.685, 0.0125, -0.014, -0.0775, 2.3],
-  [-0.725, 0.008, -0.024, -0.069, 2.2],
-  [-0.744, 0.004, -0.048, -0.068, 2.0],
+  [0.578, 0.034, 0.0363, -0.04, 2.2, 2.2],
+  [0.55, 0.0387, 0.0387, -0.07, 2.3, 2.3],
+  [0.518, 0.0451, 0.0414, -0.083, 2.4, 2.4],
+  [0.437, 0.06, 0.048, -0.095, 2.5, 2.5],
+  [0.329, 0.0677, 0.0563, -0.107, 2.6, 2.6],
+  [0.268, 0.0695, 0.0626, -0.112, 2.89, 2.89],
+  [0.167, 0.0695, 0.0453, -0.12, 3.49, 3.49],
+  [-0.009, 0.0694, 0.0426, -0.128, 3.77, 6],
+  [-0.1, 0.0694, 0.0463, -0.1219, 3.53, 6],
+  [-0.158, 0.0694, 0.0447, -0.118, 3.38, 6],
+  [-0.215, 0.0694, 0.0339, -0.112, 2.97, 6],
+  [-0.32, 0.052, 0.026, -0.103, 3.0, 3.0],
+  [-0.482, 0.034, 0.014, -0.0958, 2.69, 2.69],
+  [-0.59, 0.023, 0.0, -0.092, 2.4, 2.4],
+  [-0.685, 0.0125, -0.014, -0.0775, 2.3, 2.3],
+  [-0.725, 0.008, -0.024, -0.069, 2.2, 2.2],
+  [-0.744, 0.004, -0.048, -0.068, 2.0, 2.0],
 ];
 // The top line aft of the fairing, into the tail, is the side view's (Patrick, 11 Oct 2026: "the fuselage
 // flows down into the tail"): 0.4 ft above the spinner's axis 6.9 ft ahead of the tail, level with it at 4.4 ft and
@@ -108,6 +113,10 @@ const STATIONS = [
 // from there forward, off the photo; the model's one surface is both the outside and the inside, so the glass sits
 // about an inch outside the real inside). The rear bow's, 2.55 ft across, nearly the canopy's widest, so the glass
 // ends square as in the same top view (was 2.3 ft); the fairing's narrowing behind it is an estimate.
+// Aft of the front seat the top was reshaped (Patrick, 12 Oct 2026): 3.34 ft up over the centre arch, now 0.41 ft ahead of
+// the origin (was 3.45 ft, 0.51 ft aft of it), and falling from there about 1 ft further forward than before, through
+// 2.45 ft at the rear bow's crest and 1.3 ft where the dorsal fin leaves it, into the fuselage's top 10.3 ft aft of the
+// origin (was 11.3 ft); the half-widths moved with it, the rear bow's 2.55 ft across kept at its crest.
 const CANOPY = [
   [0.292, 0.01, 0.0601],
   [0.278, 0.034, 0.0715],
@@ -119,16 +128,18 @@ const CANOPY = [
   [0.196, 0.059, 0.1188],
   [0.14, 0.0605, 0.1249],
   [0.059, 0.0605, 0.1413],
-  [-0.022, 0.0605, 0.149],
-  [-0.076, 0.0605, 0.1469],
-  [-0.185, 0.06, 0.124],
-  [-0.239, 0.055, 0.0978],
-  [-0.274, 0.05, 0.0807],
-  [-0.32, 0.042, 0.0588],
-  [-0.366, 0.033, 0.0415],
-  [-0.412, 0.024, 0.0311],
-  [-0.458, 0.015, 0.0231],
-  [-0.49, 0.008, 0.016],
+  [0.018, 0.0605, 0.1443],
+  [-0.03, 0.0605, 0.1426],
+  [-0.075, 0.0605, 0.137],
+  [-0.12, 0.06, 0.1266],
+  [-0.174, 0.055, 0.1058],
+  [-0.195, 0.055, 0.096],
+  [-0.23, 0.05, 0.0795],
+  [-0.276, 0.042, 0.0579],
+  [-0.322, 0.033, 0.0415],
+  [-0.368, 0.024, 0.0315],
+  [-0.414, 0.015, 0.0246],
+  [-0.446, 0.008, 0.018],
 ];
 // The cockpit, in model units (from the photo, as the canopy): the canopy frame hoops (the forward one is the windscreen
 // bow), the two seats' stations (front, rear; each helmet sits there, its seat back just behind) and the helmets' heights
@@ -138,9 +149,11 @@ const CANOPY = [
 // ahead, 3.0 ft aft, both 2.27 ft up). The front seat then moved 0.95 ft (11 in) forward to the same view's front
 // pilot re-read on a complete copy (Patrick, 11 Oct 2026 07:39Z, "whole cockpit 11 in (except the bow)"): his eye about
 // 12.35 ft behind the spinner tip (the first reading's 13.2 ft was off a copy cut short at the tail), so the front
-// helmet's centre is now 2.91 ft ahead of the origin; its height and the rear seat unchanged.
-export const CT156_FRAME_X = Object.freeze([0.196, -0.022, -0.239]);
-export const CT156_SEAT_X = Object.freeze([0.1257, -0.1469]);
+// helmet's centre is now 2.91 ft ahead of the origin; its height and the rear seat unchanged. The rear cockpit then moved
+// forward (Patrick, 12 Oct 2026): the centre arch's crest 0.93 ft (to 0.41 ft ahead of the origin), the rear bow's 1.5 ft
+// (to 4.03 ft aft of it) and the rear helmet 1.27 ft (to 2.13 ft aft of it, 5.04 ft behind the front one), its height kept.
+export const CT156_FRAME_X = Object.freeze([0.196, 0.0177, -0.174]);
+export const CT156_SEAT_X = Object.freeze([0.1257, -0.092]);
 export const CT156_HELMET_Z = Object.freeze([0.086, 0.0989]);
 /** The spinner's radius at its base less its 0.001-unit tip: 0.67 ft at the base, the side view's (ALL-31; was 0.79 ft). */
 export const CT156_SPINNER_R = 0.0279;
@@ -169,21 +182,22 @@ function rowAt(rows, x) {
 const middleOf = (top, bottom) => [(top + bottom) / 2, (top - bottom) / 2];
 /** A point round a fuselage section: theta 0 the left side (+y), pi/2 the top. */
 function sectionPoint(sec, theta) {
-  const [, w, top, bottom, n] = sec;
+  const [, w, top, bottom, nLow, nUp] = sec;
   const [zc, h] = middleOf(top, bottom);
-  const c = Math.cos(theta), s = Math.sin(theta);
+  const c = Math.cos(theta), s = Math.sin(theta), n = s > 0 ? nUp : nLow;
   return [w * Math.sign(c) * Math.abs(c) ** (2 / n), zc + h * Math.sign(s) * Math.abs(s) ** (2 / n)];
 }
 /** The fuselage's half-width at (x, z), for the decals that hug its side. */
 function fuseSurf(x, z) {
-  const [, w, top, bottom, n] = rowAt(STATIONS, x);
+  const [, w, top, bottom, nLow, nUp] = rowAt(STATIONS, x);
   const [zc, h] = middleOf(top, bottom);
+  const n = z > zc ? nUp : nLow;
   const s = Math.min(0.999, Math.abs(z - zc) / h) ** (n / 2);
   return w * Math.sqrt(Math.max(1 - s * s, 1e-6)) ** (2 / n) + 0.0025;
 }
 /** The height where the fuselage is a given half-width, on its upper side: the canopy's sill. */
 function sillZ(x, halfWidth) {
-  const [, w, top, bottom, n] = rowAt(STATIONS, x);
+  const [, w, top, bottom, , n] = rowAt(STATIONS, x);
   const [zc, h] = middleOf(top, bottom);
   const c = Math.min(1, halfWidth / w) ** (n / 2);
   return zc + h * Math.sqrt(Math.max(1 - c * c, 0)) ** (2 / n);
@@ -274,6 +288,7 @@ const VENTRAL_RISE = 0.134; // the foot's rise per unit aft
 // under it (Patrick, 11 Oct 2026: "instead of having a straight bulky spine"; it was a spine as wide as the canopy's
 // end). The half-widths are estimates.
 const DORSAL = [
+  [-0.283, 0.0035, 0.056], // where it leaves the fairing, which ends further forward (Patrick, 12 Oct 2026)
   [-0.33, 0.0035, 0.0586],
   [-0.39, 0.004, 0.0615],
   [-0.45, 0.0045, 0.0645],
@@ -284,11 +299,11 @@ const DORSAL = [
 export const CT156_BOW_LEAN = rad(14.5); // the side view's band, 11 Oct 2026 (was 9°, read off the photo; Patrick's 156102 photo reads about 13°)
 /**
  * Each frame hoop's lean from its crest to the sills (CT156_FRAME_X's order), radians: + the feet aft of the crest, -
- * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 22° with its top aft, as the side view shows it
- * (Patrick, 11 Oct 2026: "the wrong angles in the canopy bow"; it was upright). The centre bow 21° the same way, the
+ * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 26° with its top aft (Patrick, 12 Oct 2026; 22° from
+ * 11 Oct 2026, "the wrong angles in the canopy bow", when it was upright). The centre bow 21° the same way, the
  * same view's, with the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leaning with it (was upright).
  */
-export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, rad(-21), rad(-22)]);
+export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, rad(-21), rad(-26)]);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
 const thick = (xc, t) => 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -1366,7 +1381,7 @@ function fuselageGeometry(THREE, { cut = false } = {}) {
 // The cockpit opening, model units along x: just aft of the rear canopy bow to under the front coaming, ahead of the
 // front panel (estimate, TS-155; its front end moved forward with the front cockpit, ALL-31, again with the panel,
 // V2.238, and 0.95 ft with the front cockpit, 11 Oct 2026, so no skin shows in front of the panel).
-const COCKPIT_CUT_X = [-0.242, 0.256];
+const COCKPIT_CUT_X = [-0.177, 0.256]; // its aft end moved 1.5 ft forward with the rear bow (Patrick, 12 Oct 2026)
 const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 
 /**
@@ -1376,7 +1391,7 @@ const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
  */
 export const CT156_TUB_FLOOR_FT = -1.2;
 /**
- * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 5.6 ft aft of the
+ * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 4.1 ft aft of the
  * model origin to 5.95 ft ahead of it, just behind the front knee wells' backs (5.9 ft) so its bulkhead doesn't close them
  * (5.55 ft from V2.271 to V2.285, which put the bulkhead across the wells; 3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
  * forward, V2.238; 4.6 ft until the front cockpit moved 0.95 ft forward, 11 Oct 2026), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
@@ -1384,7 +1399,7 @@ export const CT156_TUB_FLOOR_FT = -1.2;
  * eye off Dad's reference pictures, 9 Oct 2026).
  */
 function tubGeometry(THREE) {
-  const N = 14, x0 = 5.95 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
+  const N = 14, x0 = 5.95 * FT, x1 = -4.1 * FT, floorZ = CT156_TUB_FLOOR_FT * FT; // x1 -5.6 ft until the rear bow moved forward (Patrick, 12 Oct 2026)
   const rows = [];
   for (let i = 0; i <= N; i++) {
     const x = x0 + ((x1 - x0) * i) / N;
@@ -1471,24 +1486,44 @@ export function ct156CanopyHalfWidth(x, z) {
   return c.w * Math.sqrt(Math.max(1 - sp * sp, 0)) ** 0.85;
 }
 /**
+ * Each coaming's crown, its middle's height along it from its aft edge forward, as [x, z] in feet (the model's frame):
+ * the front glareshield's aft edge 10.6 ft behind the spinner's tip, its top 1.63 ft up there, easing down to 1.48 ft
+ * 0.9 ft forward and then falling to 1.07 ft at 8.98 ft, under the windscreen's foot; the rear coaming's aft edge
+ * 15.3 ft behind the tip, 1.85 ft up, its top sloping down over the first 0.47 ft to 1.68 ft and running on almost
+ * level to the centre arch (Patrick, 12 Oct 2026; the front one was 5 in further forward and 20 in deep, the rear one a
+ * hump over the front seat's back from 0.8 ft aft of the origin, rising to 2.06 ft). ct156-cockpit.js's GLARESHIELD_FT
+ * and REAR_HUMP_FT are built on these, so each number has one copy.
+ */
+export const CT156_COAMING_CROWNS_FT = Object.freeze({
+  front: Object.freeze([[4.69, 1.634], [5.0, 1.595], [5.3, 1.545], [5.6, 1.48], [5.8, 1.37], [6.0, 1.25], [6.3, 1.07]].map(Object.freeze)),
+  rear: Object.freeze([[0, 1.85], [0.15, 1.82], [0.3, 1.77], [0.47, 1.675], [1.1, 1.645]].map(Object.freeze)),
+});
+/** A crown's height (feet) at station x (feet), straight-line between its points; level past either end. */
+export function ct156CrownZ(crown, x) {
+  if (x <= crown[0][0]) return crown[0][1];
+  for (let i = 1; i < crown.length; i++) {
+    const [x0, z0] = crown[i - 1], [x1, z1] = crown[i];
+    if (x <= x1) return z0 + ((z1 - z0) * (x - x0)) / (x1 - x0);
+  }
+  return crown[crown.length - 1][1];
+}
+/**
  * The two coamings as seen from outside through the canopy (Patrick, 12 Oct 2026, "you can see the glare shield for the
  * instrument panels"): a dark moulded hood over each instrument panel, with a flat top and rounded shoulders, kept inside
- * the glass. Units: aft and fore ends, the crown's height along it (t from aft 0 to fore 1) and the half-width. The front
- * one is the cockpit's glareshield (ct156-cockpit.js GLARESHIELD_FT, 10.1 to 8.5 ft behind the spinner's tip, 1.63 ft
- * up falling to 1.33 ft, about 2.3 ft across); the rear one is the hump over the front seat's back that the rear panel
- * sits under (REAR_HUMP_FT, 15.3 to 12.6 ft, rising to about 2.06 ft up and falling to 1.65 ft). From the seat the
- * cockpit draws its own (setCockpitView hides these).
+ * the glass, along CT156_COAMING_CROWNS_FT. Half-widths in feet. From the seat the cockpit draws its own (setCockpitView
+ * hides these).
  */
 const COAMINGS = Object.freeze([
-  Object.freeze({ aft: 5.14 / 23.148, fore: 6.82 / 23.148, crown: (t) => (1.634 - 0.304 * t ** 1.4) / 23.148, half: 1.15 / 23.148 }),
-  Object.freeze({ aft: -0.8 / 23.148, fore: 1.88 / 23.148, crown: (t) => (t < 0.38 ? 1.9 + 0.16 * Math.sin((t / 0.38) * (Math.PI / 2)) : 2.06 - 0.41 * ((t - 0.38) / 0.62) ** 1.6) / 23.148, half: 1.2 / 23.148 }),
+  Object.freeze({ crown: CT156_COAMING_CROWNS_FT.front, half: 1.15 }),
+  Object.freeze({ crown: CT156_COAMING_CROWNS_FT.rear, half: 1.2 }),
 ]);
 function coamingGeometry(THREE) {
   const N = 16, M = 16, parts = [];
-  for (const c of COAMINGS) {
+  for (const { crown, half } of COAMINGS) {
     const pos = [], idx = [];
+    const c = { aft: crown[0][0] / 23.148, fore: crown[crown.length - 1][0] / 23.148, half: half / 23.148 };
     for (let i = 0; i <= N; i++) {
-      const t = i / N, x = c.aft + (c.fore - c.aft) * t, base = canopyAt(x).base, top = c.crown(t);
+      const t = i / N, x = c.aft + (c.fore - c.aft) * t, base = canopyAt(x).base, top = ct156CrownZ(crown, x * 23.148) / 23.148;
       for (let j = 0; j <= M; j++) {
         const u = -1 + (2 * j) / M;
         let y = c.half * u, z = base - 0.002 + (top - base + 0.002) * Math.max(0, 1 - Math.abs(u) ** 4) ** 0.25;
@@ -1552,17 +1587,42 @@ function hoopGeometry(THREE, x, lean = 0, half = 0.0045) {
   }
   return meshOf(THREE, pos, idx);
 }
-/** A sill rail along one side of the canopy. */
 /** Where the canopy's sill rails start at the front, model units (under the front coaming's sides; ct156-cockpit.js). */
 export const CT156_RAIL_FORE_X = 0.25;
+/**
+ * The canopy's lower frame along each side, feet (Patrick, 12 Oct 2026): a band 0.34 ft (4.1 in) tall up the glass from
+ * the sill, with a seam 0.12 ft (1.45 in) under its top, the strip above the seam standing a little proud. Until then a
+ * round rail 0.07 ft across along the sill.
+ */
+export const CT156_RAIL_BAND_FT = Object.freeze({ tall: 0.34, seam: 0.12 });
+/**
+ * The canopy's lower frame along one side (CT156_RAIL_BAND_FT), from under the front coaming's sides to the rear bow's
+ * foot: two strips on the glass, sill to seam and seam to top, each a little outside it, the upper one more, joined
+ * by a narrow step at the seam.
+ */
 function railGeometry(THREE, side) {
-  const pts = [];
-  for (let i = 0; i <= 12; i++) {
-    const x = CT156_RAIL_FORE_X + ((glassEnd(2)[0] - CT156_RAIL_FORE_X) * i) / 12; // to the rear bow's foot
-    const c = canopyAt(x, 0.001);
-    pts.push(new THREE.Vector3(x, side * c.w, c.base - (i === 0 ? 0.005 : 0))); // its front end dips under the sill (no open end in sight)
+  const N = 40, x0 = CT156_RAIL_FORE_X, x1 = glassEnd(2)[0];
+  const { tall, seam } = CT156_RAIL_BAND_FT;
+  // A point on the canopy grown by `grow`, dz feet above its sill at station x (canopyPoint backwards).
+  const at = (x, dz, grow) => {
+    const c = canopyAt(x, grow), f = Math.min(1, (dz * FT) / (c.top - c.base));
+    const [y, z] = canopyPoint(c, Math.asin(f ** (1 / 0.75)));
+    return [x, side * y, z - (dz === 0 ? 0.002 : 0)]; // the bottom edge tucks under the sill
+  };
+  const rows = [[0, 0.0004], [tall - seam, 0.0004], [tall - seam, 0.0007], [tall, 0.0007]];
+  const pos = [], idx = [];
+  for (let i = 0; i <= N; i++) {
+    const x = x0 + ((x1 - x0) * i) / N;
+    for (const [dz, grow] of rows) pos.push(...at(x, dz, grow));
   }
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.003, 5, false);
+  const R = rows.length;
+  for (let i = 0; i < N; i++) {
+    for (let k = 0; k < R - 1; k++) {
+      const a = i * R + k, b = a + 1, c = a + R, d = c + 1;
+      idx.push(...(side > 0 ? [a, c, b, b, c, d] : [a, b, c, b, d, c]));
+    }
+  }
+  return meshOf(THREE, pos, idx);
 }
 
 /**
