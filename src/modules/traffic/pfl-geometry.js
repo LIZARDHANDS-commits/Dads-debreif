@@ -80,7 +80,7 @@ export const PFL = Object.freeze({
   roundOutTrackDeg: 30,
   /** Touchdown aim: threshold for glide, pre-flare & flare carry wheels to first 1,000 ft. */
   aimFractionOfRunway: 0,
-  /** Touch down within the first 1,000 ft (SMM 13.9 para 18, 13.10 para 19; TR-106, TR-110). */
+  /** Touch down within the first 1,000 ft (SMM 13.9 para 18, 13.10 para 19; TR-47, TR-106, TR-110). */
   touchdownFt: 1000,
   stopMarginFt: 2000,
   joinStepDeg: 5,
