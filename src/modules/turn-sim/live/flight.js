@@ -13,7 +13,7 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, easeValue, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
-import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL, thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
@@ -479,9 +479,10 @@ const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <=
  *   { kind: 'hold', untilSec, thenNext } straight and level until formation time untilSec; with thenNext the next
  *        segment starts in the step the hold ends (so a plan joined from separately planned legs starts each leg on
  *        the exact step it was planned from); without it the step the hold ends is still flown straight.
- *   { kind: 'turn', toRad, dir, bankDeg, rollOut }
+ *   { kind: 'turn', toRad, dir, bankDeg, rollOut, fullPower }
  *        turn the `dir` way (+1 left, -1 right) at bankDeg (magnitude) to heading toRad;
- *        rollOut false hands the bank straight on to the next segment (the cross turn's two stages).
+ *        rollOut false hands the bank straight on to the next segment (the cross turn's two stages);
+ *        fullPower: the speed goes where full power at the turn's G takes it (the line abreast turns, TS-204).
  *   { kind: 'speed', toKias, rateKtps, withNext, stage }
  *        change indicated airspeed from what it is now to toKias at an average of rateKtps
  *        (knots per second; the smootherstep's steepest point is SMOOTHER_PEAK times that), so
@@ -585,6 +586,15 @@ export function stepAircraft(a, plan, t) {
     a.tasFtps = sp.tasFtps;
     a.slowStage = plan.speedLeg.stage ?? null; // how the slow-down is flown (slow-down.js, TS-61): the card and tags say BOARDS or IDLE
     if (t + dt >= plan.speedLeg.t1 - 1e-9) plan.speedLeg = null;
+  } else if (seg?.kind === 'turn' && seg.fullPower) {
+    // A full-power turn (the line abreast tactical turns, TS-204; Patrick 12 Oct 2026 09:47Z, 09:51Z): the speed goes where
+    // full power at the turn's G takes it (standard energy: thrust less drag, core t6-performance.js), the roll-in and
+    // roll-out included.
+    const altFt = (plan.blockFt ?? POWER_BLOCK_FT) + (a.altAboveFt ?? 0);
+    const excess = thrustPerWeight(a.kias, altFt) - dragPerWeight(a.kias, altFt, gFromBankDeg(a.bankDeg ?? 0));
+    a.kias += ((excess * G_FTPS2) / KT_TO_FTPS) * (a.kias / iasToTasKt(a.kias, altFt)) * dt;
+    a.tasFtps = a.kias * (tasBefore / kiasBefore);
+    a.slowStage = null;
   } else if (plan.accelKtps !== undefined && plan.accelKtps !== null) {
     a.kias += plan.accelKtps * dt;
     a.tasFtps = a.kias * (tasBefore / kiasBefore);
