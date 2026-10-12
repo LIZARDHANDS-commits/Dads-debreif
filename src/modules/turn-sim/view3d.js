@@ -18,6 +18,7 @@ import { FW_TURN, TURNING_REJOIN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
+import { drawnAttitudeOf } from './live/attitude.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, createEyeLean, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
@@ -131,13 +132,19 @@ export function turnSign(previousHeadingRad, headingRad) {
  * The model is then set with rotation.set(-bank, -pitch, heading), order 'ZYX'.
  */
 export function aircraftPose(a, sign = 1) {
+  const wingsDeg = (a.attitudeDeg ?? liftBankDeg(a.bankDeg, a.nz ?? 1)) * (sign < 0 ? -1 : 1); // where the lift points (TS-108)
+  // The model's own attitude (attitude.js drawnAttitudeOf): the nose tilted toward the lift in the aircraft's frame, so it
+  // goes through the vertical of a loop without a jump (J1). The blended one from the frame loop when there is one.
+  const canDraw = [a.headingRad, a.tasFtps, a.kias].every(Number.isFinite);
+  const d = sign >= 0 && a.drawn ? a.drawn : canDraw ? drawnAttitudeOf(a, wingsDeg) : null;
   return {
     x: a.xFt,
     y: a.yFt,
     z: altToZ(FLIGHT_ALT_FT + (a.altAboveFt ?? 0), ALT_SCALE),
     headingRad: a.headingRad,
-    bankRad: rad(a.attitudeDeg ?? liftBankDeg(a.bankDeg, a.nz ?? 1)) * (sign < 0 ? -1 : 1), // where the lift points (TS-108)
+    bankRad: rad(wingsDeg),
     pitchRad: rad(a.pitchDeg ?? 0),
+    model: d ? { headingRad: d.headingRad, bankRad: rad(d.attitudeDeg), pitchRad: rad(d.pitchDeg) } : null,
   };
 }
 
@@ -733,7 +740,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const mesh = planeFor(a.id);
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
-      mesh.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad);
+      const drawn = pose.model ?? pose;
+      mesh.rotation.set(-drawn.bankRad, -drawn.pitchRad, drawn.headingRad);
       setSpeedBrake(mesh, boardsOut(a)); // the board swings out with his boards (Patrick's Blender card "Opens with boards", 11 Oct 2026 20:22Z)
       mesh.visible = true;
     }
