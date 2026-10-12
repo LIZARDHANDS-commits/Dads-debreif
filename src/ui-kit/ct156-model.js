@@ -623,9 +623,10 @@ export function ct156PiecesHash(pieces) {
 // tools/blender/build_ct156_exterior.py from these very shapes (ct156ExteriorPieces), smooth-shaded, with the soft
 // shadows and panel lines baked into one picture (ct156-exterior-ao.jpg) on its own UV map. Once it is in, each of these
 // kit shapes takes the file's in place, so every ship (and every ship made later) draws it; the decals, cheat line,
-// glass, lights, pilots and prop stay the code's. Only all of it or none: if the file is missing, or any part was built
+// glass, lights, pilots and prop stay the code's, and so do the exhaust stacks since 12 Oct 2026 (Blender's shading put
+// grey spikes round their lips; Patrick, 12 Oct 2026, "exhaust doesnt look right here"). Only all of it or none: if the file is missing, or any part was built
 // from other shapes than the code draws now, every ship stays as the code draws it.
-const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'stubs', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
+const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
 // The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
@@ -1574,10 +1575,10 @@ function coamingGeometry(THREE) {
   }
   return joinGeometries(THREE, parts);
 }
-/** The fuselage's section at x, in model units: { halfWidth, top, bottom } (for ct156-cockpit.js). */
+/** The fuselage's section at x, in model units: { halfWidth, top, bottom, nUp } (for ct156-cockpit.js; nUp the upper half's superellipse power). */
 export function ct156FuselageSection(x) {
-  const [, halfWidth, top, bottom] = rowAt(STATIONS, x);
-  return { halfWidth, top, bottom };
+  const [, halfWidth, top, bottom, , nUp] = rowAt(STATIONS, x);
+  return { halfWidth, top, bottom, nUp };
 }
 /**
  * The canopy's hoop with its crest at station x as n + 1 points from the left sill over the top to the right sill,
