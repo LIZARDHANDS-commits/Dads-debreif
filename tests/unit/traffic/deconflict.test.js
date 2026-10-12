@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closestApproach, firstEntry, firstEntrySampled } from '../../../src/core/closest-approach.js';
 import { rightOfWay, freeze } from '../../../src/modules/traffic/deconflict.js';
+import { THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 import { readFileSync } from 'node:fs';
 import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt } from '../../../src/modules/traffic/evade.js';
@@ -265,7 +266,7 @@ test('spacing on final: the overhead aircraft extends its downwind to land about
 
 test('an extended downwind rolls out further out on the glide path, and breaks out when the extension would reach the overhead base leg (Patrick, 21:52Z)', () => {
   const windowFt = Math.hypot(PAT.points[12].x - PAT.points[0].x, PAT.points[12].y - PAT.points[0].y);
-  const glideFt = (d) => 1880 + (PAT.points[12].alt - 1880) / windowFt * d;
+  const glideFt = (d) => THRESHOLD_DATA_ELEV_FT + (PAT.points[12].alt - THRESHOLD_DATA_ELEV_FT) / windowFt * d;
   for (const w of WINDS) {
     const c = buildCircuit(PAT.points, w.windFromDeg, w.windKt);
     const ro = c.track.find((p) => p.tag === 'break_rollout');

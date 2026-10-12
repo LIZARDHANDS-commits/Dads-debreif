@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeWindPerch, routePath, DEFAULT_ROUTE_OPTIONS } from '../../../src/modules/traffic/route.js';
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
-import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG } from '../../../src/modules/traffic/airfield.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 import { ktToFtps } from '../../../src/core/units.js';
 import { iasToTasKt } from '../../../src/core/t6-performance.js';
 import { legOffsetsFt } from '../../../src/core/geo.js';
@@ -27,7 +27,7 @@ import { TOLERANCES } from '../../helpers/tolerances.js';
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 const PAT1 = MOOSE_JAW.routes.find((r) => r.id === 'PAT1');
 const KT = TOLERANCES.AIRSPEED_KT, FT = TOLERANCES.ALTITUDE_FT, DEG = TOLERANCES.ANGLE_DEG, DIST = TOLERANCES.DISTANCE_FT;
-const PATTERN_FT = 3500, RUNWAY_FT = 1880;
+const PATTERN_FT = 3500, RUNWAY_FT = THRESHOLD_DATA_ELEV_FT;
 const MAX_ROLL_DPS = 90; // Patrick, 4 Oct 10:18Z: no step banks faster than a 90°/s roll (TR-R30)
 // Safety stop: 5 minutes, well over the one circuit (about 3 minutes) each run flies, so only a stuck aircraft reaches it.
 const STOP_SEC = 300;
