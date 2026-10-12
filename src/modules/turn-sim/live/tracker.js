@@ -470,7 +470,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // Any pull up (a climb, or stopping a descent) stays inside the G rule's 5 G with the bank he has (TS-181): in the
     // capture's steep bank he holds his height, and comes up the 4° as he rolls out.
     const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
-    const pullUp = Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, G_RULE.normalG ** 2 - tanB * tanB)) - 1) * G_FTPS2);
+    const pullUp = Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, (ph.maxG ?? G_RULE.normalG) ** 2 - tanB * tanB)) - 1) * G_FTPS2); // ph.maxG: a phase's own ceiling (the turning rejoin's 4.5 G into fighting wing, TS-182)
     const V = verticalOnset(W, nzRateOf(heightState, W));
     const toward = (ft) => {
       const err = ft - W.altAboveFt - V.easedFt;
@@ -527,7 +527,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // On a rejoin the pull up stays inside the G rule's 5 G with the bank he has (Patrick 10 Oct 2026 23:59Z, "Inside 5 G";
     // TS-181): from the 35° line's capture he zoomed into the cone at 78° of bank and 5.7 G.
     const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
-    const pullUp = ph.rejoin ? Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, G_RULE.normalG ** 2 - tanB * tanB)) - 1) * G_FTPS2) : pull;
+    const pullUp = ph.rejoin ? Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, (ph.maxG ?? G_RULE.normalG) ** 2 - tanB * tanB)) - 1) * G_FTPS2) : pull;
     const { v1, nz } = V.step(wantV, pull, pullUp, dt);
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
     heightState.cone.alt.push(a1);
