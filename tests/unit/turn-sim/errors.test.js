@@ -54,10 +54,14 @@ const turnRad = (key, dir) => (key === 'crossTurn' ? Math.PI : TURN_DEG[key] * d
 const SIDES = ['right', 'left'];
 const sideSign = (wingSide) => (wingSide === 'left' ? 1 : -1);
 
-/** Flies every step until nothing is being flown, calling each(before, after) on every step. */
+/**
+ * Flies every step until nothing is being flown, the reset to speed after a full-power turn included (TS-204: the
+ * manoeuvre ends at the roll-out, and the picture is complete once the speed is back), calling each(before, after) on every step.
+ */
 function fly(f, each = () => {}) {
   let before = f.state.aircraft.map((a) => ({ ...a }));
-  for (let i = 0; i < SAFETY_STEPS && (f.state.current || f.state.queued); i++) {
+  const resetting = () => Object.values(f.state.plans ?? {}).some((p) => p?.segments?.length || p?.speedLeg);
+  for (let i = 0; i < SAFETY_STEPS && (f.state.current || f.state.queued || resetting()); i++) {
     f.step();
     const after = f.state.aircraft.map((a) => ({ ...a }));
     each(before, after);
@@ -325,10 +329,11 @@ const SETS = [
 ];
 
 // G (Patrick, 11 Oct 2026 19:32Z): "Cautions for over 5 g, fails for over 7"; the fix limits' G is a reference, not a gate.
-test('a fix is flown inside what the aircraft can do: bank inside the fix limits, G never past 7 (a caution past 5), roll rate 90°/s, roll build-up 360°/s², speed constant', (t) => {
+test('a fix is flown inside what the aircraft can do: bank inside the fix limits, G never past 7 (a caution past 5), roll rate 90°/s, roll build-up 360°/s², no jump in position', (t) => {
   let worst = { g: 0, what: '' };
-  // Speed/power unticked: this checks the constant-speed fix (V2.8). Speed changes (Patrick, 4 Oct 11:42Z) are checked below, "Fix tools".
-  const stepFt = TAS_FTPS * STEP_SEC;
+  // Speed/power unticked: this checks the fix without its speed change (V2.8). Speed changes (Patrick, 4 Oct 11:42Z) are
+  // checked below, "Fix tools". The line abreast turns themselves are flown at full power (TS-204), so each step is
+  // checked at the aircraft's own speed.
   const [, bankMax] = FIX_LIMITS.bankDeg;
   for (const [name, options] of SETS) {
     for (const [key, dir] of [['delayed90', 1], ['delayed90', -1], ['delayed45', 1], ['check', 1], ['inPlace90', -1], ['hook', 1], ['hook', -1], ['shackle', 0], ['crossTurn', 0]]) {
@@ -344,7 +349,8 @@ test('a fix is flown inside what the aircraft can do: bank inside the fix limits
           assert.ok(Math.abs(a.rollRateDps) <= ROLL.maxRateDps + 1e-9, `${what}: roll rate ${a.rollRateDps.toFixed(1)}`);
           assert.ok(Math.abs(a.rollRateDps - before[i].rollRateDps) <= ROLL.maxAccelDps2 * STEP_SEC + 1e-9, `${what}: roll build-up`);
           const moved = Math.hypot(a.xFt - before[i].xFt, a.yFt - before[i].yFt);
-          assert.ok(moved <= stepFt + 1e-6 && moved >= 0.95 * stepFt, `${what}: moved ${moved.toFixed(1)} ft in a step`);
+          const [vLo, vHi] = [Math.min(a.tasFtps, before[i].tasFtps), Math.max(a.tasFtps, before[i].tasFtps)];
+          assert.ok(moved <= vHi * STEP_SEC + 1e-6 && moved >= 0.95 * vLo * STEP_SEC, `${what}: moved ${moved.toFixed(1)} ft in a step`);
         });
       });
     }
@@ -354,8 +360,9 @@ test('a fix is flown inside what the aircraft can do: bank inside the fix limits
 
 test('every hand-over is still smooth with errors: no jump in position, track, bank or pitch, or in their rates', () => {
   const headingDiffRad = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-  // The fastest the track can swing: the fix's top bank plus the 0.5° the roll can pass it by.
-  const maxTurnRad = turnRateFromBankRadPerSec(TAS_FTPS, FIX_LIMITS.bankDeg[1] + 0.5) * STEP_SEC;
+  // The fastest the track can swing: the fix's top bank plus the 0.5° the roll can pass it by, at the slower of the step's
+  // two speeds (the full-power turns change it, TS-204; slower turns faster at a bank).
+  const maxTurnRadAt = (v) => turnRateFromBankRadPerSec(v, FIX_LIMITS.bankDeg[1] + 0.5) * STEP_SEC;
   const sequences = [['delayed90', -1, 'shackle', 0], ['crossTurn', 0, 'hook', 1], ['delayed45', 1, 'check', -1], ['inPlace90', 1, 'delayed90', 1], ['shackle', 0, 'crossTurn', 0]];
   for (const [name, options] of SETS) {
     for (const [a, da, b, db] of sequences) {
@@ -367,7 +374,7 @@ test('every hand-over is still smooth with errors: no jump in position, track, b
         after.forEach((x, i) => {
           const p = before[i];
           const what = `${name}, ${a} then ${b}, ${x.name} at ${f.state.tSec.toFixed(2)} s`;
-          assert.ok(headingDiffRad(x.headingRad, p.headingRad) <= maxTurnRad + 1e-9, `${what}: track jumped`);
+          assert.ok(headingDiffRad(x.headingRad, p.headingRad) <= maxTurnRadAt(Math.min(x.tasFtps, p.tasFtps)) + 1e-9, `${what}: track jumped`);
           assert.ok(Math.abs(x.bankDeg - p.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-9, `${what}: bank jumped`);
           const pitchRate = (x.pitchDeg - p.pitchDeg) / STEP_SEC;
           // A step in pitch rate is a step in G. Patrick 11 Oct 2026 22:11Z: 3°/s in a step, so the T-6A's own G onset build (core T6A_G_ONSET, 16 G/s², an estimate) passes (as live.test.js; 0.5 before).
@@ -405,13 +412,15 @@ test('Fix tools: an unticked tool is never used', () => {
   const cases = [['delayed90', 1], ['check', -1], ['shackle', 0], ['crossTurn', 0]];
   for (const [key, dir] of cases) {
     for (const error of [{ ...AHEAD, ...WIDE }, { ...BEHIND, ...TIGHT, ...HIGH, ...LATE }]) {
-      // Speed/power and Lateral spacing unticked (Geometry and Vertical, V2.8's fix): speed constant, and once #2 has
-      // rolled out of the manoeuvre's own last turn he doesn't bank again.
+      // Speed/power and Lateral spacing unticked (Geometry and Vertical, V2.8's fix): no speed change of his own (the
+      // full-power turn and the reset to speed after it are the manoeuvre's, TS-204), and once #2 has rolled out of the
+      // manoeuvre's own last turn he doesn't bank again.
       const f = createFormation({ ...error, ...FIX, fixSpeed: false, fixLateral: false });
       f.press(key, dir);
+      const own = f.state.plans[2].segments.filter((s) => s.kind === 'speed' && !s.background);
+      assert.equal(own.length, 0, `${key}: a speed change with Speed/power unticked`);
       let rollIns = 0;
       fly(f, ([, w0], [, w1]) => {
-        assert.equal(w1.kias, w0.kias, `${key}: speed changed with Speed/power unticked`);
         if (w0.bankDeg === 0 && w1.bankDeg !== 0) rollIns++;
       });
       assert.equal(rollIns, ROLL_INS[key], `${key}: rolled in ${rollIns} times; a heading fix after the roll-out with Lateral unticked`);
@@ -464,8 +473,12 @@ test('the Formation card says which error is set and, after the roll-out only, w
 });
 
 test('a second press starts from where the first left #2: a fixed error stays fixed, a carried one carries on', () => {
+  // The second press comes once the hook's speed is back (TS-204): called while it is still coming back, the Delayed 90
+  // starts slow and its wait (rolled out abeam once both are back to speed) leaves the spacing short by about the speed
+  // ratio, 130 ft at 212 of 220 KIAS, geometry rather than an error carried.
   const fixed = createFormation({ ...BEHIND, ...FIX });
   fixed.press('hook', 1);
+  fly(fixed);
   fixed.press('delayed90', -1);
   fly(fixed);
   const rel = relativeTo(...fixed.state.aircraft);
@@ -474,6 +487,7 @@ test('a second press starts from where the first left #2: a fixed error stays fi
   // Carried through a hook (180°, so the offset turns round) and a Delayed 90 (a quarter turn): still the same size.
   const carried = createFormation({ ...AHEAD, ...REFERENCE });
   carried.press('hook', 1);
+  fly(carried);
   carried.press('delayed90', -1);
   fly(carried);
   const rel2 = relativeTo(...carried.state.aircraft);

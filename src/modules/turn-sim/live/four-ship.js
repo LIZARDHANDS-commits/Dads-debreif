@@ -104,6 +104,7 @@ function delayedChain(aircraft, m, dir, t0, withCheck) {
   const turned = dryRun(lead, { segments: turn() }, t0).end;
   const u1 = unit(turned.headingRad);
   const vEnd = turned.tasFtps;
+  const vHome = v * ((lead.homeKias ?? lead.kias) / lead.kias); // the true airspeed at the speed they reset to (backToSpeed)
 
   // Outside of the turn first: for a left turn (+1) the aircraft furthest to the right, and so on in.
   const order = aircraft
@@ -124,7 +125,7 @@ function delayedChain(aircraft, m, dir, t0, withCheck) {
   const waits = [0];
   for (let i = 1; i < order.length; i++) {
     const rel = { x: order[i].xFt - order[i - 1].xFt, y: order[i].yFt - order[i - 1].yFt };
-    waits.push(waits[i - 1] + exactWaitSec(rel, u0, u1, v, along[i] - along[i - 1]));
+    waits.push(waits[i - 1] + exactWaitSec(rel, u0, u1, v, along[i] - along[i - 1], vHome));
   }
   // A line that is not abreast can give a negative wait to someone: the earliest goes first.
   const earliest = Math.min(...waits);

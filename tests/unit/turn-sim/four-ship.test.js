@@ -345,10 +345,10 @@ test('every hand-over is smooth for all four: no jump in position, track, bank o
     ['delayed45', 1, 'inPlace90', -1],
     ['inPlace90', 1, 'delayed90', 1], // delayed turn from a column: not abreast
   ];
-  const tas = four().state.aircraft[0].tasFtps;
-  const stepFt = tas * STEP_SEC;
   // The fastest the track can swing: the bank plus the 0.5° the roll can pass it by.
-  const maxTurnRad = turnRateFromBankRadPerSec(tas, TURN_BANK_DEG + 0.5) * STEP_SEC;
+  // The line abreast turns are flown at full power (TS-204), so the speed changes: each step is checked at the aircraft's own
+  // true airspeed, the slower of the step's two for the turn rate (slower turns faster at a bank).
+  const maxTurnRadAt = (v) => turnRateFromBankRadPerSec(v, TURN_BANK_DEG + 0.5) * STEP_SEC;
   for (const [a, da, b, db] of sequences) {
     const f = four();
     f.press(a, da);
@@ -359,9 +359,10 @@ test('every hand-over is smooth for all four: no jump in position, track, bank o
         const p = before[i];
         const what = `${a} then ${b}, ${x.name} at ${f.state.tSec.toFixed(2)} s`;
         const moved = Math.hypot(x.xFt - p.xFt, x.yFt - p.yFt);
-        // Constant speed: every step covers its true airspeed's distance (5% less allowed for the climb's share).
-        assert.ok(moved <= stepFt + 1e-6 && moved >= 0.95 * stepFt, `${what}: moved ${moved.toFixed(1)} ft in a step`);
-        assert.ok(headingDiffDeg(x.headingRad, p.headingRad) * DEG <= maxTurnRad + 1e-9, `${what}: track jumped`);
+        // Every step covers its true airspeed's distance, between the step's two speeds (5% less allowed for the climb's share).
+        const [vLo, vHi] = [Math.min(p.tasFtps, x.tasFtps), Math.max(p.tasFtps, x.tasFtps)];
+        assert.ok(moved <= vHi * STEP_SEC + 1e-6 && moved >= 0.95 * vLo * STEP_SEC, `${what}: moved ${moved.toFixed(1)} ft in a step`);
+        assert.ok(headingDiffDeg(x.headingRad, p.headingRad) * DEG <= maxTurnRadAt(vLo) + 1e-9, `${what}: track jumped`);
         assert.ok(Math.abs(x.bankDeg - p.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-9, `${what}: bank jumped`);
         assert.ok(Math.abs(x.rollRateDps - p.rollRateDps) <= ROLL.maxAccelDps2 * STEP_SEC + 1e-9, `${what}: roll rate jumped`);
         const pitchRate = (x.pitchDeg - p.pitchDeg) / STEP_SEC;
