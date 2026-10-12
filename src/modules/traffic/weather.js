@@ -9,6 +9,7 @@
 
 import { isaTempK, densityRatio } from '../../core/atmosphere.js';
 import { iasToTasKt as coreIasToTasKt, tasToIasKt as coreTasToIasKt } from '../../core/t6-performance.js';
+import { FT_PER_NM } from '../../core/units.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, FLARE_FROM_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
 
 /** The standard day's temperature at Moose Jaw's field elevation, °C: about 11°C. */
@@ -62,7 +63,7 @@ export function trueAltFt(altFt) {
 }
 
 /** Without Pattern 1's route, the window is ¾ NM out from the 29L threshold (SMM 4.7 para 12). */
-const WINDOW_FALLBACK_OUT_FT = 0.75 * 6076;
+const WINDOW_FALLBACK_OUT_FT = 0.75 * FT_PER_NM;
 
 /**
  * The 29L approach: { ux, uy } the unit vector out from the threshold (away from the departure end), windowOutFt how far
