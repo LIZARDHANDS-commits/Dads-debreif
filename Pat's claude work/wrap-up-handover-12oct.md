@@ -1,0 +1,70 @@
+# Wrap-up handover, 12 Oct 2026
+
+Where the whole tool stands at the end of the 12 Oct run, for whoever picks it up next (a new Claude thread, Antigravity, Patrick or Dad). It is background, not instructions: `AGENTS.md`, then `docs/PLAN.md`, then each module's folder still win.
+
+## Main
+
+- **Version on main:** V2.387 (`08263f83`, #961). One version number for the whole tool, the one on the home screen.
+- **Site:** https://lizardhands-commits.github.io/Dads-debreif/. Patrick runs "Deploy to GitHub Pages" himself after a flyable merge.
+- **CI:** the one check. The SOF button-walk failure that kept main red earlier on 12 Oct was fixed by #958.
+
+## What merged, V2.380 to V2.387 (11 to 12 Oct)
+
+| Version | Module | What changed |
+|---|---|---|
+| V2.380 | Traffic | The runway sits at the field's 1,892 ft (#949). |
+| V2.381 | Formation | #2 rolls into the fighting wing cone 0.2 s sooner and ends inside it (#948). |
+| V2.382 | Fluid | Live #2 waits for the loop, opens out from a tight entry, no stutter at the vertical (#950, TS-198). |
+| V2.383 | Traffic | The straight-in's 3° descent point has no limit and moves with temperature (#953, TR-150). |
+| V2.384 | Fluid | The live wingman is the only #2 and swaps sides on his own call; the Planned wingman is retired (#955, TS-199; leftovers out in #957). |
+| V2.385 | Fluid | #2 eases with Lead at the Terminate press, no full-rate roll (#959). |
+| V2.386 | Fluid | In a turn away #2 keeps the route position as height in the cone (#962, TS-200). |
+| V2.387 | Formation | Hand-overs turn at the bank flown and end on Lead's speed; the 4-ship opening out keeps its climb (#961). |
+
+No-version merges in the same run: the import rule in `AGENTS.md` (#952), Playwright 1.64.0 and Vite 8.3.3 (#956), the SOF button-walk fix (#958), and the docs for TS-198 and TS-200 (#951, #964).
+
+## Open pull requests
+
+- **#965, CT-156 cockpit and canopy fixes** (Patrick's 19-row list, built in seven stages, every stage's renders seen by Patrick). Merging next.
+- **#946, EP Tabletop step 2, the instructor's phone link** (Dad's). Patrick merges Dad's pull requests himself. It asks Patrick three things: the new storage library, the wording of EP-8 to EP-10, and EP-Q4.
+- **#934, EP Tabletop step 1** (Dad's). Its work landed on main as V2.369 (#935); this one looks superseded, for Patrick to close.
+- **#829, Formation refactor step 5** (11 Oct, straight rejoin rides Lead's six). Never merged and now well behind main; for Patrick to rule on.
+
+## Kept off main
+
+- **Performance rebuild:** branch `claude/project-thread-swv8zh`, its own handover at `Pat's claude work/performance-rebuild/handover.md` on that branch. Patrick (12 Oct): it stays on its own branch until it has been fully developed and compared with what is on main.
+- **Patrick's local work:** branch `traffic-next` on his PC; "merge the work from my other session" means a cloud thread opens a pull request from it and merges it.
+
+## What is open in each module
+
+Every module keeps its ideas and rough spots in its own `future.md`. Counts are list lines on 12 Oct.
+
+| Module | Open list | Lines |
+|---|---|---|
+| Whole tool | [docs/FUTURE.md](../docs/FUTURE.md) | 23 |
+| Traffic | [traffic/future.md](../docs/modules/traffic/future.md) | 52 |
+| Formation (turn-sim) | [turn-sim/future.md](../docs/modules/turn-sim/future.md), with "Rough spots left for later" | 83 |
+| Fight Sim (turn-fight) | [turn-fight/future.md](../docs/modules/turn-fight/future.md) | 8 |
+| SOF (Dad) | [sof/future.md](../docs/modules/sof/future.md) | 33 |
+| Debrief (Dad) | [debrief/future.md](../docs/modules/debrief/future.md) | 31 |
+| EP Tabletop (Dad) | [ep-tabletop/future.md](../docs/modules/ep-tabletop/future.md) | 5 |
+| Shared (core, 3D, ui-kit) | [shared/future.md](../docs/modules/shared/future.md) | 6 |
+
+## Open rulings
+
+The one waiting list is the end of [docs/PLAN.md](../docs/PLAN.md), "Waiting on Patrick". The ones at the top of it:
+
+- Fly Formation at V2.387 and ratify TS-76 to TS-85; say what still looks wrong in fluid manoeuvring.
+- See Traffic and the PFL on screen at V2.387.
+- The CT-156 cockpit sizes and three questions (TS-154 to TS-156).
+- Dad's items: EP-Q1 (phone link), DB-31 (wheel height), and the SOF items he decides.
+
+## How threads work (the rules that held this run)
+
+- **One writer per file, one module at a time.** Reviewers read and report; they never edit.
+- **Versions:** every flyable merge takes the next free version, read from main right before merging, never booked ahead. The title leads with the version and module; every version gets a lower-case tag such as `v2.387-handover-bank-speed`. Docs-only and test-only merges take no version.
+- **Formation and fluid review flow:** the thread hands its pull request and head to the coordinator; a builder makes a review copy; Fable reviews it and gives a verdict; the thread merges at the next free version; the builder checks the merged copy matches. For Fable's own pull requests, the fluid thread flies the copy as the independent check.
+- **No idle on long runs:** run long checks in the background in their own worktree and keep working. Compare against the stored baseline instead of re-running main's traces.
+- **Wording first:** anything Patrick approves (rule book, spec, decision rows) goes to him as the exact words before it is written.
+- **Public repo:** manual text and pictures never go in it; cite pages only. Checklists, boldface and performance charts are never shipped.
+- **Docs keeper:** one thread keeps `docs/PLAN.md` and the whole-tool docs current after each merge. The next free whole-tool decision row is ALL-37; the next Formation row is TS-201.
