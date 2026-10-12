@@ -109,8 +109,8 @@ export const LIVE = Object.freeze({
   // press of Lead's never asks him for a snap: from the 4-ship's place (543 ft, 45° off the tail) the aim swept about 400 ft
   // across in 3.6 s at a level turn's press and rolled him to 85° in 2 s (Patrick 12 Oct 2026 10:02Z: "There should be roll
   // rates and roll acceleration build ups built in"; his card 10:08Z "Ease the aim"). Estimates.
-  fwAimFtps: 60,
-  fwAimAccelFtps2: 40,
+  fwAimFtps: 100,
+  fwAimAccelFtps2: 60,
   fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
@@ -315,7 +315,9 @@ export function stepLiveWing(ws, ctx) {
   // its fly margins, slots.js FW_BAND), so after Lead rolls out he resets in position; while Lead turns it holds, and the
   // circle and the lead and lag fly him. Its height is the energy height (below).
   const inBand = (x, [lo, hi], m) => Math.max(lo + m, Math.min(hi - m, x));
-  const fwAltWanted = fw ? fwEnergy(ws, rangeFt, closureFtps, st).altFt : 0;
+  // In the 4-ship each wingman keeps his stack on the one he flies off (ws.fwStackFt, set at the press, TS-206), the
+  // energy height round it.
+  const fwAltWanted = fw ? (ws.fwStackFt ?? 0) + fwEnergy(ws, rangeFt, closureFtps, st).altFt : 0;
   // The place is taken once, as Lead's turn eases off (and at the press), and then held, so the energy and the power have
   // a place to fly back to instead of following him wherever he drifts.
   const fwLevel = fw && turning < LIVE.sideFreeTurn;
@@ -428,7 +430,10 @@ export function stepLiveWing(ws, ctx) {
     // he keeps his wings where they are, so a wish to push never becomes a roll toward what little sideways pull is left
     // (rolling upright over the top instead of pulling through). The hand-over is blended over the first quarter G.
     const across = sub3(lift, scale3(st.bodyUp, onUp));
-    lift = add3(scale3(st.bodyUp, LIVE.minG), scale3(across, Math.min(1, Math.max(0, onUp) / (LIVE.minG / 2))));
+    // In fighting wing he rolls toward the aim even with a push wanted: no aerobatics to pull through there, and with his
+    // wings held a wingman banked away from his aim sat at 0.5 G and flew off (the 4-ship's #4, measured 12 Oct 2026).
+    const rollShare = fw ? 1 : Math.min(1, Math.max(0, onUp) / (LIVE.minG / 2));
+    lift = add3(scale3(st.bodyUp, LIVE.minG), scale3(across, rollShare));
   }
   // Eased hands in Terminate: the lift wanted is eased over about a second (spec section 10.11, "the aim itself is eased
   // over about a second (estimate) so a press of Lead's never moves #2 in one step"), so Lead's ease from 60° to 30° of
@@ -458,7 +463,7 @@ export function stepLiveWing(ws, ctx) {
     // a climb in the cone falls him back and a descent moves him forward; the throttle holds the speed that height gives
     // him at Lead's energy, plus only what the height could not take, within 15 KIAS of Lead.
     const en = fwEnergy(ws, rangeFt, closureFtps, st);
-    const aboveFt = pw.z - L.z;
+    const aboveFt = pw.z - L.z - (ws.fwStackFt ?? 0); // above his stack (TS-206; 0 in the 2-ship)
     holdKias = e.holdKias + Math.max(-LIVE.overtakeKias, Math.min(LIVE.overtakeKias, en.powerKt - aboveFt / en.ftPerKt));
   } else if (holding) {
     // The path sets his line; power sets how far down it he is: the range against his place's, and the closure on Lead.
