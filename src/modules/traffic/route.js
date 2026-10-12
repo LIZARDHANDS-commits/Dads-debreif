@@ -1,11 +1,10 @@
 // Route geometry for the Traffic Pattern Sim: what a route is, how its turns are
-// rounded, how long it is, where a point sits along it, and V6's builders for a new
-// pattern, entry and split (SPEC-traffic, "Routes (route.js)").
+// rounded, how long it is, where a point sits along it, the wind-adjusted Pattern 1
+// track (built by flying it, circuit.js), the wind perch marker, and a new pattern.
 //
-// It started as V6's own model (R9); V6 is now a source of ideas only, and the
-// flying numbers are checked against the manuals (AGENTS.md). Line numbers refer
-// to V6's decoded Traffic page (traffic.html). Nothing here reads the page, a setting or the clock:
-// routes and options come in as plain values.
+// The geometry started as V6's; V6 is a source of ideas only, and the flying numbers
+// are checked against the manuals (AGENTS.md). Nothing here reads the page, a setting
+// or the clock: routes and options come in as plain values.
 //
 // Positions are feet, x east and y north (V6 had y pointing south: the built-in data
 // was flipped once). A route point is { label, x, y, alt, kt, g }: height in feet,
@@ -15,11 +14,11 @@
 // times per aircraft per frame, #49). The cache looks at the route's points each time
 // it is asked, so a point edited in place gives a new path.
 import { FT_PER_NM, ktToFtps } from '../../core/units.js';
-import { limitG, turnRadiusFt, bankDegFromG, gFromBankDeg, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
+import { limitG, turnRadiusFt, bankDegFromG, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
 import { unitVectorFromCompassDeg, compassDegFromVector } from '../../core/angles.js';
 import { iasToTasKt, temperatureKey } from './weather.js';
-import { windTriangle, windVectorFtps } from '../../core/wind.js';
-import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PATTERN_ALT_FT } from './airfield.js';
+import { windVectorFtps } from '../../core/wind.js';
+import { PATTERN_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
 
 /**
@@ -28,13 +27,8 @@ import { buildCircuit } from './circuit.js';
  */
 export const DEFAULT_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
 
-/** The colours V6 hands to new routes in turn (`palette`, line 140). */
-export const ROUTE_COLORS = Object.freeze(['#58a6ff', '#bc8cff', '#7ee787', '#ffcc66', '#56d4dd', '#ff6b6b', '#d29922', '#ff9bce', '#a5d6ff', '#d8dee9']);
-
-/** The colour V6 gives the next route: the palette in turn (`palette[routes.length % palette.length]`). */
-export function nextRouteColor(routes) {
-  return ROUTE_COLORS[routes.length % ROUTE_COLORS.length];
-}
+/** The colours new routes take in turn; a new pattern takes the first. */
+const ROUTE_COLORS = Object.freeze(['#58a6ff', '#bc8cff', '#7ee787', '#ffcc66', '#56d4dd', '#ff6b6b', '#d29922', '#ff9bce', '#a5d6ff', '#d8dee9']);
 
 /** A pattern is a closed loop; entries and splits are open lines (V6 `closed`, kept in step with the kind). */
 export function isClosedRoute(route) {
@@ -62,8 +56,6 @@ function point(x, y, alt = 2500, kt = 120, label = '', g = 2) {
  * a turn to the right on the north-up map: clockwise, when y is north.
  */
 const rightOf = (v) => ({ x: v.y, y: -v.x });
-/** V6's `perp(v, 'right')`: a turn to the left on the north-up map. */
-const leftOf = (v) => ({ x: -v.y, y: v.x });
 
 /**
  * Where a fraction `u` of the way along a leg is (V6 `lerp`, line 145): height, speed and
@@ -91,7 +83,7 @@ function lerp(a, b, u, seg, headingDeg) {
  * from the point's speed and G (G limited to 1.01 to 9, a blank speed read as 120 kt
  * and a blank G as 2), or the manual radius (a blank one read as 1,800 ft).
  */
-export function pointTurnRadiusFt(p, { radiusFromG, manualRadiusFt }) {
+function pointTurnRadiusFt(p, { radiusFromG, manualRadiusFt }) {
   if (!radiusFromG) return +manualRadiusFt || 1800;
   return turnRadiusFt(ktToFtps(+p.kt || 120), limitG(+p.g || 2, 9));
 }
@@ -332,16 +324,6 @@ export function routePath(route, options = DEFAULT_ROUTE_OPTIONS) {
   return path;
 }
 
-/** The route with its turns rounded (V6 `roundedPoints`). */
-export function roundedPoints(route, options = DEFAULT_ROUTE_OPTIONS) {
-  return routePath(route, options).points;
-}
-
-/** The legs of the flown path (V6 `navSegs`). */
-export function navSegs(route, options = DEFAULT_ROUTE_OPTIONS) {
-  return routePath(route, options).segs;
-}
-
 /** Length of the flown path in feet (V6 `routeLen`, line 216). */
 export function routeLengthFt(route, options = DEFAULT_ROUTE_OPTIONS) {
   return routePath(route, options).lengthFt;
@@ -393,7 +375,7 @@ export function posOnRoute(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
 /** Distance along the flown path of the place nearest to `target` (V6 `closestProg`, line 224). */
 export function closestDistFt(route, target, options = DEFAULT_ROUTE_OPTIONS) {
   let best = { d: Infinity, dist: 0 }, run = 0;
-  for (const s of navSegs(route, options)) {
+  for (const s of routePath(route, options).segs) {
     const vx = s.b.x - s.a.x, vy = s.b.y - s.a.y, l2 = vx * vx + vy * vy;
     const u = l2 ? Math.max(0, Math.min(1, ((target.x - s.a.x) * vx + (target.y - s.a.y) * vy) / l2)) : 0;
     const px = s.a.x + vx * u, py = s.a.y + vy * u, d = Math.hypot(target.x - px, target.y - py);
@@ -435,9 +417,7 @@ export function legDistances(route) {
   return legs;
 }
 
-// ── New routes: V6's builders (lines 160 to 176) ─────────────────────────────
-
-const routeById = (routes, id) => routes.find((r) => r.id === id);
+// ── A new pattern ────────────────────────────────────────────────────────────
 
 /**
  * A new pattern (V6 `defaultPattern`, line 160): an 8,000 ft runway on 290° centred on
@@ -461,56 +441,6 @@ export function newPattern(id, name, { offsetEastFt = 0, offsetNorthFt = 0, colo
       at(add(upwind, mul(side, outFt)), 2500, 130, 'Crosswind'),
       at(add(add(threshold, mul(along, -finalFt * 0.35)), mul(side, outFt)), 2500, 120, 'Downwind'),
       at(add(threshold, mul(along, -finalFt)), 2200, 105, 'Final Entry'),
-    ],
-  };
-}
-
-/**
- * A new entry (V6 `defaultEntry`, line 165): a line in from 12,000 ft out that ends on
- * the pattern's sixth point (or its last, if it has fewer). `patternId` says which
- * pattern; if it isn't in `routes`, the first pattern is used.
- */
-export function newEntry(id, name, patternId, routes, { color = nextRouteColor(routes) } = {}) {
-  const pattern = routeById(routes, patternId) || routes.find((r) => r.kind === 'pattern');
-  const count = pattern?.points.length || 1;
-  const mergeIndex = Math.min(5, count - 1);
-  const merge = pattern?.points[mergeIndex] || point(0, 0);
-  const before = pattern?.points[Math.max(0, mergeIndex - 1)] || point(-1000, 0);
-  const dir = norm(sub(merge, before)), side = rightOf(dir);
-  const at = (v, alt, kt, label) => point(v.x, v.y, alt, kt, label);
-  return {
-    id, name, kind: 'entry', visible: true, color, attachTo: pattern?.id || '', mergeIndex,
-    points: [
-      at(add(merge, add(mul(dir, -12000), mul(side, -5000))), 3500, 160, 'Entry Start'),
-      at(add(merge, mul(dir, -7000)), 3000, 140, 'Entry Mid'),
-      at(add(merge, mul(dir, -2500)), 2600, 120, 'Entry Gate'),
-      point(merge.x, merge.y, merge.alt, merge.kt, 'Merge'),
-    ],
-  };
-}
-
-/**
- * A new split (V6 `defaultSplit`, line 170): leaves the pattern at its fourth point,
- * swings out and rejoins at the next one. It is taken half the time. `patternId` says
- * which pattern; if it isn't in `routes`, the first pattern is used.
- */
-export function newSplit(id, name, patternId, routes, { color = nextRouteColor(routes) } = {}) {
-  const source = routeById(routes, patternId) || routes.find((r) => r.kind === 'pattern');
-  const count = source?.points.length || 1;
-  const sourceIndex = Math.min(3, count - 1);
-  const mergeIndex = Math.min(sourceIndex + 1, count - 1);
-  const start = source?.points[sourceIndex] || point(0, 0);
-  const merge = source?.points[mergeIndex] || point(4000, 0);
-  const next = source?.points[(sourceIndex + 1) % count] || point(1000, 0);
-  const dir = norm(sub(next, start)), side = leftOf(dir);
-  const mid = add(start, add(mul(dir, 3500), mul(side, 2500)));
-  return {
-    id, name, kind: 'split', visible: true, color,
-    attachTo: source?.id || '', mergeIndex, sourceRoute: source?.id || '', sourceIndex, splitOdds: 0.5,
-    points: [
-      point(start.x, start.y, start.alt, start.kt, 'Split Start'),
-      point(mid.x, mid.y, start.alt ?? 2500, 150, 'Split Mid'),
-      point(merge.x, merge.y, merge.alt ?? 2400, merge.kt ?? 130, 'Merge'),
     ],
   };
 }
@@ -574,130 +504,6 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
     shiftY,
     turnSec,
   };
-}
-
-/**
- * Calculates the wind-compensated Break Rollout waypoint coordinates (Point 10).
- * Simulates the 180° decelerating overhead break turn from Point 9 (Break entry).
- * @param {any} route
- * @param {number} [windFromDeg]
- * @param {number} [windKt]
- * @param {Record<string, any>} [options]
- * @returns {{ x: number, y: number, headingDeg: number, alt?: number } | null}
- */
-let _breakCache = { wFrom: null, wKt: null, temp: null, result: null };
-
-/**
- * Simulates the 180° decelerating overhead break turn.
- * @param {any} route
- * @param {number} [windFromDeg]
- * @param {number} [windKt]
- * @returns {{ rollout: { x: number, y: number, alt: number, headingDeg: number }, arcPoints: Array<any>, breakStartX?: number, breakStartY?: number, rwyHeadingDeg?: number, downwindHeadingDeg?: number } | null}
- */
-function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
-  const pts = route?.points || route?.waypoints;
-  if (!pts || pts.length === 0) return null;
-
-  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts[0];
-  const dep = pts.find((p) => p.tag === 'departure_end' || /departure/i.test(p.label)) ?? pts[1];
-  const breakPoint = pts.find((p) => p.tag === 'break' || /break/i.test(p.label)) ?? pts[9];
-  const brk = breakPoint;
-  if (!th || !dep || !brk) return null;
-  const rwyLen = Math.hypot(dep.x - th.x, dep.y - th.y);
-  const rwyUx = (dep.x - th.x) / rwyLen;
-  const rwyUy = (dep.y - th.y) / rwyLen;
-  const rwyHeadingDeg = compassDegFromVector(dep.x - th.x, dep.y - th.y);
-  const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
-
-  const useRwyBreak = (windKt ?? 0) <= 0;
-  const breakStartX = useRwyBreak ? th.x + rwyUx * 2000 : brk.x;
-  const breakStartY = useRwyBreak ? th.y + rwyUy * 2000 : brk.y;
-
-  const { x: wx, y: wy } = windVectorFtps(windFromDeg, windKt);
-
-  const tasInit = iasToTasKt(220, 3500);
-  const tasDownwind = iasToTasKt(140, 3500);
-
-  // Initial leg crabbed heading entering break (matches incoming runway centerline track)
-  const wtInit = windTriangle(rwyHeadingDeg, tasInit, windFromDeg, windKt);
-  const entryHeadingDeg = wtInit.canHoldTrack ? wtInit.headingDeg : rwyHeadingDeg;
-
-  // Downwind leg crabbed heading exiting break (matches outgoing downwind track)
-  const wtDw = windTriangle(downwindHeadingDeg, tasDownwind, windFromDeg, windKt);
-  const exitHeadingDeg = wtDw.canHoldTrack ? wtDw.headingDeg : downwindHeadingDeg;
-
-  let totalTurnDeg = ((entryHeadingDeg - exitHeadingDeg + 360) % 360);
-  if (totalTurnDeg < 30) totalTurnDeg += 360;
-
-  let curX = breakStartX;
-  let curY = breakStartY;
-  let curHeadingDeg = entryHeadingDeg;
-  let curIas = 220;
-  const breakDt = 0.2;
-  let turnAccum = 0;
-  const arcPoints = [];
-
-  while (turnAccum < totalTurnDeg) {
-    const u = turnAccum / totalTurnDeg;
-
-    const curTasKt = iasToTasKt(curIas, 3500);
-    const tasFtps = ktToFtps(curTasKt);
-    const omega = turnRateFromBankRadPerSec(Math.max(1, tasFtps), 60);
-    const dTurnDeg = Math.min((omega * breakDt * 180) / Math.PI, totalTurnDeg - turnAccum);
-
-    turnAccum += dTurnDeg;
-    curHeadingDeg = (curHeadingDeg - dTurnDeg + 360) % 360;
-
-    curIas = 220 * Math.exp(-0.452 * u);
-
-    const hdgRad = (curHeadingDeg * Math.PI) / 180;
-    const vx = tasFtps * Math.sin(hdgRad) + wx;
-    const vy = tasFtps * Math.cos(hdgRad) + wy;
-    curX += vx * breakDt;
-    curY += vy * breakDt;
-
-    const isRollout = turnAccum >= totalTurnDeg;
-
-    arcPoints.push({
-      x: curX,
-      y: curY,
-      alt: 3500,
-      kt: isRollout ? 140 : Math.round(curIas),
-      g: isRollout ? 1 : 2,
-      src: isRollout ? 10 : 9,
-      phase: isRollout ? 'downwind' : 'break',
-      headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
-      tag: isRollout ? 'break_rollout' : 'break',
-    });
-  }
-
-  const rolloutPt = pts.find((p) => p.tag === 'break_rollout' || /break\s*exit/i.test(p.label)) ?? pts[10];
-
-  return {
-    rollout: {
-      x: curX,
-      y: curY,
-      alt: rolloutPt?.alt ?? pts[10]?.alt ?? 3500,
-      headingDeg: exitHeadingDeg,
-    },
-    arcPoints,
-    breakStartX,
-    breakStartY,
-    rwyHeadingDeg,
-    downwindHeadingDeg: exitHeadingDeg,
-  };
-}
-
-export function computeBreakRollout(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  if (_breakCache.wFrom === windFromDeg && _breakCache.wKt === windKt && _breakCache.temp === temperatureKey() && _breakCache.result) {
-    return _breakCache.result;
-  }
-
-  const sim = simulateBreakArc(route, windFromDeg, windKt);
-  if (!sim) return null;
-
-  _breakCache = { wFrom: windFromDeg, wKt: windKt, temp: temperatureKey(), result: sim.rollout };
-  return sim.rollout;
 }
 
 /**

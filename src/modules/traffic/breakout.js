@@ -23,7 +23,7 @@ import { legOffsetsFt } from '../../core/geo.js';
 //      leg (Patrick's card, Q7).
 
 /** The breakout climbs to this height, ft MSL (TR-R34; Patrick, 4 Oct 01:24Z, TR-Q20). */
-export const BREAKOUT_ALT_FT = 4500;
+const BREAKOUT_ALT_FT = 4500;
 /** A breakout needed so as not to collide (the deconfliction's last-moment one) may bank up to this, degrees (Patrick, 5 Oct 00:08Z and 00:13Z); never past the stall line. */
 export const BREAKOUT_TRAFFIC_BANK_DEG = 80;
 /** Safe climb-ahead gate before turning into a breakout near the runway, ft MSL (Patrick, 6 Oct). */
@@ -106,8 +106,8 @@ export function gateLegOf(route) {
 // match data/moose-jaw.json.
 /** The breakout point: 2 NM (12,152 ft) south of Pattern 1's abeam-the-departure-end point (as the old geometry). */
 export const BREAKOUT_PT = Object.freeze({ x: -9395, y: -22160 });
-export const ENTRY_MID_PT = Object.freeze({ x: 6592, y: -36696 });
-export const ENTRY_GATE_PT = Object.freeze({ x: 14145, y: -22820 });
+const ENTRY_MID_PT = Object.freeze({ x: 6592, y: -36696 });
+const ENTRY_GATE_PT = Object.freeze({ x: 14145, y: -22820 });
 
 // ENT1 Path vector and track heading (the base leg, 028.6° true)
 const DX_ENT1 = ENTRY_GATE_PT.x - ENTRY_MID_PT.x;
@@ -138,17 +138,6 @@ export const ENT1_ROUTE = Object.freeze({
     Object.freeze({ label: 'Merge', x: 18107.7, y: -15538.8, alt: 3500, kt: 220, g: 2, phase: 'initial', tag: 'merge' }),
   ]),
 });
-
-/**
- * Calculates distance in feet along ENT1 track from ENTRY_MID_PT.
- * @param {{x: number, y: number}} pt
- * @returns {number} Along-track distance in feet
- */
-export function calcAlongTrackENT1(pt) {
-  const vx = (pt.x ?? 0) - ENTRY_MID_PT.x;
-  const vy = (pt.y ?? 0) - ENTRY_MID_PT.y;
-  return vx * UX_ENT1 + vy * UY_ENT1;
-}
 
 /**
  * Calculates signed cross-track distance in feet from ENT1 track.

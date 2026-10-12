@@ -34,7 +34,7 @@ export const DECONFLICT = Object.freeze({
 });
 
 /** Where each aircraft stands, for the right-of-way table: keyed on route kind and phase, never a route name. */
-export function standingOf(a, route) {
+function standingOf(a, route) {
   if (a.pflFlight) return 'pfl';
   if (a.deconflict?.move === 'fly_through' && a.goAroundFlight) return 'fly_through';
   if (a.goAroundFlight || a.highKeyFlight || a.command === 'breakout' || a.command === 'closed_pattern') return 'manoeuvring';
