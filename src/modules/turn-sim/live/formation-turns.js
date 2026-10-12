@@ -488,6 +488,12 @@ export function heldPoses(leadRec, wing, rel, n, roll = closeWingRoll(CLOSE_TURN
 /** How far behind the path's bank his wings may be and still count as having caught it up (degrees; an estimate). */
 const ROLLED_CAUGHT_DEG = 0.1;
 /**
+ * The longest roll-in that is re-flown at his rolled bank (an estimate). A rejoin's hand-over lags for well under a second
+ * (about 0.7 s, probes 12 Oct 2026); a close turn's roll-in can lag for 5 s or more (#4 in a 4-ship echelon hook), and
+ * re-flying that drew him out of position, so a longer lag flies the planned path as before.
+ */
+const ROLLED_MAX_SEC = 1;
+/**
  * How long the path flown at his rolled bank takes to blend back onto the planned path (an estimate). Long enough that the
  * blend adds no more than about a degree of bank past the planned path's: at 2 s it added up to 4° (probes, 12 Oct 2026).
  */
@@ -496,16 +502,17 @@ const ROLLED_BLEND_SEC = 6;
 /**
  * The start of a held path re-flown at the bank his roll gives (standard aerodynamics: turn rate = g nz tan(bank) / V),
  * for the steps where that bank is still behind the path's own (own: ownBank's banks, before rollFrom) by more than
- * ROLLED_CAUGHT_DEG. Once his bank has caught up, the difference between the two paths, in place and in velocity, fades
- * out over ROLLED_BLEND_SEC, so the place, the heading and the turn join with no step. Until 12 Oct 2026 the heading
+ * ROLLED_CAUGHT_DEG, when that lasts no longer than ROLLED_MAX_SEC. Once his bank has caught up, the difference between
+ * the two paths, in place and in velocity, fades out over ROLLED_BLEND_SEC, so the place, the heading and the turn join
+ * with no step. Until 12 Oct 2026 the heading
  * followed the planned path while the wings were still rolling, so his track turned up to 7% faster than his bank and G
  * give for about 0.3 s (2-ship, line abreast to echelon and fighting wing to route). Changes the track in place; returns
- * false when nothing lagged.
+ * false when nothing lagged or the lag ran longer than ROLLED_MAX_SEC.
  */
 function turnFromRolledBank(track, poses, own, wing) {
   let m = -1; // the last pose still rolling toward the path's bank, from the first
   while (m + 1 < poses.length && Math.abs(poses[m + 1].bank - own[m + 1]) > ROLLED_CAUGHT_DEG) m++;
-  if (m < 0) return false;
+  if (m < 0 || (m + 1) * STEP_SEC > ROLLED_MAX_SEC) return false;
   const row = (k) => k + TRACK_PAD;
   let x = track.x[row(0)];
   let y = track.y[row(0)];
