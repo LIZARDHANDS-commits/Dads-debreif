@@ -71,6 +71,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 - **Plain JavaScript** (ES modules), no framework, one folder per module with a short README, so the code stays readable to a non-developer. Code that several modules use belongs in core or a shared folder. That is the aim, not a wall: a module may import another module's file when moving it isn't worth it (Patrick, 11 Oct 2026).
 - **A link in a normal browser.** Anyone should be able to open the tool from a link. Nothing to install is a goal, not an absolute rule: a feature may need an install if it clearly makes the project better, and where it can, a light mode keeps working without it.
 - **No new libraries or plugins** without Patrick's yes.
+- **Third-party skills, plugins and connectors** go in only after they are read and scanned, pinned to a version, and without hooks (Patrick, 12 Oct 2026).
 - **Simple screens:** every setting starts with a default; a module opens with only its essentials showing, and extras sit behind a switch or a "More".
 - **Before deleting or rewriting code,** list what it did, then check the new code on the module's default start.
 - **Version label:** the version on screen changes with every published change.
