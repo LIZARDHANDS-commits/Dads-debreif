@@ -86,7 +86,7 @@ export const LEAD = Object.freeze({
   loopVerticalDeg: 80, // "until the aircraft approaches the vertical" (SMM 7.5 para 11): 80° is an estimate
   loopPullOutDeg: 330, // where Lead stops holding the pitch rate and pulls out to level (an estimate)
   setupMaxPitchDeg: 10, // the speed set-up's nose down or up before the loop (an estimate)
-  loopWaitSec: 3, // in the standard sequence Lead holds wings level for 3 s after the 360 before the loop's pull, so #2 has rolled out (Patrick 12 Oct 2026 01:50Z, "1 just waits for 2 to roll out of the turn before he begins his loop"): 3 s is an estimate, #2 levels about 1.5 s after Lead
+  loopWaitSec: 5, // in the standard sequence Lead holds wings level for 5 s after the 360 before the loop's pull, so #2 has rolled out and is set for the pull (Patrick 12 Oct 2026 01:50Z, "1 just waits for 2 to roll out of the turn before he begins his loop"; 04:14Z after flying V2.371, "lead can just wait another 2 seconds to pull in to the loop": 3 s became 5 s, his option A). An estimate from his words; #2 levels about 1.5 s after Lead
   setupLimitSec: 60, // a guard only: after a minute of set-up the loop starts at whatever speed (an estimate)
   wingoverKias: 230, // "approximately 230 KIAS" (SMM 16.17 para 47)
   wingoverG: 3, // "approximately 3 G" (SMM 16.17 para 47); the cloverleaf's pull, 2.5-3.5 G (SMM Table 7.1; EFIG p.137 about 3 G)
@@ -192,7 +192,8 @@ export function leadThrottle(st, holdKias) {
 }
 
 /**
- * One fixed step of Lead: G and bank eased toward the pilot's ask, then the point mass (two half steps for accuracy).
+ * One fixed step of Lead (and of the live wingman): G and bank eased toward the pilot's ask ({ g, bank } in degrees, or a
+ * lift vector in G along the body up wanted: `lift`), then the point mass (two half steps for accuracy).
  * The G ask is held under the stick shaker's line, the one physical limit (core shakerG); published limits are flagged
  * by the card, never held here.
  */
@@ -201,13 +202,40 @@ export function stepLead(st, ask) {
   let s = st;
   const excess = ask.holdKias ? holdSpeedExcess(ask.holdKias) : t6aExcessFn;
   for (let i = 0; i < 2; i++) {
-    const g = easeValue(s.g, s.gRate, Math.min(ask.g, shakerG(s.kias)), half, LEAD.gOnset);
-    const target = s.bank + wrapPi((ask.bank - s.bank) * DEG) / DEG; // the near way round
+    // A lift asked for as a vector (the live wingman, TS-194) is read into a G and a bank against the up of this half step,
+    // and after the step the bank is re-read against the new up (carryBank), so the wings go where the lift wants and never
+    // move because the level reference spun round the nose at the vertical (Patrick's "random stutter" in the loop, 12 Oct
+    // 2026 04:14Z: a 0.5° roll twitch as #2's nose passed the vertical). A G and a bank asked for as numbers are flown as before.
+    const want = ask.lift ? gAndBankForLift(ask.lift, s.nose, s.pm.up, s.bank * DEG) : null;
+    const askG = want ? want.g : ask.g;
+    const askBank = want ? want.bankRad / DEG : ask.bank;
+    const g = easeValue(s.g, s.gRate, Math.min(askG, shakerG(s.kias)), half, LEAD.gOnset);
+    const target = s.bank + wrapPi((askBank - s.bank) * DEG) / DEG; // the near way round
     const r = easeValue(s.bank, s.rollRate, target, half, rollLimitAt(s.V, ROLL)); // never faster than the T-6A at this speed (TS-85)
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
+    const prev = s;
     s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
+    if (want) s = carryBank(prev, s);
   }
   return s;
+}
+
+/**
+ * The point mass measures bank from a level up (core upFrom), which spins round the nose when the nose passes near the
+ * vertical a little off the plane (a loop flown slightly tilted). Holding the bank number through that spin would be a
+ * real roll, so the bank is re-read against the new up to keep the lift where it was: the wings don't move because the
+ * reference did. Used for the live wingman's step (stepLead with a lift vector); Lead's own buttons fly bank numbers.
+ */
+export function carryBank(prev, next) {
+  const carried = unit3(perp3(prev.pm.up, next.nose));
+  const spin = Math.atan2(dot3(cross3(carried, next.pm.up), next.nose), dot3(carried, next.pm.up));
+  if (Math.abs(spin) < 1e-9) return next;
+  const bankDeg = next.bank - spin / DEG;
+  const b = bankDeg * DEG;
+  const right = cross3(next.nose, next.pm.up);
+  const bodyUp = unit3(add3(scale3(next.pm.up, Math.cos(b)), scale3(right, Math.sin(b))));
+  const accPerp = perp3(sub3(scale3(bodyUp, next.g * G_FTPS2), { x: 0, y: 0, z: G_FTPS2 }), next.nose);
+  return { ...next, bank: ((bankDeg + 540) % 360) - 180, bodyUp, accPerp };
 }
 
 // ---- small pilot helpers ----------------------------------------------------------------------------
@@ -310,7 +338,7 @@ function overTheTopMode(u) {
 
 // ---- the controllers: one per button -------------------------------------------------------------
 // Each is { key, label, interruptible, init(st, ctx) -> mem, step(st, mem) -> { g, bank, holdKias?, phase, cue, done } }.
-// cue: what #2 does with the part of the path Lead is flying now (fluid-wing.js): mode 'lag' | 'pure' | 'lead', latDeg
+// cue: what #2 does with the part of the path Lead is flying now (fluid-wing-live.js liveWord): mode 'lag' | 'pure' | 'lead', latDeg
 // (how far off Lead's tail he sits, inside the 30° half cone), and blend (1 fluid, 0 the fighting wing slot).
 
 /** A level turn at a bank (turn-sim dir: +1 left, -1 right), held until the next press, or for turnDeg then wings level. */
@@ -435,8 +463,8 @@ function speedSetUp(st, mem, kias) {
 
 /**
  * #2's pursuit word through the loop (Patrick 17:12Z: lag going up, fuselages parallel crossing the horizon, lead
- * coming down), by Lead's loop angle: LAG, PURE over the top (as near parallel as positive G allows, fluid-wing.js
- * LOOP_WING), LEAD, then PURE in trail for the pull-out. Where he sits for it is fluid-wing.js loopPlace.
+ * coming down), by Lead's loop angle: LAG, PURE over the top (as near parallel as positive G allows), LEAD, then PURE in
+ * trail for the pull-out. Where he sits for it is the live wingman's own law (fluid-wing-live.js loopWords).
  */
 function loopMode(alphaRad) {
   const deg = alphaRad / DEG;
@@ -491,7 +519,7 @@ export function loop({ waitSec = 0 } = {}) {
       // The exit speed is read as the nose comes back to the horizon (SMM 7.5 para 12; Fig 7.2 "Exit 230 KIAS").
       if (mem.stage === 'exit' && mem.exitKias === undefined && alpha >= 2 * Math.PI - 0.5 * DEG) mem.exitKias = st.kias;
       const done = mem.stage === 'exit' && level(st);
-      // The loop's frame for #2 (fluid-wing.js frameOf): the entry heading and the angle round so far.
+      // The loop's frame for #2 (fluid-wing-live.js reads cue.loop): the entry heading and the angle round so far.
       return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: 15, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };

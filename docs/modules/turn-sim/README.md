@@ -80,7 +80,7 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `recipes.js` | The tracker's leg recipes for each move (slide, stop at a corner, close through route, rejoin, open out, drop back, sweep out, straight ahead) and `legsFor`, the legs from one formation to another (clean-up step 3, from `transitions.js`) |
 | `lead-turn-in.js` | Lead's turn into #2 in a turning rejoin, held until #2 is in, and the tracker's part behind it (clean-up step 3) |
 | `transitions.js` | The change limit, the words for a change, and `planGoTo`, the tracker-only planner kept as a fallback |
-| `fluid.js`, `fluid-lead.js`, `fluid-wing.js` | Fluid manoeuvring |
+| `fluid.js`, `fluid-lead.js`, `fluid-wing-live.js` | Fluid manoeuvring (Lead's manoeuvres and the live wingman) |
 | `four-ship.js`, `four-ship-card.js`, `g-warm.js` | The 4-ship's screen pieces |
 | `four-plan.js`, `four-legs.js`, `four-close.js`, `four-rejoin.js`, `four-open.js` | The 4-ship's moves on the 2-ship's planners (refactor PRs 6 to 8): the from-to graph, the legs, close moves, rejoins, opening out |
 | `errors.js` | Training errors and the Smart wingman (TS-52, TS-96) |
