@@ -1,12 +1,13 @@
-// The flying for the Traffic Pattern Sim: aircraft spawn, move along their routes at
-// the speed set at the route points, loop the pattern, land, take splits, join a pattern
-// at the end of an entry or split, and are checked for conflicts (SPEC-traffic, "Flying
-// the aircraft"). It is V6's own model, ported unchanged and pinned to it by
-// tests/golden/traffic-sim.test.js (R9). Line numbers refer to V6's decoded Traffic page.
+// The flying for the Traffic Pattern Sim: the roster, the step and its order, the commands,
+// rewind, conflicts, the runway, taxi and ejection. Every aircraft rides a path on the path
+// follower (path-follower.js): its route's, or one flown once by the simulated pilot
+// (circuit.js) for a go-around, a closed pattern, a climb to High Key, a PFL, a breakout or
+// an evasion (Traffic spec, "Flying the aircraft"). V6 line numbers in the comments below are
+// history: V6 is a source of ideas only.
 //
 // Pure: it never reads the page, a setting, the clock or Math.random. It takes a setup
-// (see the README) and a seed, and every choice comes from the seeded dice, in V6's
-// order, so the same seed gives the same run.
+// (see the README) and a seed, and every choice comes from the seeded dice, so the same
+// seed gives the same run.
 //
 // One fixed step: time moves in whole 0.05 s steps of sim time. V6 moved aircraft by
 // the frame time (at most 0.05 s) times the speed, so a run came out differently at
@@ -53,12 +54,6 @@ import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
 
-/** Standard gravity in ft/s² for coordinated turn kinematics. */
-export const G_FTPS2 = 32.174;
-
-/** Maximum roll rate authority in deg/s (SPEC-traffic-vector). */
-export const MAX_ROLL_RATE_DPS = 45;
-
 /** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
 export const TYPE_COLORS = Object.freeze({
   'CT-157': '#a5d6ff',
@@ -70,7 +65,7 @@ export const TYPE_COLORS = Object.freeze({
 });
 
 /** Fallback knot speeds when route points have no speed specified. */
-export const TYPE_FALLBACK_KT = Object.freeze({
+const TYPE_FALLBACK_KT = Object.freeze({
   'CT-157': 125,
   'CT-156': 180,
   'CT-102': 150,
@@ -79,8 +74,8 @@ export const TYPE_FALLBACK_KT = Object.freeze({
   'CF-188': 300,
 });
 
-/** V6's conflict limits (built-in profile, line 613): red 200 ft and 200 ft, caution 500 ft and 500 ft. */
-export const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 });
+/** The conflict limits when a setup gives none: red 200 ft and 200 ft, caution 500 ft and 500 ft (the built-in profile's). */
+const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 });
 
 /** Trails: a point every 0.5 s of sim time for the last 2 minutes, whatever the frame rate. */
 /**
@@ -188,7 +183,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.trail = [];
     a.command = null;
     a.engineFailed = false;
-    a.mode = 'RAIL';
     delete a.touchAndGo;
 
     // Continuous 3D Cartesian vector state initialization (Slice A & B)
@@ -310,7 +304,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const points = buildClosedPattern(stateOf(a), windNow(), downwind, bankDeg);
     a.goAroundFlight = { route: { id: 'CLOSED_FLOWN', kind: 'flown', name: 'Closed pattern', points } };
     a.distFt = 0;
-    a.mode = 'RAIL';
     a.phase = 'closed_pattern';
     a.command = 'closed_pattern';
     a.landed = false;
@@ -329,7 +322,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const along = (dx * ux + dy * uy) / len, across = Math.abs(dx * uy - dy * ux) / len;
     a.landed = true;
     a.alt = THRESHOLD_DATA_ELEV_FT;
-    a.mode = 'RAIL';
     a.command = null;
     if (!(along >= -50 && along < len - 1000 && across < RUNWAY_WIDTH_FT['29L'])) {
       a.active = false;
@@ -466,7 +458,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }, setup.windFromDeg ?? 360, setup.windKt ?? 0, sideFt, levelAltFt, holdKias);
     a.goAroundFlight = { route: { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points } };
     a.distFt = 0;
-    a.mode = 'RAIL';
     a.phase = 'go_around';
     a.command = 'go_around';
     a.landed = false;
@@ -504,7 +495,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     // 5 Oct 00:08Z and 00:13Z); otherwise, and for the button, the closed-pattern bank.
     const bankDeg = toAvoidCollision ? BREAKOUT_TRAFFIC_BANK_DEG : (a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50);
     // Off the rejoin line (an entry that joins the pattern) it turns away from the pattern (Patrick, 5 Oct 00:08Z).
-    const onRejoinLine = a.mode === 'RAIL' && !a.goAroundFlight && from && from.kind === 'entry' && +from.mergeIndex > 0;
+    const onRejoinLine = !a.goAroundFlight && from && from.kind === 'entry' && +from.mergeIndex > 0;
     const turnDir = onRejoinLine ? awayFromPattern(a) : null;
     startFlown(a, buildBreakout(stateOf(a), windNow(), rejoin, leg, bankDeg, turnDir), 'BREAKOUT_FLOWN', 'Breakout', joinTo ? 'join' : null, joinTo?.id ?? null);
     delete a.rejoinRouteId;
@@ -521,7 +512,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function startFlown(a, points, id, name, then, joinId = null) {
     a.goAroundFlight = { route: { id, kind: 'flown', name, points }, then, joinId };
     a.distFt = 0;
-    a.mode = 'RAIL';
     a.phase = points[0]?.phase ?? 'breakout';
     a.command = 'breakout';
     a.landed = false;
@@ -606,14 +596,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const glideFt = THRESHOLD_DATA_ELEV_FT + (pat.points[12].alt - THRESHOLD_DATA_ELEV_FT) / windowFt * -along;
       const linedUp = across < 2000 && off < 30 && along < 0 && -along <= reachFt && a.alt <= glideFt + 500;
       const extending = a.goAroundFlight?.route.id === 'EXTEND_FLOWN';
-      const turningFinal = a.routeId === pat.id && a.mode === 'RAIL' && a.phase === 'final_turn' && !a.goAroundFlight;
+      const turningFinal = a.routeId === pat.id && a.phase === 'final_turn' && !a.goAroundFlight;
       if (!linedUp && !extending && !turningFinal) continue;
       leaders.push({ a, distAt: leaderTrack(a, alongOf) });
     }
     if (!leaders.length) return;
     for (const f of live) {
       if (f.phase !== 'downwind') delete f.perchRoll; // rolled once each time round the downwind
-      if (f.routeId !== pat.id || f.phase !== 'downwind' || f.mode !== 'RAIL' || f.deconflict) continue;
+      if (f.routeId !== pat.id || f.phase !== 'downwind' || f.deconflict) continue;
       if (f.goAroundFlight || f.pflFlight || f.highKeyFlight || f.sideStep) continue;
       const ahead = leaders.filter((l) => l.a !== f);
       if (!ahead.length) continue;
@@ -647,7 +637,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       }
       f.goAroundFlight = { route: { id: 'EXTEND_FLOWN', kind: 'flown', name: 'Extended downwind', points: flight.track }, then: 'final' };
       f.distFt = 0;
-      f.mode = 'RAIL';
       f.phase = 'downwind';
       delete f.joinOffset;
       f.deconflict = { move: 'extend_downwind', layer: 'rules', rule: 'spacing on final', with: leader.a.id, extendFt, label: deconflictLabel('extend_downwind', 'rules') };
@@ -689,7 +678,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         else a.intent = choice;
         continue;
       }
-      if (route?.id !== pat.id || a.mode !== 'RAIL') continue;
+      if (route?.id !== pat.id) continue;
       // On the upwind after take-off, from the departure end to 3/4 mile past it (before the crosswind turn).
       if (!a.rndUpwind && off < 30 && across < 2000 && along >= rwy.len && along <= rwy.len + RANDOM.upwindWindowFt) {
         Object.assign(a, { rndUpwind: true, rndFinal: false });
@@ -736,7 +725,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!onSiPattern(a)) continue;
       if (a.phase === 'climb') { a.siLap = false; continue; }
       if (a.siLap || !a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
-      if (a.routeId !== pat.id || a.mode !== 'RAIL' || a.phase !== 'outer_downwind') continue;
+      if (a.routeId !== pat.id || a.phase !== 'outer_downwind') continue;
       if (a.goAroundFlight || a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
       const o = legOffsetsFt(pat.points[5], pat.points[6], a);
       if (o.alongFt < 0 || o.alongFt > RANDOM.downwindWindowFt) continue;
@@ -745,11 +734,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
   }
 
-  /** The path an aircraft is following now, for the deconfliction's prediction, or null when it flies free. */
+  /** The path an aircraft is following now, for the deconfliction's prediction, or null when it has none. */
   function pathOf(a) {
     const flown = a.goAroundFlight ?? a.highKeyFlight ?? a.pflFlight;
     if (flown) return { route: flown.route, options: PFL_ROUTE_OPTIONS };
-    if (a.mode !== 'RAIL') return null;
     const route = routeOf(a);
     return route ? { route, options: routeOptions() } : null;
   }
@@ -828,7 +816,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.highKeyFlight = { route: { id: 'HIGH_KEY_FLOWN', kind: 'flown', name: 'Climb to High Key', points: flown.points }, settings: setup.settings };
     a.engineFailed = false;
     a.distFt = 0;
-    a.mode = 'RAIL';
     a.routeId = 'PFL_HIGH_KEY';
     a.command = 'climb_high_key';
     a.landed = false;
@@ -862,14 +849,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.routeId = pat.id;
       startJoin(a, pat, pointDistFt(pat, 12, opt) + Math.max(0, Math.hypot(win.x - th.x, win.y - th.y) - toGo), windNow(), opt);
       a.phase = 'final';
-      a.mode = 'RAIL';
       return;
     }
     if (then === 'join') {
       const route = routeById(joinId);
       delete a.rejoinRouteId;
       a.command = null;
-      a.mode = 'RAIL';
       if (!route) { a.active = false; return; }
       const opt = routeOptions();
       a.routeId = route.id;
@@ -883,7 +868,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.routeId = pat.id;
     startJoin(a, pat, closestDistFt(pat, a, opt), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
     a.phase = posOnRoute(pat, a.distFt, opt).phase || 'downwind';
-    a.mode = 'RAIL';
     if (a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'breakout') a.command = null;
   }
 
@@ -937,7 +921,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt - NUMBER_BASE_PAST_THRESHOLD_FT - TOUCHDOWN_PAST_NUMBERS_FT;
     // The circuit's climb-out passes close to, not exactly through, the touchdown point: join it smoothly.
     startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
-    a.mode = 'RAIL';
     a.phase = 'touch_and_go';
     a.command = null;
     a.touchAndGo = true;
@@ -1057,7 +1040,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (sideStepping && !a.sideStep && a.pflFlight && !a.pflDone) resumePflFlight(a, wind, setup.settings);
       if (a.pflDone) pflEnded(a);
       if (a.goAroundDone) goAroundEnded(a);
-      if (a.mode === 'RAIL' && route && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
+      if (route && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
           checkDecisions(a, beforeDist, a.distFt);
@@ -1070,7 +1053,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       }
 
       // A closed pattern asked for short of the upwind end pulls up once past it (TR-R33).
-      if (a.active && a.pendingClosed && a.mode === 'RAIL' && !beforeUpwindEnd(a)) startClosedPattern(a);
+      if (a.active && a.pendingClosed && !beforeUpwindEnd(a)) startClosedPattern(a);
 
       delete a.pflEndedThisStep;
       recordTrail(a);
@@ -1488,7 +1471,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
         // The pull-up starts at or after the upwind end of the runway (TR-R33, WFO art 402): an aircraft
         // on final or on the runway touches and goes, and pulls up once past the upwind end.
-        if (a.mode === 'RAIL' && beforeUpwindEnd(a)) {
+        if (beforeUpwindEnd(a)) {
           a.pendingClosed = true;
           a.intent = 'touch_and_go';
           a.landed = false;
@@ -1577,7 +1560,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const tag = t < a.startsAt ? null : tagOf({ ...a, trackDeg: a.trackDeg ?? headingDeg }, route, iasKt, altFt, x, y, p.seg !== undefined ? p.seg + 1 : 1);
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
-          mode: a.mode ?? 'RAIL',
+          mode: 'RAIL', // every aircraft rides a path; kept for readers of the state
           x, y, alt: altFt, kt: iasKt,
           headingDeg,
           bankDeg: a.bankDeg ?? 0,

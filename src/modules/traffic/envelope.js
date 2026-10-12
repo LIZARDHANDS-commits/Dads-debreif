@@ -1,6 +1,6 @@
 // The dynamic envelope gate for Traffic Sim (Traffic spec, ALL-28; Patrick, 6 Oct).
-// Ensures aircraft maneuvering off-rail (breakouts, avoidance climbs, and path transitions)
-// stay strictly within the T-6A physical envelope:
+// Holds every roll the simulated pilot (circuit.js) and the path follower (path-follower.js) fly
+// within the T-6A physical envelope:
 //  - roll rate scales with true airspeed (0.45°/s per knot TAS, capped at 120°/s);
 //  - G onset rate is capped at the airframe ceiling (8 G/s, twice the normal 4 G/s pilot onset);
 //  - bank is capped at the dynamic stall bank (acos(1 / stallLimitG(kias))).

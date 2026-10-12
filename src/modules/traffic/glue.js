@@ -1,8 +1,8 @@
-// The small pieces between the screen's settings and the engine's setup (specs/SPEC-traffic.md:
-// Route options, Conflict limits). Split out of index.js so they are tested on their own.
+// The small pieces between the screen's settings and the sim's setup (Traffic spec: route options,
+// conflict limits, wind and the day's temperature). Split out of index.js so they are tested on their own.
 //
-// The engine reads its limits and route options from the setup it flies (V6 keeps them
-// there), so the screen copies its settings across whenever one changes. The numbers are
+// The sim reads its limits and route options from the setup it flies, so the screen copies its
+// settings across whenever one changes. The numbers are
 // checked against their ranges on the way: whatever a setting holds, the setup only gets a
 // number the sim can use.
 import { DEFAULTS, LIMITS } from './defaults.js';

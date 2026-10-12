@@ -97,14 +97,14 @@ const FLARE_TOUCH_SINK_FTPS = 2;
  * point `th` toward `dep`, at the threshold's height (Patrick, 6 Oct 06:33Z: "three degree goes to the base of the
  * numbers"; TR-93). The glide path ends here and the climb-out starts here.
  */
-export function aimPointOf(th, dep, pastFt = NUMBER_BASE_PAST_THRESHOLD_FT) {
+function aimPointOf(th, dep, pastFt = NUMBER_BASE_PAST_THRESHOLD_FT) {
   const len = Math.max(1, Math.hypot(dep.x - th.x, dep.y - th.y));
   const k = pastFt / len;
   return { x: th.x + (dep.x - th.x) * k, y: th.y + (dep.y - th.y) * k };
 }
 
 /** Where the wheels touch: TOUCHDOWN_PAST_NUMBERS_FT past the aim point, after the flare (TR-96). The climb-out starts here. */
-export const touchdownPointOf = (th, dep) => aimPointOf(th, dep, NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT);
+const touchdownPointOf = (th, dep) => aimPointOf(th, dep, NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT);
 
 /**
  * 0 to 1 with a rate that builds up over the first share `a`, holds, and changes
@@ -220,7 +220,7 @@ function rollOutTurnDegFresh(bankDeg, rollRateDps, tasFtps) {
  * the heading still to go is what rolling level will turn, so the wings come level on the heading; once level, small
  * corrections as bankFor makes. `s.rollingOut` remembers that the roll-out has begun, so it is never rolled back in.
  */
-export function plannedBank(wantedHdg, s, bankMax, dir = 'left') {
+function plannedBank(wantedHdg, s, bankMax, dir = 'left') {
   let err = wrapDeg180(wantedHdg - s.hdg);
   if (dir === 'left' && err > 30) err -= 360;
   if (dir === 'right' && err < -30) err += 360;
@@ -245,7 +245,7 @@ export function plannedBank(wantedHdg, s, bankMax, dir = 'left') {
  * ft, signed as legOffsetsFt's crossFt (Infinity if it never settles). The circuit starts each turn when this crosses
  * zero, so the roll-out ends on the line on its track with no S-turn back.
  */
-export function plannedTurnEndCrossFt(line, s, wind, bankMax, dir = 'left', straightFirst = 0) {
+function plannedTurnEndCrossFt(line, s, wind, bankMax, dir = 'left', straightFirst = 0) {
   // A light copy of the pilot: level, at today's true airspeed, no points recorded.
   const g = { x: s.x, y: s.y, hdg: s.hdg, bank: s.bank, rollRate: s.rollRate, ias: s.ias, alt: s.alt, rollingOut: false };
   const tasKt = iasToTasKt(s.ias, s.alt);
@@ -281,7 +281,7 @@ const PLAN_MOST_WAIT_STEPS = 20;
  * (readyToTurnOnto's lead with some to spare, so the planning runs only near the turn), and the planned turn would roll out on the
  * line or past it.
  */
-export function timeToTurnOnto(line, s, wind, bankMax, trackDeg, radiusFt, groundSpeedFtps, lineGroundSpeedFtps) {
+function timeToTurnOnto(line, s, wind, bankMax, trackDeg, radiusFt, groundSpeedFtps, lineGroundSpeedFtps) {
   if (!readyToTurnOnto(line, s, trackDeg, radiusFt * 1.3, groundSpeedFtps * 1.5, lineGroundSpeedFtps * 1.5)) return false;
   const side = Math.sign(legOffsetsFt(line.a, line.b, s).crossFt || 1);
   // Far from the moment, the next look waits for about the steps it takes to close the gap (only the planning, not the flying).
@@ -416,7 +416,7 @@ function breakKias(turnedDeg) {
 
 /** Seconds the break's 180° turn takes in calm air, flown the same way as in the circuit. */
 let breakSecCache = null; // { temp, sec }: true airspeeds, so redone when the temperature changes
-export function breakTurnSec() {
+function breakTurnSec() {
   if (breakSecCache?.temp === temperatureKey()) return breakSecCache.sec;
   let hdg = 0, turned = 0, t = 0;
   while (turned < 180 && t < 120) {
@@ -431,7 +431,7 @@ export function breakTurnSec() {
 
 /** Seconds the final turn's 180° takes in calm air at its speed and bank (120 KIAS, 35°), at pattern height. */
 let finalSecCache = null; // { temp, sec }
-export function finalTurnSec() {
+function finalTurnSec() {
   if (finalSecCache?.temp === temperatureKey()) return finalSecCache.sec;
   const v = ktToFtps(iasToTasKt(CIRCUIT.finalTurnKias, PATTERN_ALT_FT));
   const sec = Math.PI / turnRateFromBankRadPerSec(v, CIRCUIT.finalTurnBankDeg);
@@ -452,7 +452,7 @@ export function finalTurnSec() {
  *    the downwind keeps the length it has at 10 kt instead of being squeezed out as
  *    the final turn drifts back in the headwind.
  */
-export function breakPointAlongFt(headwindKt, runwayFt = Infinity) {
+function breakPointAlongFt(headwindKt, runwayFt = Infinity) {
   const extraKt = headwindKt - CIRCUIT.breakReferenceHeadwindKt;
   const perKt = KT_TO_FTPS * (extraKt > 0 ? breakTurnSec() + finalTurnSec() : breakTurnSec());
   return Math.min(runwayFt, CIRCUIT.breakPastThresholdFt + extraKt * perKt);
