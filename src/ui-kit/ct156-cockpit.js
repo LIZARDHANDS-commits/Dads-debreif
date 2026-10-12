@@ -242,7 +242,7 @@ const FRONT_CROWN = CT156_COAMING_CROWNS_FT.front;
  * its exterior flush with the inside of the sill and only just barely sticking below it").
  */
 const CHEEK_FT = Object.freeze({ round: 0.06, below: 0.03, out: 0.01 });
-/** The front panel's top corners cut back this far along each edge from the shoulder, so they stay under the coaming's side (feet, an estimate; they stood out past it beside the grab rail). */
+/** The front panel's back box stops this far under its shoulders, so it stays under the coaming's sides (feet, an estimate; its corners stood out past them beside the grab rail). */
 const PANEL_CORNER_CUT_FT = 0.08;
 /** The sill bands' inside edge, feet in from the canopy's foot. */
 const SILL_IN_FT = 0.2;
@@ -1750,12 +1750,20 @@ function cheekHalf(h, ts, x) {
   });
   return [[y0, z0], ...arc, [yS, zB]];
 }
-/** A panel's face outline, [y, z] feet: the tombstone, its shoulders cut back `cut` along each edge. */
-function faceOutline(ts, p, cut = 0) {
-  const dy = ts.side - ts.top, dz = p.top - ts.shoulderZ, l = Math.hypot(dy, dz) || 1;
-  const a = [ts.side, ts.shoulderZ - cut], b = [ts.side - (dy * cut) / l, ts.shoulderZ + (dz * cut) / l];
-  const half = cut ? [a, b] : [[ts.side, ts.shoulderZ]];
-  return [[ts.side, p.bottom], ...half, [ts.top, p.top], [-ts.top, p.top], ...half.slice().reverse().map(([y, z]) => [-y, z]), [-ts.side, p.bottom]];
+/**
+ * A panel's face outline, [y, z] feet: the tombstone. Given its coaming `h`, its shoulders and diagonals are kept
+ * `under` below the coaming's surface at the face's station (it leans), so no part of the face stands up through the
+ * hood or past its sides (Patrick, 12 Oct 2026, "Isn't this sticking over ? This grey ?"; the diagonals stood up to
+ * 1.2 in through the hood and the top corners out past its sides).
+ */
+function faceOutline(ts, p, h = null, under = 0.03) {
+  if (!h) return [[ts.side, p.bottom], [ts.side, ts.shoulderZ], [ts.top, p.top], [-ts.top, p.top], [-ts.side, ts.shoulderZ], [-ts.side, p.bottom]];
+  const lean = Math.tan(rad(p.leanDeg ?? 0)), n = 12;
+  const diag = Array.from({ length: n + 1 }, (_, k) => {
+    const y = lerp(ts.side, ts.top, k / n), z = lerp(ts.shoulderZ, p.top, k / n);
+    return [y, Math.min(z, hoodZ(h, ts, p.x + (z - p.bottom) * lean, y) - under)];
+  });
+  return [[ts.side, p.bottom], ...diag, ...diag.slice().reverse().map(([y, z]) => [-y, z]), [-ts.side, p.bottom]];
 }
 /**
  * The lower panel's half-width, feet: as wide as the main face (1.15 ft) at its top, flaring out to 1.27 ft over the
@@ -2756,7 +2764,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     drawStaticPanel(pic.ctx, seat.width, height, PANEL_INSTRUMENTS, faceW, faceH);
     pic.texture.needsUpdate = true;
     const panelMat = own(new THREE.MeshBasicMaterial({ map: pic.texture, side: THREE.DoubleSide, fog: false }));
-    const outline = faceOutline(ts, p, seat.front ? PANEL_CORNER_CUT_FT : 0);
+    const outline = faceOutline(ts, p, seat.front ? seat.h : null);
     const face = add(leanWithFace(flatAft(THREE, p.x, outline, { y0: ts.side, y1: -ts.side, z0: p.bottom, z1: p.top }), p), panelMat).geometry;
     occluders.push({ geometry: face, slot: 'grey' });
     // The coaming's shade on the panel's top (Patrick's cockpit clip, 11 Oct 2026, shows the top of the panel in the
