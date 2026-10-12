@@ -196,6 +196,30 @@ test('the hot turning rejoin holds Lead frozen in the windscreen to the decision
   assert.ok(inEchelon(link(...f.state.aircraft)), 'and ends in echelon');
 });
 
+// TS-181 (3), TS-182 and Patrick 12 Oct 2026 18:41Z ("it needs to move down on to the line at route spacing, then up into
+// echelon in one smooth move"; SMM 12.24 para 58, Figs 12.7 and 12.3): on the hot turning rejoin to echelon from the
+// standard start, once #2 is in to route's spacing (route is 3 wingspans down the spinner-wingtip line from echelon,
+// TS-184, about 146 ft from Lead; 140 ft here so the check starts once he is there) he is on Lead's banked wing plane and
+// moves up the line into echelon without coming above it. 5 ft, not the shared table's 100 ft: a close formation sight line
+// (the SMM close formation band, as in tests/turn-sim/trace-echelon.mjs); more than that above the plane shows Lead's
+// spinner above his wingtip. Until V2.412 he was about 25 ft above the plane there and came up into echelon from above it.
+test('the hot turning rejoin to echelon is down on Lead\'s wing plane at route\'s spacing and moves up the line into echelon', () => {
+  const f = createFormation();
+  assert.equal(f.change('echelon'), 'started');
+  let seen = 0;
+  fly(f, 'hot rejoin to echelon', (_b, [lead, wing], t) => {
+    const l = link(lead, wing);
+    if (l.range > 140 || Math.abs(lead.bankDeg) < 5) return;
+    // #2's height off Lead's wing plane, square to it: Lead's bank tilts the plane across him (bank left wing down positive).
+    const bank = lead.bankDeg * DEG;
+    const abovePlane = l.rel.left * Math.sin(bank) - l.down * Math.cos(bank);
+    assert.ok(abovePlane <= 5, `at ${t.toFixed(1)} s, ${l.range.toFixed(0)} ft: #2 ${abovePlane.toFixed(1)} ft above Lead's wing plane`);
+    seen++;
+  });
+  assert.ok(seen > 0, 'he was inside route\'s spacing with Lead banked');
+  assert.ok(inEchelon(link(...f.state.aircraft)), 'and ends in echelon');
+});
+
 test('in fighting wing the turn buttons turn the formation: #2 stays below Lead, inside the bank cap, and ends in the band', () => {
   for (const [key, dir] of [['delayed90', 1], ['delayed90', -1], ['check', 1], ['hook', -1], ['inPlace90', 1], ['delayed45', -1]]) {
     const f = createFormation();
