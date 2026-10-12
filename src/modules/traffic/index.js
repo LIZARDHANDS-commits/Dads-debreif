@@ -226,10 +226,14 @@ function mount(root, app) {
     return scene;
   }
 
+  let siPathCache = { key: '', path: null };
   function withSiPattern(scene) {
     scene.selectedAircraftId = selectedAircraftId;
     if (siPatternShown) {
-      const path = siPatternPath(setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions);
+      // Kept until the routes, wind or options change, as the drawn routes are (scene.js drawnRoutes; TR-151).
+      const key = JSON.stringify([setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions]);
+      if (key !== siPathCache.key) siPathCache = { key, path: siPatternPath(setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions) };
+      const path = siPathCache.path;
       if (path) scene.routes.push({ ...SI_PATTERN, visible: true, points: [], path });
     }
     scene.routes = scene.routes.map((r) => ({ ...r, ...lineOf(r.id) }));
