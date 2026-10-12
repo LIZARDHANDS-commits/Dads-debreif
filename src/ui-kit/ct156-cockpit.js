@@ -38,7 +38,7 @@
 // own panel may differ.
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_X, CT156_HELMET_Z, CT156_SEAT_BACK_FT, ct156SeatRakeFt, ct156SeatRaiseFt, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
-  CT156_TUB_FLOOR_FT, CT156_RAIL_FORE_X, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
+  CT156_TUB_FLOOR_FT, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
 import { attachCockpitModel } from './ct156-cockpit-model.js';
@@ -121,8 +121,8 @@ export const FORWARD_BOW_FT = Object.freeze({
   bandDepth: 0.13,
   tubeR: 0,
   section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.1, innerT: 0.025 }),
-  foot: Object.freeze({ len: 0.35, rise: 0.2, plateT: 0.025 }),
-  studs: Object.freeze({ n: 40, r: 0.009, head: 0.02, tip: 0.02 }),
+  foot: Object.freeze({ r: 0.2 }),
+  studs: Object.freeze({ n: 40, r: 0.008, nut: 0.018, nutH: 0.017, tip: 0.021 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
   footFillet: null,
@@ -133,11 +133,14 @@ export const FORWARD_BOW_FT = Object.freeze({
 // `section.outer` (1.9 in) fore and aft, a web down its middle `section.web` thick and a flange `section.inner` (1.2 in)
 // fore and aft along the web's inner edge, both flanges 0.3 in thick, `bandDepth` (1.6 in) from the glass inward
 // ("this side should be thinner?"), its aft face at bandX. A row of bolts (`studs`) runs through the inner flange aft of
-// the web, a round head on its glass side and the tip `tip` out of its inner face ("See here?" on that picture), and
-// the web's aft face is dark, so from the seat it reads as two flanges with a shadowed groove between ("Construction
-// only"). At each foot the web flares fore and aft over the
-// leg's last `foot.rise` into a plate `foot.len` long on the sill ("the middle part goes out to a flange in both
-// directions at the bottom?", his card "At the feet", and "the flange seems shallower than yours"). Sizes are
+// the web, a flat hex head on its glass side and a hex nut `nut` round (3/8 in across the flats) on its inner face, the tip
+// `tip` (1/4 in) out of that face ("See here?" on that picture; "the bolts are sized wrong in ours for the canopy bow",
+// with his cockpit photo; until then 1/2 in round heads and thin 1/4 in pegs, reading as two rows), and the web's aft
+// face is dark, so from the seat it reads as two flanges with a shadowed groove between ("Construction only"). At each
+// foot the leg rounds out in concave quarter circles `foot.r` (2.4 in): aft into the canopy's lower frame from the
+// frame's top, and forward onto the sill, rounding the windscreen's lower corner ("where the bow meets the bottom should
+// be rounded out", and "See how the bow meets?" on his photo; before that the web flared fore and aft into a plate on
+// the sill, "At the feet"). Sizes are
 // estimates off his sketch, that picture and Fig 3.5's band. Before (all 12 Oct 2026): a T with no inner flange and a
 // flare 5.4 in tall; an I with studs on the outer flange; a channel open aft with one row of studs; and a T with a
 // flange 3 in forward along its inner edge (from Patrick's photos), a ring of round holes, and a rounded join at each
@@ -211,11 +214,16 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + FACE_AHEAD_FT, leanD
  * railOut: the grab rail's sides 0.05 ft inside the panel's edge, over its rim, where the front panel layout
  * draws them, 1.1 ft out from the middle (RIM_FT.sideOut, 0.05 ft outside it, until V2.289). cheeks: the
  * coaming's dark sides out to the canopy's sills behind the rail (Patrick, 11 Oct 2026, "Dark sides", from his CT-156
- * cockpit photo; V2.289 left the windscreen's foot and the fuselage's inside showing past the narrower top).
+ * cockpit photo; V2.289 left the windscreen's foot and the fuselage's inside showing past the narrower top). Since
+ * 12 Oct 2026 the cheeks are one flat riveted panel each side in the cockpit's grey, its aft face coming down from the
+ * rail to the sill (CHEEK_RIVETS_FT; Patrick, 12 Oct 2026, "Both, our grey", and "the edge of the glareshield needs to
+ * come down and clean up the spot on the left"); until then black and bulging 0.08 ft, open underneath behind the rail.
  */
 // Its crown since 12 Oct 2026: CT156_COAMING_CROWNS_FT.front (Patrick; from its aft edge, now 5 in further aft, at the
 // same height, easing down and then falling to 1.07 ft at 6.3 ft, under the windscreen's foot).
 const FRONT_CROWN = CT156_COAMING_CROWNS_FT.front;
+/** The front coaming's cheek rivets, feet: domed heads `r` in radius, `pitch` apart, `inset` in from the panel's edges. Estimates. */
+const CHEEK_RIVETS_FT = Object.freeze({ r: 0.012, pitch: 0.1, inset: 0.04 });
 /** How far the front seat's grey lamp strip shows under the grab rail, feet (0.66 in; Patrick, 12 Oct 2026; it hung 1.3 in under the rail). */
 const LAMP_STRIP_FT = 0.055;
 export const GLARESHIELD_FT = Object.freeze({
@@ -1689,10 +1697,12 @@ function cheekHalf(h, ts, x) {
   // Its outer edge just outside and under the glass's foot ahead of the sill rail (so no skin shows past it), and over
   // the rail (0.07 ft round) from 0.15 ft ahead of the rail's front end aft, so the rail runs in under it and its end
   // doesn't show (Patrick, 11 Oct 2026, the corner "still doesnt look quite right").
-  const over = clamp01((CT156_RAIL_FORE_X * F + 0.45 - x) / 0.3);
+  // Since Patrick's 12 Oct 2026 note ("the edge of the glareshield needs to come down and clean up the spot on the
+  // left") it comes down to the glass's foot all along, over that rail too, so the rail's inside never shows beside
+  // the bow's foot (it stopped 0.07 ft inside the glass, 0.08 ft up, over the rail).
   // Never inboard of the top's edge, where the windscreen narrows to its point, so the side doesn't fold back over the top.
-  const y1 = Math.max(y0, c.w * F + lerp(0.02, -0.07, over)), z1 = c.base * F + lerp(-0.02, 0.08, over);
-  const bulge = 0.08 * clamp01((x - h.aftX) / 0.4); // none at the aft edge, so its end is a thin line, not a slab
+  const y1 = Math.max(y0, c.w * F + 0.02), z1 = c.base * F - 0.02;
+  const bulge = 0; // flat since 12 Oct 2026 ("Both, our grey"); it bulged 0.08 ft, none at the aft edge
   return Array.from({ length: 7 }, (_, k) => insideGlass(x, lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + bulge * Math.sin((Math.PI * k) / 6)));
 }
 /**
@@ -1786,10 +1796,10 @@ function bandGeometries(THREE, b) {
     band = loft(THREE, pts.map((_, j) => ring.map(([dx, d]) => hoops.get(dx)[j](d))), { closed: true });
     const rec = hoops.get(c - web / 2 - 0.002);
     recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + outerT)), pts.map((_, j) => rec[j](d1 - innerT))], { closed: false });
-    // The bolts: one row through the inner flange's aft overhang, each a round head on its glass side and its tip
-    // poking out of its inner face, evenly spaced by length, half a spacing in from each sill.
+    // The bolts: one row through the inner flange's aft overhang, each a flat hex head on its glass side and a hex nut on its
+    // inner face with the bolt's tip just out of it, evenly spaced by length, half a spacing in from each sill.
     if (b.studs) {
-      const { n: ns, r, head, tip } = b.studs, dxRow = (c - I / 2 + c - web / 2) / 2, line = hoop(dxRow);
+      const { n: ns, r, nut, nutH, tip } = b.studs, dxRow = (c - I / 2 + c - web / 2) / 2, line = hoop(dxRow);
       const at = (d) => pts.map((_, j) => line[j](d)), mid = at(d1 - innerT);
       const along = [0];
       for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(...[0, 1, 2].map((i) => mid[j][i] - mid[j - 1][i])));
@@ -1800,12 +1810,13 @@ function bandGeometries(THREE, b) {
         while (j < along.length - 1 && along[j] < want) j++;
         const t = (want - along[j - 1]) / (along[j] - along[j - 1] || 1);
         const p = (d) => { const a0 = line[j - 1](d), a1 = line[j](d); return new THREE.Vector3(...[0, 1, 2].map((i) => a0[i] + (a1[i] - a0[i]) * t)); };
-        const outer0 = p(d1 - innerT), inner0 = p(d1 + tip), dir = inner0.clone().sub(outer0).normalize();
+        const outer0 = p(d1 - innerT), face = p(d1), inner0 = p(d1 + tip), dir = inner0.clone().sub(outer0).normalize();
         const turn = new THREE.Quaternion().setFromUnitVectors(up, dir);
         const shankLen = outer0.distanceTo(inner0), shankMid = outer0.clone().add(inner0).multiplyScalar(0.5);
         studs.push(new THREE.CylinderGeometry(r, r, shankLen, 8).applyQuaternion(turn).translate(shankMid.x, shankMid.y, shankMid.z));
-        const hc = outer0.clone().addScaledVector(dir, -0.011);
-        studs.push(new THREE.CylinderGeometry(head, head, 0.022, 12).applyQuaternion(turn).translate(hc.x, hc.y, hc.z));
+        const hex = (c, t) => studs.push(new THREE.CylinderGeometry(nut, nut, t, 6).applyQuaternion(turn).translate(c.x, c.y, c.z));
+        hex(face.clone().addScaledVector(dir, nutH / 2), nutH); // the nut on the inner face
+        hex(outer0.clone().addScaledVector(dir, -0.003), 0.006); // the bolt's flat head on the glass side, so one row shows
       }
     }
   } else {
@@ -1832,13 +1843,13 @@ function bandGeometries(THREE, b) {
 }
 
 /**
- * The forward bow's feet (FORWARD_BOW_FT.foot): on each side the web widening fore and aft over the leg's last
- * `rise` (a concave curve, from the web's thickness to `len`), down onto a plate `len` long, as deep as the band, on
- * the sill. Geometries, feet.
+ * The forward bow's feet (FORWARD_BOW_FT.foot): on each side the leg's whole section rounding out in concave quarter
+ * circles of radius `r`, aft into the canopy's lower frame from the frame's top (and on down to the sill inside the
+ * frame) and forward onto the sill under the windscreen. Geometries, feet.
  */
 function bowFeet(THREE, b) {
-  const { len, rise, plateT } = b.foot, { outer: W, outerT, web } = b.section, c = W / 2;
-  const d0 = b.glassInset + outerT, d1 = b.glassInset + b.bandDepth, n = 600, out = [];
+  const { r } = b.foot, { outer: W } = b.section;
+  const d0 = b.glassInset, d1 = b.glassInset + b.bandDepth, n = 600, out = [];
   // The hoop at fore-and-aft offset dx, as a function of (point index, inward distance).
   const at = (dx) => {
     const x = b.bandX + dx, bs = ct156CanopySection(x / F).base * F, pts = ct156HoopPoints(x / F, n, 0, b.lean ?? 0);
@@ -1847,22 +1858,21 @@ function bowFeet(THREE, b) {
       return [hx * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
     } };
   };
-  const mid = at(c);
+  const mid = at(W / 2), hoops = new Map();
+  const hoopAt = (dx) => { const key = Math.round(dx * 2000); if (!hoops.has(key)) hoops.set(key, at(key / 2000)); return hoops.get(key); };
+  // How far out the fillet reaches at height h above its foot.
+  const reach = (h) => (h <= 0 ? r : h >= r ? 0 : r - Math.sqrt(r * r - (r - h) ** 2));
   for (const s of [1, -1]) {
     const idx = (k) => (s > 0 ? k : n - k);
     const sections = [];
     for (let k = 0; k <= n / 2; k++) {
-      const h = mid.pts[idx(k)].z * F - mid.bs;
-      const u = Math.min(1, h / rise), t = web + (len - web) * (1 - u) ** 2;
-      const fwd = at(c + t / 2), aft = at(c - t / 2);
+      const up = mid.pts[idx(k)].z * F - mid.bs; // above the sill
+      const h = up - SIDE_FRAME_FT.height; // above the frame's top
+      const aft = hoopAt(-reach(h)), fwd = hoopAt(W + reach(up));
       sections.push([aft.p(idx(k), d0), fwd.p(idx(k), d0), fwd.p(idx(k), d1), aft.p(idx(k), d1)]);
-      if (u >= 1) break;
+      if (h >= r) break;
     }
     out.push(loft(THREE, sections, { closed: true }));
-    // The plate on the sill, under the flared web's foot.
-    const [fx, fy, fz] = mid.p(idx(0), b.glassInset), [, iy] = mid.p(idx(0), d1);
-    const yLo = Math.min(fy, iy), yHi = Math.max(fy, iy);
-    out.push(box(THREE, fx - len / 2, fx + len / 2, yLo, yHi, fz, fz + plateT));
   }
   return out;
 }
@@ -1964,14 +1974,22 @@ function bowFootParts(THREE) {
  * placard plate, and two round knobs on the frame ahead of it by the bow's foot. Sizes estimates. [geometry, slot] pairs.
  */
 function canopyHandleParts(THREE) {
-  const [fx0, fy, fz] = bowFoot(1), y = fy - SIDE_FRAME_FT.thick - 0.05, out = [];
-  const px = fx0 - 0.2, pz = fz + SIDE_FRAME_FT.height - 0.06; // the pivot
+  const [fx0, fy, fz] = bowFoot(1), out = [];
+  const { height, thick, foot } = SIDE_FRAME_FT;
+  // The lower frame's inner face, y at height z (it slopes from `foot` wide at the sill to `thick` at its top).
+  const faceY = (z) => fy - lerp(foot, thick, clamp01((z - fz) / height));
+  const px = fx0 - 0.2, pz = fz + height - 0.06; // the pivot
+  // Hanging clear of the frame's face all the way down (Patrick, 12 Oct 2026, "our canopy handle is clipped in"; it
+  // hung 0.13 ft inside the glass, through the face's lower part), on a pin out from the face.
+  const y = faceY(fz) - 0.03, pin = faceY(pz) - y;
   const loop = [[px, y, pz], [px - 0.55, y, pz - 0.2], [px - 0.08, y, pz - 0.4], [px, y, pz]];
   out.push([tubeThrough(THREE, loop, 0.025, 3, { radial: 6 }), SLOT.black]);
   out.push([new THREE.CylinderGeometry(0.045, 0.045, 0.04, 14).translate(px, y + 0.01, pz), SLOT.black]);
-  out.push([new THREE.CylinderGeometry(0.014, 0.014, 0.08, 8).translate(px, y - 0.01, pz), SLOT.metal]);
-  out.push([box(THREE, px - 0.6, px - 0.05, y + 0.03, y + 0.034, pz - 0.15, pz - 0.02), SLOT.knob]);
-  for (const k of [0, 1]) out.push([new THREE.CylinderGeometry(0.03, 0.03, 0.03, 12).translate(fx0 - 0.04 - k * 0.09, y + 0.02, fz + 0.12), SLOT.black]);
+  out.push([new THREE.CylinderGeometry(0.014, 0.014, pin, 8).translate(px, y + pin / 2, pz), SLOT.metal]);
+  // The placard and the knobs on the face, tilted with it.
+  const tilt = -Math.atan((foot - thick) / height), pzc = pz - 0.085;
+  out.push([box(THREE, px - 0.6, px - 0.05, -0.002, 0.002, -0.065, 0.065).rotateX(tilt).translate(0, faceY(pzc) - 0.004, pzc), SLOT.knob]);
+  for (const k of [0, 1]) out.push([new THREE.CylinderGeometry(0.03, 0.03, 0.03, 12).translate(fx0 - 0.04 - k * 0.09, faceY(fz + 0.12) - 0.012, fz + 0.12), SLOT.black]);
   return out;
 }
 
@@ -1984,11 +2002,15 @@ function sillGeometry(THREE) {
   const parts = [];
   for (const s of [1, -1]) {
     const sections = [];
-    for (let i = 0; i <= N; i++) {
-      const x = x0 + ((x1 - x0) * i) / N;
+    // Two extra sections at the bow's hoop, so the sill steps out past the glass right there.
+    const xb = CT156_FRAME_X[0] * F, xs = [...Array.from({ length: N + 1 }, (_, i) => x0 + ((x1 - x0) * i) / N), xb + 0.001, xb - 0.001];
+    for (const x of xs.sort((a, b) => b - a)) {
       const c = ct156CanopySection(x / F);
       const w = c.w * F, z = c.base * F + 0.006;
-      sections.push([[x, s * (w + 0.35), z], [x, s * (w - 0.2), z]]); // out past the glass, over the fuselage's cut edge
+      // Out past the glass over the fuselage's cut edge, but only to the glass under the windscreen, where it would show
+      // outside it (Patrick, 12 Oct 2026, "clean up the spot on the left").
+      const out = x > xb ? 0.01 : 0.35;
+      sections.push([[x, s * (w + out), z], [x, s * (w - 0.2), z]]);
     }
     parts.push(loft(THREE, sections, { closed: false }));
   }
@@ -2098,11 +2120,29 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   if (h.cheeks) {
     for (const side of [1, -1]) {
       const rows = secs.map((sec) => cheekHalf(h, ts, sec[0][0]).map(([y, z]) => [sec[0][0], side * y, z]));
-      put(loft(THREE, rows, { closed: false }), SLOT.black);
-      // Its aft face, between the rail's line and the side's first section, so nothing shows under the side's edge.
+      put(loft(THREE, rows, { closed: false }), SLOT.grey);
+      // Its aft face, from the rail's line out to the side's first section and down to the sill, so nothing shows under
+      // the side's edge (it stopped at the side's edge, leaving the sill and the tub's wall showing under it).
       const edge = rows[0].map(([, y, z]) => [Math.abs(y), z]);
       const hood = hoodHalf(h, ts, h.aftX).slice(1);
-      put(flatAft(THREE, h.aftX + 0.002, [...edge, ...hood.slice(1).reverse()].map(([y, z]) => [side * y, z])), SLOT.black);
+      const [yIn] = hood[hood.length - 1], zSill = edge[edge.length - 1][1];
+      put(flatAft(THREE, h.aftX + 0.002, [...edge, [yIn, zSill], ...hood.slice(1).reverse()].map(([y, z]) => [side * y, z])), SLOT.grey);
+      // Its rivets: a row along the side's edge and one down the rail's side, on the aft face.
+      const { r: rr, pitch, inset } = CHEEK_RIVETS_FT;
+      const lines = [edge.map(([y, z]) => [y - inset, z - inset]), [[yIn + inset, hood[hood.length - 1][1] - inset], [yIn + inset, zSill + inset]]];
+      for (const line of lines) {
+        const len = [0];
+        for (let i = 1; i < line.length; i++) len.push(len[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]));
+        const total = len[len.length - 1], count = Math.max(2, Math.round(total / pitch));
+        for (let q = 0; q <= count; q++) {
+          const want = (q / count) * total;
+          let i = 1;
+          while (i < line.length - 1 && len[i] < want) i++;
+          const t = (want - len[i - 1]) / (len[i] - len[i - 1] || 1), y = lerp(line[i - 1][0], line[i][0], t), z = lerp(line[i - 1][1], line[i][1], t);
+          if (z < zSill + inset * 0.9 || y < yIn + inset * 0.9 || y > edge[edge.length - 1][0] - inset * 0.9) continue;
+          put(new THREE.SphereGeometry(rr, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ(Math.PI / 2).translate(h.aftX + 0.001, side * y, z), SLOT.metal);
+        }
+      }
     }
   }
   // The lip under the coaming's aft edge: a small one in the front seat, over the three lamps (Patrick, 12 Oct 2026,
@@ -2160,9 +2200,11 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     // The flat wall each side of the panel below the coaming's side, from the panel's edge out to the fuselage's
     // inside, the canopy's sill down to the console's top (Patrick, 12 Oct 2026, from his photos; until then the
     // tub's wall showed there).
-    const sill = ct156CanopySection(p.x / F).base * F, wallY = ct156FuselageSection(p.x / F).halfWidth * F - 0.06;
+    // Outside the glass's foot its top slopes down 0.3 ft to the fuselage's side, under the fuselage's cut edge, so it
+    // doesn't stand up past the glass beside the bow's foot (Patrick, 12 Oct 2026, "clean up the spot on the left").
+    const cs = ct156CanopySection(p.x / F), sill = cs.base * F, glassY = cs.w * F, wallY = ct156FuselageSection(p.x / F).halfWidth * F - 0.06;
     for (const side of [1, -1]) {
-      const wall = [[LW, c.top], [wallY, c.top], [wallY, sill], [LT, sill], [LT, p.bottom], [LW, p.bottom - LP.flare]];
+      const wall = [[LW, c.top], [wallY, c.top], [wallY, sill - 0.3], [glassY, sill], [LT, sill], [LT, p.bottom], [LW, p.bottom - LP.flare]];
       put(flatAft(THREE, p.x + 0.003, wall.map(([y, z]) => [side * y, z])), SLOT.grey);
     }
   } else {
