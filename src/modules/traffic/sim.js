@@ -1445,6 +1445,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (action !== 'touch_and_go') {
         if (flownOf(a, 'move')?.then) delete a.flown;
         if (flownOf(a, 'move')) goAroundEnded(a);
+        // A later command cancels a closed pattern still waiting for the upwind end: the newest order wins.
+        a.pendingClosed = false;
       }
       // A new command stops the flown climb to High Key; the command then flies from where the aircraft is.
       if (flownOf(a, 'high_key')) delete a.flown;
