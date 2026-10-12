@@ -122,7 +122,7 @@ export const FORWARD_BOW_FT = Object.freeze({
   bandDepth: 0.13,
   tubeR: 0,
   section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.1, innerT: 0.025 }),
-  foot: Object.freeze({ r: 0.2 }),
+  foot: Object.freeze({ reach: 0.27, rise: 0.32, r: 0.06, rivets: Object.freeze({ n: 5, up: 0.06, r: 0.012 }) }),
   studs: Object.freeze({ n: 40, r: 0.008, nut: 0.018, nutH: 0.017, tip: 0.021 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
@@ -138,10 +138,13 @@ export const FORWARD_BOW_FT = Object.freeze({
 // `tip` (1/4 in) out of that face ("See here?" on that picture; "the bolts are sized wrong in ours for the canopy bow",
 // with his cockpit photo; until then 1/2 in round heads and thin 1/4 in pegs, reading as two rows), and the web's aft
 // face is dark, so from the seat it reads as two flanges with a shadowed groove between ("Construction only"). At each
-// foot the leg rounds out in concave quarter circles `foot.r` (2.4 in): aft into the canopy's lower frame from the
-// frame's top, and forward onto the sill, rounding the windscreen's lower corner ("where the bow meets the bottom should
-// be rounded out", and "See how the bow meets?" on his photo; before that the web flared fore and aft into a plate on
-// the sill, "At the feet"). Sizes are
+// foot the whole leg flares into a gusset plate, as Patrick's in-flight photos from the front seat show it (12 Oct 2026,
+// card "Build the gusset"): from the canopy's lower frame's top it widens `foot.reach` (3.2 in) both fore and aft over
+// `foot.rise` (3.8 in) in straight slanted edges, rounded `foot.r` (0.7 in) where they meet the leg, so the plate's
+// base is about 8.4 in across, with a row of `foot.rivets` along it; below the frame's top it keeps that width down to
+// the sill. Sizes estimates scaled off those photos by the bow's bolt spacing. From V2.396 to V2.403 concave quarter
+// circles 2.4 in ("where the bow meets the bottom should be rounded out", "See how the bow meets?"); before that the web
+// flared fore and aft into a plate on the sill, "At the feet". Sizes are
 // estimates off his sketch, that picture and Fig 3.5's band. Before (all 12 Oct 2026): a T with no inner flange and a
 // flare 5.4 in tall; an I with studs on the outer flange; a channel open aft with one row of studs; and a T with a
 // flange 3 in forward along its inner edge (from Patrick's photos), a ring of round holes, and a rounded join at each
@@ -1869,12 +1872,13 @@ function bandGeometries(THREE, b) {
 }
 
 /**
- * The forward bow's feet (FORWARD_BOW_FT.foot): on each side the leg's whole section rounding out in concave quarter
- * circles of radius `r`, aft into the canopy's lower frame from the frame's top (and on down to the sill inside the
- * frame) and forward onto the sill under the windscreen. Geometries, feet.
+ * The forward bow's feet (FORWARD_BOW_FT.foot): on each side the leg's whole section flaring into a gusset plate, fore
+ * and aft alike, `reach` out at the canopy's lower frame's top and running in along a straight slant to the leg `rise`
+ * above it, the corner with the leg rounded `r`; below the frame's top the plate keeps its full width down to the sill.
+ * A row of `rivets.n` rivet heads across the plate's inner face `rivets.up` above the frame's top. Geometries, feet.
  */
 function bowFeet(THREE, b) {
-  const { r } = b.foot, { outer: W } = b.section;
+  const { reach: R, rise, r, rivets } = b.foot, { outer: W } = b.section;
   const d0 = b.glassInset, d1 = b.glassInset + b.bandDepth, n = 600, out = [];
   // The hoop at fore-and-aft offset dx, as a function of (point index, inward distance).
   const at = (dx) => {
@@ -1886,19 +1890,30 @@ function bowFeet(THREE, b) {
   };
   const mid = at(W / 2), hoops = new Map();
   const hoopAt = (dx) => { const key = Math.round(dx * 2000); if (!hoops.has(key)) hoops.set(key, at(key / 2000)); return hoops.get(key); };
-  // How far out the fillet reaches at height h above its foot.
-  const reach = (h) => (h <= 0 ? r : h >= r ? 0 : r - Math.sqrt(r * r - (r - h) ** 2));
+  // How far out the plate reaches at height h above the frame's top: the slant R (1 - h / rise), then the round of radius
+  // r tangent to the slant and to the leg (centre r out at height hc, meeting the slant at ht).
+  const slope = R / rise, q = Math.hypot(1, slope), hc = (R + r * (q - 1)) / slope, ht = hc - (r * slope) / q;
+  const reach = (h) => (h <= 0 ? R : h <= ht ? R - slope * h : h < hc ? r - Math.sqrt(Math.max(0, r * r - (h - hc) ** 2)) : 0);
   for (const s of [1, -1]) {
     const idx = (k) => (s > 0 ? k : n - k);
     const sections = [];
     for (let k = 0; k <= n / 2; k++) {
-      const up = mid.pts[idx(k)].z * F - mid.bs; // above the sill
-      const h = up - SIDE_FRAME_FT.height; // above the frame's top
-      const aft = hoopAt(-reach(h)), fwd = hoopAt(W + reach(up));
+      const h = mid.pts[idx(k)].z * F - mid.bs - SIDE_FRAME_FT.height; // above the frame's top
+      const aft = hoopAt(-reach(h)), fwd = hoopAt(W + reach(h));
       sections.push([aft.p(idx(k), d0), fwd.p(idx(k), d0), fwd.p(idx(k), d1), aft.p(idx(k), d1)]);
-      if (h >= r) break;
+      if (h >= hc) break;
     }
     out.push(loft(THREE, sections, { closed: true }));
+    // The rivets: domes on the plate's inner face, evenly across it at rivets.up over the frame's top.
+    let kr = 0;
+    while (kr < n / 2 && mid.pts[idx(kr)].z * F - mid.bs - SIDE_FRAME_FT.height < rivets.up) kr++;
+    const span = reach(rivets.up) - 0.035;
+    for (let i = 0; i < rivets.n; i++) {
+      const dx = -span + ((W + 2 * span) * i) / (rivets.n - 1), [x, y, z] = hoopAt(dx).p(idx(kr), d1);
+      const g = new THREE.SphereGeometry(rivets.r, 8, 6).translate(x, y, z);
+      g.userData.rivet = true;
+      out.push(g);
+    }
   }
   return out;
 }
@@ -2817,7 +2832,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }];
   if (fb.tube) bowParts.push({ geometry: fb.tube, materials: [SLOT.black] });
   if (fb.recess) bowParts.push({ geometry: fb.recess, materials: [SLOT.dark] });
-  for (const g of fb.feet) bowParts.push({ geometry: g, materials: [SLOT.band] });
+  for (const g of fb.feet) bowParts.push({ geometry: g, materials: [g.userData.rivet ? SLOT.metal : SLOT.band] });
   for (const g of fb.studs ?? []) bowParts.push({ geometry: g, materials: [SLOT.metal] });
   bowParts.push(...bowFootParts(THREE).map(([geometry, slot]) => ({ geometry, materials: [slot] })));
   for (const g of fb.dots) bowParts.push({ geometry: g, materials: [SLOT.black] });
