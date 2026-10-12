@@ -111,12 +111,6 @@ export const LIVE = Object.freeze({
   // rates and roll acceleration build ups built in"; his card 10:08Z "Ease the aim"). Estimates.
   fwAimFtps: 100,
   fwAimAccelFtps2: 60,
-  // ... and his aim is kept at least 1.5 s of flight ahead of him, so a lag that brings it back onto him never flips his
-  // roll (the 4-ship's #3 rolled through inverted chasing an aim 80 ft away; estimate, measured 12 Oct 2026).
-  fwAheadSec: 1.5,
-  fwOthersMarginFt: 100,
-  fwOthersGain: 2,
-  fwDeconflictFt: 150,
   fwHeightFt: 100, // in fighting wing (TS-202) his spacing is flown with height first: up to the cone's 150 ft above or below Lead less the 50 ft margin (TS-96, FW_ENERGY; estimates)
 });
 
@@ -294,9 +288,7 @@ export function stepLiveWing(ws, ctx) {
     side = -side;
     swapUntil = t + WING.swapGuardSec;
   }
-  // In fighting wing he may end on either side, whichever his spacing and geometry need, and sometimes switches (Patrick 12
-  // Oct 2026 10:54Z; SMM 12.29 para 69), so a crossing of Lead's tail is taken in a level turn too.
-  if ((overTop || fw) && !toSlot && !entering && t >= swapUntil && aDot < 0) {
+  if (overTop && !toSlot && !entering && t >= swapUntil && aDot < 0) {
     const stopAt = side * latDeg - (aDot * aDot) / (2 * WING.swapAccelDps2);
     if (stopAt < -WING.swapMarginDeg) {
       side = -side;
@@ -411,7 +403,7 @@ export function stepLiveWing(ws, ctx) {
     const up = unit3(cross3(nose, left));
     const want = sub3(aim, L);
     const wantRel = { f: dot3(want, nose), l: dot3(want, left), u: dot3(want, up) };
-    const was = ws.aimRel && !inBubble ? ws.aimRel : wantRel; // inside the bubble, no easing: he goes where he must
+    const was = ws.aimRel ?? wantRel;
     const v0 = ws.aimVel ?? { f: 0, l: 0, u: 0 };
     const gap = { f: wantRel.f - was.f, l: wantRel.l - was.l, u: wantRel.u - was.u };
     const dist = Math.hypot(gap.f, gap.l, gap.u);
@@ -426,30 +418,7 @@ export function stepLiveWing(ws, ctx) {
     if (stepFt >= dist) aimVel = { f: 0, l: 0, u: 0 };
     aim = add3(L, add3(add3(scale3(nose, aimRel.f), scale3(left, aimRel.l)), scale3(up, aimRel.u)));
   }
-  let toAim = sub3(aim, pw);
-  // Fighting wing: he keeps out of everyone's bubble, not only his leader's (Patrick 12 Oct 2026 10:38Z, "all of the planes
-  // should use lead lag pure to respect the bubble"). Heading inside 500 ft of another aircraft in the next lookSec, he lags
-  // off him: his aim is moved away from that aircraft by what he would be short of 500 ft plus a margin (estimates).
-  let nearOther = false;
-  if (fw && ctx.others) {
-    for (const o of ctx.others) {
-      const d = sub3(pw, o.pos);
-      const rr = len3(d);
-      const closing = Math.max(0, -dot3(d, sub3(st.vel, o.vel)) / Math.max(rr, 1));
-      const shortFt = FW_BAND.bubbleFt + LIVE.fwOthersMarginFt - (rr - closing * LIVE.lookSec);
-      if (shortFt > 0) {
-        toAim = add3(toAim, scale3(d, (LIVE.fwOthersGain * shortFt) / Math.max(rr, 1)));
-        // ... and deconflicts by height too, away from him in the vertical, within the cone (Patrick 12 Oct 2026 10:54Z).
-        const upFt = Math.min(LIVE.fwDeconflictFt, shortFt) * (d.z >= 0 ? 1 : -1);
-        toAim = add3(toAim, { x: 0, y: 0, z: upFt });
-        if (rr < FW_BAND.bubbleFt) nearOther = true;
-      }
-    }
-  }
-  if (fw) {
-    const shortFt = st.V * LIVE.fwAheadSec - dot3(toAim, st.nose);
-    if (shortFt > 0) toAim = add3(toAim, scale3(st.nose, shortFt));
-  }
+  const toAim = sub3(aim, pw);
 
   // ---- the lift: core's pursuit lift at the L1 gain (2V over the distance to the aim), then the caps ----
   const vHat = st.nose;
@@ -483,7 +452,7 @@ export function stepLiveWing(ws, ctx) {
   // The eased lift is carried through the manoeuvres too, so at the press the ease starts from the lift he was flying,
   // not from the first step's jump to the slot (measured: starting from that step held the jump and made the snap worse).
   const liftEased = lift;
-  const cap = Math.min(shakerG(st.kias), inBubble || nearOther ? availableG(st.kias) : Math.min(LIVE.normalG, (e.st?.g ?? 1) + LIVE.overLeadG));
+  const cap = Math.min(shakerG(st.kias), inBubble ? availableG(st.kias) : Math.min(LIVE.normalG, (e.st?.g ?? 1) + LIVE.overLeadG));
   const mag = len3(lift);
   if (mag > cap) lift = scale3(lift, cap / mag);
 
