@@ -876,10 +876,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const target = routeById(route.attachTo);
     if (target && target.kind === 'pattern') {
       const mergeIndex = Math.max(0, Math.min(+route.mergeIndex || 0, target.points.length - 1));
-      const curPos = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y };
+      const curPos = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y, alt: a.alt ?? whereIs(a, route).alt };
       a.routeId = target.id;
       // The pattern's path passes close to, not exactly through, the entry's end: join it smoothly (spec item 13a).
-      startJoin(a, target, closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt), windNow(), routeOptions());
+      // Nearest by height too: at the threshold the initial passes overhead within a foot of the end of final.
+      startJoin(a, target, closestDistFt(target, curPos, routeOptions(), { byHeight: true }) + Math.max(0, overshootFt), windNow(), routeOptions());
       const nextP = whereIs(a, target);
       a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
       // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
