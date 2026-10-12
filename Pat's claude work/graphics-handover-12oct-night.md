@@ -18,11 +18,15 @@ For whoever picks up the graphics session next (folder `Dads-debreif-graphics`, 
 - **Skills (our own, from the analyzed third-party skills):** `three-performance` in the app's `.agent/skills`,
   `ct156-model-pipeline` in `3d-work/.agent/skills`.
 - **App repo:** stays public (Patrick, 12 Oct 2026).
-- **Pull request [#1010](https://github.com/LIZARDHANDS-commits/Dads-debreif/pull/1010)** (`graphics` → main): the plan,
-  the Blender 5.2 fixes, the rule-book line, ALL-38, the points exporter, `three-performance` and these notes. CI green on
-  the first run; the merge needs Patrick (auto mode refused a merge without review).
-- **3d-work slip:** four commits went straight to its main on 12 Oct before the branch rule was applied there; from
-  then on, branches and pull requests (task-observer 0057).
+- **Merged 12 Oct:** app [#1010](https://github.com/LIZARDHANDS-commits/Dads-debreif/pull/1010) (ALL-38, the plan,
+  the Blender 5.2 fixes, the points exporter, `three-performance`); `3d-work` #1 (README), #2 (mesh checks; our own hooks:
+  session-start tool check, master-changed reminder, a guard refusing pushes to main that hands on to Git LFS) and #3
+  (`sync` and `save` for `3d-work`). Open: app #1015, the rule book's new "project and its repos" section, the CFAFM
+  rule and long runs (from the cloud project's instructions, which become a pointer); it merges when CI is green.
+- **Working arrangement:** sessions run in `3d-work` with the app folder added; `3d-work`'s `sync` and `save` keep the
+  plan, waiting list and handover here in the app. In each `3d-work` clone: `git config core.hooksPath .githooks`.
+- **3d-work slip:** four commits went straight to its main on 12 Oct before the branch rule was applied there; the
+  guard in `.githooks/` now refuses it (task-observer 0057, closed).
 - **Parallel session:** the formation-physics session (`Dads-debreif-physics`) owns the flight code and
   `src/modules/turn-sim/live/`. The graphics work owns `src/ui-kit/ct156-*.js`, `tools/blender/`,
   `public/models/ct156-*` and `3d-work`.
@@ -97,7 +101,8 @@ same pictures (mean difference 0.03 of 255). `CT156_BAKE_DEVICE=CPU` forces the 
 
 ## Waiting on Patrick
 
-1. Merge pull request #1010.
+1. Paste the pointer text into the cloud project's instructions (it is in the rule book's new first section's spirit:
+   read `AGENTS.md` first). App #1015 merges when CI is green.
 2. The Blender connector checked end to end: Blender open, its MCP server started, then a new session.
 3. How to give the fix list (item 4): walk-through renders to mark up, his photos or scaled diagrams from the
    internet, or flying it in the app.
