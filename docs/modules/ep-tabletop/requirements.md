@@ -1,0 +1,16 @@
+# EP Tabletop: requirements (EP-R)
+
+Each line is in Dad's or Patrick's words where they gave them, with how it is checked. Source: Dad, 12 Oct 2026 (his messages and AETCMAN 11-248 para 1.20, Fig 1.4, p.29 to 31, which he pasted; cited by paragraph only, never copied).
+
+| ID | Requirement | How it is checked |
+|---|---|---|
+| EP-R1 | A student works a practice emergency in the CT-156 cockpit (Patrick's model, ALL-31 to ALL-33) while an instructor guides it: "as the student goes through the scenario, the instructor can guide the scenario or pause to have the student re-analyse and come up with new decisions" (Dad). | Checklist: run a scenario end to end with a student screen and an instructor console. |
+| EP-R2 | The steps follow A-A-B-C-D-E-F (AETCMAN 11-248 para 1.20.3, Fig 1.4): Aircraft control, Analyse the situation, Boldface, Checklists, Declare with a plan, Egress/ejection, Follow the plan; the student can loop back to Aircraft control from Analyse, Boldface and Checklists as the figure shows. | Checklist: the step track shows the seven steps and the loops. |
+| EP-R3 | "The IP would QR code with their phone to hide the setup, so the student didn't know the end results" (Dad): the instructor's controls run on the instructor's phone, opened by scanning a code on the student's screen; the student's screen never shows the scenario script, the planned developments or the end result. | Checklist: the student's screen shows only the cockpit, the step track and what the instructor has revealed. |
+| EP-R4 | "Same with the pauses, so the IP could in real time update things as the sim progressed so the student didn't know the behind the scenes" (Dad): the instructor can pause ("time stands still", para 1.20.3.2.1), change indications, inject a new development and resume, all from the phone, without the student seeing the change being made. | Checklist: pause, change an indication on the phone, resume; the student's screen shows only the result. |
+| EP-R5 | Time stands still while the student analyses; it resumes for Boldface (para 1.20.3.3). The instructor decides when. | Checklist. |
+| EP-R6 | The student asks about the aircraft and the instructor reveals the answer (an indication shows on the panel only when asked or revealed), so the student learns to analyse "in a methodical and pertinent manner" (para 1.20.3.2.1). FEVER and TCCC show as prompts the instructor can turn on (para 1.20.3.2.2, 1.20.3.2.3). | Checklist. |
+| EP-R7 | No boldface, checklist or performance-chart text is shown, stored or shipped (rule book). The student says the boldface and checklist steps aloud; the instructor marks them against their own checklist. | Code review: no checklist text in the repo or the site; checklist line in testing.md. |
+| EP-R8 | Declare (D) records nature of the emergency, fuel remaining in hours and minutes, souls on board, plan and time to landing (para 1.20.3.5). | Checklist. |
+| EP-R9 | A debrief log: every step with its time, each pause, each change the instructor made and the instructor's notes, shown to both at the end and saved to a file. | Checklist. |
+| EP-R10 | If the phone link drops, the student's screen keeps the last state, says "Instructor link lost" and waits; nothing is lost from the log. | Checklist: turn the phone's network off mid-scenario. |

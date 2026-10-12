@@ -43,6 +43,16 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
 - [x] Research the airframe from photos to add detail, texture and shading inside and outside the cockpit (Patrick, 11 Oct 2026 21:18Z). Findings in the project files (`cockpit-review/ct156-photo-research.md`).
 - [x] Cockpit dark charcoal, as US Navy T-6A cockpit photos show (Patrick, 11 Oct 2026 22:06Z: "Yes use that"); fin static wicks and the yellow fuselage stencils from the photo research. Built in the same pull request as this line. TS-157's colour wording still to be updated, with Patrick's yes to the words.
 - [ ] Formation's 3D view to call `setSpeedBrake` for each ship and pass `speedBrake` to the cockpit when the boards are out (Formation's file, `src/modules/turn-sim/view3d.js`; asked of the Formation thread).
+- [x] The cowl vents (Patrick, 12 Oct 2026 02:49Z, "add this vent", on his photo of 126): the inlet ahead of the windscreen drawn with a deeper rounded mouth, and a vent under the cheat line with a louvred strip across the line. Built in the same pull request as this line.
+- Landing gear (ALL-34, Patrick, 12 Oct 2026):
+  - [x] 1. Measure the legs, wheels and doors off the photos and views. The working copies stay private, and only the numbers go in the repo.
+  - [x] 2. Build the gear and `setGear` in the code model and the Blender file. Render it down, doors-open and up, beside your photos, and merge with a version bump. One light check: gear down, both main wheels and the nose wheel touch level ground at 2.5° nose up. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`, `public/models/ct156-gear.glb`, `tests/unit/ui-kit/ct156-gear.test.js`).
+  - [ ] 3. Add the landing and taxi lights.
+  - [ ] 4. Hook-ups go to each module's own thread: Traffic sets the gear by phase of the pattern (after the core and Traffic refactor, through the coordinator), and Debrief shows the gear down on the ground.
+- Flight surfaces (ALL-35, Patrick, 12 Oct 2026):
+  - [x] 1. Measure the hinge lines and surface outlines off the reference views and the panel lines already drawn. Working copies stay private; only the numbers go in the repo.
+  - [x] 2. Cut the surfaces from the wing and tail in the code model and the Blender file, hinge them, add the split flaps and `setControls`. Render neutral, full deflections and both flap settings beside your photos, and merge with a version bump. One light check: at full deflection every surface stays on its hinge line and nothing passes through the wing or tail. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`, `public/models/ct156-exterior.glb`, `tests/unit/ui-kit/ct156-surfaces.test.js`).
+  - [ ] 3. Hook-ups go to each module's own thread: Formation and Turn Sim from the stick, Traffic's flaps by phase of the pattern (through the coordinator, after the refactor), and Debrief inferred from the track.
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 

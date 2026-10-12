@@ -102,6 +102,10 @@ Files: `sim.js`, `deconflict.js`, `randomize.js`, `behaviour.js`, `taxi.js`.
 - `stepOnce` keeps its order (every tenth step: SI pattern, randomise, deconflict, runway busy; then per aircraft: follow, flown-path end, decisions, route end, pending closed pattern; then collisions; then snapshot) but as one list of named tick functions at the top of the file, so the order is read in one place.
 - `weather.js` `deviationC` becomes a field of the sim's environment passed with the wind (the `env` object `tick-aircraft.js` already builds), and `placeStraightInDescent` runs when the setup or the temperature changes, not every step. The same rows must come out: the driver's hot and cold runs are the proof.
 - Proof: trace identical, including rewind.
+- As built (V2.350 refactor step 4), three items were left as they are:
+  - The groups are made on first use and are not deleted when a phase ends, because deleting them would change reads that now see `false` into `undefined`.
+  - `deviationC` stays a value set in `weather.js` at the start of every step, because passing it in `env` would change the helpers behind 58 speed conversions, well outside this step's files.
+  - `placeStraightInDescent` still runs every step: it writes only when the point moves, and running it only on change would need a hook at every place the routes or the temperature can change.
 
 ### Step 5. Split `pfl.js` by concern
 

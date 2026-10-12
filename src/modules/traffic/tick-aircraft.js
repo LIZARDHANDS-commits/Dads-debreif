@@ -3,7 +3,7 @@
 // (4 Oct 17:53Z), once the closed pattern (#302) and the breakout (#305) were flown paths too.
 
 import { routeLengthFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
-import { followRoute } from './path-follower.js';
+import { followRoute, groupOf } from './path-follower.js';
 import { startPflFlight, PFL_ROUTE_OPTIONS, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
 
 /**
@@ -33,14 +33,15 @@ const FLOWN_STEP = {
   // the last key passed (High Key until Low Key, and so on).
   pfl(a, fl, pt, atEnd) {
     a.phase = pt?.phase ?? 'pfl';
-    a.pflSegment = pt?.segmentType ?? pt?.segment ?? pt?.phase ?? 'pfl';
-    a.pflDecision = pt?.decision ?? a.pflDecision;
+    const pf = groupOf(a, 'pfl');
+    pf.segment = pt?.segmentType ?? pt?.segment ?? pt?.phase ?? 'pfl';
+    pf.decision = pt?.decision ?? pf.decision;
     a.config = pt?.config ?? a.config;
-    a.pflMarginFt = pt?.marginFt ?? a.pflMarginFt ?? null;
-    a.pflMarginTag = pt?.marginTag ?? a.pflMarginTag ?? null;
+    pf.marginFt = pt?.marginFt ?? pf.marginFt ?? null;
+    pf.marginTag = pt?.marginTag ?? pf.marginTag ?? null;
     if (pt?.tag) a.tag = pt.tag;
     a.engineFailed = true;
-    if (atEnd) a.pflDone = fl.outcome;
+    if (atEnd) pf.done = fl.outcome;
   },
 };
 
