@@ -20,7 +20,7 @@ import { iasToTasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
-import { startJoin } from './path-follower.js';
+import { startJoin, setFlown, flownOf } from './path-follower.js';
 import { routeLengthFt } from './route.js';
 import {
   THRESHOLD_29L,
@@ -1399,8 +1399,7 @@ export function startPflFlight(a, wind, options = {}) {
     options
   );
 
-  a.pflFlight = {
-    route: { id: 'PFL_FLOWN', kind: 'pfl', name: 'Engine-out glide', points: flight.points },
+  const fl = setFlown(a, 'pfl', { id: 'PFL_FLOWN', kind: 'pfl', name: 'Engine-out glide', points: flight.points }, {
     outcome: flight.outcome,
     touchdown: flight.touchdown,
     eject: flight.eject,
@@ -1408,13 +1407,13 @@ export function startPflFlight(a, wind, options = {}) {
     practice: Boolean(options.practice),
     patternPfl: flight.patternPfl,
     planLog: flight.planLog,
-  };
+  });
 
   const behind = flownBehind(a, flight.points[0], wind);
-  a.pflFlight.behindCount = behind.length;
-  a.pflFlight.route.points = [...behind, ...flight.points];
+  fl.behindCount = behind.length;
+  fl.route.points = [...behind, ...flight.points];
 
-  startJoin(a, a.pflFlight.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
+  startJoin(a, fl.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
 
   a.engineFailed = true;
   a.landed = false;
@@ -1430,14 +1429,12 @@ export function startPflFlight(a, wind, options = {}) {
   delete a._blendStart;
   delete a._blendTarget;
   delete a._blendTimer;
-  delete a.goAroundFlight;
-  delete a.highKeyFlight;
 
-  return a.pflFlight;
+  return fl;
 }
 
 export function resumePflFlight(a, wind, settings = undefined) {
-  const prev = a.pflFlight;
+  const prev = flownOf(a, 'pfl');
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a.config ?? PFL_CONFIG_LABELS[0]));
   return startPflFlight(a, wind, {
     practice: prev?.practice,

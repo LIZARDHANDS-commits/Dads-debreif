@@ -31,7 +31,7 @@ import { ktToFtps, ftpsToKt } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
 import { tickAircraft } from './tick-aircraft.js';
-import { startJoin, startSideStep } from './path-follower.js';
+import { startJoin, startSideStep, setFlown, flownOf } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight, resumePflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 import { buildGoAround, buildExtendedDownwind, CIRCUIT } from './circuit.js';
@@ -294,7 +294,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (!downwind) return;
     const bankDeg = closedBankOf(a);
     const points = buildClosedPattern(stateOf(a), windNow(), downwind, bankDeg);
-    a.goAroundFlight = { route: { id: 'CLOSED_FLOWN', kind: 'flown', name: 'Closed pattern', points } };
+    setFlown(a, 'move', { id: 'CLOSED_FLOWN', kind: 'flown', name: 'Closed pattern', points });
     a.distFt = 0;
     a.phase = 'closed_pattern';
     a.command = 'closed_pattern';
@@ -364,7 +364,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const touchdownFt = NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT;
     for (const a of aircraft) {
       if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
-      if (a.intent === 'full_stop' || a.goAroundFlight || a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      if (a.intent === 'full_stop' || a.flown || a.engineFailed || a.deconflict) continue;
       const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
@@ -449,7 +449,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const points = buildGoAround(pat.points, {
       x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
     }, wind.windFromDeg, wind.windKt, sideFt, levelAltFt, holdKias);
-    a.goAroundFlight = { route: { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points } };
+    setFlown(a, 'move', { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points });
     a.distFt = 0;
     a.phase = 'go_around';
     a.command = 'go_around';
@@ -488,7 +488,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     // 5 Oct 00:08Z and 00:13Z); otherwise, and for the button, the closed-pattern bank.
     const bankDeg = toAvoidCollision ? BREAKOUT_TRAFFIC_BANK_DEG : closedBankOf(a);
     // Off the rejoin line (an entry that joins the pattern) it turns away from the pattern (Patrick, 5 Oct 00:08Z).
-    const onRejoinLine = !a.goAroundFlight && from && from.kind === 'entry' && +from.mergeIndex > 0;
+    const onRejoinLine = !flownOf(a, 'move') && from && from.kind === 'entry' && +from.mergeIndex > 0;
     const turnDir = onRejoinLine ? awayFromPattern(a) : null;
     startFlown(a, buildBreakout(stateOf(a), windNow(), rejoin, leg, bankDeg, turnDir), 'BREAKOUT_FLOWN', 'Breakout', joinTo ? 'join' : null, joinTo?.id ?? null);
     delete a.rejoinRouteId;
@@ -503,7 +503,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * `then` says what follows at its end: 'breakout', or 'join' onto the route `joinId`.
    */
   function startFlown(a, points, id, name, then, joinId = null) {
-    a.goAroundFlight = { route: { id, kind: 'flown', name, points }, then, joinId };
+    setFlown(a, 'move', { id, kind: 'flown', name, points }, { then, joinId });
     a.distFt = 0;
     a.phase = points[0]?.phase ?? 'breakout';
     a.command = 'breakout';
@@ -588,8 +588,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // and no more than 500 ft above the glide path (estimates), so the overhead's initial above doesn't count.
       const glideFt = THRESHOLD_DATA_ELEV_FT + (pat.points[12].alt - THRESHOLD_DATA_ELEV_FT) / windowFt * -along;
       const landing = linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }) && along < 0 && -along <= reachFt && a.alt <= glideFt + 500;
-      const extending = a.goAroundFlight?.route.id === 'EXTEND_FLOWN';
-      const turningFinal = a.routeId === pat.id && a.phase === 'final_turn' && !a.goAroundFlight;
+      const extending = a.flown?.route.id === 'EXTEND_FLOWN';
+      const turningFinal = a.routeId === pat.id && a.phase === 'final_turn' && !flownOf(a, 'move');
       if (!landing && !extending && !turningFinal) continue;
       leaders.push({ a, distAt: leaderTrack(a, alongOf) });
     }
@@ -597,7 +597,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     for (const f of live) {
       if (f.phase !== 'downwind') delete f.perchRoll; // rolled once each time round the downwind
       if (f.routeId !== pat.id || f.phase !== 'downwind' || f.deconflict) continue;
-      if (f.goAroundFlight || f.pflFlight || f.highKeyFlight || f.sideStep) continue;
+      if (f.flown || f.sideStep) continue;
       const ahead = leaders.filter((l) => l.a !== f);
       if (!ahead.length) continue;
       // Flown once without extending, all the way to the threshold: when and where it would roll out, and how fast
@@ -628,7 +628,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         f.deconflict = { move: 'breakout', layer: 'rules', rule: 'spacing on final: no room to extend', with: leader.a.id, label: deconflictLabel('breakout', 'rules') };
         continue;
       }
-      f.goAroundFlight = { route: { id: 'EXTEND_FLOWN', kind: 'flown', name: 'Extended downwind', points: flight.track }, then: 'final' };
+      setFlown(f, 'move', { id: 'EXTEND_FLOWN', kind: 'flown', name: 'Extended downwind', points: flight.track }, { then: 'final' });
       f.distFt = 0;
       f.phase = 'downwind';
       delete f.joinOffset;
@@ -652,16 +652,16 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const roll = (a, odds) => pick(odds, rollFor(seed, a.id, a.rndCount = (a.rndCount ?? 0) + 1));
     for (const a of aircraft) {
       if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
-      if (a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      if (flownOf(a, 'pfl') || flownOf(a, 'high_key') || a.engineFailed || a.deconflict) continue;
       const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
       // A low approach chosen on final goes around low over the runway end.
-      if (a.rndLowApproach && !a.goAroundFlight) {
+      if (a.rndLowApproach && !flownOf(a, 'move')) {
         if (along > -RANDOM.lowApproachFt && off < 30) { a.rndLowApproach = false; startGoAround(a); }
         continue;
       }
-      if (a.goAroundFlight) continue;
+      if (flownOf(a, 'move')) continue;
       // On final, about a mile out: touch-and-go, full stop or low approach.
       const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }));
       if (onFinal && !a.rndFinal && along < 0 && -along <= RANDOM.finalRollFt) {
@@ -719,7 +719,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (a.phase === 'climb') { a.siLap = false; continue; }
       if (a.siLap || !a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
       if (a.routeId !== pat.id || a.phase !== 'outer_downwind') continue;
-      if (a.goAroundFlight || a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      if (a.flown || a.engineFailed || a.deconflict) continue;
       const o = legOffsetsFt(pat.points[5], pat.points[6], a);
       if (o.alongFt < 0 || o.alongFt > RANDOM.downwindWindowFt) continue;
       a.siLap = true;
@@ -729,8 +729,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   /** The path an aircraft is following now, for the deconfliction's prediction, or null when it has none. */
   function pathOf(a) {
-    const flown = a.goAroundFlight ?? a.highKeyFlight ?? a.pflFlight;
-    if (flown) return { route: flown.route, options: PFL_ROUTE_OPTIONS };
+    if (a.flown) return { route: a.flown.route, options: PFL_ROUTE_OPTIONS };
     const route = routeOf(a);
     return route ? { route, options: routeOptions() } : null;
   }
@@ -745,8 +744,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     for (const a of aircraft) {
       const d = a.deconflict;
       if (!d) continue;
-      const flying = BREAKING_OUT.has(d.move) ? a.command === 'breakout' || Boolean(a.goAroundFlight)
-        : d.move === 'bank_away' ? Boolean(a.sideStep) : Boolean(a.goAroundFlight);
+      const flying = BREAKING_OUT.has(d.move) ? a.command === 'breakout' || Boolean(flownOf(a, 'move'))
+        : d.move === 'bank_away' ? Boolean(a.sideStep) : Boolean(flownOf(a, 'move'));
       if (!a.active || a.landed || !flying) delete a.deconflict;
     }
     spacingTick();
@@ -757,7 +756,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const a = aircraft.find((ac) => ac.id === d.id);
       if (!a) continue;
       const other = aircraft.find((ac) => ac.id === d.with) ?? a;
-      if (a.goAroundFlight && d.move === 'breakout') { delete a.goAroundFlight; delete a.joinOffset; }
+      if (flownOf(a, 'move') && d.move === 'breakout') { delete a.flown; delete a.joinOffset; }
       if (d.move === 'breakout') startBreakout(a, d.layer === 'skill');
       else if (d.move === 'flinch') startFlinch(a, other);
       else if (d.move === 'climb_breakout') startFlown(a, buildClimbAhead(stateOf(a), windNow(), PATTERN_ALT_FT + EVADE.climbAboveFt), 'CLIMB_FLOWN', 'Climb ahead', 'breakout');
@@ -806,7 +805,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const flown = buildHighKeyClimb({
       x: a.x, y: a.y, alt: alt, kias: a.iasKt ?? a.kt ?? 140, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
     }, env, bankDeg);
-    a.highKeyFlight = { route: { id: 'HIGH_KEY_FLOWN', kind: 'flown', name: 'Climb to High Key', points: flown.points }, settings: setup.settings };
+    setFlown(a, 'high_key', { id: 'HIGH_KEY_FLOWN', kind: 'flown', name: 'Climb to High Key', points: flown.points }, { settings: setup.settings });
     a.engineFailed = false;
     a.distFt = 0;
     a.routeId = 'PFL_HIGH_KEY';
@@ -819,16 +818,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.pflDecision = null;
     a.pflMarginFt = null;
     a.pflMarginTag = null;
-    delete a.pflFlight;
-    delete a.goAroundFlight;
     delete a.joinOffset;
   }
 
   /** The end of a flown go-around: settled on the outer downwind, it joins Pattern 1 there. */
   function goAroundEnded(a) {
     delete a.goAroundDone;
-    const then = a.goAroundFlight?.then, joinId = a.goAroundFlight?.joinId;
-    delete a.goAroundFlight;
+    const move = flownOf(a, 'move');
+    const then = move?.then, joinId = move?.joinId;
+    if (move) delete a.flown;
     // The deconfliction's short moves: the breakout follows, or the straight-in is joined again.
     if (then === 'breakout') { startBreakout(a, a.deconflict?.layer === 'skill'); return; }
     if (then === 'final') {
@@ -919,6 +917,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.touchAndGo = true;
   }
 
+  /** The end of a flown path, by kind: a PFL that has flown its glide, then a move that has flown its path. */
+  function flownEnded(a) {
+    if (a.pflDone) pflEnded(a);
+    if (a.goAroundDone) goAroundEnded(a);
+  }
+
   /**
    * The end of a PFL (Traffic spec 4.5 items 10-13): on the runway it flies a
    * touch-and-go with power back on and carries on in the circuit (Patrick 08:40Z);
@@ -927,7 +931,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function pflEnded(a) {
     const done = a.pflDone;
     delete a.pflDone;
-    delete a.pflFlight;
+    if (flownOf(a, 'pfl')) delete a.flown;
     a.pflEndedThisStep = true;
     a.engineFailed = false;
     if (done === 'landed') {
@@ -968,9 +972,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.pflMarginFt = null;
     a.pflMarginTag = null;
     a.config = undefined;
-    delete a.pflFlight;
-    delete a.goAroundFlight;
-    delete a.highKeyFlight;
+    delete a.flown;
     delete a.deconflict;
     delete a.sideStep;
   }
@@ -1030,10 +1032,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const sideStepping = Boolean(a.sideStep);
       tickAircraft(a, STEP_SEC, wind, route, opt);
       // A PFL's bank away has ended, its height charged: re-plan the glide from where it really is (TR-55).
-      if (sideStepping && !a.sideStep && a.pflFlight && !a.pflDone) resumePflFlight(a, wind, setup.settings);
-      if (a.pflDone) pflEnded(a);
-      if (a.goAroundDone) goAroundEnded(a);
-      if (route && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
+      if (sideStepping && !a.sideStep && flownOf(a, 'pfl') && !a.pflDone) resumePflFlight(a, wind, setup.settings);
+      flownEnded(a);
+      if (route && !a.flown && !a.pflEndedThisStep) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
           checkDecisions(a, beforeDist, a.distFt);
@@ -1442,14 +1443,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // the command. A breakout or a deconfliction move just stops; the command flies from where it is. A
       // touch-and-go in the air only sets the next landing, so the flown path carries on.
       if (action !== 'touch_and_go') {
-        if (a.goAroundFlight?.then) delete a.goAroundFlight;
-        if (a.goAroundFlight) goAroundEnded(a);
+        if (flownOf(a, 'move')?.then) delete a.flown;
+        if (flownOf(a, 'move')) goAroundEnded(a);
       }
       // A new command stops the flown climb to High Key; the command then flies from where the aircraft is.
-      delete a.highKeyFlight;
+      if (flownOf(a, 'high_key')) delete a.flown;
       // A new command stops the flown PFL glide; the command then flies from where the aircraft is.
       if (action !== 'touch_and_go' && action !== 'pfl_current' && action !== 'engine_fail') {
-        delete a.pflFlight;
+        if (flownOf(a, 'pfl')) delete a.flown;
         delete a.pflDone;
         a.engineFailed = false;
         a.pflSegment = null;
@@ -1584,9 +1585,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           pflDecision: a.pflDecision ?? null,
           pflMarginFt: a.pflMarginFt ?? null,
           pflMarginTag: a.pflMarginTag ?? null,
-          pflFlight: Boolean(a.pflFlight),
-          pflRoute: a.pflFlight?.route ?? null,
-          highKeyFlight: Boolean(a.highKeyFlight),
+          pflFlight: Boolean(flownOf(a, 'pfl')),
+          pflRoute: flownOf(a, 'pfl')?.route ?? null,
+          highKeyFlight: Boolean(flownOf(a, 'high_key')),
           ejectAt: a.ejectAt ?? null,
           deconflict: a.deconflict?.label ?? null,
           behaviour: tag?.label ?? null,
