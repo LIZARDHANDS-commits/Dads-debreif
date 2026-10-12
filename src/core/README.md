@@ -10,7 +10,8 @@ The small functions behind every number the tool shows: units, angles and headin
 | `terrain-tiles.js` | The public Terrarium elevation tiles: their address and credit, decoding a tile's pixels into heights, the tiles covering a box, and a store that answers the height at a point (SOF terrain and Traffic's 3D ground, TR-117) |
 | `terrain-grid.js` | The height grids a 3D view's real ground is drawn from, read from `terrain-tiles.js`'s store: a grid over a square (`createGrid`, `fillGrid`, `sampleGrid`), an inner patch stitched into a hole of an outer grid (`holeFor`, `stitchInner`), hill shading (`hillshade`), and the finest zoom under a tile cap (`zoomForTiles`). Shared by the SOF's 3D terrain and the Debrief's terrain ground (SOF-65, DB-27); a picture only, not flight math |
 | `time.js` | Zulu and local time, KML times, the Zulu date-time group |
-| `flight-math.js` | Turn radius, rate and bank from G, and G, radius and rate from bank; the least G (1.01, D74); the standard atmosphere's density ratio; the EM chart point; closure; G estimated from a track; the smooth roll |
+| `flight-math.js` | Turn radius, rate and bank from G, and G, radius and rate from bank; the least G (1.01, D74); the EM chart point; closure; G estimated from a track; the smooth roll |
+| `atmosphere.js` | The standard day once: temperature, pressure and density as fractions of sea level, and the speed of sound, each with an optional temperature deviation (Traffic's hot and cold days) |
 | `tennis.js` | The tennis ball, one solver for the map and the 3D view |
 | `standards.js` | Formation standards (spread, offset, lead) for the Debrief, with the SMM's as the default preset (D114-D116) |
 | `wind.js` | Crab angle, heading and ground speed in a wind (compass degrees in and out); the wind as a vector |
