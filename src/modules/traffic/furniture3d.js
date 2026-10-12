@@ -12,7 +12,8 @@
 // 3 degree slope two whites and two reds, the reds nearer the runway.
 
 import { RUNWAY_ENDS, AIM_FROM_FT, holdingPositions } from './runway-markings.js';
-import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
+import { disposeCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
+import { createAircraftMesh } from '../../ui-kit/three-aircraft.js';
 import { batchByMaterial } from './batch3d.js';
 
 /** Light layout, ft (estimates from standard practice; see the header). */
@@ -41,7 +42,6 @@ const PARKED = Object.freeze([
 const VEHICLES = Object.freeze([
   [938, 1862, 0, 'tug'], [1095, 1843, 90, 'cart'], [1110, 1843, 90, 'cart'], [838, 1972, 0, 'van'],
 ]);
-const CT156_GEAR_UNITS = 0.27; // the wheels' depth below the model's axis, model units (view3d.js's GEAR_LIFT_UNITS)
 const T6_FT = 33.4; // the drawn length (types.js T6_LENGTH_FT)
 
 function runwayFrame(a, b) {
@@ -266,14 +266,19 @@ function signs(THREE) {
   return g;
 }
 
-/** The parked Harvards, as the photo shows them: the same model the circuit flies (ct156-model.js), navy all over, no number. */
+/**
+ * The parked Harvards, as the photo shows them: the light Harvard (the plain T-6 shape in navy; TR-152, Patrick 12 Oct 2026: only
+ * the aircraft being viewed or flown in is the detailed model), without the turning prop's disc.
+ */
 function parkedAircraft(THREE) {
   if (typeof document === 'undefined') return null;
   const g = new THREE.Group();
   g.name = 'parked-aircraft';
-  const lift = (CT156_GEAR_UNITS * T6_FT) / CT156_UNIT_LENGTH;
+  const lift = (0.15 * T6_FT) / CT156_UNIT_LENGTH; // the light model has no gear: its belly about 3.5 ft up (estimate)
   for (const [x, y, hdg] of PARKED) {
-    const ship = createCt156Model(THREE, { color: '#151d31', number: '', paint: 'harvard', lengthFt: T6_FT });
+    const ship = createAircraftMesh(THREE, { color: '#151d31', outline: '#0b1620' });
+    ship.scale.setScalar(T6_FT / CT156_UNIT_LENGTH);
+    ship.traverse((o) => { if (o.geometry?.type === 'CircleGeometry') o.visible = false; }); // parked: no prop blur
     ship.position.set(x, y, lift);
     ship.rotation.z = (hdg * Math.PI) / 180;
     ship.name = 'parked-harvard';

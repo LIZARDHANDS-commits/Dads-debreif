@@ -501,6 +501,8 @@ export function loadFatLines() {
 }
 
 /** How many T-6s flying at once get the full Harvard model (55 draw calls each); later ones get the ui-kit's plain T-6 (about 10). */
+/** How strongly the own aircraft's blurred prop disc shows from the seat (TR-152; an estimate by eye, as the Formation sim's). */
+const PROP_DISC_INSIDE_OPACITY = 0.2;
 export const MAX_FULL_T6 = 24;
 /**
  * The full Harvard model is only worth its draw calls when the aircraft is drawn this many pixels long or more
@@ -599,7 +601,6 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   drops.frustumCulled = false;
   root.add(drops);
   let dropCount = 0;
-  let fullModels = false; // the zoom is close enough for the full Harvard model
   let targetedId = null;
   let lastScene = null;
 
@@ -748,6 +749,24 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   // Roads and power lines from OpenStreetMap (TR-147)
   const osmFeatures = createOsmFeatures(THREE, DEFAULT_FLOOR_FT);
   root.add(osmFeatures);
+  /**
+   * Performance (TR-152; Patrick, 12 Oct 2026): no roads, power lines or tree rows, and no parked aircraft, ramp vehicles or
+   * signs. High shows them all.
+   */
+  let treeRows = null;
+  let qualityShown = null;
+  function showForQuality(low) {
+    if (low === qualityShown) return;
+    qualityShown = low;
+    osmFeatures.visible = !low;
+    for (const name of ['parked-aircraft', 'ramp-vehicles', 'taxiway-signs']) {
+      const part = furniture.getObjectByName(name);
+      if (part) part.visible = !low;
+    }
+    treeRows ??= [];
+    if (!treeRows.length) landmarks.traverse((o) => { if (o.isInstancedMesh && /trees/.test(o.name)) treeRows.push(o); });
+    for (const t of treeRows) t.visible = !low;
+  }
 
   const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
   grid.rotation.x = Math.PI / 2; // GridHelper lies in X-Z; the ground here is X-Y
@@ -915,7 +934,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   // `kind` is which builder made the mesh: 'ct156' (the full Harvard model), 't6plain' (the ui-kit's plain T-6) or 'standin'.
   function planeFor(ac, kind, paint) {
     const have = planes.get(ac.id);
-    if (have && have.kind === kind && (kind !== 'ct156' || have.paint === paint)) return have.mesh;
+    if (have && have.kind === kind && (kind === 'standin' || have.paint === paint)) return have.mesh;
     if (have) disposeAircraftMesh(have.mesh); // the T-6 in another paint or another detail: built again
     const options = { color: aircraftColor(ac), number: numberOf(ac.id), paint, type: ac.type };
     const mesh = models[kind](THREE, options);
@@ -977,13 +996,14 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     const dropAt = dropGeometry.attributes.position;
     const floor = altToZ(options.groundFt ?? 0, ALT_SCALE);
     let n = 0;
-    // The full model is some 55 draw calls, so only a T-6 drawn big enough to show it gets it, and only the first few of those.
-    fullModels = options.fullModels !== undefined ? options.fullModels : wantsFullModel(planePx(options.zoom), fullModels);
-    const maxT6 = options.graphicsQuality === 'low' ? 4 : MAX_FULL_T6;
-    let fullLeft = fullModels ? maxT6 : 0;
+    // The full model is some 55 draw calls, so only the aircraft being followed or flown in gets it (TR-152; Patrick, 12 Oct
+    // 2026: "the only harvard aircraft that is the detailed model is the one that we're viewing/inside"); the rest are the light
+    // Harvard. A test's options.fullModels true still gives every T-6 the full model.
+    const fullId = options.followId ?? null;
     for (const ac of flying) {
       present.add(ac.id);
-      const kind = modelKindFor(ac.type) === 'ct156' ? (fullLeft-- > 0 ? 'ct156' : 't6plain') : 'standin';
+      const full = options.fullModels === true || ac.id === fullId;
+      const kind = modelKindFor(ac.type) === 'ct156' ? (full ? 'ct156' : 't6plain') : 'standin';
       const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
       const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
@@ -1154,6 +1174,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     sync(scene, options = {}) {
       if (disposed) return;
       lastScene = scene;
+      showForQuality(options.graphicsQuality === 'low');
       syncRoutes(scene.routes, options);
       syncAircraft(scene, options);
       syncPflGround(scene, options);
@@ -1326,7 +1347,8 @@ export function threeStats(kit) {
 function defaultModels() {
   return {
     ct156: (THREE, { color, number, paint }) => createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH }),
-    t6plain: (THREE, { color }) => createAircraftMesh(THREE, { color, outline: '#0b1620' }),
+    // The light Harvard (TR-152): the plain T-6 shape, navy in the Harvard paint (ct156-model.js's NAVY), its own colour in ship paint.
+    t6plain: (THREE, { color, paint }) => createAircraftMesh(THREE, { color: paint === 'ship' ? color : '#151d31', outline: '#0b1620' }),
     standin: (THREE, { color, type }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) }),
   };
 }
@@ -1788,7 +1810,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     try {
       // A logarithmic depth buffer, so the perspective views can draw from a foot away (the cockpit on the runway) without the
       // stacked photo squares flickering far off (TR-96).
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document), logarithmicDepthBuffer: true });
+      // Performance draws without edge smoothing (TR-152); a switch reloads the page, as the canvas keeps its first setting.
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document) && source.settings?.().graphicsQuality !== 'low', logarithmicDepthBuffer: true });
     } catch (err) {
       canvas.remove();
       labels.remove();
@@ -1828,10 +1851,17 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
    * seen from `seat` ('front' or 'rear'): built on first need, attached to the ship's root, and detached
    * when switching away to Chase or flat views.
    */
+  /** The blurred prop disc (blurProp) is faint from the own seat, as through the windscreen, and full from outside (TR-152). */
+  function propDiscOpacity(ship, opacity) {
+    const m = ship?.userData?.ct156?.disc?.material;
+    if (m) m.opacity = opacity;
+  }
+
   function syncCockpit(root, seat = 'front') {
     const pit = gl?.cockpit;
     if (pit?.root && pit.root !== root) {
       setCockpitView(pit.root, { seat: null });
+      propDiscOpacity(pit.root, 1);
       pit.part.group.removeFromParent();
       pit.root = null;
     }
@@ -1841,6 +1871,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     if (gl.cockpit.root !== root || gl.cockpit.seat !== s) {
       root.add(gl.cockpit.part.group);
       setCockpitView(root, { seat: s });
+      propDiscOpacity(root, PROP_DISC_INSIDE_OPACITY);
       gl.cockpit.root = root;
       gl.cockpit.seat = s;
     }
@@ -2105,7 +2136,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       cautionLatFt: options.cautionLatFt,
       aircraftScale: options.aircraftScale,
       zoom: povTarget || freeOn ? CAMERA_LIMITS.zoom[1] : shown.zoom, groundFt: floor, time: source.time(), // in perspective, aircraft at their close-up size
-      fullModels: options.fullModels ?? true,
+      fullModels: options.fullModels, // true only from a test; otherwise the followed aircraft alone gets the full model (TR-152)
+      followId: follow?.id ?? null,
       layerHeightLines: options.layerHeightLines !== false,
       layerEngineReach: options.layerEngineReach,
       layerWindTrack: options.layerWindTrack,

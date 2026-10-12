@@ -43,6 +43,10 @@ function mount(root, app) {
   const start = startingProfile({ last: null, saved: [], home: null });
   const place = start.place; // what the map's hint calls the setup ("Moose Jaw")
   settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
+  // The Graphics choice is the one setting kept across a reload (TR-152): a switch reloads the page, and Traffic's other settings
+  // start fresh at Moose Jaw each time.
+  const savedGraphics = app.storage?.get?.('graphicsQuality', null);
+  if (savedGraphics === 'high' || savedGraphics === 'low') settings.update({ graphicsQuality: savedGraphics });
   const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
   // The built-in Moose Jaw opens on the Busy circuit scenario, in 260°M at 15 kt (Patrick, 4 Oct 18:47Z; °M, TR-65).
@@ -412,7 +416,16 @@ function mount(root, app) {
   }
 
   // Any setting change reaches the engine's setup and the picture; the speed goes to the clock.
+  let graphicsWas = settings.get().graphicsQuality;
   const stopSettings = settings.subscribe((values) => {
+    // Graphics (TR-152): the 3D canvas keeps its edge smoothing from when it started, so a switch reloads the page, as the
+    // Formation sim's does (Patrick, 12 Oct 2026). The setting is saved first; the flight starts over.
+    if (values.graphicsQuality !== graphicsWas) {
+      graphicsWas = values.graphicsQuality;
+      app.storage?.set?.('graphicsQuality', values.graphicsQuality);
+      app.scheduler.after(50, () => globalThis.location?.reload());
+      return;
+    }
     const beforeOpts = JSON.stringify(setup.routeOptions);
     const beforeWind = `${setup.windFromDeg}_${setup.windKt}`;
     const beforeDeconflict = setup.deconflict, beforeRandomize = `${setup.randomize}_${setup.randomizeSharePct}`, beforeTemp = setup.fieldTempC;
