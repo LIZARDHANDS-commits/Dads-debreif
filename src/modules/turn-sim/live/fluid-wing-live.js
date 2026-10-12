@@ -5,24 +5,27 @@
 // rate and onset for the speed, the stick shaker the one physical limit). He is not on a line. Each step a pilot law
 // reads the picture and asks for a lift, a roll and a power, as a pilot does:
 //
-//  - The path (EFIG p.391: once in position, keep the range by following Lead's flight path, his turn circle): #2
-//    flies Lead's own track, offset across to his side by the 15° off Lead's tail (Patrick 4 Oct 22:28Z, "hold 15"), in whatever plane Lead's turn lies: a level turn, a loop,
-//    a wingover or the barrel roll. On Lead's path at Lead's power he has Lead's energy where Lead had it.
-//  - The pursuit: core liftTowardAim at the aim on that path about 1.5 s of flight ahead of him, at a gain of 2V over
-//    that distance, which flies the path's own curve (standard L1 guidance: the lateral acceleration 2V²/L sin η is
-//    V²/R on a circle).
-//  - Lead, lag and pure (SMM 12.30 paras 72-74, 16.16 paras 39-40, 16.17 para 44; EFIG p.391): the path is moved inside
-//    Lead's turn (lead, the short way, closing) or outside it (lag, the long way, opening) by a continuous amount from
-//    the range error and closure: the gap he will have in a couple of seconds at the closure he has. Inside the 500 ft
-//    bubble it goes to full lag.
-//  - Smooth hands: the offsets are eased (a critically damped follow of about two seconds), the G is built at the T-6A's
+//  - The path (EFIG p.391: once in position, keep the range by following Lead's flight path, "go to where lead was and
+//    do what lead did"): #2 flies Lead's own track, stepped across to his side by the 15° off Lead's tail (Patrick 4 Oct
+//    22:28Z, "hold 15"), in whatever plane Lead's turn lies: a level turn, a loop, a wingover or the barrel roll. On
+//    Lead's path at Lead's power he has Lead's energy where Lead had it.
+//  - The pull: Lead's own turning pull at the point of his path #2 is abeam, read a little ahead so #2's roll keeps up,
+//    flown square to #2's own path. Lag and lead are how hard he pulls there, not places off the path (Patrick 12 Oct
+//    2026 01:04Z, "we dynamically pick the lag and lead we need to make it work"; 01:06Z, "lag into a loop because his
+//    airspeed is lower"): a share less when closing (lag, SMM 12.30 paras 72-74), the same when matched (pure), a share
+//    more when opening (lead), by the range error and closure. Inside the 500 ft bubble it goes to full lag.
+//  - The correction: a gentle pull back onto Lead's path and his side of it (a critically damped follow, a few seconds,
+//    a fraction of a G), so a displacement he carries, the lag into a loop included, fades slowly (Patrick 01:01Z).
+//    Well off the path (the entry, after a Terminate) he points back at it instead: core liftTowardAim at the point of
+//    the path about 1.5 s of flight ahead of him, at a gain of 2V over that distance (standard L1 guidance).
+//  - Smooth hands: his sideways and up steps are eased (a critically damped follow of about two seconds), the G is built at the T-6A's
 //    onset and the roll at its rate and onset (stepLead), so a press of Lead's never moves #2 in one step.
 //  - Caps: no push below 0.5 G on the lift he has (he unloads and keeps his wings where they are); the stall line and
 //    the shaker; 5 G the normal ceiling (SMM 16.17 para 44a, G_RULE), opened to the aircraft's own limit only inside the
 //    bubble. All flagged by the card, none a wall except the aircraft's own.
 //  - Over the top (the loop, the wingovers, the barrel roll; Patrick 11 Oct 2026 22:31Z): lag going up, pure before the
-//    top, lead from the top down, from Lead's own phase plus the time he has lost or gained on Lead's path; wider out of
-//    Lead's plane, not closer, where the range shrinks as Lead slows; on the outside of Lead's roll.
+//    top, lead from the top down, from Lead's own phase plus the time he has lost or gained on Lead's path; on the outside
+//    of Lead's roll, crossing sides on the wingovers and the barrel roll where that makes sense (Patrick 12 Oct 01:08Z).
 //  - Power: MAX like Lead for all of fluid manoeuvring (Patrick 11 Oct 2026 22:32Z, "Both should be at max power for all
 //    of fluid maneuvering"; SMM 16.17 paras 42-43: both on the same power): the spacing is
 //    flown by geometry alone, the entry included (Patrick 22:33Z and 22:55Z). While Lead holds a speed (Terminate) power flies his range, from Lead's new
@@ -47,16 +50,15 @@ const dt = STEP_SEC;
 /** The live wingman's numbers. Estimates unless a source is given. */
 export const LIVE = Object.freeze({
   latDeg: WING.latDeg, // 15° off Lead's tail (Patrick 4 Oct 22:28Z, "hold 15")
-  cutShare: HOLD.cutShare, // lead puts the aim inside Lead's circle by up to 25% of the range (about sin 15°; estimate, V2.59) ...
-  lagShare: 0.5, // ... and lag outside it by up to half the range (estimate): at MAX with Lead (Patrick 22:32Z) only lag can hold the range in a turn
-  turnFullG: 1, // the inside or outside offset grows with Lead's turning acceleration, full at 1 G of it (estimate): none straight
+  turnFullG: 1, // Lead's turn counts as sideways for the side swap against at least 1 G of turning acceleration (estimate)
   swapPitchDeg: 30, // a swap only with Lead's nose within 30° of level (estimate): in the vertical he stays on his side
-  vertLag: 1, // lag in the vertical (outside the loop), a share of the sideways lag (estimate)
-  vertLead: 1, // lead in the vertical (inside the loop, the short way down), a share of the sideways lead (estimate)
-  wideMaxShare: 0.6, // in the vertical he also moves out of Lead's plane to his own side when he would come inside the bubble (wider, not higher, so he keeps Lead's speed over the top), up to 60% of the range (estimate) ...
-  widePerFt: 1.5, // ... 1.5 ft out for each foot he would otherwise be inside 600 ft (the bubble and twice its margin) at the closure he has (estimate)
   relevelPerSec: 0.5, // his sideways frame along Lead's path eases back to level at about 0.5 per second with Lead's nose on the horizon, none at the vertical (estimate)
-  insideSec: 1, // ... and is eased along his path over about a second of it (estimate), so his pull bends it in, never a kink
+  pullShare: 0.3, // lag is 30% less of Lead's turning pull where he flew it, lead 30% more (estimate, Fable's v3 design 12 Oct 2026; Patrick 01:04Z: "we dynamically pick the lag and lead we need")
+  ffSec: 0.3, // Lead's pull is read about 0.3 s ahead of the point he is abeam, so his roll catches up with it (estimate: the T-6A's roll ramp)
+  corrOmega: 0.3, // back onto Lead's path and his side of it as a critically damped follow at 0.3 per second, about a 3 s time constant (estimate; Fable's 0.5 left a held lag too little room to open the range) ...
+  corrMaxG: 0.3, // ... at no more than 0.3 G (estimate): a 100 ft error closes in about 8 s
+  farFt: 300, // over about 300 ft off the path (the entry, after a Terminate) he points back at it instead (estimate) ...
+  farBlendFt: 100, // ... blended in over 100 ft (estimate)
   l1Sec: 1.5, // he aims at the point of Lead's path about 1.5 s of flight ahead of him (estimate): the gain 2V/L1 flies the path's own curve (standard L1 guidance); shorter and the roll's lag sets him weaving
   l1MinFt: 250, // ... but never nearer than 250 ft (estimate)
   interceptDeg: 40, // off the path, he looks far enough ahead to cut back onto it at no more than about 40° (estimate)
@@ -77,7 +79,6 @@ export const LIVE = Object.freeze({
   placeKtPerFt: 0.08, // with Lead holding a speed, power flies his place: 1 kt faster per 12.5 ft behind it (estimate) ...
   closeKtPerKt: 0.6, // ... less 0.6 kt per knot he is already closing on it (estimate) ...
   overtakeKias: HOLD.overtakeKias, // ... within 15 KIAS of Lead (EFIG p.374's 10-20 KIAS)
-  bubbleMarginFt: HOLD.bubbleMarginFt, // the 500 ft bubble's margin, about 50 ft (estimate, TS-74)
   wordShare: Object.freeze({ on: 0.35, off: 0.15 }), // LAG or LEAD shows past 35% of full and goes under 15%, so the word doesn't flicker (estimate)
   settleKt: 2, // Terminate ends with him in the fighting wing band and within 2 kt of Lead (spec section 9)
 });
@@ -226,45 +227,27 @@ export function stepLiveWing(ws, ctx) {
   // The share itself moves no faster than a full swing in shareSec, so a press of Lead's or a change of phase eases in.
   const share = toward(ws.share ?? shareWanted, shareWanted, 2 / (topPhase ? LIVE.topShareSec : LIVE.shareSec));
 
-  // ---- the offsets from Lead's path, eased: across on his side, inside (lead) or outside (lag) his turn, up for Terminate's slot ----
-  // Out of Lead's plane (the vertical's lag): as far as he would come inside the bubble plus its margin and a little, in lookSec.
-  const shortFt = FW_BAND.bubbleFt + 2 * LIVE.bubbleMarginFt - (rangeFt - closureFtps * LIVE.lookSec);
-  // His 15° is off Lead's tail now (Patrick 4 Oct 22:28Z), but he is placed off Lead's path, which in a turn lies inside
-  // Lead's tail line (a chord): the across offset from the path is turned by about a quarter of the heading Lead has turned
-  // since that point (estimate: half, the chord's own angle, overshot to about 18°), so the picture is the same inside or
-  // outside the turn. Read from the step he was abeam last step, near level only.
-  let chordDeg = 0;
-  if (ws.j !== null && levelish) {
-    const nj = unit3(ctx.E(ws.j).vel);
-    chordDeg = (-Math.atan2(dot3(nj, left), dot3(nj, nose)) / 4) / DEG * latFrac;
-  }
-  const acrossPath = (place.acrossDeg + chordDeg) * DEG;
-  const target = {
-    l: place.rangeFt * Math.sin(acrossPath), n: share * (share < 0 ? LIVE.lagShare : LIVE.cutShare) * place.rangeFt, u: place.alt,
-    o: toSlot ? 0 : Math.max(0, Math.min(LIVE.wideMaxShare * place.rangeFt, LIVE.widePerFt * shortFt)),
-  };
+  // ---- the offsets from Lead's path, eased: across on his side, up for Terminate's slot ----
+  // His 15° off Lead's tail (Patrick 4 Oct 22:28Z, "hold 15") as a sideways step off Lead's path; lag, pure and lead are no
+  // longer places off the path but how hard he pulls (below), so nothing here moves when Lead's turn ends or changes plane.
+  const target = { l: place.rangeFt * Math.sin(across), u: place.alt };
   const w = 2 / LIVE.aimSec; // critically damped, about aimSec to settle
-  const off = { ...(ws.off ?? { l: target.l, n: target.n, u: target.u, o: target.o, vl: 0, vn: 0, vu: 0, vo: 0 }) };
-  for (const k of ['l', 'n', 'u', 'o']) {
+  const off = { ...(ws.off ?? { l: target.l, u: target.u, vl: 0, vu: 0 }) };
+  for (const k of ['l', 'u']) {
     const v = `v${k}`;
     off[v] += (w * w * (target[k] - off[k]) - 2 * w * off[v]) * dt;
     off[k] += off[v] * dt;
   }
 
-  // ---- the aim: on Lead's own path (EFIG p.391), offset as above ----
+  // ---- Lead's path and his frame along it ----
   const kNow = ctx.k;
   // His frame along Lead's path, carried step to step without twist (each step's left is the last one squared to Lead's
   // new nose), and eased back to Lead's level left only as far as his nose is near the horizon: near the vertical the level
-  // frame spins round the nose, which would throw #2 across the loop. Lead's turn is split into its sideways (lat) and
-  // up-or-down (vert) parts in that frame, eased along his path (about insideSec) so his pull bends the inside offset in,
-  // never as a kink. Kept per step of his path, oldest dropped.
+  // frame spins round the nose, which would throw #2 across the loop. Kept per step of his path, oldest dropped.
   const trail = ws.trail ? new Map(ws.trail) : new Map();
-  const per = 1 / (LIVE.turnFullG * G_FTPS2);
-  const capped = (v) => { const m = len3(v); return m > 1 ? scale3(v, 1 / m) : v; };
   const trailAt = (j) => {
     if (trail.has(j)) return trail.get(j);
-    const ej = ctx.E(j);
-    const fj = frameOf(ej);
+    const fj = frameOf(ctx.E(j));
     const prev = trail.get(j - 1);
     let lj = fj.left;
     if (prev) {
@@ -272,63 +255,55 @@ export function stepLiveWing(ws, ctx) {
       const level = Math.min(1, (LIVE.relevelPerSec * dt) * (1 - fj.nose.z * fj.nose.z) ** 2);
       lj = unit3(perp3(add3(carried, scale3(sub3(fj.left, carried), level)), fj.nose));
     }
-    const uj = cross3(fj.nose, lj);
-    const raw = { lat: capped(scale3(lj, dot3(ej.accPerp, lj) * per)), vert: capped(scale3(uj, dot3(ej.accPerp, uj) * per)) };
-    const f = Math.min(1, dt / LIVE.insideSec);
-    const v = prev
-      ? { left: lj, up: uj, nose: fj.nose, lat: add3(prev.lat, scale3(sub3(raw.lat, prev.lat), f)), vert: add3(prev.vert, scale3(sub3(raw.vert, prev.vert), f)) }
-      : { left: lj, up: uj, nose: fj.nose, ...raw };
+    const v = { left: lj, up: cross3(fj.nose, lj), nose: fj.nose };
     trail.set(j, v);
     return v;
   };
   const keepSteps = Math.ceil(30 / dt);
   for (let j = Math.max(ctx.kMin, kNow - keepSteps); j <= kNow; j++) trailAt(j);
   for (const j of trail.keys()) if (j < kNow - keepSteps) trail.delete(j);
-  // In the vertical: lead cuts inside Lead's turn (the short way down) and lag goes outside it, both as Lead's phase sets
-  // them; to stay out of the bubble he moves out of Lead's plane, wider to his own side, rather than higher.
-  const nVert = off.n * (off.n < 0 ? LIVE.vertLag : LIVE.vertLead);
-  // The offsets are laid off in HIS frame, the trail's at the step he is abeam (j0), not at the aim's step (Fable's round 3
-  // design A, Patrick 12 Oct 2026 00:40Z "Build it"; EFIG p.391: "go to where lead was and do what lead did"): the frame
-  // he flies in changes plane only as he himself passes where Lead rolled out, so Lead's roll-out into the loop never
-  // swings his lag from outside the turn to below Lead while he is still in the turn.
-  // In the vertical, lag is pulling less, never pushing (design B): the lag part is capped so the aim never lies below his
-  // straight-ahead line, at most the height Lead's path there stands above it. Lead (the short way down) is unchanged.
-  const pathAt = (j) => {
-    const c = trailAt(j0);
-    const P = ctx.E(j).pos;
-    let nv = nVert;
-    if (nv < 0) {
-      const vPerp = perp3(c.vert, st.nose);
-      const vu = len3(vPerp);
-      if (vu > 1e-3) nv = -Math.min(-nv, Math.max(0, dot3(sub3(P, pw), scale3(vPerp, 1 / vu))) / vu);
-    }
-    let p = add3(add3(add3(add3(P, scale3(c.left, off.l)), scale3(c.up, off.u)), scale3(c.lat, off.n)), scale3(c.vert, nv));
-    const vl = len3(c.vert);
-    const tl = Math.min(1, vl + len3(c.lat));
-    if (off.o > 0.5) {
-      // Out of the plane of Lead's turn, to #2's side, as far as the turn is in the vertical; with Lead hardly turning (a
-      // climb, a descent), straight out to his side.
-      if (vl > 1e-3) {
-        let o = unit3(cross3(c.nose, unit3(add3(c.lat, c.vert))));
-        if (dot3(o, c.left) * side + 0.5 * dot3(o, c.up) < 0) o = scale3(o, -1);
-        p = add3(p, scale3(o, off.o * vl / Math.max(vl + len3(c.lat), 1e-3) * Math.min(1, vl)));
-      }
-      p = add3(p, scale3(c.left, side * off.o * (1 - tl)));
-    }
-    return { p, nose: trailAt(j).nose };
-  };
   // Where he is along Lead's path: the step he is abeam, carried on from the last step.
   let j0 = Math.max(ctx.kMin, Math.min(kNow, ws.j ?? kNow - Math.round(rangeFt / Math.max(st.V, 1) / dt)));
   while (j0 < kNow && dot3(sub3(pw, ctx.E(j0 + 1).pos), unit3(ctx.E(j0 + 1).vel)) > 0) j0++;
   while (j0 > ctx.kMin && dot3(sub3(pw, ctx.E(j0).pos), unit3(ctx.E(j0).vel)) < 0) j0--;
-  // The aim: the first point of the path at least L1 ahead of him (further when he is well off the path, so he cuts back at a
-  // gentle angle); past Lead's present, on along his nose.
-  const offPathFt = len3(sub3(pathAt(j0).p, pw));
+  const offAt = (j) => { const c = trailAt(j); return add3(scale3(c.left, off.l), scale3(c.up, off.u)); };
+
+  // ---- the pull: Lead's own, where Lead flew it, a share less in lag and a share more in lead ----
+  // EFIG p.391 ("go to where lead was and do what lead did"); Patrick 12 Oct 2026 01:06Z: "you lead and lag because at
+  // certain points he's faster or slower than you ... lag into a loop because his airspeed is lower so you gotta lag".
+  // Lead's turning acceleration at the point of his path #2 is abeam, read a little ahead so #2's roll catches up with it;
+  // lag (share -1) is pullShare less of it, lead (share +1) pullShare more, flown square to #2's own path.
+  const aheadAt = Math.min(kNow, j0 + Math.round(LIVE.ffSec / dt));
+  const vHat = st.nose;
+  const aLeadHere = perp3(ctx.E(aheadAt).accPerp, vHat);
+  const aShare = scale3(aLeadHere, share * LIVE.pullShare);
+  const aTurn = add3(aLeadHere, aShare);
+
+  // ---- the gentle correction: back onto Lead's path, on his side, slowly ----
+  // The error from Lead's path (the nearest point, beside the step he is abeam) plus his sideways and up offsets, square to
+  // the path; closed as a critically damped follow of time constant 1/omega, never with more than corrMaxG. The sideways
+  // part of a lag he carries into the loop fades this way, slowly (Patrick 01:01Z card, "Keep it, fade slowly").
+  const e0 = ctx.E(j0);
+  const n0 = unit3(e0.vel);
+  const err = perp3(sub3(add3(e0.pos, offAt(j0)), pw), n0);
+  const errRate = ws.err ? scale3(sub3(err, ws.err), 1 / dt) : { x: 0, y: 0, z: 0 };
+  const om = LIVE.corrOmega;
+  let aCorr = perp3(add3(scale3(err, om * om), scale3(errRate, 2 * om)), vHat);
+  // On top of what the share takes off or adds, so a lag held through a turn sets him a little outside Lead's circle
+  // (its share over omega squared) rather than spiralling away from it.
+  const corrMax = LIVE.corrMaxG * G_FTPS2 + len3(aShare);
+  if (len3(aCorr) > corrMax) aCorr = scale3(aCorr, corrMax / len3(aCorr));
+
+  // ---- far off the path (the entry, after a Terminate for position): point back at it on Lead's path ----
+  // The aim: the first point of the path at least L1 ahead of him (further when he is well off it, so he cuts back at a
+  // gentle angle); past Lead's present, on along his nose. Core's pursuit lift at the path-following gain (2V over L1).
+  const pathAt = (j) => add3(ctx.E(j).pos, offAt(j));
+  const offPathFt = len3(err);
   const l1 = Math.max(LIVE.l1MinFt, st.V * LIVE.l1Sec, offPathFt / Math.sin(LIVE.interceptDeg * DEG));
   let A = null;
-  let prevP = pathAt(j0).p;
+  let prevP = pathAt(j0);
   for (let j = j0 + 1; j <= kNow; j++) {
-    const q = pathAt(j).p;
+    const q = pathAt(j);
     const dq = len3(sub3(q, pw));
     if (dq >= l1) {
       const dp = len3(sub3(prevP, pw));
@@ -340,20 +315,21 @@ export function stepLiveWing(ws, ctx) {
   }
   if (!A) {
     const now = pathAt(kNow);
-    const d = len3(sub3(now.p, pw));
-    A = add3(now.p, scale3(now.nose, Math.max(0, l1 - d)));
+    const d = len3(sub3(now, pw));
+    A = add3(now, scale3(trailAt(kNow).nose, Math.max(0, l1 - d)));
   }
+  const pursuit = liftTowardAim(vHat, sub3(A, pw), st.V, (2 * st.V) / l1);
 
-  // ---- the lift: core's pursuit lift at the path-following gain (2V over L1), then the caps ----
-  const vHat = st.nose;
-  const gain = (2 * st.V) / l1;
-  let lift = liftTowardAim(vHat, sub3(A, pw), st.V, gain).wanted;
+  // ---- the lift: his weight's share, Lead's pull and the correction; the pointing law blended in far off the path ----
+  const onPath = add3(pursuit.weightPerp, scale3(add3(aTurn, aCorr), 1 / G_FTPS2));
+  const far = Math.max(0, Math.min(1, (offPathFt - LIVE.farFt) / LIVE.farBlendFt));
+  let lift = add3(scale3(onPath, 1 - far), scale3(pursuit.wanted, far));
   const onUp = dot3(lift, st.bodyUp);
   if (onUp < LIVE.minG) {
     // No push: he unloads to 0.5 G and keeps his wings where they are, so a wish to push never becomes a roll toward what
     // little sideways pull is left (rolling upright over the top instead of pulling through).
-    const side = sub3(lift, scale3(st.bodyUp, onUp));
-    lift = add3(scale3(st.bodyUp, LIVE.minG), scale3(side, Math.max(0, onUp) / LIVE.minG));
+    const sideways = sub3(lift, scale3(st.bodyUp, onUp));
+    lift = add3(scale3(st.bodyUp, LIVE.minG), scale3(sideways, Math.max(0, onUp) / LIVE.minG));
   }
   const cap = Math.min(shakerG(st.kias), inBubble ? availableG(st.kias) : LIVE.normalG);
   const mag = len3(lift);
@@ -393,7 +369,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, side, place, off, j: j0, slotAt, tau0, topSwaps, outside, trail: [...trail], share, lastLatDeg: latDeg, swapUntil, word },
+    ws: { ...ws, st: next, side, place, off, j: j0, err, slotAt, tau0, topSwaps, outside, trail: [...trail], share, lastLatDeg: latDeg, swapUntil, word },
     pose,
     power,
     cue,
