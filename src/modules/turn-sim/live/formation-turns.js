@@ -19,7 +19,7 @@
 //
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
-import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
+import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
 import { MANOEUVRES, relativeTo, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './replay.js';
@@ -470,11 +470,83 @@ export function heldPoses(leadRec, wing, rel, n, roll = closeWingRoll(CLOSE_TURN
     const r = rel[Math.min(k, rel.length - 1)]; // once he is settled and Lead is wings level, the same offset
     setTrackStep(track, k, L.xFt + r.x, L.yFt + r.y, L.altAboveFt + r.z);
   }
-  const line = posesFrom(track, wing.kias / wing.tasFtps);
-  ownBank(line.poses);
-  rollFrom(line.poses, wing, roll, { roll: ROLL, leadBank: (k) => leadRec.at(k).bankDeg ?? 0 });
-  settleLast(line.poses, leadRec.at(n));
-  return line.poses;
+  const fly = () => {
+    const line = posesFrom(track, wing.kias / wing.tasFtps);
+    ownBank(line.poses);
+    const own = line.poses.map((p) => p.bank);
+    rollFrom(line.poses, wing, roll, { roll: ROLL, leadBank: (k) => leadRec.at(k).bankDeg ?? 0 });
+    return { poses: line.poses, own };
+  };
+  let { poses, own } = fly();
+  // Where his path starts asking more bank than he has (the hand-over from a rejoin's run-in into the held part), his
+  // wings come round at his roll (rollFrom) and his path is the one that bank flies, not the planned one ahead of it.
+  if (turnFromRolledBank(track, poses, own, wing)) ({ poses } = fly());
+  settleLast(poses, leadRec.at(n));
+  return poses;
+}
+
+/** How far behind the path's bank his wings may be and still count as having caught it up (degrees; an estimate). */
+const ROLLED_CAUGHT_DEG = 0.1;
+/**
+ * The longest roll-in that is re-flown at his rolled bank (an estimate). A rejoin's hand-over lags for well under a second
+ * (about 0.7 s, probes 12 Oct 2026); a close turn's roll-in can lag for 5 s or more (#4 in a 4-ship echelon hook), and
+ * re-flying that drew him out of position, so a longer lag flies the planned path as before.
+ */
+const ROLLED_MAX_SEC = 1;
+/**
+ * How long the path flown at his rolled bank takes to blend back onto the planned path (an estimate). Long enough that the
+ * blend adds no more than about a degree of bank past the planned path's: at 2 s it added up to 4° (probes, 12 Oct 2026).
+ */
+const ROLLED_BLEND_SEC = 6;
+
+/**
+ * The start of a held path re-flown at the bank his roll gives (standard aerodynamics: turn rate = g nz tan(bank) / V),
+ * for the steps where that bank is still behind the path's own (own: ownBank's banks, before rollFrom) by more than
+ * ROLLED_CAUGHT_DEG, when that lasts no longer than ROLLED_MAX_SEC. Once his bank has caught up, the difference between
+ * the two paths, in place and in velocity, fades out over ROLLED_BLEND_SEC, so the place, the heading and the turn join
+ * with no step. Until 12 Oct 2026 the heading
+ * followed the planned path while the wings were still rolling, so his track turned up to 7% faster than his bank and G
+ * give for about 0.3 s (2-ship, line abreast to echelon and fighting wing to route). Changes the track in place; returns
+ * false when nothing lagged or the lag ran longer than ROLLED_MAX_SEC.
+ */
+function turnFromRolledBank(track, poses, own, wing) {
+  let m = -1; // the last pose still rolling toward the path's bank, from the first
+  while (m + 1 < poses.length && Math.abs(poses[m + 1].bank - own[m + 1]) > ROLLED_CAUGHT_DEG) m++;
+  if (m < 0 || (m + 1) * STEP_SEC > ROLLED_MAX_SEC) return false;
+  const row = (k) => k + TRACK_PAD;
+  let x = track.x[row(0)];
+  let y = track.y[row(0)];
+  let h = wing.headingRad;
+  let turnBefore = turnRateFromBankRadPerSec(Math.max(wing.tasFtps, 1), wing.bankDeg ?? 0) * (wing.nz ?? 1);
+  let horiz = 0;
+  for (let i = 0; i <= m; i++) {
+    const p = poses[i];
+    horiz = Math.sqrt(Math.max(0, p.tas ** 2 - p.climb ** 2));
+    const turnNow = turnRateFromBankRadPerSec(p.tas, p.bank) * (p.nz ?? 1);
+    const turn = ((turnBefore + turnNow) / 2) * STEP_SEC;
+    x += Math.cos(h + turn / 2) * horiz * STEP_SEC;
+    y += Math.sin(h + turn / 2) * horiz * STEP_SEC;
+    h += turn;
+    turnBefore = turnNow;
+    setTrackStep(track, i + 1, x, y, track.z[row(i + 1)]);
+  }
+  // The planned path's place and velocity at the last re-flown step, against the re-flown one's.
+  const k0 = m + 1;
+  const dp = { x: x - poses[m].x, y: y - poses[m].y };
+  const dv = { x: (Math.cos(h) - Math.cos(poses[m].h)) * horiz, y: (Math.sin(h) - Math.sin(poses[m].h)) * horiz };
+  const last = poses.length + TRACK_PAD;
+  const blendSteps = Math.max(1, Math.min(Math.round(ROLLED_BLEND_SEC / STEP_SEC), last - k0));
+  const T = blendSteps * STEP_SEC;
+  for (let k = k0 + 1; k <= k0 + blendSteps; k++) {
+    // The quintic Hermite blend: the place and velocity differences at the start, none at the end, no acceleration step at either.
+    const u = (k - k0) / blendSteps;
+    const placeShare = 1 - u ** 3 * (10 - 15 * u + 6 * u * u);
+    const velShare = (u - 6 * u ** 3 + 8 * u ** 4 - 3 * u ** 5) * T;
+    const px = k <= poses.length ? poses[k - 1].x : track.x[row(k)];
+    const py = k <= poses.length ? poses[k - 1].y : track.y[row(k)];
+    setTrackStep(track, k, px + dp.x * placeShare + dv.x * velShare, py + dp.y * placeShare + dv.y * velShare, track.z[row(k)]);
+  }
+  return true;
 }
 
 /**
