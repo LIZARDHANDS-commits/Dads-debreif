@@ -11,7 +11,7 @@
 //   - pitch: the climb angle plus the angle of attack, less the fuselage datum (T6A_PITCH); 2.5° on the wheels.
 // Speeds: the route's speeds are KIAS; true airspeed comes from KIAS and
 // height (iasToTasKt) in every wind, and ground speed from the wind triangle.
-import { ktToFtps, G_FTPS2 } from '../../core/units.js';
+import { ktToFtps, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, easeValue, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
@@ -45,7 +45,7 @@ const PITCH_EASE = Object.freeze({ maxRateDps: 10, maxAccelDps2: 20 });
  * speeds don't change. The reference limit is 25 kt across, flagged elsewhere, never a wall here.
  */
 /** The window, feet out from the 29L threshold: 3/4 NM before the base of the numbers (Patrick). */
-const WINDOW_OUT_FT = 0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT;
+const WINDOW_OUT_FT = 0.75 * FT_PER_NM - NUMBER_BASE_PAST_THRESHOLD_FT;
 
 export const WING_DOWN = Object.freeze({
   sideForcePerRad: 0.6, wingAreaSqFt: 175.3, blendSec: 3, onLineFt: 300, onLineDeg: 20,

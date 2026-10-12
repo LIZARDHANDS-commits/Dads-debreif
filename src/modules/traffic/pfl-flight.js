@@ -272,7 +272,7 @@ function pitchNow(r, tas) {
   let want = glideKias(r.cfg);
   if (r.state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) r.state = 'glide';
 
-  if (r.plan.kind === 'direct' && r.margin < 0 && !r.goingShort && (ftTo(r, 'aim') < 6076 || s.alt <= PFL.gateAltFt)) {
+  if (r.plan.kind === 'direct' && r.margin < 0 && !r.goingShort && (ftTo(r, 'aim') < FT_PER_NM || s.alt <= PFL.gateAltFt)) {
     const v2 = tas * tas - 2 * G_FTPS2 * -r.margin * heightFactor(s.alt);
     const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
     want = Math.max(tradeFloorKias(r.cfg), Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));

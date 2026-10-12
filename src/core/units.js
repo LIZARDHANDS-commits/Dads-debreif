@@ -1,7 +1,7 @@
 // Unit constants and conversions, written once for every module.
 
 /** Feet per nautical mile. */
-export const FT_PER_NM = 6076.12;
+export const FT_PER_NM = 1852 / 0.3048; // exact: 1,852 m, 0.3048 m per ft (6,076.1155 ft)
 
 /** Feet per second per knot. */
 export const KT_TO_FTPS = 1.68781;
