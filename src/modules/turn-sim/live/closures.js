@@ -5,7 +5,7 @@
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { applyPose } from './kinematic.js';
-import { WING_BANKS, closureNow, rejoinClosureNow } from './tuning.js';
+import { MOVE_BANK_DEG, MOVE_TARGET_G, WING_BANKS, closureNow, rejoinClosureNow } from './tuning.js';
 
 const dt = STEP_SEC;
 
@@ -39,7 +39,9 @@ export function onClosure(phases, { closeIn: allCloseIn = false, rejoinBankDeg =
     const long = out > LONG_SLOT_FT;
     const free = !allCloseIn && !p.rejoin && p.targetBankDeg == null && out > FREE_MOVE_FT;
     const closureFtps = p.closureFtps ?? (free ? FREE_CLOSURE_KT * KT_TO_FTPS : !allCloseIn && (p.rejoin || long) ? rejoin : closeIn);
-    const bankCapDeg = p.rejoin ? rejoinBankDeg ?? p.bankCapDeg : long || free ? WING_BANKS.kickOutBankCapDeg : (p.bankCapDeg ?? WING_BANKS.closeBankCapDeg);
+    // A rejoin's legs and the long moves plan to the moves' 4.5 G (TS-205), his pull for height included (tracker.js pullUp).
+    const moveG = p.rejoin || long || free;
+    const bankCapDeg = p.rejoin ? Math.min(rejoinBankDeg ?? p.bankCapDeg, MOVE_BANK_DEG) : long || free ? WING_BANKS.kickOutBankCapDeg : (p.bankCapDeg ?? WING_BANKS.closeBankCapDeg);
     const fwdRate = p.targetBankDeg != null ? p.fwdRate : Infinity;
     const latRate = p.targetBankDeg != null ? p.latRate : Infinity;
     return {
@@ -49,6 +51,7 @@ export function onClosure(phases, { closeIn: allCloseIn = false, rejoinBankDeg =
       fwdRate,
       latRate,
       vrelMax: Math.max(p.vrelMax ?? 0, closureFtps),
+      ...(moveG ? { maxG: p.maxG ?? MOVE_TARGET_G } : {}),
       ...(free ? { slowStage: p.slowStage ?? 'boards' } : {}),
     };
   });
