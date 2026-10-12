@@ -1557,6 +1557,16 @@ function coamingGeometry(THREE) {
     }
     parts.push({ geometry: meshOf(THREE, pos, idx), materials: [0] });
   }
+  // On the front one, the AOA indexer's box on the left and the standby compass's on the right, where ct156-cockpit.js
+  // stands them (AOA_INDEXER_FT, STANDBY_COMPASS_FT), so from outside they show over the glareshield (Patrick,
+  // 12 Oct 2026). [ahead of the aft edge, left of the middle, across, fore and aft, tall], feet.
+  const crown = COAMINGS[0].crown, aftX = crown[0][0];
+  for (const [ahead, y, w, d, h] of [[0.15, 0.47, 0.065, 0.24, 0.19], [0.1, -0.71, 0.26, 0.26, 0.22]]) {
+    const x = (aftX + ahead) / 23.148, u = Math.min(1, Math.abs(y) / COAMINGS[0].half), base = canopyAt(x).base;
+    const z = base + (ct156CrownZ(crown, aftX + ahead) / 23.148 - base) * Math.max(0, 1 - u ** 4) ** 0.25;
+    const g = new THREE.BoxGeometry(d / 23.148, w / 23.148, h / 23.148).translate(x, y / 23.148, z + h / 2 / 23.148 - 0.0005);
+    parts.push({ geometry: g, materials: [0] });
+  }
   return joinGeometries(THREE, parts);
 }
 /** The fuselage's section at x, in model units: { halfWidth, top, bottom } (for ct156-cockpit.js). */
@@ -2336,7 +2346,8 @@ function buildKit(THREE) {
     // The cockpit tub (setCockpitView; TS-155, TS-157): a dark charcoal floor and walls, as US Navy T-6A cockpit photos
     // show (Patrick, 11 Oct 2026 22:06Z; were mid and light grey off Dad's reference pictures). Shades estimates.
     tubFloor: mat({ color: '#26292c', roughness: 0.95, side: two }),
-    tubWall: mat({ color: '#2f3236', roughness: 0.85, side: two }),
+    // The walls medium grey like the panels since 12 Oct 2026 (Patrick's CT-156 cockpit photos; were '#2f3236').
+    tubWall: mat({ color: '#5a5e63', roughness: 0.85, side: two }),
     // The pilots (pilotGeometry): helmet, visor, mask, hose, flight suit, vest and collar, harness, gloves (colours
     // estimates); and the seats' headboxes.
     pilot: [
@@ -2350,6 +2361,9 @@ function buildKit(THREE) {
       mat({ color: '#33322c', roughness: 0.8 }),
     ],
     headbox: mat({ color: '#25282c', roughness: 0.6 }),
+    // The outside glareshields: satin dark grey, a little lighter and glossier than the headboxes so they show through
+    // the tinted glass (Patrick, 12 Oct 2026; they were the headboxes' colour). Shade an estimate.
+    coaming: mat({ color: '#3a3e44', roughness: 0.4, metalness: 0.1 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
     tip: mat({ color: '#d2202c', roughness: 0.5 }),
     // The turning prop's blades, half see-through so they read as a blur (PROP_TURN).
@@ -2666,7 +2680,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     gear = addGear(mats.navy);
     add(geo.lights, mats.lights, detail);
     floor = add(geo.floor, mats.floor, detail);
-    coamings = add(geo.coamings, mats.headbox, detail);
+    coamings = add(geo.coamings, mats.coaming, detail);
     add(geo.frames, mats.frame, detail);
     bowFront = add(geo.bowFront, mats.frame, detail);
     helmetFront = add(geo.helmetFront, mats.pilot, detail);

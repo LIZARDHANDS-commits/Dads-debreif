@@ -655,10 +655,10 @@ const LIVE_WINDOWS = Object.freeze({
   lights: { x: 0, y: 704, w: 64, h: 280 },
 });
 
-// The panel's and consoles' face: matte dark charcoal, as US Navy T-6A cockpit photos show (Patrick, 11 Oct 2026 22:06Z:
-// "Yes use that"; was mid grey '#8e9296', judged off Dad's pictures, TS-157). Shade an estimate.
-const PANEL_GREY = '#2b2e32';
-const SEAM = 'rgba(52, 56, 60, 0.55)';
+// The panel's and consoles' face: matte medium grey, as Patrick's CT-156 cockpit photos show (Patrick, 12 Oct 2026; dark
+// charcoal '#2b2e32' since 11 Oct 2026 22:06Z after US Navy T-6A photos, and mid grey '#8e9296' before). Shade an estimate.
+const PANEL_GREY = '#5a5e63';
+const SEAM = 'rgba(36, 39, 43, 0.55)';
 const BEZEL = '#1d2024';
 /** The displays' black frames round their screens, feet (about 0.5 in; Patrick's CT-156 photo, judged). */
 const BEZEL_FT = 0.04;
@@ -2456,12 +2456,13 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const solid = (color, extra = {}) => own(new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide, fog: false, ...extra }));
   const lamp = (color) => own(new THREE.MeshBasicMaterial({ color, fog: false }));
   // Slots as SLOT (TS-157 colours, judged off Dad's pictures 26, 27, 29; the panel, consoles and cushions dark charcoal
-  // since Patrick, 11 Oct 2026 22:06Z, after US Navy T-6A cockpit photos): dark charcoal panel and consoles, near-black
+  // since Patrick, 11 Oct 2026 22:06Z, after US Navy T-6A cockpit photos; the grey slot medium grey, PANEL_GREY, since
+  // 12 Oct 2026): dark charcoal panel and consoles, near-black
   // coaming and rail, red, mirror, light knobs, unlit lamps, the light bow band, dark seat cushions, dark grey (seat
   // bucket, headbox, bezels, vents), the green oxygen hose, metal, mid grey canopy frames and straps (were light grey; the
   // T-6A photos' inner frame and rails are mid grey).
   const slotMats = [
-    solid('#2b2e32', { roughness: 0.85 }), solid('#1d2023', { roughness: 0.75 }), solid('#1d2024', { roughness: 0.6 }), solid('#b3202a', { roughness: 0.5 }),
+    solid(PANEL_GREY, { roughness: 0.85 }), solid('#1d2023', { roughness: 0.75 }), solid('#1d2024', { roughness: 0.6 }), solid('#b3202a', { roughness: 0.5 }),
     solid('#b9c9da', { roughness: 0.2, metalness: 0.3, emissive: '#5d6f82' }), solid('#c9ced4', { roughness: 0.5 }),
     lamp('#3a1414'), lamp('#3a2c0e'), lamp('#10301a'),
     // The forward bow band, white to light grey (TS-156), a little self-lit so it stays light with the sun ahead.
