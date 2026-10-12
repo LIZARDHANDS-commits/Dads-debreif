@@ -10,13 +10,19 @@
 //    core liftTowardAim at the aim, at the L1 gain 2V over the distance to it, which flies a pursuit curve onto Lead's
 //    circle (SMM Fig 12.22). The aim is Lead, offset a little to #2's side (15° off the tail in Lead's path frame,
 //    Patrick 4 Oct 22:28Z "hold 15" and 12 Oct 02:45Z "a slight horizontal offset, that part is good"), so he is never
-//    dead astern; the side swaps as the planned wingman's does (TS-60, fluid-wing.js, passed in as ctx.side).
+//    dead astern. His side is his own: set from the planned wingman's at the start, and once Lead is level again he keeps
+//    whichever side of Lead's tail he has come out on, never flying back across (Patrick 12 Oct 2026 03:40Z: "2 does
+//    not have to reset to 'the same offset' each time, and can end on a different offset side").
 //  - Lead and lag move the aim off Lead toward the inside of his turn (nose in front of him, the short way round, closing)
 //    or the outside (nose behind him, the long way round, opening; SMM 16.17 para 44, EFIG p.391), square to the line of
 //    sight in Lead's plane of motion, so the nose angle is the lever a pilot uses, by the cues a pilot reads: Lead's manoeuvre
-//    sets the default (his cue word, fluid-lead.js: lag into #2 then pure, pure away, lag up the front of a loop, pure as
-//    the canopies come parallel over the top, lead down the back), and the range against the one wanted and the closure
-//    move it from there, so stretched into a pull he delays the lag or goes pure (Patrick 02:44Z) and tight he lags more.
+//    sets the default (his cue word, fluid-lead.js: lag into #2 then pure, pure away; over the top the live wingman reads
+//    Lead's angle round the loop, or how far through the wingover or roll he is, against his own breaks: lag up the
+//    front, pure before the top, lead from over the top down the back, so the fuselages come near parallel through the
+//    horizon, Patrick 12 Oct 2026 03:40Z), and the range against the one wanted and the closure move it from there, so
+//    stretched into a pull he delays the lag or goes pure (Patrick 02:44Z), tight he lags more, and down the back of a
+//    manoeuvre, Lead pulling away faster, the closure gives him the lead (Patrick 03:40Z: more lead when Lead is faster;
+//    a separate speed term was tried and stretched the wingover, so the closure cue carries it).
 //  - The amount scales with how hard Lead is turning (his turning acceleration, full at about 2 G of it), so straight and
 //    level nothing moves and he is pure.
 //  - Smooth hands and limits as before: the G built at the T-6A's onset and the roll at its rate (stepLead), so a press
@@ -52,6 +58,10 @@ export const LIVE = Object.freeze({
   capShare: 0.5, // lead or lag moves the aim off Lead, toward the inside of his turn or the outside, by up to half the range (about 27° of nose; estimate)
   biasLag: -0.3, // Lead's cue word sets the default: lag puts the aim 30% of the cap outside his turn ... (estimate)
   biasLead: 0.3, // ... and lead 30% inside (estimate); pure is on him
+  loopWords: Object.freeze({ pureDeg: 110, leadDeg: 160, pullOutDeg: 330 }), // the loop, by Lead's angle round it: lag, pure from 110° (near the vertical), lead from 160° (over the top: Patrick 12 Oct 2026 03:40Z "around this position we should be transitioning to lead pursuit"), pure from the pull-out (330°, fluid-lead.js). Estimates; the planned wingman keeps his own breaks (155°, 205°)
+  overWords: Object.freeze({ pure: 0.3, lead: 0.45, pullOut: 0.9 }), // a wingover or a barrel roll, by how far through it Lead is: the same shape (planned: 0.4, 0.6, 0.9); estimates
+  sideSwapDeg: 5, // with Lead level again, #2 takes the side of Lead's tail he is on once more than 5° past it (estimate), and keeps it
+  sideFreeTurn: 0.25, // ... only with Lead's turn eased off (below a quarter of the full slide), upright and his nose near the horizon (estimates)
   biasPerSec: 0.15, // a change of cue word slides the default over about 2 s, lead to pure (4 s lag to lead), never in a step (estimate)
   kR: 1, // the range error, as a share of the range wanted, moves the aim ahead (stretched) or behind (tight) one for one (estimate)
   kC: 1, // the closure over lookSec, as a share of the range wanted, moves it behind (closing) or ahead (opening) one for one (estimate)
@@ -130,6 +140,8 @@ export function startLiveWing(wing, blockFt, { side, slot }) {
     slot: { rangeFt: slotRange, acrossDeg: slotAcross, alt: slot.alt },
     // His place now (eased toward what the phase asks): range, angle off the tail (signed, left positive) and height.
     place: { rangeFt: slotRange, acrossDeg: side * slotAcross, alt: slot.alt },
+    side, // his side of Lead's tail (+1 left), his own from here on
+    ctxSide: side, // the planned wingman's side last seen, so his swaps are followed
     left: null, // the side frame along Lead's path, set on the first step
     bias: 0, // the default slide from Lead's cue word, eased
     turnAcc: null, // Lead's turning acceleration as #2 senses it (ft/s², eased)
@@ -143,10 +155,28 @@ export function startLiveWing(wing, blockFt, { side, slot }) {
 }
 
 /**
+ * The cue word the live wingman flies to: Lead's own (fluid-lead.js) in a level turn, a reversal, a climb or a descent;
+ * over the top his own breaks on Lead's angle round the loop (cue.loop.alpha) or how far through a wingover or barrel
+ * roll Lead is (cue.over), so pure comes before the top and lead from over it (Patrick 12 Oct 2026 03:40Z).
+ */
+function liveWord(cue) {
+  if (cue?.loop) {
+    const deg = cue.loop.alpha / DEG;
+    const w = LIVE.loopWords;
+    return deg < w.pureDeg ? 'lag' : deg < w.leadDeg ? 'pure' : deg < w.pullOutDeg ? 'lead' : 'pure';
+  }
+  if (cue?.over !== undefined) {
+    const w = LIVE.overWords;
+    return cue.over < w.pure ? 'lag' : cue.over < w.lead ? 'pure' : cue.over < w.pullOut ? 'lead' : 'pure';
+  }
+  return cue?.mode;
+}
+
+/**
  * One step of #2. ctx: { e (Lead's entry this step: pos, vel, accPerp, st, cue, holdKias), t, rangeFt (the setting),
- * blockFt, side (+1 left of Lead's tail, -1 right: the planned wingman's, swaps included) }. Returns { ws (the next state),
- * pose (kinematic.js applyPose), power, cue ('lag' | 'pure' | 'lead' | 'entry' | 'back to fighting wing'), rangeFt,
- * settled }.
+ * blockFt, side (+1 left of Lead's tail, -1 right: the planned wingman's, used only until he has a side of his own) }.
+ * Returns { ws (the next state), pose (kinematic.js applyPose), power, cue ('lag' | 'pure' | 'lead' | 'entry' | 'back to
+ * fighting wing'), rangeFt, settled, side (his side of Lead's tail now) }.
  */
 export function stepLiveWing(ws, ctx) {
   const { e, t, blockFt } = ctx;
@@ -181,7 +211,15 @@ export function stepLiveWing(ws, ctx) {
   // ---- his place: the cone (entry and fluid) or his fighting wing slot (Terminate), eased ----
   const toSlot = e.cue?.blend === 0;
   const entering = e.cue?.blend === 1;
-  const side = ctx.side ?? (ws.place.acrossDeg < 0 ? -1 : 1);
+  // His side: the planned wingman's swaps over the top are followed as before (TS-60: the side the drift takes him to),
+  // and with Lead level again and his turn eased off, #2 keeps whichever side of Lead's tail he has come out on, more
+  // than sideSwapDeg past it, never flying back across (Patrick 12 Oct 2026 03:40Z). Terminate holds the side it was
+  // pressed with.
+  let side = ws.side ?? ctx.side ?? (ws.place.acrossDeg < 0 ? -1 : 1);
+  const ctxSide = ctx.side ?? ws.ctxSide;
+  if (ctxSide !== undefined && ctxSide !== ws.ctxSide && ws.ctxSide !== undefined) side = ctxSide;
+  const leadLevel = (e.st?.bodyUp?.z ?? 1) > 0.9 && Math.abs(nose.z) < 0.3 && turning < LIVE.sideFreeTurn;
+  if (leadLevel && !toSlot && Math.abs(latDeg) > LIVE.sideSwapDeg && Math.sign(latDeg) !== side) side = Math.sign(latDeg);
   const want = toSlot
     ? { rangeFt: ws.slot.rangeFt, acrossDeg: side * ws.slot.acrossDeg, alt: ws.slot.alt }
     : { rangeFt: Math.max(FW_BAND.bubbleFt, ctx.rangeFt - LIVE.turnInFt), acrossDeg: side * LIVE.sideDeg, alt: 0 };
@@ -207,7 +245,7 @@ export function stepLiveWing(ws, ctx) {
   const levelTurning = e.ctl?.key === 'levelTurn' || e.ctl?.key === 'reversal';
   const tight = Math.max(0, Math.min(1, (place.rangeFt - predictedFt) / Math.max(place.rangeFt - FW_BAND.bubbleFt, 1)));
   const lagDefault = levelTurning ? LIVE.biasLag * tight : LIVE.biasLag;
-  const biasWanted = { lag: lagDefault, pure: 0, lead: levelTurning ? 0 : LIVE.biasLead }[e.cue?.mode] ?? 0;
+  const biasWanted = { lag: lagDefault, pure: 0, lead: levelTurning ? 0 : LIVE.biasLead }[liveWord(e.cue)] ?? 0;
   const bias = toward(ws.bias, biasWanted, LIVE.biasPerSec);
   const wantFt = Math.max(place.rangeFt, 1);
   let shareWanted = bias + (LIVE.kR * (rangeFt - wantFt)) / wantFt - (LIVE.kC * closureFtps * LIVE.lookSec) / wantFt;
@@ -290,11 +328,12 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, slotAt, word },
+    ws: { ...ws, st: next, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, slotAt, word, side, ctxSide },
     pose,
     power,
     cue,
     rangeFt,
     settled,
+    side,
   };
 }
