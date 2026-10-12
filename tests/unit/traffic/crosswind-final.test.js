@@ -6,12 +6,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
 import { drawHeadingOf, drawBankOf } from '../../../src/modules/traffic/path-follower.js';
 
 const mooseJaw = JSON.parse(readFileSync(resolve(process.cwd(), 'src/modules/traffic/data/moose-jaw.json'), 'utf8'));
-const RUNWAY_FT = 1880;
+const RUNWAY_FT = THRESHOLD_DATA_ELEV_FT;
 
 test('Crosswind final: lands wing-down, nose along the runway and the upwind wing down (SMM 4.12 paras 26, 28b)', () => {
   for (const windFromDeg of [208, 28]) {

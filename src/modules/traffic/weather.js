@@ -116,7 +116,7 @@ export function placeStraightInDescent(routes) {
 
   // Window waypoint: matches the final turn rollout window (PAT1 point 12)
   const patWin = pat1?.points?.[12];
-  const winAlt = patWin?.alt ?? 2119;
+  const winAlt = patWin?.alt ?? 2131;
   const winX = patWin?.x ?? Math.round((th.x + ux * windowOutFt) * 10) / 10;
   const winY = patWin?.y ?? Math.round((th.y + uy * windowOutFt) * 10) / 10;
   let winIdx = ent2.points.findIndex((pt) => pt?.label === 'Window');

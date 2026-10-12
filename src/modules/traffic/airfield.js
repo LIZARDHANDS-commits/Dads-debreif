@@ -75,12 +75,11 @@ export const DOWNWIND_29L_HDG_DEG = 118;
 export const FIELD_ELEV_FT = 1892;
 
 /**
- * Threshold height in the route data, ft MSL. It disagrees with FIELD_ELEV_FT
- * and the CAP chart's 1,892 ft threshold (decisions D202 and TR-24); the true-scale
- * rebuild (TR-67) left it alone, so the window (2,119 ft, 3° to the number base)
- * and every route height stay as they were.
+ * Threshold height in the route data, ft MSL: the field's, 1,892 ft (Patrick, 12 Oct 2026: "Touchdown Elevation
+ * 1892 ft", card "Move to 1,892"). 1,880 ft until then (D202, D211). The window sits 3° above it at 3/4 NM, 2,131 ft
+ * (2,119 ft until then).
  */
-export const THRESHOLD_DATA_ELEV_FT = 1880;
+export const THRESHOLD_DATA_ELEV_FT = FIELD_ELEV_FT;
 
 /** Pattern height, ft MSL: Patrick's ruling (D109; TR-R4). */
 export const PATTERN_ALT_FT = 3500;
