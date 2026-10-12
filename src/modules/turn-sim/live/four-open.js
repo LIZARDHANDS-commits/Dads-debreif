@@ -43,11 +43,11 @@ function heldOut(c, { wing, recs, t0, blockFt }, slots, id) {
   const downFt = Math.min(upFt, wing.altAboveFt) - OPEN_OUT.diveFt;
   const diveSec = Math.max(H.diveSec, Math.abs(wing.altAboveFt - downFt) / OPEN_OUT.verticalFtps);
   const dive = { t0, t1: t0 + diveSec, fromFt: wing.altAboveFt, toFt: downFt };
+  const climbSec = H.climbSec; // the climb back from the dive, before the turn back
   const profileFor = (part) => {
     if (!part) return [dive];
     const t1 = t0 + part.turnBackStep * dt;
-    const c0 = Math.max(dive.t1, t1 - H.climbSec);
-    return [dive, { t0: c0, t1: Math.max(c0 + dt, t1), fromFt: downFt, toFt: upFt }];
+    return [dive, { t0: t1 - climbSec, t1, fromFt: downFt, toFt: upFt }];
   };
   const bankDeg = FOUR_OPEN.bankDeg;
   let best = null;
@@ -55,6 +55,10 @@ function heldOut(c, { wing, recs, t0, blockFt }, slots, id) {
     const args = { wing, rec, s, outAimFt, slotFwd: lf.fwd, bankDeg, offDeg, blockFt, t0 };
     const first = flyOut({ ...args, profile: profileFor(null) });
     if (!first) continue;
+    // A turn back that comes before the dive and the climb back both fit is not flown: until 12 Oct 2026 the climb was
+    // squeezed into what was left (400 ft in 1.25 s on the 4-ship tour's Spread 4, 45° off), and paying for that climb
+    // with full power ran his speed down without end in the plan's search (it was never flown).
+    if (t0 + first.turnBackStep * dt - climbSec < dive.t1 - 1e-9) continue;
     const profile = profileFor(first);
     const part = flyOut({ ...args, profile });
     if (!part) continue;

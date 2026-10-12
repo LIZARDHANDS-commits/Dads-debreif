@@ -326,45 +326,22 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.…nearLeadFt | `1500` | ... or within this of Lead (to fighting wing, the band's far edge instead) (estimate; rows 6, 15) |
 | TRACKER.wrongSideFt | `50` | more than this past Lead's six is the wrong side; inside the step-down gate (LANE.belowRangeFt, 2,000 ft, TS-151) that drops the ride (about 1.5 wingspans, estimate; row 8) |
 | WING |  | #2's numbers. Sources beside each; "estimate" where none. |
-| WING.pursuitShare | `0.1` | the lag or lead offset as a share of the range (estimate) |
 | WING.latDeg | `15` | off Lead's tail, inside the 30° half cone (estimate; cone: Patrick 19:20Z row 2) |
-| WING.collapseSec | `6` | how long the collapse toward the six takes (estimate) |
 | WING.rangeSec | `6` | how long a new distance setting takes to fly (estimate) |
 | WING.blendInSec | `10` | entry (estimate) |
 | WING.blendOutSec | `12` | terminate (estimate) |
 | WING.blendMinSec | `3` | no blend quicker than 3 s, however quick the rate (estimate) |
-| WING.smoothSteps | `10` | the position line is smoothed over 10 steps (0.5 s) either side (estimate) |
-| WING.maxBehindSec | `10` | the furthest back along Lead's path #2 can be |
-| WING.turnSec | `8` | the lag or lead offset is what the cue wanted over the last 8 s, averaged (estimate) |
-| WING.tailSec | `6` | the turn onto the place off Lead's current tail is averaged over the last 6 s (estimate; 3 s in V2.18) |
-| WING.headingSec | `3` | the fighting wing slot, while blending, turns with Lead's heading averaged over the last 3 s (estimate) |
-| WING.swapMinSec | `5` | the side swap takes no less than 5 s ... (estimate) |
-| WING.swapMaxSec | `12` | ... and no more than 12 s (estimate) |
 | WING.swapAccelDps2 | `2` | how quickly a wingman can stop a drift across the cone, 2°/s² (estimate) |
 | WING.swapMarginDeg | `2` | the stop must be at least 2° past the tail line before he swaps, so he doesn't flick on a line (estimate) |
 | WING.swapGuardSec | `4` | no new swap for 4 s after one ends (estimate) |
-| WING.openGAim | `4.5` | the G he aims to stay under while the range opens: 0.5 G inside the 5 G aim for the turn's own share (estimate) |
-| WING.openFadeSec | `2` | the opening is allowed only in those manoeuvres, faded in and out over 2 s (estimate) |
-| WING.closeShare | `0.08` | closing back he flies at most 8% faster along Lead's path than Lead did there (about 15-20 KIAS; estimate) ... |
-| WING.closeSec | `4` | ... and the last of it dies away over about 4 s (estimate) |
-| WING.openSoft | `0.005` | how softly the opening hands over to the closing (the smooth maximum's width; estimate) |
 | HOLD |  | The numbers of the hold. Estimates unless said. stretchMinFt, stretchShare: #2 is STRETCHED while he is more than this far behind where the planned line wanted him (10 ft, or 5% of his range from the aircraft he flies off if more), so a close wingman shows it at a few feet and a fighting wing one at a few tens. overtakeKias: closing back up he keeps at most this overtake, the middle of EFIG p.374' |
 | HOLD.stretchMinFt | `10` |  |
 | HOLD.stretchShare | `0.05` |  |
 | HOLD.overtakeKias | `15` |  |
-| HOLD.closeDecelFtps2 | `1` |  |
-| HOLD.gain | `0.6` |  |
 | HOLD.jerkFtps3 | `POWER_JERK_KTPS2 * KT_TO_FTPS` |  |
 | HOLD.extraSec | `120` |  |
-| HOLD.cutShare | `0.25` | the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate) |
-| HOLD.cutSec | `4` | how long moving into or out of the offset takes (estimate) |
-| HOLD.cutMinCurvPerFt | `1 / 20000` | a line straighter than a 20,000 ft radius has no inside to cut (estimate) |
 | HOLD.lookSec | `2` | he sets his lag or lead for the gap he will have in about 2 s at the closure he has (estimate) |
 | HOLD.bubbleMarginFt | `50` | with Lead at MAX, #2 takes power off only within about 50 ft of the 500 ft bubble (estimate) |
-| HOLD.offsetAccFtps2 | `10` | and moves with at most about 0.3 G of its own, so the lag or lead adds little to the G he pulls (estimate) |
-| HOLD.aimSec | `1` | and the offset's aim is eased over about 1 s, so a new turn or a reversal never jerks his G (estimate) |
-| HOLD.powerSec | `POWER.torqueSec` | the torque's full travel, 0 to 100%, takes about 0.2 s; the boards are instant (Patrick 6 Oct 03:17Z, 03:18Z, TS-108; 2 s, an estimate, until V2.119) |
-| HOLD.floorKias | `70` | his speed is never shown below 70 KIAS, a guard only: the planned line keeps him well above it (estimate) |
 | FOUR_OPEN |  | The 4-ship's opening out (four-open.js: fighting wing or finger to Spread 4, the Fluid 4 split, the offset box spread): each wingman turns away and back at this bank at most. Patrick 6 Oct 01:44Z: "nah keep it sporty at 60 deg" (it was the G rule alone, about 78° and 5 G at the press: 5 Oct 06:16Z item 12, TS-66 (4)). |
 | FOUR_OPEN.bankDeg | `60` | the opening-out bank, held (Patrick 6 Oct 01:44Z) |
 | FOUR_OPEN.offHeadingsDeg | `Object.freeze([20, 25, 30, 35, 40, 45])` | how far off Lead's heading each holds on the way out to Spread 4; the one that settles soonest is flown (estimates; open-out.js's search) |

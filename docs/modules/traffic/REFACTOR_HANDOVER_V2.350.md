@@ -118,6 +118,21 @@ Files: `pfl.js` (1,536 lines), new `pfl-geometry.js` (geometry, zoom, chain), `p
 
 Not a code step. After step 5 the thread writes one table (number, file, what it does, proposed source or "estimate") of the Traffic numbers that carry no manual page or ruling: `ROLL` (45°/s, 90°/s²); the "lined up on final" thresholds from step 2; the `PFL` table's estimates; the `EVADE` and `spacingExtensionFt` distances; the 1,000 ft and 500 ft margins in `placeStraightInDescent`; the perch-search 0.6 share and 1,500 ft step in `buildCircuit`; the deconfliction limits. Patrick rules one question at a time, his own value always an option. Numbers he sources get their page beside them; numbers he drops come out in one more pull request. The two field heights in `airfield.js` go on the same list.
 
+**Where each stands (Patrick's rulings, 12 Oct 2026).** "Estimate" means the number stays, marked as an estimate, until a page or a ruling backs it.
+
+| Number | File | What it does | Ruling |
+|---|---|---|---|
+| `ROLL`: 45°/s, 90°/s² build-up | `circuit.js` | How fast every simulated pilot rolls | Keep, marked estimate |
+| Lined up: within 2,000 ft of the centreline and 30° of runway track | `sim.js` | "On final" for spacing and landing | Keep, marked estimate |
+| Lined up for the runway-busy check: 2,000 ft and 60°, out to 3 NM | `sim.js` | Who counts as using the runway | Keep, marked estimate |
+| `EVADE`: flinch 5 s and 500 ft; PFL bank-away 12 s out, 20 s back; 500 ft climb before a fly-through; rejoin at 45° bank and 1,000 ft/min | `evade.js` | Moves out of the way and back | Keep, marked estimates |
+| Extension search: 100 ft steps, up to 20 NM | `evade.js` | Solver step and guard | Not flying; no ruling needed |
+| "Higher" means 100 ft higher | `deconflict.js` | Right of way when one is higher | Keep 100 ft, marked estimate |
+| Straight-in descent point kept 1,000 ft outside the window and 500 ft inside the point before | `weather.js` `placeStraightInDescent` | Held the route in order on an extreme day | No limit (TR-150); the limit is removed |
+| Perch search: 20 tries, 0.6 of each miss, at most 1,500 ft a try | `circuit.js` `buildCircuit` | Where the perch sits | Solver numbers; no ruling needed |
+| Field 1,892 ft against the route's 1,880 ft runway | `airfield.js` | Runway and window heights | Runway at 1,892 ft, window 2,131 ft (TR-149, V2.380) |
+| `PFL` table estimates (spec 4.5 table) and the `PFL` numbers with no source in the code | `pfl-geometry.js` | The PFL's flying | Keep, marked estimates; the touchdown and gate bank-flag comments now carry the spec's SMM pages |
+
 ## 5. What Fable does
 
 After each merge the coordinator builds a renamed copy in the project files; Fable runs the driver on it, diffs against the previous copy, reads the diff of the pull request for anything that is not a pure move, and reports PASS or FAIL to Patrick in the Fable thread. A FAIL stops the next step until the cause is found. Fable read every Traffic flying file for this audit without objection, so the renamed copy is a convenience for byte comparison, not a requirement.
