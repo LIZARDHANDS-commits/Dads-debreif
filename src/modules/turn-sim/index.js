@@ -11,7 +11,7 @@
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { STEP_SEC, liftBankDeg } from './live/flight.js';
-import { drawnAttitudeBetween } from './live/attitude.js';
+import { drawnAttitudeBetween, drawnAttitudeOf } from './live/attitude.js';
 import { MANOEUVRES, relativeTo } from './live/manoeuvres.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, fixedLine } from './live/formation.js';
 import { compassDeg, intoOrAway, labelFor } from './live/formation-words.js';
@@ -157,10 +157,16 @@ function mount(root, app) {
   // +180, which blended one by one drew a half or a whole roll inside a step (Patrick 11 Oct 2026 21:08Z, the fluid loop).
   const BLENDED = ['xFt', 'yFt', 'altAboveFt', 'nz'];
   const ATTITUDE = ['headingRad', 'pitchDeg', 'attitudeDeg'];
+  const MODEL = ['headingRad', 'tasFtps', 'kias'];
   const mix = (a, b, f) => {
     const out = { ...b };
     for (const k of BLENDED) if (Number.isFinite(a[k]) && Number.isFinite(b[k])) out[k] = a[k] + (b[k] - a[k]) * f;
     if (ATTITUDE.every((k) => Number.isFinite(a[k]) && Number.isFinite(b[k]))) Object.assign(out, drawnAttitudeBetween(a, b, f));
+    // The model's own attitude (drawnAttitudeOf, the nose tilted in the aircraft's frame) blended the same way, for the 3D view.
+    if (MODEL.every((k) => Number.isFinite(a[k]) && Number.isFinite(b[k]))) {
+      const wings = (x) => x.attitudeDeg ?? liftBankDeg(x.bankDeg, x.nz ?? 1);
+      out.drawn = drawnAttitudeBetween(drawnAttitudeOf(a, wings(a)), drawnAttitudeOf(b, wings(b)), f);
+    }
     else if (Number.isFinite(a.headingRad) && Number.isFinite(b.headingRad)) {
       const d = Math.atan2(Math.sin(b.headingRad - a.headingRad), Math.cos(b.headingRad - a.headingRad));
       out.headingRad = a.headingRad + d * f;
