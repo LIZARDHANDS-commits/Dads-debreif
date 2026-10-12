@@ -106,6 +106,18 @@ Not a code step. One table (number, file, what it does, proposed answer) for Pat
 - `LANE` (100 ft margin, 1,000 ft range, 2,000 ft step-down range, 1,200 ft canopy range), `T6A_ROLL` and `T6A_G_ONSET`, and `SHADE_GAIN`: all marked estimates; a page or a ruling for each, or they stay marked.
 - The one-import-point ("barrel", `plan.md` Step 2). Fable's answer: no barrel. A named import from the file that holds the formula tells a reader where it lives, which is what plain code for a non-developer asks; a barrel that re-exports `t6-performance.js` pulls `point-mass.js` and the chart fit into every module that wants one angle wrap; and `flight-math.md` is already the one place to find the maths. Patrick decides.
 
+**Where each stands (Patrick's rulings, 12 Oct 2026).**
+
+| Number | File | What it does | Ruling |
+|---|---|---|---|
+| Feet per nautical mile: 6076.12 (core), 6076.11549 (SOF, Turn Sim screens), bare 6076 (Traffic) | `units.js` `FT_PER_NM` | Distance conversions | One exact value, 1852 ÷ 0.3048 = 6,076.1155, in `units.js`; every screen reads it (V2.377, #944) |
+| `FTPS_TO_KT` 0.592484 | `units.js` | ft/s to knots | "Make it exact": 1 ÷ `KT_TO_FTPS` (V2.379) |
+| `LANE`: 100 ft margin, 1,000 ft range, 2,000 ft step-down range (1,200 ft canopy range cites SMM 12.24, 16.20) | `canopy.js` | Formation lane and gates | Kept as marked estimates |
+| `SHADE_GAIN` 4 | `terrain-grid.js` | Map hill shading only | A display choice; stays an estimate, not asked |
+| `T6A_ROLL`, `T6A_G_ONSET` | `t6-performance.js` | Aircraft roll and G onset | Wait for the performance rebuild, which owns `t6-performance.js` |
+| Two zoom models: `flyZoomT6A` and Traffic's `zoomPitchStep` | `t6-performance.js`, Traffic `pfl-geometry.js` | One aircraft, two zooms | Wait for the performance rebuild; Fable recommends Traffic's |
+| One import point ("barrel") | core | How modules import core | None built; nothing changes unless Patrick asks for one |
+
 ## 5. What Fable does
 
 After each core merge Fable reads the diff for anything that is not a pure move, checks the `core-trace` diff the thread reports, and runs the Formation set on a renamed copy as the standing order says; after step 2 it also reads the Traffic driver's hot and cold rows. PASS or FAIL to Patrick in the Fable thread; a FAIL stops the next step until the cause is found.
