@@ -1777,7 +1777,7 @@ const BOW_MIRRORS = Object.freeze({ spans: Object.freeze([[0.18, 0.4], [0.6, 0.8
 
 /** One of the forward bow's curved mirrors between bow fractions t0 and t1 (BOW_MIRRORS), as { frame, face } (feet). */
 function bowMirrorGeometries(THREE, b, t0, t1) {
-  const n = 48;
+  const n = 480; // fine enough for the round ends to show (48 until Patrick, 12 Oct 2026, "should have rounded ends")
   const pts = ct156HoopPoints(b.bandX / F, n, 0, b.lean ?? 0).slice(Math.round(t0 * n), Math.round(t1 * n) + 1);
   const base = ct156CanopySection(b.bandX / F).base * F;
   const at = ({ x, y, z }, d, dx) => {
@@ -2665,7 +2665,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const railParts = [];
   for (const g of sf.frames) railParts.push({ geometry: g, materials: [SLOT.grey] }); // the cockpit's own grey (Patrick, 12 Oct 2026; was a lighter grey)
   for (const g of sf.nubs) railParts.push({ geometry: g, materials: [SLOT.dark] });
-  for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.frame] });
+  for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.grey] }); // also the cockpit's grey (Patrick, 12 Oct 2026; was SLOT.frame's lighter grey)
   for (const [g, slot] of canopyHandleParts(THREE)) railParts.push({ geometry: g, materials: [slot] });
   add(ct156JoinGeometries(THREE, railParts), slotMats).name = 'ct156-cockpit-canopy-rails';
   // The named parts (seatParts' tags) each their own mesh, for the Blender cockpit to replace; with keepPieces their pieces
