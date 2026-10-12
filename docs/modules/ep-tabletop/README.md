@@ -4,12 +4,22 @@ This folder is the emergency procedures tabletop: an instructor runs a practice 
 
 ## Where it stands
 
-**Spec approved; Step 1 (one-screen tabletop) being built.** Dad's ask, 12 Oct 2026; Patrick approved it as a new module (relayed by Dad the same day; ALL-36), then approved the spec: "pat approved, start building the one screen version and use the moose jaw 3d environment" (relayed by Dad, 12 Oct 2026). EP-Q1 (the phone link) is still open; the one-screen version needs no link.
+**Step 1, the one-screen tabletop, built in V2.369 (branch `claude/ep-tabletop-build`); not yet seen by Patrick or Dad in the app.** Patrick approved the spec (relayed by Dad, 12 Oct 2026: "pat approved, start building the one screen version and use the moose jaw 3d environment"). Open EP Tabletop from the home screen: the student's CT-156 cockpit over Moose Jaw with the step track; the Instructor switch opens the console. Build choices EP-4 to EP-7 wait for Patrick's wording. The code is in `src/modules/ep-tabletop/`.
 
 ## What is next
 
-1. `plan.md` Step 1: the one-screen tabletop.
+1. Patrick or Dad runs "Engine roughness in the area" on the one screen and says what to change.
 2. Patrick answers EP-Q1 (how the instructor's phone links to the student's screen) before Step 2.
+3. The proposal below (Traffic's Moose Jaw buildings in a shared home), if Patrick wants it.
+
+## Proposal for Patrick: Traffic's Moose Jaw world in a shared home (EP-7)
+
+The EP Tabletop's Moose Jaw is the shared terrain, satellite picture and runways; Traffic's buildings, landmarks, runway paint, furniture and roads are not in it. Moving them to a shared home (for example `src/ui-kit/cymj-world/`) as plain file moves wasn't possible without changing Traffic:
+- The builders read Traffic's own numbers from `src/modules/traffic/airfield.js` (the runway heading, the threshold elevation), which also holds Traffic's flight numbers (flare, PFL keys), so that file would have to be split.
+- The world is put together inside Traffic's `view3d.js` scene kit, mixed with Traffic's own layers (its photo tiers, ground heights draping the landmarks, roads and shadows), so a shared entry both could call means rewriting part of Traffic's 3D view.
+- The scripts that make some of those files (`tools/airfield/`, `tools/blender/`, `tools/osm/`) write into Traffic's folder.
+
+Options: (a) a separate piece of work that splits `airfield.js`, moves the builders and their tools, and gives Traffic and the EP Tabletop one `createMooseJawWorld`, checked by before-and-after pictures of Traffic; (b) keep it as it is (the EP Tabletop's Moose Jaw has no buildings); (c) your idea. Recommendation: (b) for now, since from 8,000 ft in the area the buildings barely show, and (a) when the Traffic sim is next quiet.
 
 ## The files
 
@@ -21,6 +31,7 @@ This folder is the emergency procedures tabletop: an instructor runs a practice 
 | `testing.md` | This module's testing rules and its sign-off checklist |
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
 | `future.md` | Ideas not being built until Patrick moves them up |
+| `../../../src/modules/ep-tabletop/` | The code, with its own short README |
 
 ## Open questions
 
