@@ -70,7 +70,7 @@ export const LIVE = Object.freeze({
   severitySec: 2, // ... and follows his turn over about 2 s, none to full, so a quick roll-in of Lead's moves #2's picture smoothly, never in a step (estimate; smooth hands)
   turnSenseSec: 0.5, // #2's sense of Lead's turn (its direction and size) follows Lead's turning acceleration with about half a second of lag (estimate) ...
   turnHeldG: 0.1, // ... and below 0.1 G of it the last turn's direction and plane are held, so a straight Lead never leaves him a direction from noise (estimate)
-  circleSec: 4, // in a turn into him the side offset in Lead's plane eases away over about 4 s (circleInsideSec below), so #2 settles onto Lead's circle; on the outside of a turn it holds, so he stays on the route offset off Lead's tail, never dead astern (Patrick 12 Oct 2026 04:14Z: "at times it seems like we're flying directly at lead instead of the route position"). The 4 s is an estimate; Patrick 01:39Z: "maintain 500 feet in the turn then accept getting a bit further away as we seep out to our 'offset' position"
+  circleSec: 4, // in a turn the side offset in Lead's plane eases away over about 4 s, so #2 settles onto Lead's circle (estimate; Patrick 12 Oct 2026 01:39Z: "maintain 500 feet in the turn then accept getting a bit further away as we seep out to our 'offset' position"); turning into him it is circleInsideSec
   circleBackSec: 12, // in Terminate the offset comes back as Lead rolls out over about 12 s, the slot slide's own pace (estimate), so the roll-out never jumps the aim across
   circleInsideSec: 8, // ... but with the offset on the inside of Lead's turn (Lead turning into him) over about 8 s, so Lead's turn brings the circle to him and he rolls in later and shallower instead of rolling away first (estimate; Patrick 12 Oct 2026 03:10Z: he turns away only when the turn would bring him inside 500 ft)
   bubbleShare: -1, // inside the 500 ft bubble the aim goes to full lag (spec section 9; SMM 16.17 para 44c)
@@ -271,11 +271,13 @@ export function stepLiveWing(ws, ctx) {
   // ---- the aim: Lead, moved in front of or behind him, offset to #2's side (and up to Terminate's slot height) ----
   // The side offset is fixed, set at the entry (Patrick 12 Oct 2026 01:39Z, "the small offset"; 02:45Z "that part is
   // good"), in Lead's path frame, so it holds through a loop, a wingover or a roll.
-  // With the offset on the inside of Lead's turn (Lead turning into him) the part of it in Lead's plane eases away
-  // (circleIn), so Lead's turn brings the circle to him and he settles onto it; on the outside it holds, so through a turn
-  // away from him he stays on the route offset off Lead's tail, never dead astern on Lead's circle (Patrick 12 Oct 2026
-  // 04:14Z: "at times it seems like we're flying directly at lead instead of the route position"). Out of the plane
-  // (beside a loop) it holds too.
+  // In a turn the part of the offset in Lead's plane eases away (circle, circleIn), so #2 settles onto Lead's circle
+  // (Patrick's card 11 Oct 2026 23:06Z, "On the circle"): with the offset on the inside (Lead turning into him) slower,
+  // so Lead's turn brings the circle to him. Measured on V2.380 in a steady 60° turn away at MAX: holding the offset
+  // outside instead is a bigger circle he cannot fly at Lead's speed, so he fell back to 810 ft and still sat 5° off the
+  // tail, no nearer the route position (Patrick 12 Oct 2026 04:14Z, "flying directly at lead instead of the route
+  // position"); turning that offset into height in the cone (120 ft above Lead on his circle, 13° off the tail, 705-730 ft)
+  // is the proposal on the list, waiting for Patrick. Out of the plane (beside a loop) the offset holds.
   let sideVec = scale3(left, place.rangeFt * Math.sin(place.acrossDeg * DEG));
   let insideTurn = false;
   if (plane) {
@@ -284,7 +286,7 @@ export function stepLiveWing(ws, ctx) {
     const inPlane = sub3(sideVec, out);
     insideTurn = dot3(inPlane, turnDir) > 0;
     if (insideTurn) sideVec = add3(out, scale3(inPlane, 1 - circleIn));
-    else if (toSlot) sideVec = add3(out, scale3(inPlane, 1 - circle)); // Terminate: he flows to the slot on Lead's gentle turn, not the route offset
+    else sideVec = add3(out, scale3(inPlane, 1 - circle)); // outside, and in Terminate: he settles onto Lead's circle (the slot's, in Terminate)
   }
   const aim = add3(add3(add3(L, scale3(ahead, offFt)), sideVec), scale3(Z, place.alt));
   const toAim = sub3(aim, pw);
