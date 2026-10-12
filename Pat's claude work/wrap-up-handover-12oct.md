@@ -54,6 +54,24 @@ Every module keeps its ideas and rough spots in its own `future.md`. Counts are 
 
 **Formation.** V2.387 (#961) merged on Patrick's word without a second Fable review. The hand-overs (line abreast to echelon, echelon to line abreast, fighting wing to route) re-fly roll lags of 1 s or less at the bank flown; longer roll-ins, such as #4's 5.65 s in the echelon hook, still fly the planned path. The two timings are estimates (`ROLLED_MAX_SEC` 1 s, `ROLLED_BLEND_SEC` 6 s), and the item stays on the Turn Sim future list until Patrick flies it (#966). Unseen: the 3D view and Patrick's flying. The Formation branch has no open work.
 
+**Fluid (live wingman).** Finished (Patrick, 12 Oct 07:06Z), all on main: v9 at V2.382 (#950, TS-198), the Planned wingman retired and the swap at the inverted top at V2.384 (#955, TS-199), Terminate eased at V2.385 (#959), height in the cone at V2.386 (#962, TS-200, docs #964). TS-201 (the eased Terminate) is waiting for Patrick's yes to its words, with a docs pull request to follow; the next free Turn Sim row after it is TS-202. The open rough spots are in the "Live fluid #2 after v9" bullet of [turn-sim/future.md](../docs/modules/turn-sim/future.md). Patrick hasn't flown V2.382 to V2.386.
+
+## Tags to push
+
+GitHub's newest tag is `v2.215-debrief-puck-cockpit`; later versions are mostly untagged there. These are the ones the threads named today. From an up-to-date clone of main:
+
+```
+git fetch origin
+git tag v2.370-arrow-height d5e4504d
+git tag v2.371-fluid-v8-side-free 62eaecfb
+git tag v2.382-fluid-v9 3daa96b1
+git tag v2.384-fluid-live-only f6cece4f
+git tag v2.385-terminate-ease 338e275c
+git tag v2.386-height-in-cone 97c31cbd
+git tag v2.387-handover-bank-speed 08263f83
+git push origin --tags
+```
+
 ## Open rulings
 
 The one waiting list is the end of [docs/PLAN.md](../docs/PLAN.md), "Waiting on Patrick". The ones at the top of it:
