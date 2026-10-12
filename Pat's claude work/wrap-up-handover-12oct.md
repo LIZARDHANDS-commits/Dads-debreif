@@ -50,6 +50,10 @@ Every module keeps its ideas and rough spots in its own `future.md`. Counts are 
 | EP Tabletop (Dad) | [ep-tabletop/future.md](../docs/modules/ep-tabletop/future.md) | 5 |
 | Shared (core, 3D, ui-kit) | [shared/future.md](../docs/modules/shared/future.md) | 6 |
 
+## Notes from each module
+
+**Formation.** V2.387 (#961) merged on Patrick's word without a second Fable review. The hand-overs (line abreast to echelon, echelon to line abreast, fighting wing to route) re-fly roll lags of 1 s or less at the bank flown; longer roll-ins, such as #4's 5.65 s in the echelon hook, still fly the planned path. The two timings are estimates (`ROLLED_MAX_SEC` 1 s, `ROLLED_BLEND_SEC` 6 s), and the item stays on the Turn Sim future list until Patrick flies it (#966). Unseen: the 3D view and Patrick's flying. The Formation branch has no open work.
+
 ## Open rulings
 
 The one waiting list is the end of [docs/PLAN.md](../docs/PLAN.md), "Waiting on Patrick". The ones at the top of it:
