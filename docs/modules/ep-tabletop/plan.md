@@ -1,9 +1,9 @@
 # EP Tabletop: plan
 
-Only what is here gets built. Building starts once Patrick approves `spec.md`.
+Only what is here gets built. Patrick approved `spec.md` and EP-1 to EP-3 (relayed by Dad, 12 Oct 2026); EP-Q1 is still open and is needed only from Step 2.
 
 ## Step 0. Spec approved
-- [ ] Patrick approves `spec.md` and the wording of EP-1 to EP-3, and answers EP-Q1 (the phone link); EP-Q2 and EP-Q3 use their working answers until he says otherwise.
+- [x] Patrick approves `spec.md` and the wording of EP-1 to EP-3 (relayed by Dad, 12 Oct 2026: "pat approved, start building the one screen version and use the moose jaw 3d environment"). EP-Q1 (the phone link) is still open and is needed only for Step 2; EP-Q2 and EP-Q3 use their working answers until he says otherwise.
 
 ## Step 1. One-screen tabletop
 - [ ] Module folder, home card and README; the student screen with the shared CT-156 cockpit and the step track; the instructor console behind an Instructor switch (one-screen mode).
