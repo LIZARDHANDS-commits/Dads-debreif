@@ -338,7 +338,7 @@ function overTheTopMode(u) {
 
 // ---- the controllers: one per button -------------------------------------------------------------
 // Each is { key, label, interruptible, init(st, ctx) -> mem, step(st, mem) -> { g, bank, holdKias?, phase, cue, done } }.
-// cue: what #2 does with the part of the path Lead is flying now (fluid-wing.js): mode 'lag' | 'pure' | 'lead', latDeg
+// cue: what #2 does with the part of the path Lead is flying now (fluid-wing-live.js liveWord): mode 'lag' | 'pure' | 'lead', latDeg
 // (how far off Lead's tail he sits, inside the 30° half cone), and blend (1 fluid, 0 the fighting wing slot).
 
 /** A level turn at a bank (turn-sim dir: +1 left, -1 right), held until the next press, or for turnDeg then wings level. */
@@ -463,8 +463,8 @@ function speedSetUp(st, mem, kias) {
 
 /**
  * #2's pursuit word through the loop (Patrick 17:12Z: lag going up, fuselages parallel crossing the horizon, lead
- * coming down), by Lead's loop angle: LAG, PURE over the top (as near parallel as positive G allows, fluid-wing.js
- * LOOP_WING), LEAD, then PURE in trail for the pull-out. Where he sits for it is fluid-wing.js loopPlace.
+ * coming down), by Lead's loop angle: LAG, PURE over the top (as near parallel as positive G allows), LEAD, then PURE in
+ * trail for the pull-out. Where he sits for it is the live wingman's own law (fluid-wing-live.js loopWords).
  */
 function loopMode(alphaRad) {
   const deg = alphaRad / DEG;
@@ -519,7 +519,7 @@ export function loop({ waitSec = 0 } = {}) {
       // The exit speed is read as the nose comes back to the horizon (SMM 7.5 para 12; Fig 7.2 "Exit 230 KIAS").
       if (mem.stage === 'exit' && mem.exitKias === undefined && alpha >= 2 * Math.PI - 0.5 * DEG) mem.exitKias = st.kias;
       const done = mem.stage === 'exit' && level(st);
-      // The loop's frame for #2 (fluid-wing.js frameOf): the entry heading and the angle round so far.
+      // The loop's frame for #2 (fluid-wing-live.js reads cue.loop): the entry heading and the angle round so far.
       return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: 15, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
