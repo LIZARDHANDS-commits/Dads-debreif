@@ -287,9 +287,22 @@ export function stepLiveWing(ws, ctx) {
   // In the vertical: lead cuts inside Lead's turn (the short way down) and lag goes outside it, both as Lead's phase sets
   // them; to stay out of the bubble he moves out of Lead's plane, wider to his own side, rather than higher.
   const nVert = off.n * (off.n < 0 ? LIVE.vertLag : LIVE.vertLead);
+  // The offsets are laid off in HIS frame, the trail's at the step he is abeam (j0), not at the aim's step (Fable's round 3
+  // design A, Patrick 12 Oct 2026 00:40Z "Build it"; EFIG p.391: "go to where lead was and do what lead did"): the frame
+  // he flies in changes plane only as he himself passes where Lead rolled out, so Lead's roll-out into the loop never
+  // swings his lag from outside the turn to below Lead while he is still in the turn.
+  // In the vertical, lag is pulling less, never pushing (design B): the lag part is capped so the aim never lies below his
+  // straight-ahead line, at most the height Lead's path there stands above it. Lead (the short way down) is unchanged.
   const pathAt = (j) => {
-    const c = trailAt(j);
-    let p = add3(add3(add3(add3(ctx.E(j).pos, scale3(c.left, off.l)), scale3(c.up, off.u)), scale3(c.lat, off.n)), scale3(c.vert, nVert));
+    const c = trailAt(j0);
+    const P = ctx.E(j).pos;
+    let nv = nVert;
+    if (nv < 0) {
+      const vPerp = perp3(c.vert, st.nose);
+      const vu = len3(vPerp);
+      if (vu > 1e-3) nv = -Math.min(-nv, Math.max(0, dot3(sub3(P, pw), scale3(vPerp, 1 / vu))) / vu);
+    }
+    let p = add3(add3(add3(add3(P, scale3(c.left, off.l)), scale3(c.up, off.u)), scale3(c.lat, off.n)), scale3(c.vert, nv));
     const vl = len3(c.vert);
     const tl = Math.min(1, vl + len3(c.lat));
     if (off.o > 0.5) {
@@ -302,7 +315,7 @@ export function stepLiveWing(ws, ctx) {
       }
       p = add3(p, scale3(c.left, side * off.o * (1 - tl)));
     }
-    return { p, nose: c.nose };
+    return { p, nose: trailAt(j).nose };
   };
   // Where he is along Lead's path: the step he is abeam, carried on from the last step.
   let j0 = Math.max(ctx.kMin, Math.min(kNow, ws.j ?? kNow - Math.round(rangeFt / Math.max(st.V, 1) / dt)));
