@@ -79,7 +79,8 @@ export const LIVE = Object.freeze({
   minG: 0.5, // never below 0.5 G on the lift he has (as Lead's push, 2 CFFTS Orders B2 ch 8 para 1a; 0.5 an estimate)
   normalG: G_RULE.normalG, // SMM 16.17 para 44a; Gen Book p.11 (flagged, the normal ceiling)
   acrossDps: 3, // how fast his place moves across the tail (the entry): 3°/s, 30° in about 10 s (estimate)
-  slotAcrossDps: 1.5, // in Terminate his place moves across to the fighting wing slot at 1.5°/s (estimate), slow enough that Lead's turn away from him does it and he only turns less, never away first
+  slotSideDeg: 2, // near Lead's tail Terminate takes the side he is heading for once more than 2° past it (estimate) ...
+  slotAcrossDps: 1.5, // in Terminate his place flows across to the fighting wing slot at 1.5°/s (estimate), a gentle slide out while Lead flies straight
   rangeFtps: 60, // how fast his place moves in or out (a new distance, the entry, Terminate): estimate
   altFtps: 20, // how fast his place moves up or down (Terminate's slot height): estimate
   placeKtPerFt: 0.08, // with Lead holding a speed, power flies his place: 1 kt faster per 12.5 ft behind it (estimate) ...
@@ -133,8 +134,11 @@ const toward = (x, to, rate) => x + Math.max(-rate * dt, Math.min(rate * dt, to 
  */
 export function startLiveWing(wing, blockFt, { side, slot }) {
   const st = leadStateOf(wing, blockFt);
-  const slotRange = Math.hypot(slot.fwd, slot.left, slot.alt);
-  const slotAcross = Math.atan2(Math.abs(slot.left), -slot.fwd) / DEG;
+  // Terminate's slot is where fighting wing left him, brought inside the band by its fly margins (slots.js FW_BAND: 50 ft and
+  // 5°), so he settles in fighting wing, never on its edge.
+  const inside = (x, [lo, hi], m) => Math.max(lo + m, Math.min(hi - m, x));
+  const slotRange = inside(Math.hypot(slot.fwd, slot.left, slot.alt), FW_BAND.rangeFt, FW_BAND.flyMarginFt[0]);
+  const slotAcross = inside(Math.atan2(Math.abs(slot.left), -slot.fwd) / DEG, FW_BAND.sweepDeg, FW_BAND.flyMarginDeg);
   return {
     st,
     slot: { rangeFt: slotRange, acrossDeg: slotAcross, alt: slot.alt },
@@ -149,7 +153,6 @@ export function startLiveWing(wing, blockFt, { side, slot }) {
     plane: null,
     severity: 0, // how hard Lead is turning, eased
     circle: 0, // how far the side offset in Lead's plane has eased away, 0 to 1
-    slotAt: null,
     word: 'pure',
   };
 }
@@ -213,23 +216,31 @@ export function stepLiveWing(ws, ctx) {
   const entering = e.cue?.blend === 1;
   // His side: the planned wingman's swaps over the top are followed as before (TS-60: the side the drift takes him to),
   // and with Lead level again and his turn eased off, #2 keeps whichever side of Lead's tail he has come out on, more
-  // than sideSwapDeg past it, never flying back across (Patrick 12 Oct 2026 03:40Z). Terminate holds the side it was
-  // pressed with.
+  // than sideSwapDeg past it, never flying back across (Patrick 12 Oct 2026 03:40Z). Terminate flows out to the side of
+  // Lead's tail he is on at the press, more than sideSwapDeg past it; nearer the tail, the side he is heading for (where
+  // he will be in lookSec at the drift he has: rolling out of a turn behind Lead he swings to its outside) more than
+  // slotSideDeg past it, else the side he had. He holds it, so he never comes back across Lead's tail on the way to
+  // fighting wing.
   let side = ws.side ?? ctx.side ?? (ws.place.acrossDeg < 0 ? -1 : 1);
   const ctxSide = ctx.side ?? ws.ctxSide;
   if (ctxSide !== undefined && ctxSide !== ws.ctxSide && ws.ctxSide !== undefined) side = ctxSide;
   const leadLevel = (e.st?.bodyUp?.z ?? 1) > 0.9 && Math.abs(nose.z) < 0.3 && turning < LIVE.sideFreeTurn;
   if (leadLevel && !toSlot && Math.abs(latDeg) > LIVE.sideSwapDeg && Math.sign(latDeg) !== side) side = Math.sign(latDeg);
+  let slotSide;
+  if (toSlot) {
+    const driftFt = dot3(r, left) + dot3(sub3(st.vel, e.vel), left) * LIVE.lookSec;
+    slotSide = ws.slotSide ?? (Math.abs(latDeg) > LIVE.sideSwapDeg ? Math.sign(latDeg)
+      : Math.abs(driftFt) > rangeFt * Math.sin(LIVE.slotSideDeg * DEG) ? Math.sign(driftFt) : side);
+  }
+  if (toSlot) side = slotSide;
   const want = toSlot
     ? { rangeFt: ws.slot.rangeFt, acrossDeg: side * ws.slot.acrossDeg, alt: ws.slot.alt }
     : { rangeFt: Math.max(FW_BAND.bubbleFt, ctx.rangeFt - LIVE.turnInFt), acrossDeg: side * LIVE.sideDeg, alt: 0 };
-  // Terminate: Lead's turn reaches him along Lead's path only after the time he is behind on it, so his place starts to
-  // move across to the fighting wing slot then, with the turn, not before it (rolling away first, then back into the turn).
-  const slotAt = toSlot ? (ws.slotAt ?? t + rangeFt / Math.max(len3(e.vel), 1)) : null;
-  const acrossNow = !toSlot || t >= slotAt;
+  // Terminate: Lead flies straight and level, so his place flows across to the fighting wing slot from the press (Patrick
+  // 12 Oct 2026 04:01Z).
   const place = {
     rangeFt: toward(ws.place.rangeFt, want.rangeFt, LIVE.rangeFtps),
-    acrossDeg: acrossNow ? toward(ws.place.acrossDeg, want.acrossDeg, toSlot ? LIVE.slotAcrossDps : LIVE.acrossDps) : ws.place.acrossDeg,
+    acrossDeg: toward(ws.place.acrossDeg, want.acrossDeg, toSlot ? LIVE.slotAcrossDps : LIVE.acrossDps),
     alt: toward(ws.place.alt, want.alt, LIVE.altFtps),
   };
 
@@ -264,7 +275,7 @@ export function stepLiveWing(ws, ctx) {
   // The side offset is fixed, set at the entry (Patrick 12 Oct 2026 01:39Z, "the small offset"; 02:45Z "that part is
   // good"), in Lead's path frame, so it holds through a loop, a wingover or a roll.
   // In a turn the part of it in Lead's plane eases away (circle), so he settles onto Lead's circle, and eases back as the
-  // turn eases (Terminate's slot offset included, so it comes back with Lead's gentle turn, never in a step); out of the
+  // turn eases (Terminate's slot offset included, never in a step); out of the
   // plane (beside a loop) it holds.
   let sideVec = scale3(left, place.rangeFt * Math.sin(place.acrossDeg * DEG));
   let insideTurn = false;
@@ -328,7 +339,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, slotAt, word, side, ctxSide },
+    ws: { ...ws, st: next, place, left, turnAcc, turnDir, plane, bias, severity, circle, circleIn, word, side, ctxSide, slotSide },
     pose,
     power,
     cue,
