@@ -10,13 +10,15 @@
 //  - power with hysteresis: once the boards are out they stay out at least RATE_SET_SEC (rates.js; the throttle makes up
 //    the difference), so the power word on the tag changes at a pilot's pace instead of flicking between steps;
 //  - shaped roll: the bank asked for is rolled to at the Rates profile's share of the roll rate (the onset is the
-//    aircraft's), with G built no faster than the profile's G onset (rates.js EXPERIENCE); the envelope gate (flight.js gateRoll) stays the one wall
+//    aircraft's, and the roll's acceleration is built over the T-6A's onset, core T6A_ROLL.onsetSec: Patrick 12 Oct 2026
+//    02:08Z, "the roll rate itself just needs to be realistic and smoothed (not instant acceleration)"), with G built no faster than the profile's G onset (rates.js EXPERIENCE); the envelope gate (flight.js gateRoll) stays the one wall
 //    behind it, the same for every level. Bank itself is never capped here (Patrick 6 Oct 04:07Z: no bank cap in
 //    formation): only physics (stall, the 7 G limit) through the gate.
 // It changes no flight physics: the step is flight.js's, the drag and thrust are core's and slow-down.js's, unchanged.
 import { easeRoll, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
-import { STEP_SEC, stepAircraft, rollLimitAt } from './flight.js';
+import { STEP_SEC, stepAircraft, rollLimitAt, carriedRollAccel, keepRollAccel } from './flight.js';
+import { T6A_ROLL } from '../../../core/t6-performance.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom, throttleFor } from './power.js';
 import { POWER, FW_ENERGY, RATE_SET_SEC, experienceNow } from './tuning.js';
@@ -36,6 +38,9 @@ export function setKias(a, kias) {
 
 /** One step flown at a commanded bank, by the unchanged flight.js step (a never-finishing turn segment holds the bank target). */
 export function stepCommanded(a, targetBankDeg, t, profile, accelKtps = null) {
+  // A wingman flown by the pilot builds his roll's acceleration at the gate too, the dry run and its replay alike
+  // (flight.js carriedRollAccel).
+  if (a.rollAccelDps2 === undefined) keepRollAccel(a, 0);
   const dir = targetBankDeg < 0 ? -1 : 1;
   const segments = Math.abs(targetBankDeg) < 1e-9
     ? []
@@ -63,7 +68,7 @@ export function coneUpFtNow() {
  * bank and roll rate, and the acceleration it already has (accelKtps, a hand-over's; 0 when not known).
  */
 export function createPilot(W, { accelKtps = 0 } = {}) {
-  return { accel: accelKtps, bank: W.bankDeg ?? 0, rate: W.rollRateDps ?? 0, stage: W.slowStage ?? null, stageSince: -Infinity, aMax: 0, top: 'power', floorThr: 0, climb: 0 };
+  return { accel: accelKtps, bank: W.bankDeg ?? 0, rate: W.rollRateDps ?? 0, rollAcc: carriedRollAccel(W) ?? 0, stage: W.slowStage ?? null, stageSince: -Infinity, aMax: 0, top: 'power', floorThr: 0, climb: 0 };
 }
 
 /**
@@ -105,23 +110,27 @@ export function pilotRollLimits(W, roll = undefined) {
 
 /**
  * The roll part of a step: the bank asked for, rolled to at the profile's share of the roll rate (the pilot's within the
- * T-6A's, flight.js rollLimitAt; the roll onset the aircraft's own) with the level turn's G built no faster than the profile's G onset; then the step flown
+ * T-6A's, flight.js rollLimitAt; the roll onset the aircraft's own, its acceleration built over T6A_ROLL.onsetSec) with the level turn's G built no faster than the profile's G onset; then the step flown
  * through flight.js (and its envelope gate). Returns the bank commanded, for the replay.
  */
 export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel, roll = undefined) {
   const X = experienceNow();
-  const limits = pilotRollLimits(W, roll);
-  let r = easeRoll(p.bank, p.rate, bankDeg, dt, limits);
+  const limits = { ...pilotRollLimits(W, roll), onsetSec: T6A_ROLL.onsetSec };
+  let r = easeRoll(p.bank, p.rate, bankDeg, dt, { ...limits, accelDps2: p.rollAcc ?? 0 });
   if (Math.abs(r.bankDeg) > Math.abs(p.bank) && Math.abs(r.bankDeg) < G_SHAPE_MAX_BANK_DEG && Math.sign(r.bankDeg) === (Math.sign(p.bank) || Math.sign(r.bankDeg))) {
     const gMax = gFromBankDeg(p.bank) + X.gOnsetGps * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
       const b = Math.sign(r.bankDeg) * bankDegFromG(gMax);
-      r = { bankDeg: b, rollRateDps: (b - p.bank) / dt };
+      const rate = (b - p.bank) / dt;
+      r = { bankDeg: b, rollRateDps: rate, rollAccelDps2: (rate - p.rate) / dt };
     }
   }
-  if (Math.abs(r.bankDeg - bankDeg) < 1e-6 && Math.abs(r.rollRateDps) <= limits.maxAccelDps2 * dt + 1e-9) r = { bankDeg, rollRateDps: 0 };
+  // On the bank with the rate and its acceleration each within one step's build of nothing: the wings are there.
+  const build = (limits.maxAccelDps2 / limits.onsetSec) * dt;
+  if (Math.abs(r.bankDeg - bankDeg) < 1e-6 && Math.abs(r.rollRateDps) <= build * dt + 1e-9 && Math.abs(r.rollAccelDps2) <= build + 1e-9) r = { bankDeg, rollRateDps: 0, rollAccelDps2: 0 };
   p.bank = r.bankDeg;
   p.rate = r.rollRateDps;
+  p.rollAcc = r.rollAccelDps2;
   stepCommanded(W, p.bank, t, profile, accelKtps ?? p?.accel);
   return p.bank;
 }
