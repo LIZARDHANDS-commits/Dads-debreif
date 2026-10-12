@@ -6,18 +6,26 @@ For whoever picks up the graphics session next (folder `Dads-debreif-graphics`, 
 
 ## Where we are
 
-- **Decision ALL-38 (Patrick, 12 Oct 2026):** Blender owns the CT-156's shape. Master Blender files live in the
-  private repo `LIZARDHANDS-commits/3d-work` (on this PC: `Documentsntigravityd-work`); the app takes finished,
-  checked files and keeps in code what moves in flight. The code-drawn CT-156 stays until the Blender files are seen
-  working in every module. ALL-32 to ALL-35, the shared spec and Step 3b were changed to match.
-- **Plan:** Shared plan Step 3b, "CT-156: Blender owns the shape, then refine, then High and Performance". Done: 1, 2,
-  3.1, 3.2; item 3 except the connector check. **Next: 3.3, the master Blender files.**
-- **Branch:** `graphics`, with a pull request to main for the plan, the Blender 5.2 fixes, the rule-book line on
-  third-party skills and ALL-38.
-- **App:** nothing on screen changed. The model files in `public/models/` are as on main.
-- **Parallel session:** the formation-physics session (folder `Dads-debreif-physics`) owns the flight code and
-  `src/modules/turn-sim/live/`. This session owns `src/ui-kit/ct156-*.js`, `tools/blender/`,
-  `public/models/ct156-*` and the `3d-work` repo.
+- **Decision ALL-38 (Patrick, 12 Oct 2026):** Blender owns the CT-156's shape. The master file is
+  `ct156/ct156.blend` in the private repo `LIZARDHANDS-commits/3d-work` (on this PC `Documentsntigravityd-work`,
+  which is already the local clone). The app takes finished, checked files and keeps in code what moves in flight.
+  What the code does and where each part goes: `docs/modules/shared/graphics-handover/README.md` section 0.
+- **Plan Step 3b:** done 1, 2, 3.1, 3.2, 3.6; 3 done except the connector check; **3.3 started**: the master file in
+  real feet with the outside, gear (down), cockpit, 14 named points, 18 hinges and 10 instrument faces, size checks and
+  the sources table. Still to bring into it: speed brake panel, gear and flap wells, prop blades, pilots.
+- **Size checks on the master file:** length 33 ft 3.4 in, span 33 ft 5.1 in and both eye points pass; **height on its
+  wheels 10 ft 1 in against the public 10 ft 8 in fails**, already true of the app's model; on the fix list (item 4).
+- **Skills (our own, from the analyzed third-party skills):** `three-performance` in the app's `.agent/skills`,
+  `ct156-model-pipeline` in `3d-work/.agent/skills`.
+- **App repo:** stays public (Patrick, 12 Oct 2026).
+- **Pull request [#1010](https://github.com/LIZARDHANDS-commits/Dads-debreif/pull/1010)** (`graphics` → main): the plan,
+  the Blender 5.2 fixes, the rule-book line, ALL-38, the points exporter, `three-performance` and these notes. CI green on
+  the first run; the merge needs Patrick (auto mode refused a merge without review).
+- **3d-work slip:** four commits went straight to its main on 12 Oct before the branch rule was applied there; from
+  then on, branches and pull requests (task-observer 0057).
+- **Parallel session:** the formation-physics session (`Dads-debreif-physics`) owns the flight code and
+  `src/modules/turn-sim/live/`. The graphics work owns `src/ui-kit/ct156-*.js`, `tools/blender/`,
+  `public/models/ct156-*` and `3d-work`.
 
 ## The plan (Step 3b)
 
@@ -28,13 +36,13 @@ For whoever picks up the graphics session next (folder `Dads-debreif-graphics`, 
 | 3 | Set up Blender for our work | Done except the connector check |
 | 3.1 | Decision ALL-38 written, related rows and spec changed | Done |
 | 3.2 | Private repo `3d-work` | Done |
-| 3.3 | Master Blender files with named points, sources table; nothing changes on screen | **Next** |
+| 3.3 | Master Blender file with named points, sources table; nothing changes on screen | **Started**; code-only parts still to bring in |
 | 3.4 | Delivery command in `3d-work`; `npm run models:import` in the app | |
 | 3.5 | App reads named points, one module at a time | |
-| 3.6 | Our own skill `ct156-model-pipeline` in `3d-work` (draft in `3d-work/scratch/`) | |
-| 4 | Fix list from Patrick (outside and inside), made in Blender | Waiting on how he gives it |
+| 3.6 | Our own skill `ct156-model-pipeline` in `3d-work` | Done (first version) |
+| 4 | Fix list from Patrick (outside and inside), made in Blender; first row: height on its wheels | Waiting on how he gives it |
 | 5 | Refine | |
-| 6 | High and Performance from the same master files | |
+| 6 | High and Performance from the same master file | |
 | 7 | Compress at delivery (Meshopt) | |
 | 8 | The Graphics switch picks the files | |
 | 10 | Patrick sees it in every module, then the code CT-156 is retired | |
@@ -89,24 +97,24 @@ same pictures (mean difference 0.03 of 255). `CT156_BAKE_DEVICE=CPU` forces the 
 
 ## Waiting on Patrick
 
-1. How to give the step 4 fix list: walk-through renders to mark up (recommended), his photos first, or flying it in
-   the app.
-2. The Blender connector checked end to end: a new session, Blender open, the MCP server started.
-3. Already open from the earlier handover: sill height (his tape measurements of the bow), the rear seat after V2.403,
-   paint grain, the pilots in Blender, the dark left wall (lighting, waits on its own yes), and tags `v2.385` to
-   `v2.417` to push.
-4. The development-environment talk is done: it led to ALL-38 and `3d-work`.
+1. Merge pull request #1010.
+2. The Blender connector checked end to end: Blender open, its MCP server started, then a new session.
+3. How to give the fix list (item 4): walk-through renders to mark up, his photos or scaled diagrams from the
+   internet, or flying it in the app.
+4. Carried over: sill height (from scaled pictures until tape measurements), the rear seat after V2.403, paint grain,
+   the dark left wall (lighting, its own yes), and tags `v2.385` to `v2.417` to push.
 
 ## Untested or unseen
 
-- Nothing new has been seen in the app; nothing in the app changed.
-- The connector has not been run end to end.
-- The rebuilt 5.2 files were compared by numbers and renders only; they were not shipped.
+- Nothing on screen changed; the master file has been checked by numbers and test renders only, not in the app.
+- The connector has not been run end to end; the new skills have not been used on a real task yet.
 - No tests were run (rule book: CI on the pull request is the one check).
 
 ## To resume
 
-1. Open a Claude Code session in `Dads-debreif-graphics`, run `/sync` (in a worktree, merge `origin/main`; main is
-   checked out in another folder).
-2. Start the 5181 dev server, and Blender with the MCP server if the work needs it.
-3. Pick up at Step 3b item 4.
+1. Model work: a Claude Code session in `Documentsntigravityd-work`, with the app's `Dads-debreif-graphics`
+   folder added as a second folder, so one session can open pull requests in both repos. Read `3d-work/AGENTS.md`
+   and the `ct156-model-pipeline` skill.
+2. App-side work (items 3.4 app half, 3.5, 8): the same session, in the `Dads-debreif-graphics` folder; run `/sync`
+   there first (in a worktree, merge `origin/main`).
+3. Pick up at Step 3b item 3.3: bring the code-only parts into the master file, then 3.4, delivery.
