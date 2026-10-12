@@ -1541,6 +1541,20 @@ function coamingGeometry(THREE) {
       const a = i * (M + 1) + j, b = a + 1, d = a + M + 1, e = d + 1;
       idx.push(a, d, b, b, d, e);
     }
+    // Each end closed by a flat wall down to the sill, so from behind the hood reads solid and not as a thin open
+    // sheet standing over the cockpit (Patrick, 12 Oct 2026, "whats going on here?").
+    for (const [i, facing] of [[0, -1], [N, 1]]) {
+      const first = pos.length / 3;
+      for (let j = 0; j <= M; j++) {
+        const k = 3 * (i * (M + 1) + j), [x, y, z] = pos.slice(k, k + 3), low = canopyAt(x).base - 0.002;
+        pos.push(x, y, z, x, y, Math.min(z, low));
+      }
+      for (let j = 0; j < M; j++) {
+        const t0 = first + 2 * j, b0 = t0 + 1, t1 = t0 + 2, b1 = t0 + 3;
+        if (facing < 0) idx.push(b0, t0, b1, b1, t0, t1);
+        else idx.push(b0, b1, t0, b1, t1, t0);
+      }
+    }
     parts.push({ geometry: meshOf(THREE, pos, idx), materials: [0] });
   }
   return joinGeometries(THREE, parts);
