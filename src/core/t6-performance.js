@@ -418,6 +418,28 @@ export function idlePropDragPerWeight(kias, weightLb = T6A_LIMITS.weightLb) {
   return qPsf(kias) * T6A_EXTRA_DRAG.idlePropSqFt / weightLb;
 }
 
+/**
+ * The propeller's net push at low torque. Patrick (12 Oct 2026 04:16Z): "4-6 tq simulates a feathered prop": at about
+ * 5% torque the propeller neither pushes nor drags, so the aircraft flies the feathered glide figures (T6A_GLIDE). At
+ * idle (0%) it drags the whole idle propeller drag (T6A_EXTRA_DRAG); from 15% up it gives that share of full thrust
+ * (excessFnFor's rule). Straight lines between: an ESTIMATE. With these, a 10° dive at 220 KIAS holds its speed at about
+ * 4% torque (SMM 8.11 para 45: 4 to 6%).
+ */
+export const T6A_LOW_TORQUE = Object.freeze({ zeroNetTorque: 0.05, fullShareFromTorque: 0.15 });
+
+/**
+ * The propeller's net push ÷ weight at kias, altFt, a torque share (0 to 1) and weightLb (6,400 lb unless told):
+ * negative below about 5% torque (it drags), zero at 5%, and the torque share of full thrust from 15% up
+ * (T6A_LOW_TORQUE).
+ */
+export function propNetPerWeight(kias, altFt, torque, weightLb = T6A_LIMITS.weightLb) {
+  if (!(torque >= 0 && torque <= 1)) throw new RangeError(`propeller push at ${torque} torque: needs a share from 0 to 1`);
+  const { zeroNetTorque: t0, fullShareFromTorque: t1 } = T6A_LOW_TORQUE;
+  if (torque >= t1) return torque * thrustPerWeight(kias, altFt, weightLb);
+  if (torque >= t0) return (torque - t0) / (t1 - t0) * t1 * thrustPerWeight(kias, altFt, weightLb);
+  return -(1 - torque / t0) * idlePropDragPerWeight(kias, weightLb);
+}
+
 /** (Thrust − drag) ÷ weight at maximum power: what is left to climb or speed up with. config and weightLb as dragPerWeight. */
 export function excessThrustPerWeight(kias, altFt, g, config = 'clean', weightLb = T6A_LIMITS.weightLb) {
   return thrustPerWeight(kias, altFt, weightLb) - dragPerWeight(kias, altFt, g, config, weightLb);
