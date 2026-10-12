@@ -161,3 +161,18 @@ test('a press while a change is flying is queued and flown the moment it ends; t
   fly(f);
   assert.equal(f.press('check', 1), 'started');
 });
+
+test('the rejoin from line abreast into fighting wing ends inside the cone, 500-1,000 ft and 30-60° off Lead\'s tail', () => {
+  // SMM 12.29 para 69 (Fig 12.19): fighting wing is 500-1,000 ft, 30-60° back from Lead's wing line. Since #2's roll built
+  // its acceleration (TS-196) he rolled into the cone late and ended about 790 ft and 28° off the tail, outside it; he now
+  // starts the roll in that much sooner (Patrick 12 Oct 2026 04:45Z). No time gate: 3 minutes is only the catch.
+  const f = createFormation();
+  assert.equal(f.change('fw'), 'started');
+  fly(f);
+  const [lead, wing] = f.state.aircraft;
+  const rel = relativeTo(lead, wing);
+  const range = Math.hypot(rel.fwd, rel.left);
+  const offTail = (Math.atan2(Math.abs(rel.left), -rel.fwd) * 180) / Math.PI;
+  assert.ok(range >= 500 && range <= 1000, `range ${range.toFixed(0)} ft`);
+  assert.ok(offTail >= 30 && offTail <= 60, `${offTail.toFixed(1)}° off Lead's tail`);
+});
