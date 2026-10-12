@@ -87,8 +87,7 @@ More close-ups, old above new: [nose](closeup-nose.jpg), [tail](closeup-tail.jpg
 ## 4. How to render and check
 
 - Turn Sim from the default start, cockpit view, front seat: look ahead and to both sides, then the rear seat. Give the model a few seconds to load.
-- The headless render scripts (Playwright, one page that builds the model and points a camera) are kept outside the repo in the project files under `polish/render-kit/`. The one trap: draw once, wait for the model files to attach, then draw again before taking the picture.
-- For old versions, check the version out in a separate git worktree with `node_modules` linked, and serve it on its own port. That's how the pictures above were made.
+- The render scripts are in `tools/blender/render/` (see its README): seat and outside views, part picking, and past versions in a separate git worktree. That's how the pictures above were made. The one trap: draw once, wait for the model files to attach, then draw again before taking the picture.
 
 ## 5. Open items
 

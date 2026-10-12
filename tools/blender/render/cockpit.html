@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>cp</title><style>html,body{margin:0}canvas{display:block}</style></head>
+<body><canvas id="c" width="1200" height="800"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { createCt156Model, setCockpitView } from '/src/ui-kit/ct156-model.js';
+import { createCt156Cockpit, EYES_FT } from '/src/ui-kit/ct156-cockpit.js';
+const SH = new URLSearchParams(location.search).get('sh') === '1' ? await import('/src/ui-kit/aircraft-shadows.js') : null;
+const F = 23.148;
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+window.shot = ({ sb, yaw = 0, pitch = -25, fov = 55, dz = 0, dy = 0, ground = false, from = null, at = null, noGlass = false, seat = 'front', w = 1200, hgt = 800 }) => {
+  const sc = new THREE.Scene(); sc.background = new THREE.Color('#9fb8d6');
+  sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', 1.0));
+  const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(0.5, 0.9, 1.4); sc.add(sun, sun.target);
+  const ship = createCt156Model(THREE, { color: '#c03030', number: 1 }); sc.add(ship);
+  const pit = createCt156Cockpit(THREE, { doc: document, seat });
+  ship.add(pit.group); setCockpitView(ship, { seat }); renderer.setSize(w, hgt, false);
+  pit.update({ pitchDeg: 0, bankDeg: 0, altFt: 5000, g: 1, kias: 200, headingDeg: 90, speedBrake: sb });
+  ship.updateMatrixWorld(true);
+  if (SH) SH.createAircraftShadows(THREE, renderer, sun).follow(ship);
+  const e = EYES_FT[seat], cam = new THREE.PerspectiveCamera(fov, w / hgt, 0.0005, 100);
+  cam.up.set(0, 0, 1); cam.position.set(e.x / F, (e.y + dy) / F, (e.z + dz) / F); if (ground) sc.background = new THREE.Color("#bdae86");
+  const p = pitch * Math.PI / 180, y = yaw * Math.PI / 180;
+  cam.lookAt(e.x / F + Math.cos(p) * Math.cos(y), (e.y + dy) / F + Math.cos(p) * Math.sin(y), (e.z + dz) / F + Math.sin(p));
+  if (from) { cam.position.set(from[0] / F, from[1] / F, from[2] / F); cam.lookAt(at[0] / F, at[1] / F, at[2] / F); }
+  if (noGlass) ship.userData.ct156.canopy.visible = false;
+  cam.updateMatrixWorld(true);
+  window.last = { sc, cam, ship, pit };
+  renderer.render(sc, cam); return true;
+};
+window.pick = (px, py) => {
+  const { sc, cam, ship, pit } = window.last;
+  const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(px * 2 - 1, 1 - py * 2), cam);
+  const kit = ship.userData.ct156.kit;
+  const names = new Map(Object.entries(kit.geo).map(([k, g]) => [g, k]));
+  const vis = (o) => { while (o) { if (!o.visible) return false; o = o.parent; } return true; };
+  return rc.intersectObjects(sc.children, true).filter((h) => vis(h.object)).slice(0, 12).map((h) => {
+    let o = h.object, chain = [];
+    while (o) { chain.push(o.name || o.type); o = o.parent; }
+    const m = [h.object.material].flat()[h.face?.materialIndex ?? 0];
+    return { geo: names.get(h.object.geometry) ?? '?', inPit: pit ? chain.includes(pit.group.name || '__') : false , chain: chain.slice(0, 4).join('<'), mat: m?.name || m?.color?.getHexString(), d: h.distance.toFixed(4), p: [h.point.x, h.point.y, h.point.z].map((v) => (v * 23.148).toFixed(2)) };
+  });
+};
+window.rerender = () => { const { sc, cam } = window.last; renderer.render(sc, cam); return true; };
+window.ready = true;
+</script></body></html>
