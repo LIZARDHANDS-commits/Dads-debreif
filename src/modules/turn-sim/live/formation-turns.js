@@ -31,7 +31,8 @@ import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, POWER, closeBankNow, experienceNow } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
-import { excessThrustPerWeight, dragPerWeight } from '../../../core/t6-performance.js';
+import { thrustPerWeight, dragPerWeight } from '../../../core/t6-performance.js';
+import { throttleAtTorque } from './power.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
 export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));
@@ -788,8 +789,8 @@ export const FW_MOVES = Object.freeze({
   descend: { label: 'Descend', sided: false },
 });
 /** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
- * pair is; climbs and descents as fluid's (2,000 ft, a 15° path at the steepest; design 5.1, estimates). */
-const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, rateShare: 0.8 }); // rateShare: 80% of the model's MAX climb or idle descent at Lead's speed (TS-203; estimate)
+ * pair is; climbs and descents of 2,000 ft, at what the T-6 holds at Lead's speed (TS-203). */
+const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: 80, descentShare: 0.8 }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentShare: 80% of the model's idle descent at Lead's speed (estimate)
 
 /**
  * Lead's plan for one of his fighting wing moves (FW_MOVES) from where he is now: { ok, segments, profile, turning, nowDir }
@@ -810,12 +811,15 @@ export function fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt = 8000) {
   } else if (key === 'climb' || key === 'descend') {
     // A pitch change only: a turn being flown carries on at its bank (as fluid's).
     if (turning) segments = held(nowDir, Math.abs(lead.bankDeg));
-    // At what the T-6 holds at Lead's speed (TS-203): the climb's steepest rate a share of the model's MAX climb, the
-    // descent's of its idle descent, so #2 has power to spare either way. Until then a 15° path, about twice the MAX climb.
+    // At what the T-6 holds at Lead's speed (TS-203). The climb at no more than 80% torque (Patrick 12 Oct 2026 08:39Z:
+    // "lead sets max 80 percent tq in the climb. formation hard rule"), so #2 has the rest to spare; the descent's steepest
+    // rate a share of the model's idle descent (estimate). Until V2.390 a 15° path, about twice the MAX climb at 200 KIAS.
     const up = key === 'climb' ? 1 : -1;
     const altFt = blockFt + (lead.altAboveFt ?? 0);
-    const perW = up > 0 ? excessThrustPerWeight(lead.kias, altFt, 1) : dragPerWeight(lead.kias, altFt, 1);
-    const peakFtps = Math.min(lead.tasFtps * Math.sin(FW_MOVE.climbDeg * DEG), FW_MOVE.rateShare * Math.max(0, perW) * lead.tasFtps);
+    const perW = up > 0
+      ? throttleAtTorque(FW_MOVE.climbTorquePct, lead.kias, altFt) * thrustPerWeight(lead.kias, altFt) - dragPerWeight(lead.kias, altFt, 1)
+      : FW_MOVE.descentShare * dragPerWeight(lead.kias, altFt, 1);
+    const peakFtps = Math.min(lead.tasFtps * Math.sin(FW_MOVE.climbDeg * DEG), Math.max(0, perW) * lead.tasFtps);
     const avgFtps = Math.max(1, peakFtps) / SMOOTHER_PEAK;
     profile = [{ t0, t1: t0 + FW_MOVE.climbFt / avgFtps, fromFt: lead.altAboveFt, toFt: lead.altAboveFt + up * FW_MOVE.climbFt }];
   } // wings level: no segments, so Lead rolls out (flight.js)
