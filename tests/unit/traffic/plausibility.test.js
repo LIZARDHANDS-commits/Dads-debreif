@@ -12,6 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { routePath, positionAt, pointTurn } from '../../../src/modules/traffic/route.js';
+import { THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
 import { CATALOG } from '../../../src/airfields/catalog.js';
 import { FT_PER_NM, ktToFtps } from '../../../src/core/units.js';
@@ -20,7 +21,7 @@ import { flownCorners } from '../../crosscheck/traffic-measure.js';
 
 const SETUP = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 const FIELD_FT = CATALOG.CYMJ.elevationFt;
-const RUNWAY_FT = 1880; // the runway's height in the built-in setup (moose-jaw.json PAT1 point 1)
+const RUNWAY_FT = THRESHOLD_DATA_ELEV_FT; // the runway's height in the built-in setup (moose-jaw.json PAT1 point 1)
 const PATTERN_FT = 3500; // TR-R4
 /** Height above the runway at 3/4 NM on a 3° path (SMM 4.7 paras 10-12), worked out: about 239 ft. */
 const WINDOW_ABOVE_FT = 0.75 * FT_PER_NM * Math.tan((3 * Math.PI) / 180);

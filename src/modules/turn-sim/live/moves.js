@@ -376,7 +376,7 @@ export const TRACKER = Object.freeze({
   minSpeedFtps: 1, // a commanded velocity under this gives no heading: #2 takes Lead's (estimate)
   kiasSnap: 0.003, // the last few thousandths of a knot are taken out at once, so the speed has no step
   alignHeadingRad: 1.5e-4, // aligned: within this of Lead's heading (about 0.01°)
-  alignDeadbandDeg: 0.05, // a closure phase lining up commands no bank under this (step 2): at 1.5/s of heading gain it is a heading error of about 0.003°, inside alignHeadingRad
+  alignDeadbandDeg: 0.05, // a closure phase, or the fighting wing cone (from 12 Oct 2026), lining up commands no bank under this (step 2): at 1.2/s of heading gain it is a heading error of about 0.004°, inside alignHeadingRad
   laneRangeFt: LANE.rangeFt, // the overshoot lane is measured inside this range (slots.js LANE)
   belowRangeFt: LANE.belowRangeFt, // the height under Lead is measured inside this range (slots.js LANE)
   /** Every leg's settings before its recipe changes them, and what each does to the flying. */

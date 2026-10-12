@@ -9,19 +9,19 @@
 // Expected values: 150 KIAS zoom split, 125 KIAS clean glide and High Key 5,000 ft are TR-R14 and spec 4.5 (SMM 13.17
 //   para 34; reference data; SMM 13.5 paras 7-8); 4,500 ft breakout and the 140 KIAS climb
 //   are TR-R34 and Patrick (6 Oct); 3,500 ft and 220 KIAS pattern height and speed, 2,500 ft go-around level and
-//   runway heading 298 are TR-R4; the runway is 1,880 ft in the sim. Margins from the shared table (docs/TESTING.md)
+//   runway heading 298 are TR-R4; the runway is at the field's 1,892 ft in the sim (TR-149). Margins from the shared table (docs/TESTING.md)
 //   unless the line says why; each run has a safety stop with its reason beside it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSim } from '../../../src/modules/traffic/sim.js';
-import { THRESHOLD_29L, RUNWAY_29L_HDG_DEG } from '../../../src/modules/traffic/airfield.js';
+import { THRESHOLD_29L, RUNWAY_29L_HDG_DEG, THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
 import { TOLERANCES } from '../../helpers/tolerances.js';
 
 const SETUP = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 const KT = TOLERANCES.AIRSPEED_KT, FT = TOLERANCES.ALTITUDE_FT, DEG = TOLERANCES.ANGLE_DEG;
-const RUNWAY_FT = 1880; // the runway's height in the sim (moose-jaw.json PAT1 point 1)
+const RUNWAY_FT = THRESHOLD_DATA_ELEV_FT; // the runway's height in the sim (moose-jaw.json PAT1 point 1)
 const PATTERN_FT = 3500, PATTERN_KT = 220, HIGH_KEY_FT = 5000, BREAKOUT_FT = 4500, BREAKOUT_CLIMB_KT = 140, GLIDE_CLEAN_KT = 125;
 // A PFL lands within 5 minutes (docs/TESTING.md T2's own example); the circuit commands get 10 minutes, far above
 // the 2 to 4 minutes any of them takes, so only an aircraft that is stuck or lost reaches it.

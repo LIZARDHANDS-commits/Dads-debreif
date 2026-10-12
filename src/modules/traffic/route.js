@@ -181,11 +181,11 @@ function buildRoundedPoints(route, options) {
     const radius = pointTurnRadiusFt(cur, options);
     const d = Math.min(radius * Math.tan(turn / 2), dist(prev, cur) * 0.45, dist(cur, next) * 0.45);
 
-    // TR-02 / D382: PAT1 final turn descends continuously from Perch (3500) to Base (2810) to Window (2119)
+    // TR-02 / D382: PAT1 final turn descends continuously from Perch (3500) to Base (2816) to Window (2131)
     const isPat1Final11 = route.id === 'PAT1' && i === 11 && options.trueArcs;
     const isPat1Final12 = route.id === 'PAT1' && i === 12 && options.trueArcs;
-    const curAlt = isPat1Final12 ? 2810 : cur.alt;
-    const turnTargetAlt = isPat1Final11 ? 2810 : (isPat1Final12 ? 2119 : next.alt);
+    const curAlt = isPat1Final12 ? 2816 : cur.alt;
+    const turnTargetAlt = isPat1Final11 ? 2816 : (isPat1Final12 ? 2131 : next.alt);
 
     const start = { ...add(cur, mul(vin, -d)), alt: curAlt, kt: cur.kt, g: cur.g, src: i, tag: cur.tag };
     const end = { ...add(cur, mul(vout, d)), alt: turnTargetAlt, kt: cur.kt, g: cur.g, src: i, tag: cur.tag };
@@ -215,14 +215,14 @@ function buildRoundedPoints(route, options) {
       }
     }
 
-    // Final turn: continuous descending turn with symmetric cubic easing ((3500 + 2119)/2 = 2809.5 ft)
+    // Final turn: continuous descending turn with symmetric cubic easing ((3500 + 2131)/2 = 2815.5 ft)
     const firstIdx = out.findIndex((p) => p.src === 11);
     const lastIdx = out.findLastIndex((p) => p.src === 12);
     if (firstIdx >= 0 && lastIdx > firstIdx) {
       let totalD = 0;
       for (let k = firstIdx; k < lastIdx; k++) totalD += dist(out[k], out[k + 1]);
       let runD = 0;
-      const startAlt = PATTERN_ALT_FT, endAlt = 2119;
+      const startAlt = PATTERN_ALT_FT, endAlt = 2131;
       out[firstIdx].alt = startAlt;
       for (let k = firstIdx; k < lastIdx; k++) {
         runD += dist(out[k], out[k + 1]);
