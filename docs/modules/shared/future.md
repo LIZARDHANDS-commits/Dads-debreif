@@ -22,3 +22,8 @@ Ideas for the shared parts (flight core, app frame, weather, airfields, storage,
 ## Cockpit (shared 3D)
 
 - **Live sun shadows in the cockpit** (Patrick, 11 Oct 2026 10:33Z, "Future the dynamic shadows"): shadows of the bows, glareshield and canopy frame that move across the cockpit as the aircraft turns, behind a switch because they cost frame rate. The baked soft shadows from the Blender cockpit file (V2.306) stay as they are and don't move.
+
+## CT-156 model (shared 3D)
+
+- **Landing gear and lights** (Patrick, 12 Oct 2026 01:51Z, "future feature"): nose and main gear (legs, wheels, tyres, doors) in the code model and the Blender file, going up and down with one shared call like the speed brake's, with landing and taxi lights on the gear. Traffic would show gear by phase of the pattern, and Debrief and the SOF would show it down on the ground. The wheel height and the 2.5° nose-up sit would then come from the model, not the estimates in Debrief and Traffic. Sizes from the public 10 ft 8 in height, Patrick's photos and SMM pictures. About two pull requests.
+- **Moving control surfaces** (Patrick, 12 Oct 2026 01:51Z, "future feature"): ailerons, elevators, rudder and flaps as hinged parts, fed by each module (Traffic's flap setting by phase, Turn Sim's stick, Debrief inferred from the track). Deflection angles need a source first.
