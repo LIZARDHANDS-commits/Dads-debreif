@@ -1441,9 +1441,33 @@ function canopyAt(x, grow = 0) {
   const [, w, top] = rowAt(CANOPY, x);
   return { w: w + grow, top: top + grow, base: sillZ(x, w) };
 }
+/**
+ * The canopy's section is a U (Patrick, 12 Oct 2026, card "Build U shape", after "Why does our bow look almost like an
+ * arch? and less circular?"): its sides rise straight up from the sill, then turn over in a half circle of the
+ * canopy's half-width, as the T-6A-1 front view draws the glass (near-vertical sides, a round top) and his reference
+ * picture shows the forward bow. Where the canopy is lower than its half-width the top is a half ellipse that tall,
+ * with no straight part. Until V2.402 one tall arch from sill to sill (y = w cos^0.85, z = base + (top - base) sin^0.75),
+ * which read as a church window from the seat. { r: the top's height, v: the straight sides' height, a: the share of
+ * phi each straight side takes, so the points along the section stay about evenly spaced }.
+ */
+function canopyU(c) {
+  const h = c.top - c.base, r = Math.min(c.w, h), v = h - r;
+  return { h, r, v, a: v / (2 * v + (Math.PI / 2) * (c.w + r)) };
+}
+/** A point [y, z] round the canopy's section c, phi 0 at the right sill through the top (pi / 2) to the left (pi). */
 function canopyPoint(c, phi) {
-  const cp = Math.cos(phi), sp = Math.sin(phi);
-  return [c.w * Math.sign(cp) * Math.abs(cp) ** 0.85, c.base + (c.top - c.base) * Math.max(sp, 0) ** 0.75];
+  const t = Math.min(Math.max(phi / Math.PI, 0), 1), { r, v, a } = canopyU(c);
+  if (a > 0 && t <= a) return [c.w, c.base + v * (t / a)];
+  if (a > 0 && t >= 1 - a) return [-c.w, c.base + v * ((1 - t) / a)];
+  const th = (Math.PI * (t - a)) / (1 - 2 * a);
+  return [c.w * Math.cos(th), c.base + v + r * Math.sin(th)];
+}
+/** canopyPoint backwards: the phi (0 to pi / 2, the right side) at a share f (0 the sill, 1 the top) of the height. */
+function canopyPhiAt(c, f) {
+  const { h, r, v, a } = canopyU(c), dz = Math.min(Math.max(f, 0), 1) * h;
+  if (dz <= v) return v > 0 ? Math.PI * a * (dz / v) : 0;
+  const th = Math.asin(Math.min(1, (dz - v) / r));
+  return Math.PI * a + th * (1 - 2 * a);
 }
 /** Where the glass ends: the rear bow's hoop (CT156_FRAME_X[2], leaning by CT156_FRAME_LEAN[2]), M + 1 points sill to sill. */
 const glassEnd = (M) => ct156HoopPoints(CT156_FRAME_X[2], M, 0, CT156_FRAME_LEAN[2]).map((p) => p.x);
@@ -1493,8 +1517,7 @@ export function ct156CanopyHalfWidth(x, z) {
   const c = canopyAt(x);
   const f = (z - c.base) / (c.top - c.base);
   if (!(f >= 0 && f <= 1)) return 0;
-  const sp = f ** (1 / 0.75); // canopyPoint backwards: z = base + (top - base) * sin^0.75, y = w * cos^0.85
-  return c.w * Math.sqrt(Math.max(1 - sp * sp, 0)) ** 0.85;
+  return canopyPoint(c, canopyPhiAt(c, f))[0];
 }
 /**
  * Each coaming's crown, its middle's height along it from its aft edge forward, as [x, z] in feet (the model's frame):
@@ -1641,7 +1664,7 @@ function railGeometry(THREE, side) {
   // A point on the canopy grown by `grow`, dz feet above its sill at station x (canopyPoint backwards).
   const at = (x, dz, grow) => {
     const c = canopyAt(x, grow), f = Math.min(1, (dz * FT) / (c.top - c.base));
-    const [y, z] = canopyPoint(c, Math.asin(f ** (1 / 0.75)));
+    const [y, z] = canopyPoint(c, canopyPhiAt(c, f));
     return [x, side * y, z - (dz === 0 ? 0.002 : 0)]; // the bottom edge tucks under the sill
   };
   const rows = [[0, 0.0004], [tall - seam, 0.0004], [tall - seam, 0.0007], [tall, 0.0007]];
