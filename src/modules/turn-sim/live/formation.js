@@ -19,7 +19,7 @@ import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge, judgeFluid4 } from './judge.js';
-import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
+import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFluid4Turn, planFwMove } from './formation-turns.js';
@@ -84,9 +84,7 @@ export function checkSpacing(ft) {
 }
 
 /**
- * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4), the fighting
- * wing desired places (fwRangeFt, fwSweepDeg for the 2-ship; fw4RangeFt, fw4SweepDeg for the 4-ship's #2; fw4OtherRangeFt,
- * fw4OtherDeg for #3 and #4; TS-58, each defaulting to slots.js FW2 or FW4),
+ * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4),
  * and the err* training-error settings and fix* Fix tools (errors.js, 2-ship only for now; rng replaces Math.random for the random error).
  * Returns an object whose `state` is updated in place by step(), press() and reset().
  * @param {Record<string, any>} [options]
@@ -118,9 +116,6 @@ export function createFormation(options = {}) {
   const { midPress, turnMidChange, replanAtEvents, inBandAndSteady } = events;
 
   function build() {
-    // The fighting wing desired places (TS-58): a missing value takes the default (slots.js FW2, FW4).
-    setFwShape({ rangeFt: opts.fwRangeFt, sweepDeg: opts.fwSweepDeg });
-    setFw4Shape({ twoRangeFt: opts.fw4RangeFt, twoDeg: opts.fw4SweepDeg, otherRangeFt: opts.fw4OtherRangeFt, otherDeg: opts.fw4OtherDeg });
     const tas = tasFtpsFor(opts.kias, opts.blockFt);
     const h = headingRadFromCompass(opts.headingDeg);
     const side = opts.wingSide === 'left' ? 1 : -1; // +1 left of Lead

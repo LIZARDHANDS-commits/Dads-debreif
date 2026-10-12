@@ -20,7 +20,6 @@ import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
 import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/judge.js';
-import { FW2, FW4, checkFwShape } from './live/slots.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { OFFSET_BOX_KEYS } from './live/offset-box-turns.js';
 import { createChangeUi } from './transitions-panel.js';
@@ -64,26 +63,9 @@ function layoutStore(storage) {
   return { get: (_name, fallback) => storage.get('layout', fallback), set: (_name, value) => storage.set('layout', value) };
 }
 
-/** Fighting wing desired spacing and sweep (TS-58, Patrick 21:25Z): today's places are the defaults (FW2, FW4). */
-const FW_DEFAULTS = Object.freeze({
-  fwRangeFt: FW2.rangeFt,
-  fwSweepDeg: FW2.sweepDeg,
-  fw4RangeFt: FW4.rangeFt,
-  fw4SweepDeg: FW4.twoDeg,
-  fw4OtherRangeFt: FW4.rangeFt,
-  fw4OtherDeg: FW4.otherDeg,
-});
 /** The screen starts line abreast at 5,000 ft (Patrick 5 Oct 22:46Z: "5000"), the middle of the 4,000 to 6,000 ft band (SMM 16.18 para 49); any spacing can be set. */
 const START_SPACING_FT = 5000;
-const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: START_SPACING_FT, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
-
-/** The flags for fighting wing places outside the SMM band (SMM 12.29 para 69), for the ships flown: flown anyway, never refused. */
-function fwFlags(values) {
-  const pairs = values.ships === 4
-    ? [checkFwShape(values.fw4RangeFt, values.fw4SweepDeg, '#2'), checkFwShape(values.fw4OtherRangeFt, values.fw4OtherDeg, '#3 and #4')]
-    : [checkFwShape(values.fwRangeFt, values.fwSweepDeg, '#2')];
-  return pairs.map((c) => (c.ok ? c.flag : c.reason)).filter(Boolean).join(' ');
-}
+const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: START_SPACING_FT, wingSide: LIVE_DEFAULTS.wingSide, ...ERROR_DEFAULTS });
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const bankText = (deg) => (Math.abs(deg) < 0.5 ? 'wings level' : `bank ${Math.round(Math.abs(deg))}° ${deg > 0 ? 'L' : 'R'}`);
@@ -673,7 +655,6 @@ function mount(root, app) {
     ui.setFixTools(values.errSmart !== false);
     ui.setSide(values.wingSide);
     ui.setSpacingFlag(checkSpacing(values.spacingFt).flag);
-    ui.setFwFlag(fwFlags(values));
     resetRun();
   });
   let autoFitWas = layout.get().autoFit;
@@ -724,7 +705,6 @@ function mount(root, app) {
   ui.setFixTools(setup.get().errSmart !== false);
   ui.setSide(setup.get().wingSide);
   ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
-  ui.setFwFlag(fwFlags(setup.get()));
   // Free (follow nothing) is for the moment it's picked; every visit starts with the camera on the formation (Patrick, 6 Oct:
   // a Free remembered from an earlier visit left the camera not following).
   if (layout.get().camOn === 'free') layout.update({ camOn: 'formation' });

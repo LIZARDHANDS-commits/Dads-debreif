@@ -9,7 +9,6 @@ import { TAG_DEFAULTS } from './tags.js';
 import { VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { ERROR_FIELDS, FIX_WHEN_OPTIONS, FIX_TOOLS } from './live/errors.js';
-import { FW_LIMITS } from './live/slots.js';
 
 /**
  * What the screen remembers in this browser: which columns are open, which
@@ -175,28 +174,6 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const fourLine = h('p', { class: 'ts-fixed', hidden: true });
   // The 4-ship delayed 45 with or without its check turn (Patrick, 4 Oct 11:28Z); shown only in the 4-ship.
   const check45Field = h('div', { class: 'ts-check', hidden: true }, setupControls.checkbox('check45', { label: 'Delayed 45 with the check turn (SMM Fig 16.34)' }));
-  // Fighting wing desired spacing and sweep (TS-58, Patrick 21:25Z), behind More. Sweep is back from the wing line of the
-  // aircraft flown off (SMM 12.29 para 69, Fig 12.19); outside the SMM band it is flown and flagged.
-  const fwRange = { unit: 'ft', min: FW_LIMITS.rangeFt[0], max: FW_LIMITS.rangeFt[1], step: 50 };
-  const fwSweep = { unit: '°', min: FW_LIMITS.sweepDeg[0], max: FW_LIMITS.sweepDeg[1], step: 1 };
-  const fwTwo = h('div', { class: 'ts-fw-shape' },
-    h('div', { class: 'ts-field' }, setupControls.number('fwRangeFt', { label: '#2 spacing off Lead', ...fwRange })),
-    h('div', { class: 'ts-field' }, setupControls.number('fwSweepDeg', { label: '#2 sweep', ...fwSweep })),
-  );
-  const fwFour = h('div', { class: 'ts-fw-shape', hidden: true },
-    h('div', { class: 'ts-field' }, setupControls.number('fw4RangeFt', { label: '#2 spacing off Lead', ...fwRange })),
-    h('div', { class: 'ts-field' }, setupControls.number('fw4SweepDeg', { label: '#2 sweep', ...fwSweep })),
-    h('div', { class: 'ts-field' }, setupControls.number('fw4OtherRangeFt', { label: '#3 and #4 spacing', ...fwRange })),
-    h('div', { class: 'ts-field' }, setupControls.number('fw4OtherDeg', { label: '#3 and #4 sweep', ...fwSweep })),
-  );
-  const fwFlag = h('p', { class: 'ts-warning', role: 'status', hidden: true });
-  const fwMore = h('section', { class: 'ts-fw-more' },
-    h('h3', { class: 'ts-group-title' }, 'Fighting wing spacing and sweep'),
-    h('p', { class: 'ts-hint' }, 'Where each wingman settles in fighting wing. Sweep is measured back from the wing line of the aircraft he flies off. The SMM band is 500-1,000 ft and 30-60° (SMM 12.29 para 69).'),
-    fwTwo,
-    fwFour,
-    fwFlag,
-  );
   const setup = h('section', { class: 'ts-setup', 'aria-label': 'Scenario' },
     h('div', { class: 'ts-field' }, setupControls.choice('ships', { label: 'Formation', options: [{ value: 2, label: '2-ship' }, { value: 4, label: '4-ship' }] })),
     h('div', { class: 'ts-field' }, setupControls.number('spacingFt', { label: 'Spacing', unit: 'ft', min: 1000, max: 20000, step: 100 })),
@@ -211,7 +188,6 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       { value: 300, label: '5 min' }, { value: 600, label: '10 min' },
     ] })),
     ...(changeUi?.rejoinSettings ? [changeUi.rejoinSettings] : []),
-    fwMore,
     ...(changeUi?.fluidSettings ? [changeUi.fluidSettings] : []),
     h('p', { class: 'ts-fixed' }, fixedLine),
     fourLine,
@@ -597,8 +573,6 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       fourLine.textContent = ships === 4 ? line : '';
       fourLine.hidden = ships !== 4;
       check45Field.hidden = ships !== 4;
-      fwTwo.hidden = ships === 4;
-      fwFour.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
       changeUi?.setShips(ships); // the four have their own formation buttons (spec section 8)
       camOnChoice.querySelectorAll('.choice-option').forEach((el, i) => { el.hidden = (i === 3 || i === 4) && ships !== 4; }); // #3 and #4 in the four only
@@ -625,11 +599,6 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     setSpacingFlag(text) {
       spacingFlag.textContent = text ?? '';
       spacingFlag.hidden = !text;
-    },
-    /** The fighting wing places' flag (outside the SMM band, flown anyway), or '' for none. */
-    setFwFlag(text) {
-      fwFlag.textContent = text ?? '';
-      fwFlag.hidden = !text;
     },
     setPlaying(playing) {
       playGlyph.textContent = playing ? '❚❚' : '▶';
