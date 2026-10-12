@@ -1,6 +1,6 @@
 # Handover: the performance model rebuild
 
-12 Oct 2026, about 07:10Z. Branch `claude/project-thread-swv8zh`, head `238878a`, which contains main V2.382. Main has never received any of it.
+12 Oct 2026, last updated about 07:30Z. Branch `claude/project-thread-swv8zh`, head is the commit that adds this note, on top of `3efc66c`, which merges main V2.387 (08263f8). Main has never received any of it.
 
 **Patrick, 12 Oct 2026:**
 - 03:14Z: "do not replace any of the files yet or push this to main".
@@ -29,16 +29,15 @@ Nothing on this branch goes to main, or into a pull request, until Patrick says 
 Fable reviewed `aabab26` on 12 Oct and passed the model and the core tests.
 
 ## Left before it can go to main
-Seven unit tests fail on this branch and pass on main. All of them are in modules that were tuned to the old model, not in core. Each owner fixes its own file:
+Five unit tests fail on this branch and pass on main (V2.387). All of them are in modules that were tuned to the old model, not in core. Each owner fixes its own file:
 
-1. **Formation, 4-ship tour of the formations (two tests):** they throw on a negative speed.
-   - Main has the same runaway speed; its old formulas hid it.
-   - Formation's PR #961 fixes it. Take main in once that merges.
-2. **Formation, 4-ship Side switch:** two aircraft come within a wingspan (echelon right).
-3. **Formation, 4-ship turn buttons:** #4 is not rolling with Lead.
-4. **Traffic, smooth breakout from downwind at 20 kt from 200:** a turn-rate snap.
-5. **Turn Fight, a jet forced past the reference line:** the forced split S now peaks at 302 KIAS, short of its 305 line. The test's entry needs to be faster.
-6. **Turn Fight, pure pursuit:** the chaser goes 0.06 G over the shaker.
+1. **Formation, 4-ship Side switch:** two aircraft come within a wingspan (echelon right).
+2. **Formation, 4-ship turn buttons:** #4 is not rolling with Lead (echelon, hook right: 1° against −12°).
+3. **Traffic, smooth breakout from downwind at 20 kt from 200:** a turn-rate snap (14.9°/s² where 7.4 is allowed).
+4. **Turn Fight, a jet forced past the reference line:** the forced split S now peaks at 302 KIAS, short of its 305 line. The test's entry needs to be faster.
+5. **Turn Fight, pure pursuit:** the chaser goes 0.06 G over the shaker.
+
+The 4-ship "tour of the formations" crash on a negative speed was fixed on main by Formation's #961 (V2.387) and passes here.
 
 Also at integration:
 - `src/modules/turn-sim/live/slow-down.js` keeps its own idle propeller and speed brake figures. It should use core's, which now fade the idle drag out between 220 and 250 KIAS.
@@ -49,8 +48,9 @@ Also at integration:
 1. **Available G at speed:** on the shaker at low level, what speed gives 4 G, and what speed 7 G?
 2. **Static thrust:** keep 3,100 lbf? It meets his 3,100 ft/min climb.
 3. **Take-off ground roll:** what does he see?
-4. **The climb above 20,000 ft:** the model climbs faster up there than it does lower down. Leave it for later?
+4. **The climb above 20,000 ft:** the model climbs a little too fast up there. A likely cause is propeller tip speed near Mach 0.9 at height, which the model leaves out (a guess; nothing sizes it). His rough time to FL250 would settle it.
 5. **Temperature:** the model is a standard day only. Add it to the future list?
+6. **Gear-down drag:** two of his figures disagree. The 2,600 ft gear-down orbit (SMM 13.5 para 11, his 6 Oct ruling) needs about 2.5 times the gear drag that his 35 % torque at 120 KIAS with gear and takeoff flap allows. The model keeps the orbit's larger drag for engine-off flight only, so a powered orbit at 5 % torque loses about 1,950 ft. Which should win?
 
 ## Not seen
 - Not flown in the app.
