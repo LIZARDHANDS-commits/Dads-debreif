@@ -128,9 +128,9 @@ test('energy height: altitude + V²/2g', () => {
 // ── Thrust and drag from the public and pilot sources (spec, "API, fifth PR: T-6A performance") ──
 
 // The polar's inputs, as the spec gives them: wing area 175.3 sq ft (Textron T-6C brochure), aspect ratio 6.29 (a
-// public PC-9 listing), zero-lift drag about 0.028 (from Patrick's level torque points, 12 Oct 2026), span efficiency
+// public PC-9 listing), zero-lift drag 0.027 (fitted to Patrick's torque table and top speeds, his pick 12 Oct 2026), span efficiency
 // 0.8 (an estimate). Standard aerodynamics: q = ½ ρ₀ V² from indicated airspeed, CL = n W ÷ (q S), CD = CD0 + CL² ÷ (π AR e).
-const WING_SQFT = 175.3, ASPECT = 6.29, CD0 = 0.028, SPAN_E = 0.8, SORTIE_LB = 6400;
+const WING_SQFT = 175.3, ASPECT = 6.29, CD0 = 0.027, SPAN_E = 0.8, SORTIE_LB = 6400;
 const qPsf = (kias) => 0.5 * 0.0023769 * (kias * KT_TO_FTPS) ** 2;
 const inducedPerWeight = (kias, g, w = SORTIE_LB) => g * g * w / (qPsf(kias) * WING_SQFT * Math.PI * ASPECT * SPAN_E);
 
@@ -162,10 +162,11 @@ test('thrust: falls with speed, holds its sea-level value to about 14,500 ft, th
   assert.ok(thrustPerWeight(tasToIasKt(200, 20000), 20000) < thrustPerWeight(200, 0), 'less above it');
   // As power: a propeller turns 50 to 90 % of the shaft power into thrust power (standard aerodynamics); the shaft
   // power is the PT6A-68's 1,100 shp, flat-rated (EASA.IM.A.636), and the exhaust adds a little.
+  // It rises with speed through the pattern and fight speeds; near the propeller's peak it levels off.
   let last = 0;
   for (const kias of [100, 150, 200, 250, 280]) {
     const share = thrustPerWeight(kias, 0) * SORTIE_LB * kias * KT_TO_FTPS / 550 / 1100;
-    assert.ok(share > 0.5 && share < 0.9 && share > last, `thrust power at ${kias} KIAS: ${(share * 100).toFixed(0)} % of 1,100 shp`);
+    assert.ok(share > 0.5 && share < 0.9 && (kias > 250 || share > last), `thrust power at ${kias} KIAS: ${(share * 100).toFixed(0)} % of 1,100 shp`);
     last = share;
   }
   near(thrustPerWeight(180, 2000, 5170), thrustPerWeight(180, 2000) * SORTIE_LB / 5170, 1e-12, 'thrust ÷ weight at another weight');

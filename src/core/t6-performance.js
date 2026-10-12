@@ -169,15 +169,19 @@ export const T6A_ENGINE = Object.freeze({
 /**
  * The propeller's efficiency against its advance ratio J, true airspeed ÷ (revolutions per second × diameter): J 1 is
  * about 160 KTAS at 2,000 rpm. ESTIMATES, all of it: a generic constant-speed curve (the shape of the NACA propeller
- * maps), fitted to the EFIG's level torque table (EFIG p.222) and Patrick's level torque points (12 Oct 2026 00:13Z).
- * - peakEfficiency 0.80 at peakAdvanceRatio 1.8 (about 290 KTAS); at pattern height it is 0.73 at 140 KIAS, 0.78 at
- *   180 and about 0.80 from 220 to 300.
- * - staticThrustLb 3,500: the thrust standing still, which sets how the curve rises from J 0 (momentum theory on the
- *   97 in disc at 1,100 shp, with a figure of merit about 0.7).
+ * maps), fitted with the clean zero-lift drag (T6A_DRAG) to the level torque table (EFIG p.222; Patrick, 12 Oct 2026
+ * 00:13Z) and Patrick's top speeds and climbs (Patrick's flying experience, confirmed 12 Oct 2026); Patrick chose this
+ * fit on 12 Oct 2026 04:03Z.
+ * - peakEfficiency 0.812 at peakAdvanceRatio 1.8 (about 290 KTAS, near the fast end of the flight range, where a
+ *   trainer's propeller is designed to work best); at pattern height it is about 0.71 at 140 KTAS, 0.77 at 180 and
+ *   0.80 at 220. Four-blade propellers peak at 0.85 to 0.88 on a test stand, 0.80 to 0.85 installed.
+ * - staticThrustLb 3,100: the thrust standing still, which sets how the curve rises from J 0 (momentum theory gives
+ *   about 4,500 lbf ideal for 1,100 shp on the 97 in disc; real four-blade propellers make 0.65 to 0.8 of that).
  * - fallWidth 1.1: how fast the efficiency falls past the peak, as the blade tips near the speed of sound.
- * The low-speed end is the least sure: one more torque point there (Patrick) or a measured climb would pin it.
+ * 300 KTAS at 10,000 ft would need about 0.88 efficiency, more than an installed propeller gives: the model makes about
+ * 288 KTAS there and about 300 at 15,000 ft.
  */
-export const T6A_PROP = Object.freeze({ peakEfficiency: 0.8, peakAdvanceRatio: 1.8, staticThrustLb: 3500, fallWidth: 1.1 });
+export const T6A_PROP = Object.freeze({ peakEfficiency: 0.812, peakAdvanceRatio: 1.8, staticThrustLb: 3100, fallWidth: 1.1 });
 
 /** Revolutions per second × diameter, ft/s: true airspeed ÷ this is the advance ratio. */
 const PROP_ND_FTPS = T6A_ENGINE.propRpm / 60 * (T6A_ENGINE.propDiameterIn / 12);
@@ -237,14 +241,16 @@ export function thrustPerWeight(kias, altFt, weightLb = T6A_LIMITS.weightLb) {
 
 /**
  * The drag polar, clean: CD = zeroLiftCd + CL² ÷ (π × aspect ratio × spanEfficiency) + the rise near the stall.
- * - zeroLiftCd 0.028: derived from Patrick's level torque points (180 KIAS at 45%, 220 KIAS at 65%; 12 Oct 2026
- *   00:13Z; SMM 4.14 para 32) with the propeller curve (T6A_PROP). Draggier than a textbook 0.020 to 0.024.
+ * - zeroLiftCd 0.027: fitted with the propeller curve (T6A_PROP) to the level torque table (EFIG p.222; SMM 4.14
+ *   para 32; Patrick, 12 Oct 2026 00:13Z) and Patrick's top speeds and climbs; Patrick chose it on 12 Oct 2026 04:03Z.
+ *   The torque comes out 64/51/41/34/29% at 220/200/180/160/140 KIAS against about 65/55/45/35/25%. Draggier than a
+ *   textbook 0.020 to 0.024.
  * - spanEfficiency 0.8: ESTIMATE (0.75 to 0.85 for a straight tapered wing).
  * - stallRiseCd 0.04 over the last stallRiseKt 10 kt: the polar steepens as the wing nears the stall line, from nothing
  *   10 kt above it (at 1 G, 96 KIAS) to 0.04 on it, growing with the square of how far in, and held there past it.
  *   ESTIMATE, standard aerodynamics.
  */
-export const T6A_DRAG = Object.freeze({ zeroLiftCd: 0.028, spanEfficiency: 0.8, stallRiseCd: 0.04, stallRiseKt: 10 });
+export const T6A_DRAG = Object.freeze({ zeroLiftCd: 0.027, spanEfficiency: 0.8, stallRiseCd: 0.04, stallRiseKt: 10 });
 
 /** The induced drag factor, 1 ÷ (π × aspect ratio × span efficiency): the induced part of CD is this × CL². */
 const INDUCED_K = 1 / (Math.PI * T6A_AIRFRAME.aspectRatio * T6A_DRAG.spanEfficiency);
@@ -382,6 +388,34 @@ export function dragPerWeight(kias, altFt, g, config = 'clean', weightLb = T6A_L
   const cl = liftCoefficient(kias, g, weightLb);
   const cd = T6A_DRAG.zeroLiftCd + T6A_CONFIG_DRAG[config] + INDUCED_K * cl * cl + stallRiseCd(kias, g);
   return qPsf(kias) * T6A_AIRFRAME.wingAreaSqFt * cd / weightLb;
+}
+
+/**
+ * The drag the speed brake and the idle propeller add on top of dragPerWeight, as drag areas in sq ft (force = q × area,
+ * so ÷ weight it is less when heavier). Both grow with dynamic pressure; that growth is an ESTIMATE.
+ * - speedBrakeSqFt 4.2: a perforated flat plate (Patrick, 5 Oct 2026 00:48Z: "a flat plate with holes as the size of
+ *   the speed brake"): one panel under the fuselage opening to 70°, about 5 sq ft (a GUESS: no manual gives its size),
+ *   about 4.7 sq ft face-on, Cd about 0.9 (standard aerodynamics). About 0.095 of 6,000 lb at 200 KIAS. TS-61 (3).
+ * - idlePropSqFt: the propeller at idle, blades at full fine (Patrick, 4 Oct 2026 23:38Z: "LOTS of drag"): 0.16 of the
+ *   weight at 200 KIAS at 6,400 lb, about 7.6 sq ft. Sized on Patrick's overhead break (level, 2 G, 60° of bank, 220 to
+ *   about 130 KIAS in 180°, 4 Oct 23:44Z); level at 1 G it slows about 5 kt/s at 200 KIAS (Patrick, 5 Oct 2026 00:11Z:
+ *   "probably closer to 5"). TS-61 (2).
+ */
+export const T6A_EXTRA_DRAG = Object.freeze({
+  speedBrakeSqFt: 4.2,
+  idlePropSqFt: 0.16 * T6A_LIMITS.weightLb / qPsf(200),
+});
+
+/** The speed brake's drag ÷ weight at kias and weightLb (6,400 lb unless told), on top of dragPerWeight (T6A_EXTRA_DRAG). */
+export function speedBrakeDragPerWeight(kias, weightLb = T6A_LIMITS.weightLb) {
+  checkInputs('speed brake drag', kias, 0, 1, weightLb);
+  return qPsf(kias) * T6A_EXTRA_DRAG.speedBrakeSqFt / weightLb;
+}
+
+/** The idle propeller's drag ÷ weight at kias and weightLb (6,400 lb unless told), on top of dragPerWeight with no thrust (T6A_EXTRA_DRAG). */
+export function idlePropDragPerWeight(kias, weightLb = T6A_LIMITS.weightLb) {
+  checkInputs('idle propeller drag', kias, 0, 1, weightLb);
+  return qPsf(kias) * T6A_EXTRA_DRAG.idlePropSqFt / weightLb;
 }
 
 /** (Thrust − drag) ÷ weight at maximum power: what is left to climb or speed up with. config and weightLb as dragPerWeight. */
