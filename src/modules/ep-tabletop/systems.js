@@ -21,11 +21,14 @@
 // answer: build with the estimates, each shown "(estimate)" on the console).
 
 /** The causes the instructor can set (systems-plan section 2.1). engineFail moves the gauges only; flying the aircraft is plan Step 5. */
-export const FAULT_KINDS = Object.freeze(['oilLeak', 'chip', 'fuelImbalance', 'fire', 'genFail', 'roughness', 'engineFail', 'hydLeak', 'fuelLeak']);
+export const FAULT_KINDS = Object.freeze(['oilLeak', 'chip', 'fuelImbalance', 'fire', 'smoke', 'genFail', 'genFlicker', 'roughness', 'engineFail', 'hydLeak', 'fuelLeak']);
 export const TRENDS = Object.freeze(['worsening', 'steady', 'improving']);
 /** The severity a new fault starts at, and the one the rates below are written for (systems-plan section 2.1: "0.5 by default"). A tool choice. */
 export const DEFAULT_SEVERITY = 0.5;
 export const REFERENCE_SEVERITY = 0.5;
+
+/** The most the view shakes, in degrees, at severity 1 (systems-plan section 9: "0.3° at severity 1"). A picture choice. */
+export const SHAKE_DEG_AT_FULL = 0.3;
 
 const fuelKey = (f) => (f.params?.side === 'R' ? 'engine.fuelRightLb' : 'engine.fuelLeftLb');
 
@@ -37,6 +40,11 @@ const fuelKey = (f) => (f.params?.side === 'R' ? 'engine.fuelRightLb' : 'engine.
  *   { key, to, overS }                              moves straight to `to` over `overS` seconds from the start, whatever the dial
  *   { key, swingAtFull }                            the gauge fluctuates by ± swingAtFull × severity about its value
  *   { light }                                       the light is on while the fault is set (an event: the fault itself is the source)
+ * and the visual cues (EP-12, plan Step 4), none of them a flying number; each is a picture choice until Patrick rules:
+ *   { key: 'fx.haze' | 'fx.glow' | 'fx.shakeDeg', level }          the cue's strength 0 to 1 (shakeDeg: degrees) while the fault is set
+ *   { key: ..., levelAtFull }                                      the same, times the severity dial
+ *   { key: 'cue.<name>', words }                                   the default words for that outside cue; the instructor can type over them
+ *   { flicker: '<light>' }                                         that light flickers (on and off by the clock) while the fault is set
  * `key` may be a function of the fault (the fuel side). Every effect carries its `source`.
  */
 export const FAULT_EFFECTS = Object.freeze({
@@ -45,6 +53,7 @@ export const FAULT_EFFECTS = Object.freeze({
     effects: Object.freeze([
       Object.freeze({ key: 'engine.oilPsi', run: { change: -65, overS: 180 }, floor: 0, source: 'estimate', note: 'oil pressure falls about 65 psi in 3 minutes at severity 0.5 (105 to 40 psi from the healthy cruise), on toward zero; Patrick\'s ruling wanted' }),
       Object.freeze({ key: 'engine.oilTempC', run: { change: 20, overS: 180 }, ceil: 140, source: 'estimate', note: 'oil temperature rises about 20 °C in 3 minutes at severity 0.5, up to 140 °C' }),
+      Object.freeze({ key: 'cue.oilWindscreen', words: 'oil on the windscreen', source: 'picture choice', note: 'default cue words' }),
     ]),
   }),
   chip: Object.freeze({
@@ -59,7 +68,20 @@ export const FAULT_EFFECTS = Object.freeze({
   }),
   fire: Object.freeze({
     label: 'Fire', severity: false, trend: false,
-    effects: Object.freeze([Object.freeze({ light: 'FIRE', source: 'event', note: 'FIRE on while the fault is set' })]),
+    effects: Object.freeze([
+      Object.freeze({ light: 'FIRE', source: 'event', note: 'FIRE on while the fault is set' }),
+      Object.freeze({ key: 'fx.glow', level: 0.7, source: 'picture choice', note: 'orange glow at the lower left edge of the view' }),
+      Object.freeze({ key: 'fx.haze', level: 0.35, source: 'picture choice', note: 'a little smoke haze' }),
+      Object.freeze({ key: 'cue.smoke', words: 'smoke', source: 'picture choice', note: 'default cue words' }),
+      Object.freeze({ key: 'cue.flames', words: 'flames', source: 'picture choice', note: 'default cue words' }),
+    ]),
+  }),
+  smoke: Object.freeze({
+    label: 'Smoke or fumes in the cockpit', severity: true, trend: true,
+    effects: Object.freeze([
+      Object.freeze({ key: 'fx.haze', levelAtFull: 0.8, source: 'picture choice', note: 'grey haze over the view, thicker with the severity dial' }),
+      Object.freeze({ key: 'cue.smoke', words: 'smoke and fumes', source: 'picture choice', note: 'default cue words' }),
+    ]),
   }),
   genFail: Object.freeze({
     label: 'Generator failure', severity: false, trend: false,
@@ -69,12 +91,21 @@ export const FAULT_EFFECTS = Object.freeze({
       Object.freeze({ key: 'engine.amps', to: 0, overS: 0, source: 'estimate', note: 'amps to zero' }),
     ]),
   }),
+  genFlicker: Object.freeze({
+    label: 'Generator flickering', severity: false, trend: false,
+    effects: Object.freeze([
+      Object.freeze({ light: 'GEN', source: 'event', note: 'GEN on while the fault is set' }),
+      Object.freeze({ flicker: 'GEN', source: 'picture choice', note: 'the GEN light flickers on and off' }),
+    ]),
+  }),
   roughness: Object.freeze({
     label: 'Engine roughness', severity: true, trend: false,
     effects: Object.freeze([
       Object.freeze({ key: 'engine.fuelFlowPph', swingAtFull: 80, source: 'estimate', note: 'fuel flow swings ±40 pph at severity 0.5 (the spec\'s mock-up)' }),
       Object.freeze({ key: 'engine.torquePct', swingAtFull: 6, source: 'estimate', note: 'torque swings ±3 % at severity 0.5' }),
       Object.freeze({ key: 'engine.npPct', swingAtFull: 2, source: 'estimate', note: 'Np swings ±1 % at severity 0.5' }),
+      Object.freeze({ key: 'fx.shakeDeg', levelAtFull: SHAKE_DEG_AT_FULL, source: 'picture choice', note: 'a small shake of the view, up to 0.3° at severity 1' }),
+      Object.freeze({ key: 'cue.roughness', words: 'roughness', source: 'picture choice', note: 'default cue words' }),
     ]),
   }),
   engineFail: Object.freeze({
@@ -85,6 +116,7 @@ export const FAULT_EFFECTS = Object.freeze({
       Object.freeze({ key: 'engine.fuelFlowPph', to: 0, overS: 10, source: 'estimate' }),
       Object.freeze({ key: 'engine.ittC', to: 100, overS: 10, source: 'estimate' }),
       Object.freeze({ key: 'engine.oilPsi', to: 0, overS: 10, source: 'estimate' }),
+      Object.freeze({ key: 'cue.noises', words: 'noises, then the engine goes quiet', source: 'picture choice', note: 'default cue words' }),
     ]),
   }),
   hydLeak: Object.freeze({
@@ -175,7 +207,20 @@ export function gaugesOf(baseline, faults, clockS) {
         g[`light.${e.light}`] = true;
         continue;
       }
+      if (e.flicker) {
+        g[`fx.flicker.${e.flicker}`] = true;
+        continue;
+      }
       const key = keyOf(e, f);
+      if (e.words !== undefined) {
+        g[key] = e.words; // default cue words; the instructor's typed words (overrides) win
+        continue;
+      }
+      if (e.level !== undefined || e.levelAtFull !== undefined) {
+        const level = e.level ?? e.levelAtFull * clamp01(f.severity);
+        g[key] = Math.max(Number(g[key]) || 0, level);
+        continue;
+      }
       if (!(key in g)) continue;
       const now = centre(g[key]);
       if (!Number.isFinite(now)) continue;

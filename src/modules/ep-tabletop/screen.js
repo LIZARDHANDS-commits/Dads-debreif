@@ -11,7 +11,7 @@ import { encodeQr, qrSvg } from '../../ui-kit/qr.js';
 import { startSession, act, advance, valueNow, STEPS } from './scenario.js';
 import { studentView, cleanStudentView } from './student-view.js';
 import { SCENARIOS, scenarioById } from './scenarios.js';
-import { NUMBERS, LIGHTS, WORDS, labelOf, valueWords, hudOf } from './indications.js';
+import { NUMBERS, LIGHTS, WORDS, labelOf, valueWords, hudOf, shakeOffsetDeg } from './indications.js';
 import { createConsole, clockWords } from './console.js';
 import { createWorld3d, startPositionFt } from './world3d.js';
 import { createLink, newLinkId, consoleAddress, LOST_MS } from './link.js';
@@ -53,6 +53,9 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
 
   // ---- The student's side ----
   const view = h('div', { class: 'ep-view' });
+  // The picture cues (EP-12): a grey haze and an orange glow over the 3D view, pure CSS, opacity from the student view's cues.
+  const haze = h('div', { class: 'ep-haze', 'aria-hidden': 'true' });
+  const glow = h('div', { class: 'ep-glow', 'aria-hidden': 'true' });
   const hint = h('p', { class: 'ep-hint' }, 'Drag to look round · double-click to look ahead · hold Shift to zoom');
   const stepItems = STEPS.map((st) => h('li', { class: 'ep-step', dataset: { step: st.id } }, h('b', {}, st.letter), ` ${st.name}`, h('span', { class: 'ep-done', 'aria-hidden': 'true' })));
   const banner = h('p', { class: 'ep-banner', role: 'status' });
@@ -97,7 +100,7 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
 
   root.append(h('section', { class: 'ep' },
     h('header', { class: 'ep-bar' }, h('h1', {}, 'EP Tabletop · Student screen'), linkStatus, h('span', { class: 'ep-version' }, version), phoneBtn, instructorBtn),
-    h('div', { class: 'ep-main' }, h('div', { class: 'ep-view-wrap' }, view, hint, qrPanel), track, consoleUi.element),
+    h('div', { class: 'ep-main' }, h('div', { class: 'ep-view-wrap' }, view, haze, glow, hint, qrPanel), track, consoleUi.element),
     h('p', { class: 'ep-foot' }, 'The student sees only the cockpit, the step they\'re on and what the instructor has revealed. Never the script, what\'s next or the end.')));
 
   // ---- The student view now, and its clock ----
@@ -107,6 +110,8 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
     // Between the phone's sends the clock runs on here, for no longer than the link stays fresh (then it waits, EP-R10).
     return v.clockS + Math.min(Date.now() - remote.baseAt, LOST_MS) / 1000;
   }
+  /** The cues' clock-driven part: a flicker and a shake both stop while time stands still (and before it starts). */
+  const cueClock = (v, clockS) => ({ clockS, running: v.running });
   const panelNow = (v, clockS) => ({ now: Object.fromEntries(Object.entries(v.panel).map(([k, x]) => [k, valueNow(x, clockS)])) });
 
   // ---- Drawing the student's side from a student view ----
@@ -118,6 +123,10 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
       clear(situationList);
       for (const t of situationLines(v.situation)) situationList.append(h('li', {}, t));
     }
+    haze.style.opacity = String(v.cues.haze);
+    haze.hidden = v.cues.haze <= 0;
+    glow.style.opacity = String(v.cues.glow);
+    glow.hidden = v.cues.glow <= 0;
     stepItems.forEach((li, i) => {
       const id = STEPS[i].id;
       li.classList.toggle('is-current', id === v.step);
@@ -144,10 +153,12 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
   function syncWorld(force = false) {
     if (!world) return;
     const v = currentView();
-    const hud = hudOf(panelNow(v, clockOf(v)));
-    world.setPose({ ...startPositionFt(v.situation.position), altFt: hud.altFt, headingDegM: hud.headingDeg, pitchDeg: hud.pitchDeg, bankDeg: hud.bankDeg });
+    const clockS = clockOf(v);
+    const hud = hudOf(panelNow(v, clockS), { ...cueClock(v, clockS), flicker: v.cues.flicker });
+    const shakeDeg = Math.round(shakeOffsetDeg({ ...cueClock(v, clockS), shakeDeg: v.cues.shakeDeg }) * 100) / 100;
+    world.setPose({ ...startPositionFt(v.situation.position), altFt: hud.altFt, headingDegM: hud.headingDeg, pitchDeg: hud.pitchDeg, bankDeg: hud.bankDeg, shakeDeg });
     world.setHud(hud);
-    const key = JSON.stringify(hud);
+    const key = JSON.stringify([hud, shakeDeg]);
     const now = nowMs();
     if (force || (key !== drawnKey && now - lastDraw >= DRAW_MS)) {
       drawnKey = key;

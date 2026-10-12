@@ -7,9 +7,11 @@
 // clock, the FEVER and TCCC prompts, and the panel's settings for the flight instruments and for what has been revealed.
 // Never: the scenario's name or script, the developments to come, edits not yet applied, marks, notes, the Declare boxes, the log, any
 // setting nobody has asked about, or anything about how it ends; and never a cause (fault), its severity or its trend (EP-11): the panel
-// carries only the gauges and lights they move, once revealed.
+// carries only the gauges and lights they move, once revealed. The picture cues (EP-12) are `cues`: a haze and a glow (0 to 1), a shake
+// (degrees) and the names of revealed lights that flicker, worked out from what has been applied, never from what is waiting.
 import { STEPS, panelOf } from './scenario.js';
-import { definitionOf } from './indications.js';
+import { definitionOf, CUE_LEVELS, FLICKER_CUES } from './indications.js';
+import { shownOf } from './systems.js';
 import { ENGINE_LIVE } from '../../ui-kit/ct156-cockpit.js';
 
 /** The student view's format; a screen refuses any other. */
@@ -17,6 +19,22 @@ export const VIEW_FORMAT = 1;
 
 const STEP_IDS = STEPS.map((s) => s.id);
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * The picture cues the student sees now (EP-12): from the applied causes and typed values only (shownOf), never a pending edit. A flickering
+ * light is named only once the student has asked about it, so a name never gives away a light nobody has revealed.
+ * @param {any} s
+ */
+export function cuesOf(s) {
+  const shown = shownOf(s);
+  const level = (key, max) => Math.min(max, Math.max(0, Number(shown[key]) || 0));
+  return {
+    haze: level('fx.haze', 1),
+    glow: level('fx.glow', 1),
+    shakeDeg: level('fx.shakeDeg', CUE_LEVELS.find((d) => d.key === 'fx.shakeDeg').max),
+    flicker: FLICKER_CUES.filter((d) => shown[d.key] === true && s.revealed.includes(`light.${d.name}`)).map((d) => d.name),
+  };
+}
 
 /**
  * The student's side of `s` (a scenario.js session), plain JSON-ready data.
@@ -43,6 +61,7 @@ export function studentView(s) {
     clockS: s.clockS,
     prompts: { fever: s.prompts.fever, tccc: s.prompts.tccc },
     panel: panelOf(s).set,
+    cues: cuesOf(s),
   };
 }
 
@@ -108,6 +127,8 @@ export function cleanStudentView(raw) {
       if (v !== null) panel[key] = v;
     }
   }
+  const rawCues = isObject(raw.cues) ? raw.cues : {};
+  const flicker = Array.isArray(rawCues.flicker) ? FLICKER_CUES.map((d) => d.name).filter((n) => rawCues.flicker.includes(n)) : [];
   return {
     format: VIEW_FORMAT,
     situation: {
@@ -130,5 +151,11 @@ export function cleanStudentView(raw) {
     clockS: num(raw.clockS, 0, 24 * 3600) ?? 0,
     prompts: { fever: isObject(raw.prompts) && raw.prompts.fever === true, tccc: isObject(raw.prompts) && raw.prompts.tccc === true },
     panel,
+    cues: {
+      haze: num(rawCues.haze, 0, 1) ?? 0,
+      glow: num(rawCues.glow, 0, 1) ?? 0,
+      shakeDeg: num(rawCues.shakeDeg, 0, CUE_LEVELS.find((d) => d.key === 'fx.shakeDeg').max) ?? 0,
+      flicker,
+    },
   };
 }

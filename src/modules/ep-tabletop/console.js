@@ -5,7 +5,7 @@
 // up to date without touching a box being typed in.
 //
 // This file is the frame (the header, the scenario picker, the Apply bar) and puts the sections together; each section is its own file
-// (plan Step 3): console-time.js (Time, Next development), console-faults.js (Faults), console-indications.js (Indications) and
+// (plan Step 3): console-time.js (Time, Next development), console-faults.js (Faults), console-indications.js (Indications), console-cues.js (Cues) and
 // console-marks.js (Prompts and marks, Declare).
 import { h } from '../../ui-kit/dom.js';
 import { labelOf } from './indications.js';
@@ -13,6 +13,7 @@ import { shownOf, faultLabel } from './systems.js';
 import { createTimeSection, createDevelopmentSection, clockWords } from './console-time.js';
 import { createIndicationsSection } from './console-indications.js';
 import { createFaultsSection } from './console-faults.js';
+import { createCuesSection } from './console-cues.js';
 import { createMarksSection, createDeclareSection } from './console-marks.js';
 
 export { clockWords };
@@ -37,6 +38,7 @@ export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', s
   const time = createTimeSection({ dispatch, button });
   const faults = createFaultsSection({ send, button });
   const indications = createIndicationsSection({ dispatch, button, stage, onAtOnce: (on) => { atOnce = on; } });
+  const cues = createCuesSection({ button, stage });
   const developments = createDevelopmentSection({ dispatch, button });
   const marks = createMarksSection({ dispatch, button });
   const declare = createDeclareSection({ dispatch });
@@ -56,7 +58,7 @@ export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', s
       h('p', { class: 'ep-sub' }, phone
         ? 'On your phone: the student\'s screen shows only what you apply and reveal, never this page.'
         : 'One-screen mode: keep this closed while the student watches, or run it from your phone with the "Instructor\'s phone" code.')),
-    time.element, faults.element, indications.element, developments.element, marks.element, declare.element,
+    time.element, faults.element, indications.element, cues.element, developments.element, marks.element, declare.element,
     // Always in sight while changes wait, so the student's screen never changes until it is pressed.
     h('div', { class: 'ep-applybar' }, waiting, applyBtn, undoBtn));
 
@@ -75,6 +77,7 @@ export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', s
     time.update(s);
     faults.update(s);
     indications.update(s, shown);
+    cues.update(s, shown);
     developments.update(s);
     marks.update(s);
     declare.update(s);

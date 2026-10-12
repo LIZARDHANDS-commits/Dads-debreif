@@ -27,6 +27,12 @@
 }
 .ep-view-wrap { position: relative; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #2f6aa8; }
 .ep-view { position: absolute; inset: 0; }
+.ep-haze, .ep-glow { position: absolute; inset: 0; pointer-events: none; }
+/* Smoke haze: a grey, half-see-through layer; the student view's opacity (0 to 1) is set on it, 0.8 at the most so the view never goes blank (a picture choice). */
+.ep-haze { background: rgba(120, 120, 124, 0.8); transition: opacity 0.4s; }
+/* Fire glow: orange from the lower left edge, fading out toward the middle. */
+.ep-glow { background: radial-gradient(ellipse 70% 80% at 0% 100%, rgba(255, 120, 20, 0.85), rgba(255, 90, 0, 0.35) 45%, rgba(255, 90, 0, 0) 75%); transition: opacity 0.4s; }
+.ep-haze[hidden], .ep-glow[hidden] { display: none; }
 .ep-3d-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .ep-3d-canvas:active { cursor: grabbing; }
 .ep-3d-note { padding: var(--space-4); color: var(--text); }

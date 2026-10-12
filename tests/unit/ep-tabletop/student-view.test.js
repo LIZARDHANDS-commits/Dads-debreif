@@ -1,9 +1,11 @@
 // Checks: the student view, the only thing the phone sends and the only thing the student's screen draws from, never carries the setup:
 //   no development still to come, no edit not yet applied, no marks, notes or Declare answers, nothing about the scenario's name or end,
 //   and no cause (fault), severity or trend, set or waiting (EP-11; plan Step 3 extended this check, still the file's one test).
+//   Step 4 (EP-12) extended it again: a fire cause lights FIRE and MASTER WARN together; its glow and haze, and any cue the instructor sets,
+//   reach the student view only once applied; and a cue still waiting is not in it.
 // Serves: EP-R3, EP-R4 (docs/modules/ep-tabletop/requirements.md), EP-2, EP-9, EP-11.
-// Expected values: from the example scenario itself (its developments' words and values) and sentinel words typed in this test; no flying
-//   number is checked (docs/modules/ep-tabletop/testing.md).
+// Expected values: from the example scenario itself (its developments' words and values), the fire cause as an event (it lights FIRE, and
+//   FIRE lights MASTER WARN) and sentinel words typed in this test; no flying number is checked (docs/modules/ep-tabletop/testing.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { startSession, act, advance } from '../../../src/modules/ep-tabletop/scenario.js';
@@ -77,4 +79,31 @@ test('the student view never carries the setup: developments to come, unapplied 
   const json = check(s, 'after Boldface');
   const chip = sc.developments.find((d) => d.at.step === 'B');
   assert.equal(json.includes(chip.set['cue.roughness']), true, 'the result the student asked about does show');
+
+  // Picture cues (EP-12): a fire cause waiting to be applied, then applied, on a fresh session.
+  let f = startSession(sc);
+  f = act(f, { type: 'reveal', key: 'light.FIRE' });
+  f = act(f, { type: 'reveal', key: 'light.MASTER WARN' });
+  f = act(f, { type: 'addFault', kind: 'fire' });
+  let v = studentView(f);
+  assert.equal(v.panel['light.FIRE'], false, 'a fire cause not applied is not on the panel');
+  assert.deepEqual([v.cues.haze, v.cues.glow], [0, 0], 'no glow or haze before Apply');
+  f = act(f, { type: 'apply' });
+  v = studentView(f);
+  assert.equal(v.panel['light.FIRE'], true, 'a fire cause lights FIRE');
+  assert.equal(v.panel['light.MASTER WARN'], true, 'and MASTER WARN with it');
+  assert.equal(v.cues.glow > 0 && v.cues.haze > 0, true, 'the glow and a little haze reach the student once applied');
+  // A cue the instructor has staged but not applied is not in the view; a flickering light is named only once revealed.
+  f = act(f, { type: 'stage', key: 'fx.shakeDeg', value: 0.7 });
+  f = act(f, { type: 'stage', key: 'fx.haze', value: 0.9 });
+  f = act(f, { type: 'stage', key: 'fx.flicker.GEN', value: true });
+  assert.equal(studentView(f).cues.shakeDeg, 0, 'a shake waiting for Apply is not in the view');
+  assert.equal(studentView(f).cues.haze, v.cues.haze, 'a haze change waiting for Apply is not in the view');
+  f = act(f, { type: 'apply' });
+  assert.equal(studentView(f).cues.haze, 0.9, 'and shows once applied');
+  assert.equal(studentView(f).cues.flicker.includes('GEN'), false, 'a light nobody has revealed is not named, even flickering');
+  // Arriving cues are untrusted: clamped, unknown light names dropped.
+  const clean = cleanStudentView({ ...JSON.parse(JSON.stringify(studentView(f))), cues: { haze: 7, glow: -2, shakeDeg: 99, flicker: ['FIRE', 'NOT-A-LIGHT'] } });
+  assert.deepEqual([clean.cues.haze, clean.cues.glow, clean.cues.flicker], [1, 0, ['FIRE']]);
+  assert.equal(clean.cues.shakeDeg < 99, true, 'the shake is kept to a few degrees at most');
 });

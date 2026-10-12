@@ -204,10 +204,13 @@ export async function createWorld3d({ host, timers, doc = globalThis.document })
   resizer?.observe(host);
 
   return {
-    /** The aircraft's pose: map feet from CYMJ, altitude (feet above sea level), heading (°M), pitch and bank (right wing down positive). */
-    setPose({ x = 0, y = 0, altFt = fieldFt, headingDegM = 0, pitchDeg = 0, bankDeg = 0 }) {
+    /**
+     * The aircraft's pose: map feet from CYMJ, altitude (feet above sea level), heading (°M), pitch and bank (right wing down positive).
+     * shakeDeg: a small offset in degrees already swung by the caller's clock (EP-12), added to pitch and half of it to bank.
+     */
+    setPose({ x = 0, y = 0, altFt = fieldFt, headingDegM = 0, pitchDeg = 0, bankDeg = 0, shakeDeg = 0 }) {
       ship.position.set(x, y, altFt);
-      ship.rotation.set(-degToRad(bankDeg), -degToRad(pitchDeg), compassDegToHeadingRad(headingDegM + MAG_VARIATION_DEG_E), 'ZYX');
+      ship.rotation.set(-degToRad(bankDeg + shakeDeg / 2), -degToRad(pitchDeg + shakeDeg), compassDegToHeadingRad(headingDegM + MAG_VARIATION_DEG_E), 'ZYX');
     },
     /** The panel's numbers (ct156-cockpit.js update's `hud`, with `engine` for the live engine displays). */
     setHud(next) {
