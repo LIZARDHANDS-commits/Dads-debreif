@@ -83,6 +83,24 @@ export const MODULES = [
     prototype: true,
   },
   {
+    id: 'ep-tabletop',
+    eyebrow: 'Emergencies',
+    title: 'EP Tabletop',
+    blurb: 'Talk through an emergency in the CT-156 cockpit, step by step',
+    details: {
+      summary: 'Emergency procedures tabletop: an instructor runs a practice emergency on a student in the CT-156 cockpit over Moose Jaw, through A-A-B-C-D-E-F.',
+      capabilities: [
+        'The CT-156 front cockpit with live engine displays and caution lights, over Moose Jaw in 3D',
+        'The A-A-B-C-D-E-F step track, with time standing still while the student analyses',
+        'Indications show only when the instructor reveals them; changes reach the panel on Apply',
+        'The instructor console behind an Instructor switch (one-screen mode)',
+      ],
+    },
+    media: { still: 'media/cards/ep-tabletop.jpg' },
+    load: () => import('../modules/ep-tabletop/index.js'),
+    prototype: true,
+  },
+  {
     id: 'sof',
     eyebrow: 'Operations',
     title: 'SOF Dashboard',

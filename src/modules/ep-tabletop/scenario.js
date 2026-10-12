@@ -36,7 +36,7 @@ export const DECLARE_FIELDS = Object.freeze(['nature', 'fuel', 'souls', 'plan', 
 
 const isFlight = (key) => key.startsWith('flight.');
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const words = (v) => (v && typeof v === 'object' ? `${v.v} ±${v.swing}` : String(v));
+const words = (v) => (v === true ? 'ON' : v === false ? 'off' : v && typeof v === 'object' ? `${v.v} ±${v.swing}` : String(v));
 
 function log(s, text) {
   return { ...s, log: [...s.log, { tS: s.clockS, step: s.step, text }] };
