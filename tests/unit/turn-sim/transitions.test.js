@@ -88,7 +88,8 @@ test('every change ends in the target formation, at 200 KIAS (220 in line abreas
       // The shared ±10 kt margin (TESTING.md T4; Patrick's yes to the overhaul list, 11 Oct 2026 19:24Z).
       assert.ok(Math.abs(lead.kias - kias) <= TOLERANCES.AIRSPEED_KT && Math.abs(wing.kias - kias) <= TOLERANCES.AIRSPEED_KT, `${what}: ${lead.kias.toFixed(1)} / ${wing.kias.toFixed(1)} KIAS`);
       const apart = Math.abs(Math.atan2(Math.sin(wing.headingRad - lead.headingRad), Math.cos(wing.headingRad - lead.headingRad))) / DEG;
-      assert.ok(apart <= 1, `${what}: headings ${apart.toFixed(2)}° apart`); // the shared ±5° margin is generous; a formation flies parallel
+      // The shared ±5° margin (Patrick's card 12 Oct 2026 00:17Z, "Shared ±5°"): read at the hand-over, he may still be easing the last degree.
+      assert.ok(apart <= TOLERANCES.ANGLE_DEG, `${what}: headings ${apart.toFixed(2)}° apart`);
       assert.equal(f.where().key, to, `${what}: the pair reads as ${to}`);
     }
   }
