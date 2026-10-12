@@ -8,10 +8,9 @@ This folder is the emergency procedures tabletop: an instructor runs a practice 
 
 ## What is next
 
-1. Dad redeploys the relay (`relay/README.md`, "/ep-link"), so the phone link works on the live site.
-2. Patrick or Dad runs "Engine roughness in the area" with a phone scanning the code, and on the one screen, and says what to change.
-3. Patrick answers EP-Q4 (the direct link and its STUN server) when he wants to.
-4. The proposal below (Traffic's Moose Jaw buildings in a shared home), if Patrick wants it.
+1. Patrick or Dad runs "Engine roughness in the area" with a phone scanning the code, and on the one screen, and says what to change.
+2. Patrick answers EP-Q4 (the direct link and its STUN server) when he wants to.
+3. The proposal below (Traffic's Moose Jaw buildings in a shared home), if Patrick wants it.
 
 ## Proposal for Patrick: Traffic's Moose Jaw world in a shared home (EP-7)
 
