@@ -14,6 +14,7 @@ import { DEG } from '../../../core/angles.js';
 import { STEP_SEC, copyAircraft, planDone } from './flight.js';
 import { flyStep } from './replay.js';
 import { relativeTo } from './manoeuvres.js';
+import { WING } from './moves.js';
 import { FW_BAND } from './slots.js';
 import { fwLeadPlan, fwMoveWords } from './formation-turns.js';
 import { leadStateOf } from './fluid-lead.js';
@@ -32,6 +33,8 @@ export const FW_LIVE = Object.freeze({
   offLeadG: 1,
   offLeadInSec: 1,
   offLeadOutSec: 2,
+  // #3 takes the other side when #2 does, and #4 when #3 does (Patrick 12 Oct 2026 16:34Z; trial).
+  elementSwitchesWithTwo: true,
 });
 
 /** A wingman's place on the one ahead in Lead's level frame (n: Lead's heading, level), the height kept in the cone. */
@@ -99,6 +102,7 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
   const offW = ws.map(() => 0);
   const ghostPm = [];
   const wsTrack = [];
+  let prevSides = ws.map((w) => w.side);
   let t = t0;
   let doneAt = null;
   const profileEnd = Math.max(t0, ...(lp.profile ?? []).map((leg) => leg.t1)); // a climb or descent is over at its last leg's end
@@ -145,6 +149,16 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
       poses[i].push({ ...r.pose, power: r.power });
       return r.ws;
     });
+    // The element switches with #2 (Patrick 12 Oct 2026 16:34Z: "what if 3 switches when 2 switches?"): when the one ahead
+    // takes the other side, the one behind takes the other side of him too, so #3 stays across from #2 and #4 outside #3.
+    if (FW_LIVE.elementSwitchesWithTwo) {
+      for (let i = 1; i < ws.length; i++) {
+        if (ws[i - 1].side !== prevSides[i - 1] && ws[i].side === prevSides[i]) {
+          ws[i] = { ...ws[i], side: -ws[i].side, swapUntil: t + WING.swapGuardSec };
+        }
+      }
+    }
+    prevSides = ws.map((w) => w.side);
     wsTrack.push(ws);
     if (doneAt === null && planDone(L, plan) && t >= profileEnd) doneAt = t;
     if (doneAt !== null && t - doneAt >= FW_LIVE.settleSec) break;
