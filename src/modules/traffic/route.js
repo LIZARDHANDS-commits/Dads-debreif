@@ -372,13 +372,19 @@ export function posOnRoute(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
   return { x: last.x, y: last.y, alt: last.alt, kt: last.kt, g: last.g, seg: pts.length - 1, u: 1, headingDeg: segs[segs.length - 1].headingDeg, tag: last.tag };
 }
 
-/** Distance along the flown path of the place nearest to `target` (V6 `closestProg`, line 224). */
-export function closestDistFt(route, target, options = DEFAULT_ROUTE_OPTIONS) {
+/**
+ * Distance along the flown path of the place nearest to `target` (V6 `closestProg`, line 224). With `byHeight`, the
+ * height difference counts too, so a leg passing overhead (the initial over the runway) never wins over one at the
+ * aircraft's own height (the climb-out or the end of final).
+ */
+export function closestDistFt(route, target, options = DEFAULT_ROUTE_OPTIONS, { byHeight = false } = {}) {
   let best = { d: Infinity, dist: 0 }, run = 0;
   for (const s of routePath(route, options).segs) {
     const vx = s.b.x - s.a.x, vy = s.b.y - s.a.y, l2 = vx * vx + vy * vy;
     const u = l2 ? Math.max(0, Math.min(1, ((target.x - s.a.x) * vx + (target.y - s.a.y) * vy) / l2)) : 0;
-    const px = s.a.x + vx * u, py = s.a.y + vy * u, d = Math.hypot(target.x - px, target.y - py);
+    const px = s.a.x + vx * u, py = s.a.y + vy * u;
+    const dz = byHeight && Number.isFinite(target.alt) ? target.alt - (s.a.alt + ((s.b.alt ?? s.a.alt) - s.a.alt) * u) : NaN;
+    const d = Number.isFinite(dz) ? Math.hypot(target.x - px, target.y - py, dz) : Math.hypot(target.x - px, target.y - py);
     if (d < best.d) best = { d, dist: run + s.len * u };
     run += s.len;
   }
