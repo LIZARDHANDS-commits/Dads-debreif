@@ -23,7 +23,7 @@ import { closeThrough, legsFor, STRAIGHT_AHEAD } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot, sideFor, LANE, FW_LIMITS } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
+import { IN_POSITION, KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure } from './closures.js';
 import { STEP_SEC } from './flight.js';
 import { trackPhases, phase } from './tracker.js';
@@ -93,6 +93,10 @@ function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt
     ...p,
     slot: { ...p.slot, alt: p.slot.alt + leadAlt },
     ...(i === 0 || onLine ? { closureFtps: Math.min(p.closureFtps, flowFtps) } : {}),
+    // The planned run settles inside the judge's band, not on its edge: half of it (an estimate; Fable's fix, PR #939). At
+    // the 5 ft it settled at, the run ended still banked and rolling, 4.9 ft off line on main and 5 ft once #2's roll built
+    // its acceleration (TS-196), so the plan fell to the tracker's 117 s rejoin.
+    ...(i === legs.length - 1 ? { finalTol: Math.min(p.finalTol, IN_POSITION.closeFt / 2) } : {}),
   }));
 
   const phases = [ridePhase, ...closePhases];
