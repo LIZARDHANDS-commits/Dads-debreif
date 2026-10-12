@@ -116,10 +116,16 @@ export const FORWARD_BOW_FT = Object.freeze({
   bandX: CT156_FRAME_X[0] * F - 0.05,
   glassInset: 0.01,
   bandDepth: 0.15,
-  tubeR: 0.025,
+  tubeR: 0,
+  flange: 0.28,
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([Object.freeze({ at: 0.5, n: 22, dia: 0.07 })]),
+  footPlate: Object.freeze({ up: 0.4, aft: 0.45, inset: 0.09 }),
 });
+// Its section is a T (Patrick, 12 Oct 2026, from his cockpit photos): the aft face, and along its inner edge a flange
+// running forward `flange` (3.4 in) at the same distance inside the glass, in place of the dark tube 0.025 ft round. At
+// each foot a triangular plate joins it to the canopy's lower frame, `up` the bow and `aft` along the frame (sizes
+// estimates), the ejection seat's placard on the right one.
 
 /**
  * The inter-cockpit arch over the rear seat's panel, feet (TS-157): the model's centre frame hoop (CT156_FRAME_X[1],
@@ -283,7 +289,10 @@ export const SEAT_FT = Object.freeze({
   knee: { inner: 0.24, outer: 0.88, belowPanel: 0.02, r: 0.25, depth: 0.5, trim: 0.025 },
 });
 /** The canopy's side frames inside the glass, feet: 0.3 ft up from the sill, a fastener every 0.3 ft (estimates). */
-export const SIDE_FRAME_FT = Object.freeze({ height: 0.3, thick: 0.06, pitch: 0.3 });
+// Since 12 Oct 2026 the canopy's own grey lower frame sitting on the sill, as tall as the band outside
+// (CT156_RAIL_BAND_FT, 0.34 ft), with a row of round fasteners 0.25 ft apart (Patrick's cockpit photos; spacing an
+// estimate); it was 0.3 ft tall, 0.06 ft thick, with square nubs 0.3 ft apart.
+export const SIDE_FRAME_FT = Object.freeze({ height: 0.34, thick: 0.08, pitch: 0.25, boltR: 0.018 });
 
 /**
  * The coaming's shade on each panel's top: darkest (top, the veil's opacity) at the face's top edge, gone `depth` of the
@@ -1719,7 +1728,12 @@ function bandGeometries(THREE, b) {
   };
   const outer = pts.map((q) => inward(q, b.glassInset)), inner = pts.map((q) => inward(q, b.glassInset + b.bandDepth));
   const band = loft(THREE, [outer, inner], { closed: false });
-  const tube = tubeThrough(THREE, inner, b.tubeR, 60, { smooth: true, radial: 5 });
+  let tube = null;
+  if (b.tubeR > 0) tube = tubeThrough(THREE, inner, b.tubeR, 60, { smooth: true, radial: 5 });
+  else if (b.flange) {
+    const ahead = ct156HoopPoints((b.bandX + b.flange) / F, n, 0, b.lean ?? 0).map((q) => inward(q, b.glassInset + b.bandDepth));
+    tube = loft(THREE, [inner, ahead], { closed: false });
+  }
   const dots = [];
   for (const row of b.dots) {
     // Evenly spaced by length along the row's line, half a spacing in from each sill.
@@ -1746,7 +1760,9 @@ function bandGeometries(THREE, b) {
  * of the bow from the left sill (0) to the right (1), covering the bow from the glass to the far side of its inner tube
  * and no further, `aft` feet behind the band. Sizes estimates judged off the picture.
  */
-const BOW_MIRRORS = Object.freeze({ spans: Object.freeze([[0.22, 0.35], [0.65, 0.78]]), aft: 0.04 });
+const BOW_MIRRORS = Object.freeze({ spans: Object.freeze([[0.18, 0.4], [0.6, 0.82]]), aft: 0.04 });
+// Since 12 Oct 2026 (Patrick's mirror photo) longer, each from about 10 and 2 o'clock up to near the crest with a short
+// gap between, round-ended (they were [0.22, 0.35] and [0.65, 0.78], square-ended).
 
 /** One of the forward bow's curved mirrors between bow fractions t0 and t1 (BOW_MIRRORS), as { frame, face } (feet). */
 function bowMirrorGeometries(THREE, b, t0, t1) {
@@ -1758,8 +1774,14 @@ function bowMirrorGeometries(THREE, b, t0, t1) {
     return [x * F - dx, y * F + (dy / l) * d, z * F + (dz / l) * d];
   };
   const d0 = b.glassInset, d1 = b.glassInset + b.bandDepth + 2 * b.tubeR, { aft } = BOW_MIRRORS;
-  const frame = loft(THREE, [pts.map((q) => at(q, d0, aft - 0.005)), pts.map((q) => at(q, d1 + 0.012, aft - 0.005))], { closed: false });
-  const face = loft(THREE, [pts.map((q) => at(q, d0 + 0.012, aft)), pts.map((q) => at(q, d1, aft))], { closed: false });
+  // Round ends: near each end the strip narrows about its middle line as a half circle across its depth.
+  const len = [0];
+  for (let j = 1; j < pts.length; j++) len.push(len[j - 1] + Math.hypot(pts[j].y - pts[j - 1].y, pts[j].z - pts[j - 1].z) * F);
+  const half = (d1 - d0) / 2 + 0.012, mid = (d0 + d1) / 2;
+  const w = (j) => { const e = Math.min(len[j], len[len.length - 1] - len[j]); return e >= half ? 1 : Math.sqrt(Math.max(0, 1 - ((half - e) / half) ** 2)); };
+  const edge = (sgn, grow, dx) => pts.map((q, j) => at(q, mid + sgn * (half - 0.012 + grow) * Math.max(w(j), 0.05), dx));
+  const frame = loft(THREE, [edge(-1, 0.012, aft - 0.005), edge(1, 0.012, aft - 0.005)], { closed: false });
+  const face = loft(THREE, [edge(-1, 0, aft), edge(1, 0, aft)], { closed: false });
   return { frame, face };
 }
 
@@ -1791,12 +1813,57 @@ function sideFrameParts(THREE) {
     }
     frames.push(loft(THREE, sections, { closed: false }));
     for (let x = x0 - pitch / 2; x > x1; x -= pitch) {
-      const z = ct156CanopySection(x / F).base * F + height - 0.05;
+      const z = ct156CanopySection(x / F).base * F + height / 2;
       const y = s * (glassAt(x, z) - thick - 0.006);
-      nubs.push(box(THREE, x - 0.017, x + 0.017, y - 0.008, y + 0.008, z - 0.017, z + 0.017));
+      nubs.push(new THREE.CylinderGeometry(SIDE_FRAME_FT.boltR, SIDE_FRAME_FT.boltR, 0.012, 10).translate(x, y, z));
     }
   }
   return { frames, nubs };
+}
+
+/** Where the forward bow's foot stands on side s (+1 left, -1 right), feet: [x, y, z], on the canopy's sill. */
+function bowFoot(s) {
+  const b = FORWARD_BOW_FT, pts = ct156HoopPoints(b.bandX / F, 32, 0, b.lean);
+  const q = s > 0 ? pts[0] : pts[pts.length - 1];
+  return [q.x * F, q.y * F, ct156CanopySection(q.x / F).base * F];
+}
+/**
+ * The forward bow's foot plates (FORWARD_BOW_FT.footPlate): a flat triangle each side just inside the glass, from the
+ * bow's foot up its leg and aft along the canopy's lower frame, light like the bow, and the ejection seat's placard (a
+ * dark square with a light border) on the right one. [geometry, slot] pairs.
+ */
+function bowFootParts(THREE) {
+  const { up, aft, inset } = FORWARD_BOW_FT.footPlate, out = [];
+  for (const s of [1, -1]) {
+    const [x, y, z] = bowFoot(s), yi = s * (Math.abs(y) - inset);
+    const tri = new THREE.BufferGeometry();
+    tri.setAttribute('position', new THREE.Float32BufferAttribute([x, yi, z, x - aft, yi, z, x - 0.04, yi, z + up], 3));
+    tri.setIndex(s > 0 ? [0, 1, 2] : [0, 2, 1]);
+    tri.computeVertexNormals();
+    out.push([tri, SLOT.band]);
+    if (s < 0) {
+      const px = x - aft * 0.35, pz = z + up * 0.3;
+      out.push([box(THREE, px - 0.07, px + 0.07, yi + 0.002, yi + 0.006, pz - 0.07, pz + 0.07), SLOT.knob]);
+      out.push([box(THREE, px - 0.06, px + 0.06, yi + 0.006, yi + 0.009, pz - 0.06, pz + 0.06), SLOT.black]);
+    }
+  }
+  return out;
+}
+/**
+ * The canopy's handle on the left lower frame just aft of the forward bow (Patrick, 12 Oct 2026, from his photo): a
+ * black triangular handle, its open loop hanging from a pivot pin and hub near the frame's top by the bow, on a light
+ * placard plate, and two round knobs on the frame ahead of it by the bow's foot. Sizes estimates. [geometry, slot] pairs.
+ */
+function canopyHandleParts(THREE) {
+  const [fx0, fy, fz] = bowFoot(1), y = fy - SIDE_FRAME_FT.thick - 0.05, out = [];
+  const px = fx0 - 0.2, pz = fz + SIDE_FRAME_FT.height - 0.06; // the pivot
+  const loop = [[px, y, pz], [px - 0.55, y, pz - 0.2], [px - 0.08, y, pz - 0.4], [px, y, pz]];
+  out.push([tubeThrough(THREE, loop, 0.025, 3, { radial: 6 }), SLOT.black]);
+  out.push([new THREE.CylinderGeometry(0.045, 0.045, 0.04, 14).translate(px, y + 0.01, pz), SLOT.black]);
+  out.push([new THREE.CylinderGeometry(0.014, 0.014, 0.08, 8).translate(px, y - 0.01, pz), SLOT.metal]);
+  out.push([box(THREE, px - 0.6, px - 0.05, y + 0.03, y + 0.034, pz - 0.15, pz - 0.02), SLOT.knob]);
+  for (const k of [0, 1]) out.push([new THREE.CylinderGeometry(0.03, 0.03, 0.03, 12).translate(fx0 - 0.04 - k * 0.09, y + 0.02, fz + 0.12), SLOT.black]);
+  return out;
 }
 
 /** The sill bands, both sides, from the forward bow to the rear bow (feet): 0.2 ft inside the canopy's foot, and out over the cut edge. */
@@ -2531,7 +2598,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   // The bow itself and the canopy rails are their own meshes, named for the Blender cockpit's parts that replace them
   // (ct156-cockpit-model.js, ALL-32); they stay if the model file fails to load.
   const fb = bandGeometries(THREE, FORWARD_BOW_FT);
-  const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }, { geometry: fb.tube, materials: [SLOT.black] }];
+  const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }, { geometry: fb.tube, materials: [FORWARD_BOW_FT.tubeR > 0 ? SLOT.black : SLOT.band] }];
+  bowParts.push(...bowFootParts(THREE).map(([geometry, slot]) => ({ geometry, materials: [slot] })));
   for (const g of fb.dots) bowParts.push({ geometry: g, materials: [SLOT.black] });
   add(ct156JoinGeometries(THREE, bowParts), slotMats).name = 'ct156-cockpit-forward-bow';
   for (const [t0, t1] of BOW_MIRRORS.spans) {
@@ -2578,6 +2646,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   for (const g of sf.frames) railParts.push({ geometry: g, materials: [SLOT.frame] });
   for (const g of sf.nubs) railParts.push({ geometry: g, materials: [SLOT.dark] });
   for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.frame] });
+  for (const [g, slot] of canopyHandleParts(THREE)) railParts.push({ geometry: g, materials: [slot] });
   add(ct156JoinGeometries(THREE, railParts), slotMats).name = 'ct156-cockpit-canopy-rails';
   // The named parts (seatParts' tags) each their own mesh, for the Blender cockpit to replace; with keepPieces their pieces
   // stay unjoined in group.userData.pieces (as { name: [{ geometry, slot }] }) for the export to Blender.
