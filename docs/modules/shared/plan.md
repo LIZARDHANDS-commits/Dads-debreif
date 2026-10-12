@@ -49,6 +49,10 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
   - [x] 2. Build the gear and `setGear` in the code model and the Blender file. Render it down, doors-open and up, beside your photos, and merge with a version bump. One light check: gear down, both main wheels and the nose wheel touch level ground at 2.5° nose up. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`, `public/models/ct156-gear.glb`, `tests/unit/ui-kit/ct156-gear.test.js`).
   - [ ] 3. Add the landing and taxi lights.
   - [ ] 4. Hook-ups go to each module's own thread: Traffic sets the gear by phase of the pattern (after the core and Traffic refactor, through the coordinator), and Debrief shows the gear down on the ground.
+- Flight surfaces (ALL-35, Patrick, 12 Oct 2026):
+  - [x] 1. Measure the hinge lines and surface outlines off the reference views and the panel lines already drawn. Working copies stay private; only the numbers go in the repo.
+  - [x] 2. Cut the surfaces from the wing and tail in the code model and the Blender file, hinge them, add the split flaps and `setControls`. Render neutral, full deflections and both flap settings beside your photos, and merge with a version bump. One light check: at full deflection every surface stays on its hinge line and nothing passes through the wing or tail. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`, `public/models/ct156-exterior.glb`, `tests/unit/ui-kit/ct156-surfaces.test.js`).
+  - [ ] 3. Hook-ups go to each module's own thread: Formation and Turn Sim from the stick, Traffic's flaps by phase of the pattern (through the coordinator, after the refactor), and Debrief inferred from the track.
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 

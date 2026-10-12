@@ -245,6 +245,22 @@ const STAB = [
 // behind the spinner's tip; the rudder's trailing edge leaning forward 9°, 31.4 ft behind the tip at the tail cone and
 // 30.5 ft at the top (was about 1.5 ft further aft, the view read with its length ending at the tail cone).
 const FIN = [{ le: -0.4775, s: -0.045, chord: 0.2229, t: 0.09, z: 0 }, { le: -0.5552, s: 0.232, chord: 0.0981, t: 0.09, z: 0 }];
+// The flight surfaces (ALL-35, Patrick 12 Oct 2026), cut along the panel lines the Blender outside draws (measured
+// 11 Oct 2026 off the reference top and side views): chord fractions from the leading edge, span stations in units
+// (along the bent wing, out along the tailplane, up the fin). The ailerons behind 0.765 of the chord from 0.40 out to
+// the tip cap's joint at 0.718, a trim tab on each one's inboard end out to 0.462 behind 0.93. Four split flaps, two
+// under each wing, hinged to its lower surface behind 0.79, from the speed brake's edge (0.04) to the ailerons, split at
+// the centre section's edge. The elevators behind 0.58 from the strake's end (0.06) out, their horn balances forward
+// to 0.37 over the outer 0.18 of each half, a trim tab on the right one from 0.11 to 0.48 of the half-span behind 0.9.
+// The rudder behind 0.55 from the spinner's axis up, its tab behind 0.88 up to 0.13. Travel, degrees of the trailing
+// edge: ailerons 20 up and 11 down (Patrick, 12 Oct 2026); elevators 18 up and 16 down, rudder 24 each way, flaps 23
+// for take-off and 50 for landing (estimates until Patrick or a page gives them).
+const SURFACES = Object.freeze({
+  aileron: Object.freeze({ hinge: 0.765, s0: 0.40, s1: 0.718, tab: 0.93, tabS: 0.462, upDeg: 20, downDeg: 11 }),
+  flap: Object.freeze({ hinge: 0.79, s0: 0.04, s1: 0.40, toDeg: 23, ldgDeg: 50 }),
+  elevator: Object.freeze({ hinge: 0.58, horn: 0.37, hornSpan: 0.18, s0: 0.06, tab: 0.9, tabS: Object.freeze([0.11, 0.48]), upDeg: 18, downDeg: 16 }),
+  rudder: Object.freeze({ hinge: 0.55, z0: 0, tab: 0.88, tabTop: 0.13, deg: 24 }),
+});
 // The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the side view's
 // (Patrick, 11 Oct 2026, circled it; scaled as the fin, card "Tail and wing"): its leading edge leaving the belly 25.5 ft
 // behind the spinner's tip, its foot 3.3 ft under the axis and 2.8 ft long from 26.0 ft, rising 0.38 ft to the back
@@ -584,7 +600,7 @@ export function ct156PiecesHash(pieces) {
 // kit shapes takes the file's in place, so every ship (and every ship made later) draws it; the decals, cheat line,
 // glass, lights, pilots and prop stay the code's. Only all of it or none: if the file is missing, or any part was built
 // from other shapes than the code draws now, every ship stays as the code draws it.
-const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'stubs', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon']);
+const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'stubs', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
 // The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
@@ -1138,6 +1154,64 @@ function gearGeometries(THREE) {
   return geo;
 }
 
+// ---------- the flight surfaces (SURFACES, ALL-35) ----------
+const surfX = (table, s, f) => { const sec = sectionOf(table, Math.abs(s)); return sec.le - f * sec.chord; };
+const FLAP_TE = 0.985; // the split flap's trailing edge, a little short of the wing's own (an estimate)
+const FLAP_PIECES = Object.freeze({ flapIn: [SURFACES.flap.s0, WING_BREAK], flapOut: [WING_BREAK, SURFACES.flap.s1] });
+/** A point under the left wing at span station s, chord fraction f, dz above its lower skin; bent with the wing. */
+const underWing = (s, f, dz) => { const x = surfX(WING, s, f); return wingBend([x, s, wingSurfZ(x, s, -1) + dz]); };
+
+/** The split flaps under the left wing, shut (plates on the lower skin, the paint outside, slot 1 inside), and the
+ * dark recesses they leave when down. */
+function flapGeometries(THREE) {
+  const F = SURFACES.flap, geo = {};
+  for (const [name, [s0, s1]] of Object.entries(FLAP_PIECES)) {
+    geo[name] = gearDoor(THREE, (u, v) => underWing(s0 + (s1 - s0) * v, F.hinge + (FLAP_TE - F.hinge) * u, 0.001),
+      [0, 0, 1], (0.03 / CT156_LENGTH_FT) * CT156_UNIT_LENGTH, (q) => q, 6, 8);
+    const pos = [], idx = [];
+    for (let i = 0; i <= 6; i++) for (let j = 0; j <= 8; j++) pos.push(...underWing(s0 + ((s1 - s0) * j) / 8, F.hinge + ((FLAP_TE - F.hinge) * i) / 6, 0.0013));
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 8; j++) { const a = i * 9 + j; idx.push(a, a + 9, a + 1, a + 1, a + 9, a + 10); }
+    geo[`${name}Well`] = meshOf(THREE, pos, idx);
+  }
+  return geo;
+}
+
+/** p turned by ang (radians) about the line through a along the unit axis u (Rodrigues). */
+function turnAbout(p, a, u, ang) {
+  const v = [p[0] - a[0], p[1] - a[1], p[2] - a[2]], c = Math.cos(ang), sn = Math.sin(ang);
+  const dot = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const cr = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  return [0, 1, 2].map((k) => a[k] + v[k] * c + cr[k] * sn + u[k] * dot * (1 - c));
+}
+
+let surfaceLayoutCache = null;
+/**
+ * Each flight surface's hinge (the left side's for the ailerons and flaps): a point a on it, its unit axis, and the
+ * turn's sign that puts the trailing edge down (ailerons, elevators, flaps) or to the right (rudder) for a positive
+ * deflection. Hinges lie on the chord plane at the hinge fraction (the flaps' on the lower skin), straight between the
+ * surface's ends.
+ */
+function surfaceLayout() {
+  if (surfaceLayoutCache) return surfaceLayoutCache;
+  const A = SURFACES.aileron, E = SURFACES.elevator, R = SURFACES.rudder, F = SURFACES.flap;
+  const hingeOf = (a, b, te, wantDown) => {
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], n = Math.hypot(...d), axis = d.map((v) => v / n);
+    const moved = turnAbout(te, a, axis, rad(5));
+    const sign = wantDown ? (moved[2] < te[2] ? 1 : -1) : (moved[1] < te[1] ? 1 : -1);
+    return { a, axis, sign };
+  };
+  const sMid = (A.s0 + A.s1) / 2, eS = (E.s0 + Math.abs(STAB[0].s) * (1 - E.hornSpan)) / 2, zTop = FIN[FIN.length - 1].s;
+  const eX = surfX(STAB, eS, E.hinge), eZ = STAB[0].z;
+  surfaceLayoutCache = {
+    aileron: hingeOf(wingBend([surfX(WING, A.s0, A.hinge), A.s0, WING_Z]), wingBend([surfX(WING, A.s1, A.hinge), A.s1, WING_Z]), wingBend([surfX(WING, sMid, 1), sMid, WING_Z]), true),
+    elevator: hingeOf([eX, 0, eZ], [eX, 1, eZ], [surfX(STAB, eS, 1), eS, eZ], true),
+    rudder: hingeOf([surfX(FIN, R.z0, R.hinge), 0, R.z0], [surfX(FIN, zTop, R.hinge), 0, zTop], [surfX(FIN, zTop / 2, 1), 0, zTop / 2], false),
+    ...Object.fromEntries(Object.entries(FLAP_PIECES).map(([name, [s0, s1]]) => [name,
+      hingeOf(underWing(s0, F.hinge, 0.001), underWing(s1, F.hinge, 0.001), underWing((s0 + s1) / 2, FLAP_TE, 0.001), true)])),
+  };
+  return surfaceLayoutCache;
+}
+
 /** The gear's parts drawn from the Blender file (ALL-34): the left side's, each in its hinge's frame. */
 const GEAR_PARTS = Object.freeze(['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor']);
 const GEAR_FILE = 'ct156-gear.glb';
@@ -1443,28 +1517,56 @@ function roundTips(sections) {
  * closed at both ends: rounded at its tips (roundTips) and flat at a root. With leBand, the first part of the chord top
  * and bottom is its own group (the white leading edge).
  */
-function airfoilGeometry(THREE, table, { span = 'y', leBand = 0 } = {}) {
-  const { sections, caps } = roundTips(table);
+function airfoilGeometry(THREE, table, opts = {}) {
+  return airfoilSplit(THREE, table, opts).body;
+}
+
+/**
+ * airfoilGeometry with flight surfaces cut out of it (ALL-35): each cut { s0, s1, f, part } takes the chord behind
+ * fraction f between span stations s0 and s1 into its part (cuts sharing a part make one surface, as an elevator and
+ * its horn balance). The cut edges are closed with flat faces on both sides, so nothing shows inside when a surface
+ * turns. { body, parts: { name: geometry } }; with no cuts the body is airfoilGeometry's own shape.
+ */
+function airfoilSplit(THREE, table, { span = 'y', leBand = 0, cuts = [] } = {}) {
+  const rounded = roundTips(table);
+  const { caps } = rounded;
+  let sections = rounded.sections;
+  // Each cut's span ends become sections of their own, and its hinge a station along the chord, so its edges lie on them.
+  for (const c of cuts) {
+    for (const at of [c.s0, c.s1]) {
+      if (at <= sections[0].s + 1e-6 || at >= sections[sections.length - 1].s - 1e-6) continue;
+      if (sections.some((q) => Math.abs(q.s - at) < 1e-6)) continue;
+      const i = sections.findIndex((q) => q.s > at);
+      sections = [...sections.slice(0, i), { ...sectionOf(sections, at), s: at }, ...sections.slice(i)];
+    }
+  }
   const K = 14;
   const xs = [];
   for (let k = 0; k <= K; k++) xs.push((1 - Math.cos((Math.PI * k) / K)) / 2); // closer together at the nose
+  for (const c of cuts) if (!xs.some((x) => Math.abs(x - c.f) < 1e-6)) xs.push(c.f);
+  xs.sort((a, b) => a - b);
+  const N = xs.length - 1;
   const ring = [];
-  for (let k = K; k >= 0; k--) ring.push([xs[k], 1]); // upper surface, trailing edge to leading edge
-  for (let k = 1; k < K; k++) ring.push([xs[k], -1]); // lower surface back to the trailing edge
+  for (let k = N; k >= 0; k--) ring.push([xs[k], 1]); // upper surface, trailing edge to leading edge
+  for (let k = 1; k < N; k++) ring.push([xs[k], -1]); // lower surface back to the trailing edge
   const R = ring.length;
   const pos = [];
-  for (const sec of sections) {
-    for (const [xc, side] of ring) {
-      const x = sec.le - xc * sec.chord;
-      const off = sec.z + side * thick(xc, sec.t) * sec.chord;
-      if (span === 'y') pos.push(x, sec.s, off);
-      else pos.push(x, off, sec.s);
-    }
-  }
+  const point = (sec, xc, side) => {
+    const x = sec.le - xc * sec.chord;
+    const off = sec.z + side * thick(xc, sec.t) * sec.chord;
+    return span === 'y' ? [x, sec.s, off] : [x, off, sec.s];
+  };
+  for (const sec of sections) for (const [xc, side] of ring) pos.push(...point(sec, xc, side));
+  const names = [...new Set(cuts.map((c) => c.part))];
+  const lists = new Map(names.map((n) => [n, []]));
+  const regionOf = (sm, xm) => cuts.find((c) => sm >= Math.min(c.s0, c.s1) && sm <= Math.max(c.s0, c.s1) && xm >= c.f)?.part ?? null;
   const body = [], band = [];
   for (let i = 0; i < sections.length - 1; i++) {
+    const sm = (sections[i].s + sections[i + 1].s) / 2;
     for (let k = 0; k < R; k++) {
       const a = i * R + k, b = i * R + ((k + 1) % R), c = a + R, d = b + R;
+      const part = regionOf(sm, (ring[k][0] + ring[(k + 1) % R][0]) / 2);
+      if (part) { lists.get(part).push(a, b, c, b, d, c); continue; }
       const inBand = leBand > 0 && ring[k][0] <= leBand && ring[(k + 1) % R][0] <= leBand;
       (inBand ? band : body).push(a, b, c, b, d, c);
     }
@@ -1479,7 +1581,52 @@ function airfoilGeometry(THREE, table, { span = 'y', leBand = 0 } = {}) {
     else pos.push(x, sec.z, sec.s);
     for (let k = 0; k < R; k++) body.push(centre, i * R + k, i * R + ((k + 1) % R));
   }
-  return meshOf(THREE, pos, [...body, ...band], band.length ? [[0, body.length, 0], [body.length, band.length, 1]] : null);
+  if (!cuts.length) return { body: meshOf(THREE, pos, [...body, ...band], band.length ? [[0, body.length, 0], [body.length, band.length, 1]] : null), parts: {} };
+  // The closing faces, on their own corners (so the skin's shading isn't bent): across the chord where a cut's hinge
+  // or horn runs, and across the section where a cut starts or ends; each on both of the pieces it lies between.
+  /** @type {Map<string | null, number[]>} */
+  const closing = new Map([[null, []], ...names.map((n) => /** @type {[string, number[]]} */ ([n, []]))]);
+  const quad = (q, regions) => {
+    for (const r of new Set(regions)) {
+      const list = closing.get(r);
+      list.push(...q[0], ...q[1], ...q[2], ...q[1], ...q[3], ...q[2]);
+    }
+  };
+  for (let i = 0; i < sections.length - 1; i++) {
+    const sm = (sections[i].s + sections[i + 1].s) / 2;
+    for (let j = 1; j < N; j++) {
+      const fore = regionOf(sm, (xs[j - 1] + xs[j]) / 2), aft = regionOf(sm, (xs[j] + xs[j + 1]) / 2);
+      if (fore === aft) continue;
+      quad([point(sections[i], xs[j], 1), point(sections[i], xs[j], -1), point(sections[i + 1], xs[j], 1), point(sections[i + 1], xs[j], -1)], [fore, aft]);
+    }
+  }
+  for (let i = 1; i < sections.length - 1; i++) {
+    for (let j = 0; j < N; j++) {
+      const xm = (xs[j] + xs[j + 1]) / 2;
+      const before = regionOf((sections[i - 1].s + sections[i].s) / 2, xm), after = regionOf((sections[i].s + sections[i + 1].s) / 2, xm);
+      if (before === after) continue;
+      quad([point(sections[i], xs[j], 1), point(sections[i], xs[j + 1], 1), point(sections[i], xs[j], -1), point(sections[i], xs[j + 1], -1)], [before, after]);
+    }
+  }
+  // Each piece on its own corners only, smooth-shaded, its closing faces flat after.
+  const piece = (idx, extra, groups) => {
+    const map = new Map(), out = [], outIdx = [];
+    for (const v of idx) {
+      if (!map.has(v)) { map.set(v, out.length / 3); out.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]); }
+      outIdx.push(map.get(v));
+    }
+    const g = meshOf(THREE, out, outIdx, groups);
+    if (!extra.length) return g;
+    const flat = new THREE.BufferGeometry();
+    flat.setAttribute('position', new THREE.Float32BufferAttribute(extra, 3));
+    flat.computeVertexNormals();
+    const first = groups ? groups.map(([, , m]) => m) : [0];
+    return joinGeometries(THREE, [{ geometry: g, materials: first.length > 1 ? first : [0] }, { geometry: flat, materials: [0] }]);
+  };
+  return {
+    body: piece([...body, ...band], closing.get(null), band.length ? [[0, body.length, 0], [body.length, band.length, 1]] : null),
+    parts: Object.fromEntries(names.map((n) => [n, piece(lists.get(n), closing.get(n), null)])),
+  };
 }
 
 /**
@@ -1770,22 +1917,40 @@ function buildKit(THREE) {
   geo.tub = tubGeometry(THREE);
   // Wings, tailplane, ventral fin and dorsal fin in one geometry (the wings' leading edges a second slot), so the
   // airframe is one draw call; the dihedral is built in (wingBend).
-  const wing = (side) => {
-    const g = airfoilGeometry(THREE, side > 0 ? WING : WING.map((s) => ({ ...s, s: -s.s })).reverse(), { leBand: 0.07 });
+  // The flight surfaces (SURFACES, ALL-35) are cut out of the wings, tailplane and fin and drawn apart, each turning on
+  // its hinge (setControls); the right aileron and the right wing's flaps are the left's, mirrored.
+  const bent = (g) => {
     const p = g.attributes.position;
     for (let i = 0; i < p.count; i++) p.setXYZ(i, ...wingBend([p.getX(i), p.getY(i), p.getZ(i)]));
     g.computeVertexNormals();
     return g;
   };
+  const A = SURFACES.aileron, E = SURFACES.elevator, half = Math.abs(STAB[0].s), hornS = half * (1 - E.hornSpan);
+  const wing = (side) => {
+    const table = side > 0 ? WING : WING.map((s) => ({ ...s, s: -s.s })).reverse();
+    const cut = side > 0 ? { s0: A.s0, s1: A.s1 } : { s0: -A.s1, s1: -A.s0 };
+    const { body, parts } = airfoilSplit(THREE, table, { leBand: 0.07, cuts: [{ ...cut, f: A.hinge, part: 'aileron' }] });
+    if (side > 0) geo.aileron = bent(parts.aileron);
+    else parts.aileron.dispose();
+    return bent(body);
+  };
+  const stab = airfoilSplit(THREE, STAB, { cuts: [1, -1].flatMap((k) => [
+    { s0: k * E.s0, s1: k * hornS, f: E.hinge, part: 'elevator' },
+    { s0: k * hornS, s1: k, f: E.horn, part: 'elevator' },
+  ]) });
+  geo.elevator = stab.parts.elevator;
   geo.airframe = joinGeometries(THREE, [
     { geometry: wing(1), materials: [0, 1] },
     { geometry: wing(-1), materials: [0, 1] },
-    { geometry: airfoilGeometry(THREE, STAB), materials: [0] },
+    { geometry: stab.body, materials: [0] },
     { geometry: ventralGeometry(THREE), materials: [0] },
     { geometry: dorsalGeometry(THREE), materials: [0] },
   ]);
   // The fin, its leading edge a second slot: unpainted light grey on Patrick's photo of 156102 (width an estimate).
-  geo.fin = airfoilGeometry(THREE, FIN, { span: 'z', leBand: 0.12 });
+  const fin = airfoilSplit(THREE, FIN, { span: 'z', leBand: 0.12, cuts: [{ s0: SURFACES.rudder.z0, s1: 1, f: SURFACES.rudder.hinge, part: 'rudder' }] });
+  geo.fin = fin.body;
+  geo.rudder = fin.parts.rudder;
+  Object.assign(geo, flapGeometries(THREE));
   geo.canopy = canopyGeometry(THREE);
   geo.frames = joinGeometries(THREE, [
     // The centre and rear hoops; the forward one is apart (bowFront), since from the seat ct156-cockpit.js draws it.
@@ -2205,7 +2370,35 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return { group: gear, sides, nose, noseDoors, noseWell: add(geo.gearNoseWell, mats.vent, gear), t: 0 };
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null, gear = null;
+  // The flight surfaces (SURFACES, ALL-35): each on its hinge (setControls turns them), the right aileron and flaps the
+  // left's mirror; neutral and flaps up, so a ship looks as it always has until its module moves them.
+  const addSurfaces = (paintMat, rudderMat) => {
+    const L = surfaceLayout();
+    const pivot = (name, geometry, material, parent = g) => {
+      const { a } = L[name];
+      const at = new THREE.Group();
+      at.position.set(...a);
+      parent.add(at);
+      add(geometry, material, at).position.set(-a[0], -a[1], -a[2]);
+      return at;
+    };
+    const mirror = new THREE.Group();
+    mirror.scale.y = -1;
+    g.add(mirror);
+    const flapMats = [paintMat, mats.gearInside];
+    const sides = [g, mirror].map((parent) => ({
+      aileron: pivot('aileron', geo.aileron, paintMat, parent),
+      flaps: Object.keys(FLAP_PIECES).map((name) => pivot(name, geo[name], flapMats, parent)),
+      wells: Object.keys(FLAP_PIECES).map((name) => {
+        const well = add(geo[`${name}Well`], mats.vent, parent);
+        well.visible = false;
+        return well;
+      }),
+    }));
+    return { sides, elevator: pivot('elevator', geo.elevator, paintMat), rudder: pivot('rudder', geo.rudder, rudderMat) };
+  };
+
+  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -2227,7 +2420,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     const light = m(base.clone().multiplyScalar(0.82));
     fuselage = add(geo.fuselage, body);
     add(geo.airframe, [light, light]);
-    add(geo.fin, m(base.clone().lerp(new THREE.Color('#ffffff'), 0.15)));
+    const finPaint = m(base.clone().lerp(new THREE.Color('#ffffff'), 0.15));
+    add(geo.fin, finPaint);
+    surfaces = addSurfaces(light, finPaint);
     // Solid dark glass, one canopy (Patrick, 5 Oct: the two see-through bubbles overlapped as a "ghost double canopy").
     canopy = add(geo.canopy, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
     add(geo.spinner, m('#20242a', { roughness: 0.4 }));
@@ -2258,6 +2453,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     fuselage = add(geo.fuselage, mats.navy);
     add(geo.airframe, [mats.navy, mats.wingLe]);
     add(geo.fin, [finMat, mats.finLe]);
+    surfaces = addSurfaces(mats.navy, finMat);
     add(geo.cheat, mats.cheat);
     add(geo.spinner, mats.chrome);
     add(geo.spinnerRing, mats.blade);
@@ -2309,7 +2505,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     setDetail(THREE, root, camera, renderer);
     turnProp(root);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, prop, disc, bowFront, speedBrake, gear, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, prop, disc, bowFront, speedBrake, gear, surfaces, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 
@@ -2326,6 +2522,38 @@ export function setSpeedBrake(root, out) {
   const f = clamp01(typeof out === 'number' ? out : out ? 1 : 0);
   b.hinge.rotation.y = b.shut - rad(b.openDeg) * f;
   b.well.visible = f > 0;
+}
+
+/**
+ * Moves a ship's flight surfaces (ALL-35). roll, pitch and yaw run from -1 to 1, as the stick and pedals: roll 1 is full
+ * right stick (right aileron up 20°, left aileron down 11°), pitch 1 full back stick (elevators trailing edge up), yaw 1
+ * full right pedal (rudder trailing edge right). flaps is 'UP', 'TO' or 'LDG', or an angle in degrees. The surfaces move
+ * at once; a module that wants them to move smoothly eases what it passes. A new ship is neutral, flaps up.
+ * @param {any} root a ship from createCt156Model
+ * @param {{ roll?: number, pitch?: number, yaw?: number, flaps?: 'UP' | 'TO' | 'LDG' | number }} [controls]
+ */
+export function setControls(root, { roll = 0, pitch = 0, yaw = 0, flaps = 'UP' } = {}) {
+  const d = root?.userData?.ct156?.surfaces;
+  if (!d) return;
+  const axisVec = new root.userData.ct156.kit.THREE.Vector3();
+  const A = SURFACES.aileron, E = SURFACES.elevator, F = SURFACES.flap, L = surfaceLayout();
+  const unit = (v) => Math.max(-1, Math.min(1, Number(v) || 0));
+  const r = unit(roll), p = unit(pitch), y = unit(yaw);
+  // Degrees, trailing edge down (or right, for the rudder) positive.
+  const left = r >= 0 ? A.downDeg * r : A.upDeg * r;
+  const right = r >= 0 ? -A.upDeg * r : -A.downDeg * r;
+  const flapDeg = flaps === 'TO' ? F.toDeg : flaps === 'LDG' ? F.ldgDeg : typeof flaps === 'number' ? Math.max(0, Math.min(F.ldgDeg, flaps)) : 0;
+  const turn = (group, name, deg) => {
+    const { axis, sign } = L[name];
+    group.quaternion.setFromAxisAngle(axisVec.set(axis[0], axis[1], axis[2]), sign * rad(deg));
+  };
+  d.sides.forEach((side, i) => {
+    turn(side.aileron, 'aileron', i === 0 ? left : right);
+    side.flaps.forEach((flap, k) => turn(flap, Object.keys(FLAP_PIECES)[k], flapDeg));
+    for (const well of side.wells) well.visible = flapDeg > 0;
+  });
+  turn(d.elevator, 'elevator', p >= 0 ? -E.upDeg * p : -E.downDeg * p);
+  turn(d.rudder, 'rudder', SURFACES.rudder.deg * y);
 }
 
 /**
