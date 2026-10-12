@@ -83,9 +83,9 @@ export const turnSeg = (toRad, dir, bankDeg, rollOut = true) => ({ kind: 'turn',
 export const tacticalSeg = (toRad, dir, bankDeg = TURN_BANK_DEG, rollOut = true) => ({ ...turnSeg(toRad, dir, bankDeg, rollOut), fullPower: true });
 
 /**
- * After a tactical turn, each aircraft holds the speed the turn left him until the last has rolled out, then all set power
- * back for the formation's speed (220 KIAS in line abreast), together, so they stay where the turn put them (TS-204). Adds
- * that to each plan in place; the speed-up is at 80% torque at most (replay.js speedSeg). It runs in the background: the
+ * After a tactical turn, each aircraft sets power back for the formation's speed (220 KIAS in line abreast) the moment he
+ * rolls out, all over the same time, so they stay where the turn put them (TS-204). Adds that to each plan in place, as a
+ * speed change straight after his own programme (no fixed time, so a planner that moves his roll-in moves it too); the speed-up is at 80% torque at most (replay.js speedSeg). It runs in the background: the
  * manoeuvre is over at the roll-out, so the next one can be called while the speed comes back (formation.js).
  * homeKias: the speed a reset still running was taking him back to (formation.js sets it at a press).
  */
@@ -102,7 +102,7 @@ export function backToSpeed(plans, aircraft, t0, kias = aircraft[0].homeKias ?? 
   for (const { a, run } of runs) {
     if (Math.abs(run.end.kias - kias) < 0.5 || spanSec <= 0) continue;
     const seg = speedSeg(run.end.kias, kias);
-    plans[a.id].segments.push({ kind: 'hold', untilSec: t0 + onStep(run.durationSec), thenNext: true, background: true }, { ...seg, rateKtps: Math.sign(seg.rateKtps || 1) * Math.abs(kias - run.end.kias) / spanSec, background: true });
+    plans[a.id].segments.push({ ...seg, rateKtps: Math.sign(seg.rateKtps || 1) * Math.abs(kias - run.end.kias) / spanSec, background: true });
   }
   return plans;
 }
@@ -127,12 +127,14 @@ export function leadTurnSegs(h0, dir, total, bankDeg, rollOut) {
  * where the second is from the first (feet): (rel · u1) / (v (1 − u0 · u1)). Shared by the
  * 2-ship delayed turns and the four-ship chain (four-ship.js). `extraAlongFt` is for a
  * second aircraft whose programme is not an exact copy of the first's (the four-ship's
- * check turn): how much further it is along the new heading, once rolled out, than a copy would be. A full-power turn
- * bleeds (TS-204): v is still the steady speed, because each sets power back from his own roll-out (backToSpeed), so
- * once all are back their paths are copies again.
+ * check turn): how much further it is along the new heading, once rolled out, than a copy would be. vEnd: the true
+ * airspeed both settle at once their speed is back (backToSpeed), when it is not v: a turn called before the last one's
+ * reset to speed is done starts slow (TS-204). Each sets power back from his own roll-out, so the second's path is the
+ * first's moved by where he started and the wait he held straight at v; abeam once both are back at vEnd needs
+ * rel · u1 + v·wait·(u0 · u1) − vEnd·wait = 0.
  */
-export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0) {
-  return (dot(rel, u1) + extraAlongFt) / (v * (1 - dot(u0, u1)));
+export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0, vEnd = v) {
+  return (dot(rel, u1) + extraAlongFt) / (vEnd - v * dot(u0, u1));
 }
 
 /**
@@ -159,7 +161,8 @@ function delayed(pair, m, dir, t0, kias) {
   // at, from a dry run.
   const turned = dryRun(lead, { segments: turn.map((seg) => ({ ...seg })) }, t0).end;
   const u1 = unit(turned.headingRad);
-  const waitFor = (first, second) => exactWaitSec({ x: second.xFt - first.xFt, y: second.yFt - first.yFt }, u0, u1, v);
+  const vEnd = v * ((kias ?? lead.homeKias ?? lead.kias) / lead.kias); // the true airspeed at the speed they reset to (backToSpeed)
+  const waitFor = (first, second) => exactWaitSec({ x: second.xFt - first.xFt, y: second.yFt - first.yFt }, u0, u1, v, 0, vEnd);
   // Outside of the turn: the aircraft whose partner is on the turning side.
   const wingLeft = relativeTo(lead, wing).left;
   const leadOutside = Math.sign(wingLeft) === dir;
