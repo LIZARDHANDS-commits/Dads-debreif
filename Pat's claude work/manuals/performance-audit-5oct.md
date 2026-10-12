@@ -3,7 +3,7 @@
 Asked by Patrick 21:48Z ("make sure they match the manuals ... assess if all of our roll rates/smoothing techniques/attitude
 changes are realistic and physically sensical"). Nothing changed in the repo; Formation holds src/core.
 
-## 1. The core T-6A model (src/core/t6-performance.js, t6a-turn-charts.js) against the manuals
+## 1. The core T-6A model (src/core/t6-performance.js, t6a-turn-data.js) against the manuals
 
 | What | Model | Manual | Verdict |
 |---|---|---|---|
