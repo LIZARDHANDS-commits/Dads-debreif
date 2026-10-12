@@ -84,12 +84,12 @@ function downTheLine(from, s, alongFt) {
 /** Heights above the formation's block, feet, by aircraft id (AFM8 brief p.14-15: low to high 4, 3, 1, 2; 300 ft stacks). */
 export const STACK_FT = Object.freeze({ 1: 0, 2: 300, 3: -300, 4: -600 });
 
-// ---- fighting wing: the desired places (settings, TS-58) ------------------------------------------------------------
+// ---- fighting wing: the desired places (TS-195; settings until V2.359, TS-58) ------------------------------------------
 
 /**
  * Fighting wing's desired place for the 2-ship: 750 ft at 45° of sweep, measured back from Lead's wing line (SMM 12.29
- * para 69, Fig 12.19). The default is the middle of the SMM's 500-1,000 ft and 30-60° band, an estimate. It is a setting
- * (Patrick 21:25Z, TS-58): setFwShape changes it, and the table's 'fw' reads it.
+ * para 69, Fig 12.19): the middle of the SMM's 500-1,000 ft and 30-60° band, an estimate. The table's 'fw' reads it. It was
+ * a setting until V2.359 (TS-58), retired as ignored since V2.304 (Patrick's card 12 Oct 2026 01:52Z, "Remove the setting"; TS-195).
  */
 export const FW2 = Object.freeze({ rangeFt: 750, sweepDeg: 45 });
 /**
@@ -144,53 +144,22 @@ export function fixedLine(lineDeg, s) {
   return { u, nrm, closureShare: cosL, at: (rel) => ({ along: rel.fwd * u.fwd + rel.left * u.left, cross: rel.fwd * nrm.fwd + rel.left * nrm.left }) };
 }
 
-let fwShape = { ...FW2 };
+const fwShape = FW2;
 
-/** Sets the 2-ship's desired fighting wing place ({ rangeFt, sweepDeg }; a missing value takes the default). */
-export function setFwShape({ rangeFt = FW2.rangeFt, sweepDeg = FW2.sweepDeg } = {}) {
-  fwShape = { rangeFt, sweepDeg };
-}
-
-/** The 2-ship's desired fighting wing place now: { rangeFt, sweepDeg }. */
+/** The 2-ship's desired fighting wing place: { rangeFt, sweepDeg }. */
 export function fwShapeNow() {
   return { ...fwShape };
-}
-
-/**
- * Checks a desired fighting wing place: { ok: false, reason } outside what the sim flies (FW_LIMITS), else
- * { ok: true, flag } where flag says it is outside the SMM band (SMM 12.29 para 69) and flown anyway, or is null.
- * `who` names the aircraft in the words ("#2", "#3 and #4").
- */
-export function checkFwShape(rangeFt, sweepDeg, who = '#2') {
-  const r = Number(rangeFt);
-  const d = Number(sweepDeg);
-  const [rMin, rMax] = FW_LIMITS.rangeFt;
-  const [dMin, dMax] = FW_LIMITS.sweepDeg;
-  if (!Number.isFinite(r) || r < rMin || r > rMax) return { ok: false, reason: `${who}'s fighting wing spacing must be ${rMin}-${rMax.toLocaleString('en-CA')} ft.` };
-  if (!Number.isFinite(d) || d < dMin || d > dMax) return { ok: false, reason: `${who}'s fighting wing sweep must be ${dMin}-${dMax}°.` };
-  const outside = [];
-  if (r < FW_BAND.rangeFt[0] || r > FW_BAND.rangeFt[1]) outside.push(`spacing ${r.toLocaleString('en-CA')} ft (500-1,000)`);
-  if (d < FW_BAND.sweepDeg[0] || d > FW_BAND.sweepDeg[1]) outside.push(`sweep ${d}° (30-60°)`);
-  return { ok: true, flag: outside.length ? `${who}: ${outside.join(' and ')} is outside the SMM's fighting wing band (SMM 12.29 para 69); flown anyway.` : null };
 }
 
 /**
  * Four-ship fighting wing: each link 650 ft; #2 at 45°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says).
  * The angles are sweep back from the wing line of the aircraft flown off, the manual's way (SMM 12.29 para 69, Fig 12.19).
  * #3 and #4 sit on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14). Their 30° matches Fig 16.29's picture; the
- * para 104 text says a 60° sweep: both are written down, and Patrick chose to set it himself through the setting (TS-58).
+ * para 104 text says a 60° sweep: both are written down (Patrick set it through a setting, TS-58, until V2.359; TS-195).
  */
 export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 45, otherDeg: 30 });
-/**
- * The desired places now: FW4 by default, changed by the settings (Patrick 21:25Z, TS-58). #2's pair (spacing and sweep off
- * Lead; #4 off #3 in Fluid 4 too) and #3/#4's pair (each off the one ahead in fighting wing).
- */
-let fw4 = { twoRangeFt: FW4.rangeFt, twoDeg: FW4.twoDeg, otherRangeFt: FW4.rangeFt, otherDeg: FW4.otherDeg };
-
-/** Sets the four-ship's desired fighting wing places ({ twoRangeFt, twoDeg, otherRangeFt, otherDeg }; a missing value takes FW4's). */
-export function setFw4Shape({ twoRangeFt = FW4.rangeFt, twoDeg = FW4.twoDeg, otherRangeFt = FW4.rangeFt, otherDeg = FW4.otherDeg } = {}) {
-  fw4 = { twoRangeFt, twoDeg, otherRangeFt, otherDeg };
-}
+/** The four-ship's desired places: #2's pair (spacing and sweep off Lead; #4 off #3 in Fluid 4 too) and #3/#4's pair (each off the one ahead in fighting wing). */
+const fw4 = Object.freeze({ twoRangeFt: FW4.rangeFt, twoDeg: FW4.twoDeg, otherRangeFt: FW4.rangeFt, otherDeg: FW4.otherDeg });
 
 /** Fighting wing with no stack (entered from a close formation): each aircraft 60 ft below the one it flies off, the 2-ship's estimate. */
 export const FW_STEP_DOWN_FT = 60;
@@ -206,7 +175,7 @@ const fwAt = (rangeFt, deg, side) => ({ fwd: -rangeFt * Math.sin(deg * DEG), lef
 function link(key, s, spacingFt) {
   switch (key) {
     case 'lab': return { fwd: 0, left: s * spacingFt, alt: 0 };
-    // the desired place setting (FW2's 750 ft at 45° by default, SMM 12.29 para 69); 60 ft below is an estimate
+    // the desired place (FW2's 750 ft at 45°, SMM 12.29 para 69); 60 ft below is an estimate
     case 'fw': return { fwd: -fwShape.rangeFt * Math.sin(fwShape.sweepDeg * DEG), left: s * fwShape.rangeFt * Math.cos(fwShape.sweepDeg * DEG), alt: -60 };
     // where the SMM's references put #2 (SMM 12.4 para 11, Figs 12.3-12.4): Lead's wingtip leading edge on his spinner, abeam
     // the rudder hinge line, the wingtip on the spinner for height, worked through the CT-156 model's geometry: about 18 ft
