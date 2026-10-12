@@ -139,7 +139,7 @@ function mount(root, app) {
   const fluidUi = createFluidUi({
     onPress: (key, dir) => pressFluid(key, dir),
     onSettings: (next) => formation.setFluid(next),
-    settings: { rangeFt: LIVE_DEFAULTS.fluidRangeFt, bank: LIVE_DEFAULTS.fluidBank, fwWing: LIVE_DEFAULTS.fwWing },
+    settings: { rangeFt: LIVE_DEFAULTS.fluidRangeFt, bank: LIVE_DEFAULTS.fluidBank },
   });
   const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options), fluidUi });
   const ui = createLayout({ buttons: BUTTONS, setupControls, layout, layoutControls, listen: app.listen, fixedLine: fixedLine(LIVE_DEFAULTS), changeUi });

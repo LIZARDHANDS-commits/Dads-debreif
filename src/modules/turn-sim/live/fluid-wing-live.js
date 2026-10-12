@@ -35,7 +35,7 @@
 //    entry included (Patrick 22:33Z and 22:55Z). While Lead holds a speed (Terminate) power flies his range, from Lead's
 //    new speed.
 //
-// The same law flies #2 in the 2-ship's fighting wing moves when the "#2 in fighting wing" setting is Live (ctx.fw; TS-202,
+// The same law flew #2 in the 2-ship's fighting wing moves when the "#2 in fighting wing" setting was Live (ctx.fw; TS-202,
 // Patrick 12 Oct 2026 08:19Z: "FM is basically fighting wing but aerobatics", "uses lead / lag / pure"). There Lead holds
 // his speed, #2's place is the cone (where he is while in it, else its nearest point, taken again whenever Lead is level so
 // he resets in position as Lead rolls out), and his spacing is flown with the vertical first, power only for the rest

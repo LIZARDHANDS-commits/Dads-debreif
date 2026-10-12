@@ -22,7 +22,7 @@ import { classify, judge, judgeFluid4 } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn, planFwMove } from './formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn } from './formation-turns.js';
 import { planFwMoveLive } from './fw-live.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -44,8 +44,6 @@ export const LIVE_DEFAULTS = Object.freeze({
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
-  fluidWing: /** @type {'planned' | 'live'} */ ('planned'), // how #2 is flown in fluid manoeuvring (TS-194): Planned until Live is flown and passed
-  fwWing: /** @type {'tracker' | 'live'} */ ('tracker'), // how #2 flies the 2-ship's fighting wing moves (TS-202): Tracker until Patrick has flown Live
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -595,17 +593,14 @@ export function createFormation(options = {}) {
       };
       if (!FW_MOVES[key]) throw new Error(`No fighting wing move called ${key}`);
       if (state.fluid) return refuse('In fluid manoeuvring Lead flies the fluid buttons; Terminate first.');
-      // In the 4-ship the moves fly only on the live law (TS-206): the tracker's are the 2-ship's.
-      const live = opts.fwWing === 'live';
-      if (state.aircraft.length > 2 && !live) return refuse('Fighting wing moves for the 4-ship fly on the live law: set "#2 in fighting wing" to Live in Settings, Fluid settings.');
       const c = state.current;
       if (c && !c.fwMove && c.change?.to !== 'fw') return refuse(`Wait for ${c.label} to finish.`);
       if (!c?.fwMove && whereNow().key !== 'fw') return refuse('These are fighting wing moves; change to fighting wing first.');
-      // #2 on the tracker or, with the setting at Live, on the live wingman's law (fw-live.js, TS-202; the 4-ship's wingmen
-      // each off the one ahead, TS-206), carrying on their live states from the move being flown when there is one.
-      const ws0 = live && c?.fwLive ? c.fwLive[Math.round((state.tSec - c.startSec) / STEP_SEC) - 1] ?? null : null;
-      const fwOpts = { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank) };
-      const plan = live ? planFwMoveLive(state.aircraft, key, dir, state.tSec, { ...fwOpts, ws0 }) : planFwMove(state.aircraft, key, dir, state.tSec, fwOpts);
+      // The wingmen on the live law (fw-live.js, TS-202, TS-206, TS-208), carrying on their live states from the move being
+      // flown when there is one. The only law for these moves since Patrick flew it (12 Oct 2026: "Live fighting wing is
+      // fine. make it the default and get rid of it"); the tracker's (formation-turns.js planFwMove) is no longer called.
+      const ws0 = c?.fwLive ? c.fwLive[Math.round((state.tSec - c.startSec) / STEP_SEC) - 1] ?? null : null;
+      const plan = planFwMoveLive(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank), ws0 });
       if (!plan.ok) return refuse(plan.reason);
       state.plans = plan.plans;
       state.planned = {};
@@ -684,7 +679,6 @@ export function createFormation(options = {}) {
      * (`wing`, the Planned or Live choice, went with the planned wingman, TS-199: #2 is the live wingman, TS-194.)
      */
     setFluid(next = {}) {
-      if (next.fwWing !== undefined) opts.fwWing = next.fwWing; // taken at the next fighting wing press (TS-202)
       if (next.rangeFt !== undefined) opts.fluidRangeFt = next.rangeFt;
       if (next.bank !== undefined) opts.fluidBank = next.bank;
       if (state.fluid) {
