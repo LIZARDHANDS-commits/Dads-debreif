@@ -22,16 +22,17 @@
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
 import { MANOEUVRES, relativeTo, planManoeuvre } from './manoeuvres.js';
-import { recordFlight, dryRunT } from './replay.js';
+import { recordFlight, dryRunT, speedSeg, leadExcessPerWeight } from './replay.js';
 import { trackPhases, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
 import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, POWER, closeBankNow, experienceNow } from './tuning.js';
-import { G_FTPS2 } from '../../../core/units.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
-import { thrustPerWeight, dragPerWeight } from '../../../core/t6-performance.js';
+import { thrustPerWeight, dragPerWeight, iasToTasKt, T6A_LIMITS, T6A_MANOEUVRE } from '../../../core/t6-performance.js';
+import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { throttleAtTorque } from './power.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
@@ -801,7 +802,41 @@ export function fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt = 8000) {
   if (!FW_MOVES[key]) return { ok: false, reason: `No fighting wing move called ${key}.` };
   const turning = Math.abs(lead.bankDeg) > 5;
   const nowDir = Math.sign(lead.bankDeg) || 1;
-  const held = (d, bank) => leadTurnSegs(lead.headingRad, d, FW_MOVE.heldTurnDeg * DEG, bank, true);
+  const altFt = blockFt + (lead.altAboveFt ?? 0);
+  // Lead never sets more than 80% torque in formation (Patrick 12 Oct 2026 09:17Z, a formation hard rule; TS-204). What
+  // that leaves him at kias and g, as a share of his weight (standard energy: thrust less drag).
+  const excess = (kias, g) => leadExcessPerWeight(kias, altFt, g);
+  const ktps = (kias, g) => (excess(kias, g) * G_FTPS2) / KT_TO_FTPS;
+  const heldBank = (kias) => { // the steepest level turn 80% torque holds at kias
+    let lo = 0;
+    let hi = 85;
+    for (let i = 0; i < 30; i++) { const b = (lo + hi) / 2; if (excess(kias, 1 / Math.cos(b * DEG)) >= 0) lo = b; else hi = b; }
+    return lo;
+  };
+  // A held turn. Too steep for 80% torque at his speed (the steep 70°, 3 G turn needs about 115% at 200 KIAS in the model),
+  // he holds the bank and lets the speed bleed with no floor (Patrick's card 12 Oct 2026 09:31Z, "Bleed, no floor"; TS-204),
+  // until the stick shaker at that G (core shakerG, the edge #2 flies to as well), where he can pull no more and flies the
+  // bank 80% torque holds there (a physical limit, not a floor). Until V2.394 he held 200 KIAS at 3 G, more than full power, and #2 on Live, at full power on the
+  // real energy, was stretched past 1,000 ft.
+  const held = (d, bank) => {
+    const g = 1 / Math.cos(bank * DEG);
+    const total = FW_MOVE.heldTurnDeg * DEG;
+    if (excess(lead.kias, g) >= 0) return leadTurnSegs(lead.headingRad, d, total, bank, true);
+    const floor = Math.min(lead.kias, (T6A_LIMITS.stallKias + T6A_MANOEUVRE.shakerMarginKt) * Math.sqrt(g)); // the stick shaker at the turn's G (core shakerG), the edge #2 flies to as well
+    const easeBank = Math.min(bank, Math.floor(heldBank(floor)));
+    if (lead.kias - floor < 1) return leadTurnSegs(lead.headingRad, d, total, easeBank, true);
+    const mid = (lead.kias + floor) / 2;
+    const rateKtps = Math.max(0.1, -ktps(mid, g));
+    const bleedSec = (lead.kias - floor) / rateKtps;
+    const bleedRad = Math.min(total, ((G_FTPS2 * Math.tan(bank * DEG)) / (iasToTasKt(mid, altFt) * KT_TO_FTPS)) * bleedSec);
+    const h1 = lead.headingRad + d * bleedRad;
+    return [
+      { kind: 'speed', toKias: floor, rateKtps, withNext: true },
+      ...leadTurnSegs(lead.headingRad, d, bleedRad, bank, bleedRad >= total),
+      ...(bleedRad < total ? leadTurnSegs(h1, d, total - bleedRad, easeBank, true) : []),
+      speedSeg(floor, KIAS_OUTSIDE_LAB, altFt), // rolled out, back to 200 KIAS at 80% torque
+    ];
+  };
   let segments = [];
   let profile = [];
   if (key === 'levelTurn') segments = held(dir, bankDeg);
@@ -815,14 +850,16 @@ export function fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt = 8000) {
     // "lead sets max 80 percent tq in the climb. formation hard rule"), so #2 has the rest to spare; the descent's steepest
     // rate a share of the model's idle descent (estimate). Until V2.390 a 15° path, about twice the MAX climb at 200 KIAS.
     const up = key === 'climb' ? 1 : -1;
-    const altFt = blockFt + (lead.altAboveFt ?? 0);
     const perW = up > 0
       ? throttleAtTorque(FW_MOVE.climbTorquePct, lead.kias, altFt) * thrustPerWeight(lead.kias, altFt) - dragPerWeight(lead.kias, altFt, 1)
       : FW_MOVE.descentShare * dragPerWeight(lead.kias, altFt, 1);
     const peakFtps = Math.min(lead.tasFtps * Math.sin(FW_MOVE.climbDeg * DEG), Math.max(0, perW) * lead.tasFtps);
     const avgFtps = Math.max(1, peakFtps) / SMOOTHER_PEAK;
     profile = [{ t0, t1: t0 + FW_MOVE.climbFt / avgFtps, fromFt: lead.altAboveFt, toFt: lead.altAboveFt + up * FW_MOVE.climbFt }];
-  } // wings level: no segments, so Lead rolls out (flight.js)
+  } else if (lead.kias < KIAS_OUTSIDE_LAB - 0.5) {
+    // Wings level after a turn that bled him: back to fighting wing's 200 KIAS at no more than 80% torque (TS-204).
+    segments = [speedSeg(lead.kias, KIAS_OUTSIDE_LAB, altFt)];
+  } // wings level: no turn segments, so Lead rolls out (flight.js)
   return { ok: true, segments, profile, turning, nowDir };
 }
 
