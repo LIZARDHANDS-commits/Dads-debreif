@@ -4,13 +4,15 @@ This folder is the emergency procedures tabletop: an instructor runs a practice 
 
 ## Where it stands
 
-**Step 2, the instructor's phone, built in V2.384; Step 1, the one-screen tabletop, built in V2.369; neither yet seen by Patrick or Dad in the app.** Step 2: the student's screen's "Instructor's phone" button shows a QR code; the phone opens the console, runs the scenario and sends only the student view through the relay's new `/ep-link` mailbox (EP-8 to EP-10). The relay needs Dad's redeploy before the phone link works on the live site; until then the screen says "Can't reach the relay" and the Instructor switch works as before. Patrick approved the spec (relayed by Dad, 12 Oct 2026: "pat approved, start building the one screen version and use the moose jaw 3d environment"). Open EP Tabletop from the home screen: the student's CT-156 cockpit over Moose Jaw with the step track; the Instructor switch opens the console. Build choices EP-4 to EP-7 wait for Patrick's wording. The code is in `src/modules/ep-tabletop/`.
+**Step 2, the instructor's phone, built in V2.384; Step 1, the one-screen tabletop, built in V2.369; neither yet seen by Patrick or Dad in the app.** Step 2: the student's screen's "Instructor's phone" button shows a QR code; the phone opens the console, runs the scenario and sends only the student view through the relay's new `/ep-link` mailbox (EP-8 to EP-10). The relay's `/ep-link` is live (deployed 12 Oct 2026). **Next, Steps 3 to 8** (Dad's asks of 12 Oct; Patrick said yes to building them as soon as the plan was ready): faults that drive the gauges and lights, visual cues, the aircraft flying the student's picks with their plan on a map, rewind and better or worse, and the picks reaching the phone. The design is `systems-plan.md`. Patrick approved the spec (relayed by Dad, 12 Oct 2026: "pat approved, start building the one screen version and use the moose jaw 3d environment"). Open EP Tabletop from the home screen: the student's CT-156 cockpit over Moose Jaw with the step track; the Instructor switch opens the console. Build choices EP-4 to EP-7 wait for Patrick's wording. The code is in `src/modules/ep-tabletop/`.
 
 ## What is next
 
-1. Patrick or Dad runs "Engine roughness in the area" with a phone scanning the code, and on the one screen, and says what to change.
-2. Patrick answers EP-Q4 (the direct link and its STUN server) when he wants to.
-3. The proposal below (Traffic's Moose Jaw buildings in a shared home), if Patrick wants it.
+1. Step 3 (the systems model) is being built; Steps 4 to 8 follow, one pull request each (`plan.md`, `systems-plan.md`).
+2. Patrick answers EP-Q5 (the flight approach) before Step 5; EP-Q6 to EP-Q12 use their working answers until he says otherwise.
+3. Patrick or Dad runs "Engine roughness in the area" with a phone scanning the code, and on the one screen, and says what to change.
+4. Patrick answers EP-Q4 (the direct link and its STUN server) when he wants to.
+5. The proposal below (Traffic's Moose Jaw buildings in a shared home), if Patrick wants it.
 
 ## Proposal for Patrick: Traffic's Moose Jaw world in a shared home (EP-7)
 
@@ -30,6 +32,7 @@ Options: (a) a separate piece of work that splits `airfield.js`, moves the build
 | `decisions.md` | Decisions in force (EP-) and those waiting on a question |
 | `testing.md` | This module's testing rules and its sign-off checklist |
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
+| `systems-plan.md` | The detailed design for Steps 3 to 8: faults, lights, cues, the student's picks and plan map, rewind, the picks' way back; with every number's source status and the open questions |
 | `future.md` | Ideas not being built until Patrick moves them up |
 | `../../../src/modules/ep-tabletop/` | The code, with its own short README |
 | `../../../relay/ep-link.js` | The relay's phone link mailbox (`/ep-link`), with its section in `relay/README.md` |
@@ -44,3 +47,11 @@ Each has a working answer the spec uses until it is settled. Also on the waiting
 | EP-Q4 | Should we add the direct link, (a) WebRTC phone straight to screen, which needs a public STUN server (a new outside service) to find a way between the two networks? | (a) add it, with the relay mailbox as the fallback when it can't be made; (b) keep the relay mailbox only; (c) your idea | (b): the mailbox only, until it has been tried in the briefing room |
 | EP-Q2 | The QR code itself: draw it with our own small QR encoder (no new library), or add a QR library? | (a) our own encoder; (b) a library (needs your yes); (c) your idea | (a) |
 | EP-Q3 | What the shipped example scenarios contain, given that boldface, checklists and performance charts are never shipped (rule book) | (a) Only the aircraft's indications (gauges, lights, sounds, visual cues), with each number sourced from the open-source baseline (ALL-30) or marked an estimate, and no checklist text; (b) no example scenarios, instructors write their own; (c) your idea | (a) |
+| EP-Q5 | How the aircraft flies the student's picks (gates Step 5) | (a) the shared point mass with the T-6's thrust, drag and glide, as the Formation sim's Lead and Traffic's PFL fly; (b) a simpler sketch: fixed turn rate and glide ratio (a second, cruder set of numbers); (c) your idea | (a) |
+| EP-Q6 | What makes a field "suitable" for "turn toward the nearest suitable field" | (a) you name the fields; (b) any paved runway of at least a length you give; (c) your idea | (a) |
+| EP-Q7 | Where the student sees their plan | (a) a small north-up map with the glide ring; (b) the HSI bearing pointer (a shared-cockpit change); (c) both; (d) your idea | (a) |
+| EP-Q8 | Does rewind take back what the student has already revealed? | (a) no, revealed stays revealed; (b) yes, the panel shows exactly what it showed then; (c) your idea | (a) |
+| EP-Q9 | Better or worse: by the instructor's hand only, or automatic when the student's pick matches the remedy? | (a) by hand only; (b) automatic (the tool would hold a list of right answers); (c) your idea | (a) |
+| EP-Q10 | Light thresholds while the manual pages aren't to hand | (a) build with estimates shown "(estimate)" and replace them as you give pages or numbers; (b) wait for the pages; (c) your idea | (a) |
+| EP-Q11 | Glide speeds | (a) your 125 clean / 120 gear down, as Traffic flies; (b) the reference data's 125 / 105; (c) your idea | (a) |
+| EP-Q12 | Which example scenarios ship (with EP-Q3) | (a) six as causes and indications only: oil leak on departure, chip in the area, fuel imbalance in the pattern, generator failure on an instrument departure, fire on climb-out, engine roughness in the area; (b) fewer; (c) your idea | (a) |

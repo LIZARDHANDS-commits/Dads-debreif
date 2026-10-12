@@ -15,8 +15,26 @@ Only what is here gets built. Patrick approved `spec.md` and EP-1 to EP-3 (relay
 - [x] QR code on the student's screen, the console on the phone, the link as EP-Q1 settles; "Instructor link lost" handling (EP-R10).
 - Built in V2.384, not yet seen: the relay mailbox (EP-8 to EP-10), our own QR encoder (EP-Q2), the phone as the master sending only the student view, and its one test. The relay's `/ep-link` is live (deployed 12 Oct 2026); a real phone camera, iOS Safari and mobile networks are untried.
 
-## Step 3. Scenarios and log
+## Step 3. Systems model: faults drive the gauges, the gauges drive the lights (`systems-plan.md` Phase 1)
+- [ ] `systems.js`: the instructor sets causes (oil leak, chip, fuel imbalance, fire, generator, roughness, engine failure); gauges follow by time and severity; lights follow by thresholds; the instructor's typed values still win (EP-11). The console split into sections with a Faults section; `index.js` split into screen and phone. A second example, "Oil pressure dropping on departure". Thresholds without a page show "(estimate)" (EP-Q10 working answer).
+
+## Step 4. Lights that flicker and the visual cues (Phase 2)
+- [ ] Flicker, a small cockpit shake, smoke haze and fire glow as overlays, cue words per fault, all applied by the instructor and only then seen by the student (EP-12). No 3D cues (future list).
+
+## Step 5. The aircraft flies the student's picks (Phase 3a)
+- [ ] The shared point mass flies each pick (EP-13); the engine-out case and Traffic's glide footprint move to core, no second copy. Waits on EP-Q5 (the flight approach).
+
+## Step 6. The student's decision list and plan map (Phase 3b)
+- [ ] Plain manoeuvre words only, nothing marked right or wrong; a small map with the glide ring and the line to the field, so a wrong choice is seen going off the rails (EP-14).
+
+## Step 7. Timeline, rewind, better and worse (Phase 4)
+- [ ] Snapshots, rewind to any moment without leaking the setup, severity dial with Better / Worse / Hold, "student identified it", developments on a pick (EP-15).
+
+## Step 8. The student's picks reach the phone (Phase 5)
+- [ ] A second relay mailbox in the QR address, same key, no relay code change; picks cleaned as untrusted on the phone (EP-16).
+
+## Step 9. Scenarios and log
 - [ ] The example scenarios (EP-Q3), save and load of the instructor's own, Declare boxes, the debrief log and its file.
 
-## Step 4. Sign-off
+## Step 10. Sign-off
 - [ ] Run the checklist in `testing.md` and send Patrick the result.

@@ -60,6 +60,18 @@ As built in V2.384 (EP-8 to EP-10; EP-Q1 answered by Patrick, relayed by Dad, 12
 - **No network, or the relay not reached:** the student's screen says "Can't reach the relay" and the console still opens on the student's screen behind the **Instructor** switch (one-screen mode); everything else works.
 - **Not built:** the direct link (option (a), WebRTC), which needs a public STUN server, a new outside service (EP-Q4). The link sits behind one small interface so it can be added later. A phone that reloads its page starts the scenario again (it is held in the phone's memory only).
 
+## Faults, cues, the student's picks and rewind (Steps 3 to 8; EP-11 to EP-16)
+
+Dad's asks of 12 Oct 2026, in his words: "certain pressures should trigger a light... certain conditions that an IP can prompt should trigger instruments and visual cues. Student should be able to see their plan as they go, so if they make a wrong choice they see it go off the rails. Instructors can pause, rewind, make things better or worse if the student IDs it or not." The detailed design, with every number's source status, is `systems-plan.md`.
+
+- **Faults (EP-11):** the instructor sets causes with a severity and a trend; the gauges follow; the lights follow from thresholds; typed values still win. Unsourced thresholds and rates show "(estimate)".
+- **Cues (EP-12):** words, flicker, a small shake, smoke haze and fire glow overlays, each seen by the student only once applied.
+- **Flight (EP-13):** the shared point mass flies each pick (waits on EP-Q5).
+- **Decisions and plan (EP-14):** plain manoeuvre words only; a small map with the glide ring and the line to the field; nothing says right or wrong, the consequences show it.
+- **Rewind, better and worse (EP-15):** rewind to any moment shows the student only what they saw then; Better / Worse / Hold by the instructor's hand.
+- **Picks to the phone (EP-16):** a second relay mailbox; picks are untrusted.
+- **When data fails:** a fault rate or threshold with no source runs as its estimate, flagged; a pick that fails the phone's check is dropped and the console says so; picks not reaching the phone show "Picks not reaching the instructor" on the student's screen and are kept to send.
+
 ## What the module uses (no second copies)
 
 The CT-156 cockpit and its live instruments (ui-kit, ALL-31 to ALL-33; the engine displays become live, an additive change shared with the other sims), the shared sky, terrain and airfields (ui-kit, core), the version label and settings (shell). No flight maths of its own in the first version: the aircraft holds the state the scenario gives it.
