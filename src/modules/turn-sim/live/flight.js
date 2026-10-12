@@ -13,7 +13,7 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, easeValue, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
-import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
@@ -28,6 +28,24 @@ export { ROLL };
  * gentler rate) and the T-6A's own at that speed (core rollWithinT6A, estimates; TS-85).
  */
 export const rollLimitAt = (tasFtps, roll = ROLL) => rollWithinT6A(roll, tasFtps / KT_TO_FTPS);
+
+/**
+ * The roll acceleration an aircraft carries into this step (degrees per second²), or undefined for one whose roll does not
+ * build its acceleration. An aircraft carries one once the wingman's pilot has flown it (pilot.js stepCommanded: Patrick 12
+ * Oct 2026 02:08Z, "the roll rate itself just needs to be realistic and smoothed (not instant acceleration)"; his card
+ * 02:10Z, "Every #2 roll"; Fable's plan). It holds only while the roll rate is the one it was written with: a pose or a
+ * close formation's own roll that set the rate since leaves none (0).
+ */
+export function carriedRollAccel(a) {
+  if (a.rollAccelDps2 === undefined) return undefined;
+  return a.rollAccelForRateDps === (a.rollRateDps ?? 0) ? a.rollAccelDps2 : 0;
+}
+
+/** Keeps the roll acceleration a step flew with its roll rate (carriedRollAccel). */
+export function keepRollAccel(a, accelDps2) {
+  a.rollAccelDps2 = Math.abs(accelDps2) < 1e-9 ? 0 : accelDps2;
+  a.rollAccelForRateDps = a.rollRateDps ?? 0;
+}
 
 /**
  * The fastest the gate lets G build (G per second): twice the T-6A's normal onset (core T6A_G_ONSET, 4 G/s), an estimate.
@@ -46,11 +64,13 @@ const GATE_G_MAX_BANK_DEG = 85;
  *   - G onset: rolling steeper never builds the turn's G (1 / cos bank) faster than G_ONSET_CEILING (8 G/s, twice the
  *     T-6A's normal 4 G/s; estimates), so the last of a roll into a very steep bank slows down; rolling out is not held;
  *   - stall: never steeper than the bank whose G the speed can give (core stallLimitG; 86 KIAS 1 G stall, Patrick's).
- * A planner may ask for anything; the aircraft flies only this. tasFtps and kias are the aircraft's now. Returns easeRoll's
- * { bankDeg, rollRateDps }.
+ * A planner may ask for anything; the aircraft flies only this. tasFtps and kias are the aircraft's now. accelDps2: the
+ * roll acceleration the aircraft carries (carriedRollAccel), built over the T-6A's onset (core T6A_ROLL.onsetSec,
+ * Patrick's 0.2 s, TS-196); undefined rolls without it (every aircraft but the wingmen the pilot flies). Returns easeRoll's
+ * { bankDeg, rollRateDps, rollAccelDps2 }.
  */
-export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias) {
-  const limits = rollLimitAt(tasFtps, roll);
+export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, accelDps2 = undefined) {
+  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2 };
   // A rate handed in faster than the aircraft rolls (a replayed pose's own) is taken at the aircraft's.
   const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps ?? 0));
   let target = targetDeg;
@@ -67,13 +87,14 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   const phi = (ahead * Math.PI) / 180;
   const gRate = Math.tan(phi) / Math.cos(phi); // G per radian of bank
   const capDps = gRate > 1e-9 ? ((G_ONSET_CEILING / gRate) * 180) / Math.PI : limits.maxRateDps;
-  const r = easeRoll(bankDeg, rate0, target, dt, { maxRateDps: Math.min(limits.maxRateDps, Math.max(capDps, 1)), maxAccelDps2: limits.maxAccelDps2 });
+  const r = easeRoll(bankDeg, rate0, target, dt, { ...limits, maxRateDps: Math.min(limits.maxRateDps, Math.max(capDps, 1)) });
   // The backstop: this step's G change held to the onset, whatever the look-ahead missed.
   if (Math.abs(r.bankDeg) > Math.abs(bankDeg) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG) {
     const gMax = gFromBankDeg(bankDeg) + G_ONSET_CEILING * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
       const bank = Math.sign(r.bankDeg) * bankDegFromG(gMax);
-      return { bankDeg: bank, rollRateDps: (bank - bankDeg) / dt };
+      const rate = (bank - bankDeg) / dt;
+      return { bankDeg: bank, rollRateDps: rate, rollAccelDps2: (rate - rate0) / dt };
     }
   }
   return r;
@@ -261,15 +282,20 @@ function stepTurnRad(tasFtps, fromDeg, toDeg) {
   return ((turnRateFromBankRadPerSec(tasFtps, fromDeg) + turnRateFromBankRadPerSec(tasFtps, toDeg)) / 2) * STEP_SEC;
 }
 
-/** How much the heading still changes (radians, signed) if the wings are rolled level from here, at the roll limits `roll` (under the T-6A's, rollLimitAt). */
-export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL) {
-  const limits = rollLimitAt(tasFtps, roll);
+/**
+ * How much the heading still changes (radians, signed) if the wings are rolled level from here, at the roll limits `roll`
+ * (under the T-6A's, rollLimitAt). accelDps2: the roll acceleration carried (carriedRollAccel), so the roll-out is the one
+ * the gate flies, built over the same onset; undefined for a roll without it.
+ */
+export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL, accelDps2 = undefined) {
+  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec };
   let bank = bankDeg;
   let rate = rollRateDps;
+  let acc = accelDps2 ?? 0;
   let change = 0;
   for (let i = 0; i < 400 && (Math.abs(bank) > 1e-6 || Math.abs(rate) > 1e-6); i++) {
     const before = bank;
-    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, 0, STEP_SEC, limits));
+    ({ bankDeg: bank, rollRateDps: rate, rollAccelDps2: acc } = easeRoll(bank, rate, 0, STEP_SEC, { ...limits, accelDps2: acc }));
     change += stepTurnRad(tasFtps, before, bank);
   }
   return change;
@@ -506,7 +532,7 @@ export function stepAircraft(a, plan, t) {
         }
       } else {
         // Roll out early enough that the wings come level on the target heading.
-        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll));
+        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll, carriedRollAccel(a)));
         const thisStep = Math.abs(turnRateFromBankRadPerSec(a.tasFtps, a.bankDeg)) * dt;
         if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
       }
@@ -570,9 +596,11 @@ export function stepAircraft(a, plan, t) {
   const tas = (tasBefore + a.tasFtps) / 2;
   // A turn segment may roll gentler (a close formation Lead); never past the envelope gate (gateRoll: the T-6A's roll at
   // this speed, TS-85; G onset and stall, TS-93).
-  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || ROLL, tasBefore, a.kias);
+  const accel0 = carriedRollAccel(a);
+  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || ROLL, tasBefore, a.kias, accel0);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
+  if (accel0 !== undefined) keepRollAccel(a, rolled.rollAccelDps2);
   const turned = stepTurnRad(tas, bankBefore, a.bankDeg);
   a.headingRad = wrapPi(headingBefore + turned);
   a.g = gFromBankDeg(a.bankDeg);

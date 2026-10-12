@@ -9,7 +9,7 @@
 import { bankDegFromTurnRate, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK, pullToClimb, pullRampSec, easeOffPull, headingChangeRollingOut } from './flight.js';
+import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK, pullToClimb, pullRampSec, easeOffPull, headingChangeRollingOut, carriedRollAccel } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
@@ -242,7 +242,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   // flies (pilot.js pilotRollLimits), so he starts rolling out in time: at a formation roll rate (TURNING_REJOIN.formRoll)
   // the plain heading loop (until V2.348) could roll past the heading and back, 30° each way, without end (break and rejoin to
   // fighting wing, once the vertical pull built its onset at 16 G/s²).
-  const rollingOut = aligning ? headingChangeRollingOut(W.bankDeg ?? 0, W.rollRateDps ?? 0, W.tasFtps, pilotRollLimits(W, ph.roll)) : 0;
+  const rollingOut = aligning ? headingChangeRollingOut(W.bankDeg ?? 0, W.rollRateDps ?? 0, W.tasFtps, pilotRollLimits(W, ph.roll), carriedRollAccel(W)) : 0;
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad - rollingOut) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
   let cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
