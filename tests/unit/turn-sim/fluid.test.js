@@ -178,6 +178,30 @@ test('Live #2: from a tight fighting wing start, 500 ft at 55° off the tail, th
   assert.equal(r.state, 'IN POSITION', `Live, after the entry: ${r.state} at ${Math.round(r.rangeFt)} ft`);
 });
 
+test('Live #2: through the wingovers he swaps sides only behind Lead, never inside 400 ft, and is back in fighting wing after Terminate', () => {
+  // #2's own side swaps (TS-199; Patrick 12 Oct 2026 05:54Z: "Would he figure out the swap cue himself?"): over the top of
+  // the wingovers Lead rolls through his side, and he crosses behind Lead's tail to the outside (TS-60, Patrick 5 Oct
+  // 2026 19:21Z "swap sides ... to fix lead/lag spacing over the top"). What a pilot would recognise: he is never in front
+  // of Lead's 3/9 line (aspect under 90°) and never inside the bubble (the live floor, as above) through both wingovers,
+  // and Terminate ends with the pair in the fighting wing band. 60 s for the two wingovers and 2 minutes for Terminate
+  // are generous limits.
+  const f = inFightingWing();
+  assert.equal(f.change('fluid'), 'started');
+  const failures = [];
+  const watch = alwaysTrue(failures, LIVE_FLOOR_FT);
+  fly(f, 30, watch);
+  assert.equal(f.pressFluid('wingover', -1), 'started');
+  fly(f, 60, watch);
+  const rollOk = (x) => { const m = /^#2 rolling (-?\d+)°\/s$/.exec(x); return m && Math.abs(Number(m[1])) <= T6A_ROLL.maxRateDps + ROLL_SLACK_DPS; };
+  assert.deepEqual(failures.filter((x) => !x.startsWith('Lead') && !rollOk(x)).slice(0, 5), []);
+  assert.equal(f.pressFluid('terminate'), 'started');
+  fly(f, 120);
+  assert.equal(f.state.fluid, null);
+  assert.equal(f.where().key, 'fw');
+  const [lead, wing] = f.state.aircraft;
+  assert.ok(judgeFormation('fw', lead, wing).inBand);
+});
+
 test('Live #2: through a barrel roll he stays in range, and once Lead is level he keeps the side of the tail he came out on into fighting wing', () => {
   // Patrick 12 Oct 2026 03:40Z: "2 does not have to reset to 'the same offset' each time, and can end on a different
   // offset side". What a pilot would recognise: #2 never STRETCHED through the roll (more than 1,000 ft, SMM 16.17 para
