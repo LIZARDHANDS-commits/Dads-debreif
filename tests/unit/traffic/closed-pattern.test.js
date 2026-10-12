@@ -145,7 +145,7 @@ test('Closed Pattern: every closed pattern lands within 3 minutes of the pull-up
       sim.stepTo(sim.t + 0.5);
       const a = sim.state().aircraft.find((x) => x.id === id);
       if (pullUpAt === null && a.phase === 'closed_pattern') pullUpAt = sim.t;
-      // Touchdown: down to the runway (within 10 ft of its 1,880 ft), or named as a touch-and-go or landing;
+      // Touchdown: down to the runway (within 10 ft of its 1,892 ft), or named as a touch-and-go or landing;
       // the circuit loops straight back round without either name (Patrick's card, 10:15Z).
       if (pullUpAt !== null && (a.alt <= RUNWAY_FT + 10 || a.phase === 'touch_and_go' || a.status === 'landed')) touchdownAt = sim.t;
     }

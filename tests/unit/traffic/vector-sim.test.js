@@ -8,7 +8,7 @@
 // Expected values: drift = wind x turn time and the crab angle asin(crosswind / true airspeed), worked out in the
 //   test (TP3); 60 degrees, 220 to about 140 KIAS, level, in the break (SMM 4.17 paras 38-42; TR-R7); up to 45 and
 //   about 35 degrees in the final turn, rolling out on the centreline (SMM 4.19 paras 43-48; TR-R9); 3,500 ft
-//   pattern height (TR-R4); runway heading 298 and the runway at 1,880 ft in the sim; 90 deg/s roll is Patrick's
+//   pattern height (TR-R4); runway heading 298 and the runway at the field's 1,892 ft in the sim (TR-149); 90 deg/s roll is Patrick's
 //   step limit (4 Oct 10:18Z, smooth-transitions). Margins from the shared table (docs/TESTING.md). No G number is
 //   checked (Patrick, 11 Oct 19:37Z): bank and shape instead. The breakout and go-around are in breakout.test.js and
 //   commands.test.js, the closed pattern in closed-pattern.test.js, the straight-in in plausibility.test.js.

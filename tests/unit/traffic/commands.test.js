@@ -9,7 +9,7 @@
 // Expected values: 150 KIAS zoom split, 125 KIAS clean glide and High Key 5,000 ft are TR-R14 and spec 4.5 (SMM 13.17
 //   para 34; reference data; SMM 13.5 paras 7-8); 4,500 ft breakout and the 140 KIAS climb
 //   are TR-R34 and Patrick (6 Oct); 3,500 ft and 220 KIAS pattern height and speed, 2,500 ft go-around level and
-//   runway heading 298 are TR-R4; the runway is 1,880 ft in the sim. Margins from the shared table (docs/TESTING.md)
+//   runway heading 298 are TR-R4; the runway is at the field's 1,892 ft in the sim (TR-149). Margins from the shared table (docs/TESTING.md)
 //   unless the line says why; each run has a safety stop with its reason beside it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
