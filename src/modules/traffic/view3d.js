@@ -14,7 +14,7 @@
 //   createSceneKit       the three.js objects for the routes, aircraft, rings and ground, with their freeing
 //   createView3d         the canvases, the renderer, the camera's hands (drag, wheel, keys) and the frame
 import {
-  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
+  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh, blurProp,
 } from '../../ui-kit/three-aircraft.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
@@ -112,6 +112,7 @@ const CHASE_SPAN_FT = 3000;
 const CHASE_LERP = 0.15; // how fast the chase camera swings behind a turning aircraft, a share of the gap each frame
 
 /** Real length of a T-6 in feet (kept in types.js). A zoomed-out aircraft is drawn bigger, so it can still be seen. */
+export { blurProp }; // moved to ui-kit/three-aircraft.js (TS-210), so the Formation sim's 3D uses it too
 export { T6_LENGTH_FT, CLOSE_UP_DRAW_FT };
 /** The length an aircraft is drawn at least, on screen, in pixels. */
 export const MIN_PLANE_PX = 44;
@@ -232,48 +233,6 @@ export function wheelLiftFt(lengthFt) {
   return (GEAR_LIFT_UNITS * lengthFt) / CT156_UNIT_LENGTH + RUNWAY_TOP_FT;
 }
 
-/** The see-through blurred disc of a turning prop (Patrick, 5 Oct 02:42Z: "a still graphic that looks like spinning"). */
-function drawPropBlur(ctx, w, h) {
-  const cx = w / 2;
-  const cy = h / 2;
-  const r = w / 2;
-  const g = ctx.createRadialGradient(cx, cy, r * 0.12, cx, cy, r);
-  g.addColorStop(0, 'rgba(40, 44, 52, 0)');
-  g.addColorStop(0.35, 'rgba(40, 44, 52, 0.22)');
-  g.addColorStop(0.8, 'rgba(30, 34, 40, 0.30)');
-  g.addColorStop(0.88, 'rgba(210, 32, 44, 0.32)'); // the red blade tips as a faint ring
-  g.addColorStop(0.97, 'rgba(210, 32, 44, 0.12)');
-  g.addColorStop(1, 'rgba(210, 32, 44, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = 'rgba(20, 22, 28, 0.10)';
-  for (let k = 0; k < 4; k++) { // faint blade streaks
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * (0.5 + k * 0.1), k * 0.9, k * 0.9 + 1.1);
-    ctx.lineWidth = r * 0.06;
-    ctx.stroke();
-  }
-}
-
-// One small blur picture for the whole page, made on first use and kept (a 128-pixel texture).
-const propBlurMaps = new WeakMap();
-function propBlurMap(THREE) {
-  if (propBlurMaps.has(THREE)) return propBlurMaps.get(THREE);
-  const doc = globalThis.document;
-  const canvas = doc?.createElement ? doc.createElement('canvas') : null;
-  const ctx = canvas?.getContext?.('2d');
-  let map = null;
-  if (ctx) {
-    canvas.width = 128;
-    canvas.height = 128;
-    drawPropBlur(ctx, 128, 128);
-    map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-  }
-  propBlurMaps.set(THREE, map);
-  return map;
-}
-
 /**
  * The satellite photo's colour grade (TR-146; Patrick, 11 Oct: "Colour-grade the photo ... so the grass gets greener, the fields
  * richer and the concrete brighter"). Esri's photo comes out hazy and flat, so grass and concrete read as near the same grey. Applied
@@ -298,32 +257,6 @@ function gradePhoto(material) {
   };
   material.customProgramCacheKey = () => 'photo-grade';
   return material;
-}
-
-function propBlurMaterial(THREE) {
-  const map = propBlurMap(THREE);
-  return new THREE.MeshBasicMaterial({
-    color: map ? '#ffffff' : '#2c3036', map, transparent: true, opacity: map ? 1 : 0.22, side: THREE.DoubleSide, depthWrite: false, fog: false,
-  });
-}
-
-/** Shows a T-6 model's prop as turning: its blades hidden and its disc given the blurred look. Only this model changes. */
-export function blurProp(THREE, mesh) {
-  const ct = mesh.userData?.ct156;
-  const blades = ct ? new Set([ct.kit.geo.blade, ct.kit.geo.bladeTip]) : new Set();
-  const material = propBlurMaterial(THREE);
-  let used = false;
-  mesh.traverse((o) => {
-    if (!o.isMesh) return;
-    if (blades.has(o.geometry)) o.visible = false;
-    else if (o.geometry?.type === 'CircleGeometry') {
-      if (!ct) o.material.dispose(); // the plain model's own disc material; the full model's is shared, so kept
-      o.material = material;
-      used = true;
-    }
-  });
-  if (!used) material.dispose();
-  else if (ct) ct.mine.push({ dispose: () => material.dispose() }); // freed with the model; the shared picture stays
 }
 
 /** Feet an aircraft is drawn at, at a zoom (pixels to 1,000 ft): CLOSE_UP_DRAW_FT (half the runway width, Patrick 5 Oct), or MIN_PLANE_PX if that is smaller on screen, times the Aircraft size setting. */

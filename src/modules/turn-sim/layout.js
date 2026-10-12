@@ -46,6 +46,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   // bow or under the glareshield (ct156-cockpit.js EYE_LEAN).
   eyeLean: true,
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
+  // The 3D graphics (TS-210; Patrick, 12 Oct 2026): 'high' as built, or 'performance' for weaker computers: no real-time shadows,
+  // normal resolution on high-resolution screens, no edge smoothing (that one from the next time the page opens).
+  graphics: 'high',
   paint: 'harvard', // the 3D aircraft's paint: the Harvard scheme (Patrick, 11 Oct 2026: "I want all 3d models to default to the Harvard"); 'ship' colours were the default from 5 Oct
 });
 export const LAYOUT_VERSION = 9; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
@@ -74,6 +77,7 @@ const steps = ([lo, hi]) => Array.from({ length: Math.round((hi - lo) / EYE_OFFS
 /** The layout values that only allow some choices (createSettings' `allowed`). */
 export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({
   view: [...VIEW_ALLOWED],
+  graphics: ['high', 'performance'],
   paint: PAINT_OPTIONS.map((o) => o.value),
   camOn: ['formation', '1', '2', '3', '4', 'free'],
   trackSec: [0, 30, 60, 120, 300, 600],
@@ -487,7 +491,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     playButton, resetRunButton, speedSelect, time, sizeGroup,
     h('span', { class: 'ts-bar-gap' }),
     fitButton,
-    lc.viewSwitch(), note3d, cameraMenu.element, layersMenu.element, dataTagMenu.element,
+    lc.viewSwitch(), lc.choice('graphics', { label: 'Graphics', options: [{ value: 'high', label: 'High' }, { value: 'performance', label: 'Performance' }] }), note3d, cameraMenu.element, layersMenu.element, dataTagMenu.element,
   );
   const stage = h('section', { class: 'ts-stage', 'aria-label': 'Formation from above and playback' }, bar, canvasWrap);
 
@@ -552,6 +556,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
       lc.setDisabled('camLook', view !== '3d'); // Follow and Padlock turn the 3D view; the 2D map stays north up
       lc.setDisabled('coneShape', view !== '3d'); // the 2D map always draws the flat band
+      lc.setDisabled('graphics', view !== '3d'); // the graphics setting is the 3D view's
 
     },
     /** A short note beside the View switch ("3D needs a connection the first time."), or '' for none. */

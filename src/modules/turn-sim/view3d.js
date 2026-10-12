@@ -9,7 +9,7 @@
 // (R4). The camera is the ui-kit's matchProjection; nothing here does camera maths
 // of its own beyond choosing yaw, pitch, zoom and centre.
 import {
-  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
+  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh, blurProp,
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
@@ -25,6 +25,8 @@ import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitF
 /** His speed brake is out: the boards stage, with power or at idle (live/slow-down.js STAGES). */
 const boardsOut = (a) => a?.power?.stage === 'boards' || a?.power?.stage === 'idleBoards';
 
+/** How strongly the own aircraft's blurred prop disc shows from the seat (TS-210; an estimate, set by eye). */
+const PROP_DISC_INSIDE_OPACITY = 0.2;
 /** The 3D ground's colour: wheat stubble (TS-189). It was a deep green, '#2a3327' (Patrick, 6 Oct); set that here to put it back. */
 const GROUND_COLOUR = '#b7a77a';
 import { EYE_OFFSET_FT } from './layout.js';
@@ -211,12 +213,14 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   const size = () => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
 
   function build() {
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    // Graphics (TS-210): Performance draws without edge smoothing, set when the 3D view starts (a page's 3D canvas keeps it).
+    const performanceAtStart = source.layers?.().graphics === 'performance';
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !performanceAtStart });
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
     const { sun } = addLights(THREE, scene);
     // Real-time sun shadows on the aircraft (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"; ui-kit/aircraft-shadows.js).
-    const shadows = createAircraftShadows(THREE, renderer, sun);
+    const shadows = createAircraftShadows(THREE, renderer, sun, { enabled: !performanceAtStart });
     const sky = addSky(THREE, scene);
     // The same charcoal as 2D, flat, with its fog (Patrick, 5 Oct), and a faint grey ground grid.
     // A light blue sky and a cloud layer below the formation (Patrick, 6 Oct; ui-kit/sky-clouds.js). 2D keeps the slate.
@@ -264,6 +268,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     if (!entry) {
       const mesh = createCt156Model(THREE, { color: source.colors[id] ?? '#ffffff', number: id, paint: paintNow, lengthFt: CT156_UNIT_LENGTH });
+      blurProp(THREE, mesh); // the turning prop as a blurred disc, as Traffic's (TS-210; Patrick, 12 Oct 2026)
       mesh.rotation.order = 'ZYX';
       gl.scene.add(mesh);
       entry = { mesh, paint: paintNow };
@@ -677,7 +682,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     if (!gl || !visible || disposed) return;
     const { renderer, scene, camera } = gl;
     const box = size();
-    const ratio = Math.min(win.devicePixelRatio || 1, 2);
+    // Graphics (TS-210): Performance draws at normal resolution on a high-resolution screen and without real-time shadows.
+    const performanceNow = source.layers?.().graphics === 'performance';
+    const ratio = performanceNow ? 1 : Math.min(win.devicePixelRatio || 1, 2);
+    gl.shadows.setEnabled(!performanceNow);
     renderer.setPixelRatio(ratio);
     renderer.setSize(box.width, box.height, false);
 
@@ -737,6 +745,11 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     // The cockpit interior: only from inside an aircraft (Cockpit, Padlock), and only with its tick (TS-154).
     const interior = pov && pov.pov !== 'chase' && sizing.cockpitInterior !== false;
     syncCockpit(interior ? gl.planes.get(pov.id)?.mesh ?? null : null, pov?.id, sizing.cockpitSeat, sizing);
+    // The blurred prop disc (TS-210) seen from inside the aircraft is faint, as through the windscreen; from outside it shows in full.
+    for (const { mesh } of gl.planes.values()) {
+      const disc = mesh.userData.ct156?.disc;
+      if (disc?.material) disc.material.opacity = gl.cockpit?.root === mesh ? PROP_DISC_INSIDE_OPACITY : 1;
+    }
 
     const layers = source.layers();
     const trail = trailSince(source.trails().trail, state.tSec, layers.trackSec);

@@ -263,3 +263,5 @@ Patrick 10 Oct 2026 20:20Z: "Keep both, route 1 first, prototype decides". Order
 ## Step 11. Fighting wing on the live law, stage 1 (Patrick 12 Oct 2026 08:15Z, card "FW on live law"; words agreed 08:19Z)
 
 - [ ] **Fighting wing on the live law, stage 1** (2-ship Lead moves, behind the Tracker / Live switch; TS-202). Done when, with Live, through a level turn into #2 and its reversal #2 stays outside 500 ft, never past 1,000 ft, and is back in the cone after Lead rolls out (one test), and Patrick has flown Live from the default start.
+
+- [x] **Graphics: High or Performance** (Patrick, 12 Oct 2026; built V2.418, TS-210): the selector beside the 2D/3D switch; Performance drops the real-time shadows, the high-resolution drawing and (from the next page open) the edge smoothing; the prop is a blurred disc in both. Checked: the selector shows and switches, nothing breaks, the disc is faint from the seat. Unseen: on a weaker computer, and the antialiasing change after a reopen.
