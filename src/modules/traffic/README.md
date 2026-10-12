@@ -49,7 +49,7 @@ Tests: `tests/unit/traffic/` for each file (in Node, on a stand-in page), and `t
 
 ## Engine API
 
-The engine is `sim.js` and the flying files it calls: `route.js` (route geometry), `path-follower.js` (the one mover: every aircraft rides a path), `circuit.js` (the simulated pilot, which flies each manoeuvre once to make that path), `pfl.js`, `closed-pattern.js`, `high-key.js`, `breakout.js`, `evade.js` and `deconflict.js` (the manoeuvres and the spacing), `weather.js` (the day's temperature), `airfield.js` (Moose Jaw's numbers), `dice.js` and `readouts.js`. It is pure: plain objects in, plain objects out, no page, no clock, no `Math.random`. The screen calls it and draws what it returns; the drawing never changes a number. The flying numbers are checked against the manuals and Patrick's rulings, never V6.
+The engine is `sim.js` and the flying files it calls: `route.js` (route geometry), `path-follower.js` (the one mover: every aircraft rides a path), `circuit.js` (the simulated pilot, which flies each manoeuvre once to make that path), `pfl.js` (with `pfl-geometry.js`, `pfl-joins.js` and `pfl-flight.js`), `closed-pattern.js`, `high-key.js`, `breakout.js`, `evade.js` and `deconflict.js` (the manoeuvres and the spacing), `weather.js` (the day's temperature), `airfield.js` (Moose Jaw's numbers), `dice.js` and `readouts.js`. It is pure: plain objects in, plain objects out, no page, no clock, no `Math.random`. The screen calls it and draws what it returns; the drawing never changes a number. The flying numbers are checked against the manuals and Patrick's rulings, never V6.
 
 ### Conventions
 
