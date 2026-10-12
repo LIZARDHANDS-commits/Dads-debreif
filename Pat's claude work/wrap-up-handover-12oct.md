@@ -89,4 +89,4 @@ The one waiting list is the end of [docs/PLAN.md](../docs/PLAN.md), "Waiting on 
 - **No idle on long runs:** run long checks in the background in their own worktree and keep working. Compare against the stored baseline instead of re-running main's traces.
 - **Wording first:** anything Patrick approves (rule book, spec, decision rows) goes to him as the exact words before it is written.
 - **Public repo:** manual text and pictures never go in it; cite pages only. Checklists, boldface and performance charts are never shipped.
-- **Docs keeper:** one thread keeps `docs/PLAN.md` and the whole-tool docs current after each merge. The next free whole-tool decision row is ALL-37; the next Formation row is TS-201.
+- **Docs keeper:** one thread keeps `docs/PLAN.md` and the whole-tool docs current after each merge. The next free whole-tool decision row is ALL-37; the next Formation row is TS-202 (TS-201 is waiting on its words).
