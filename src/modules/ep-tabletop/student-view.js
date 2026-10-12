@@ -6,7 +6,8 @@
 // In a student view: the situation the student is given at the start, the step and the steps visited, whether time is running and the
 // clock, the FEVER and TCCC prompts, and the panel's settings for the flight instruments and for what has been revealed.
 // Never: the scenario's name or script, the developments to come, edits not yet applied, marks, notes, the Declare boxes, the log, any
-// setting nobody has asked about, or anything about how it ends.
+// setting nobody has asked about, or anything about how it ends; and never a cause (fault), its severity or its trend (EP-11): the panel
+// carries only the gauges and lights they move, once revealed.
 import { STEPS, panelOf } from './scenario.js';
 import { definitionOf } from './indications.js';
 import { ENGINE_LIVE } from '../../ui-kit/ct156-cockpit.js';

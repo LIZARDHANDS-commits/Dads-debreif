@@ -1,6 +1,7 @@
 // Checks: the student view, the only thing the phone sends and the only thing the student's screen draws from, never carries the setup:
-//   no development still to come, no edit not yet applied, no marks, notes or Declare answers, nothing about the scenario's name or end.
-// Serves: EP-R3, EP-R4 (docs/modules/ep-tabletop/requirements.md), EP-2, EP-9.
+//   no development still to come, no edit not yet applied, no marks, notes or Declare answers, nothing about the scenario's name or end,
+//   and no cause (fault), severity or trend, set or waiting (EP-11; plan Step 3 extended this check, still the file's one test).
+// Serves: EP-R3, EP-R4 (docs/modules/ep-tabletop/requirements.md), EP-2, EP-9, EP-11.
 // Expected values: from the example scenario itself (its developments' words and values) and sentinel words typed in this test; no flying
 //   number is checked (docs/modules/ep-tabletop/testing.md).
 import test from 'node:test';
@@ -28,8 +29,12 @@ test('the student view never carries the setup: developments to come, unapplied 
   function check(s, moment) {
     const json = JSON.stringify(studentView(s));
     for (const word of forbidden(s)) assert.equal(json.includes(word), false, `${moment}: the student view carries "${word}"`);
-    for (const key of ['"developments"', '"pending"', '"marks"', '"declare"', '"log"', '"scenario"', '"title"', '"shown"']) {
+    for (const key of ['"developments"', '"pending"', '"marks"', '"declare"', '"log"', '"scenario"', '"title"', '"shown"', '"overrides"', '"pendingFaults"']) {
       assert.equal(json.includes(key), false, `${moment}: the student view carries ${key}`);
+    }
+    // Nothing about the causes behind the gauges (EP-11): not the word, nor a cause's severity, trend or kind.
+    for (const word of ['fault', 'severity', 'trend', 'worsening', 'improving', 'oilLeak', 'fuelLeak']) {
+      assert.equal(json.toLowerCase().includes(word.toLowerCase()), false, `${moment}: the student view carries "${word}"`);
     }
     // Not empty either: the student's screen takes it in as a student view.
     assert.notEqual(cleanStudentView(JSON.parse(json)), null, `${moment}: the screen accepts it`);
@@ -45,6 +50,13 @@ test('the student view never carries the setup: developments to come, unapplied 
   s = act(s, { type: 'declare', field: 'plan', value: DECLARE });
   s = act(s, { type: 'note', step: 'A', text: NOTE });
   s = act(s, { type: 'mark', step: 'A', mark: 'Needs work' });
+
+  // A cause set and running (its gauge revealed, so the panel moves with it), and another waiting to be applied.
+  s = act(s, { type: 'reveal', key: 'engine.oilPsi' });
+  s = act(s, { type: 'addFault', kind: 'oilLeak' });
+  s = act(s, { type: 'apply' });
+  s = act(s, { type: 'addFault', kind: 'fuelLeak', params: { side: 'R' } });
+  check(s, 'a cause set and another waiting');
 
   // Running, a timed development still to come.
   s = act(s, { type: 'resume' });

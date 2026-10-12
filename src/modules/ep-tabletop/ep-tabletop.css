@@ -136,3 +136,17 @@
 .ep-console-phone .ep-num { width: 7rem; }
 .ep-console-phone .ep-declare { grid-template-columns: 1fr; }
 .ep-console-phone .ep-applybar { bottom: 0; margin: 0 -16px; padding: var(--space-2) 16px; }
+
+/* The systems model (plan Step 3, EP-11): the Faults section, a threshold beside its light or gauge, "(estimate)" and a typed value. */
+.ep-threshold { display: block; color: var(--text-muted); font-size: 0.85em; font-weight: 400; }
+.ep-estimate { color: var(--caution); }
+.ep-typed { display: block; color: var(--caution); }
+.ep-scenario-pick { margin: var(--space-1) 0; }
+.ep-scenario-pick select { flex: 1; min-width: 0; }
+.ep-fault { padding: 6px; margin-bottom: 6px; border: 1px solid var(--border); border-radius: var(--radius); }
+.ep-fault.is-pending { background: color-mix(in srgb, var(--caution) 22%, transparent); }
+.ep-fault-name { font-weight: 600; flex: 1; }
+.ep-sev-row { font-size: var(--text-sm); }
+.ep-sev { flex: 1; min-width: 6rem; }
+.ep-sev-out { font-family: var(--font-mono); min-width: 3.5rem; text-align: right; }
+.ep-fault-effect { margin: 0; }
