@@ -35,9 +35,16 @@ function fly(errors, to) {
     hist.push({ kias: wing.kias, climb: wing.climbFtps ?? 0, tas: wing.tasFtps, g: wing.g ?? 1, alt: wing.altAboveFt });
     const n = hist.length;
     if (n > sec) {
-      const m = hist[n - 1 - sec / 2];
-      const need = hist[n - 1].kias - hist[n - 1 - sec].kias + ((G * m.climb) / m.tas) * (m.kias / m.tas);
-      const full = fullPowerKtps(m.kias, BLOCK_FT + m.alt, m.g);
+      // Full power and the climb cost are averaged over the same second the speed change is read from, so a G change
+      // inside the second is counted as flown (Patrick's card 12 Oct 2026 01:31Z, "Average the second").
+      let climbCost = 0;
+      let full = 0;
+      for (let i = n - sec; i < n; i++) {
+        const m = hist[i];
+        climbCost += ((G * m.climb) / m.tas) * (m.kias / m.tas) / sec;
+        full += fullPowerKtps(m.kias, BLOCK_FT + m.alt, m.g) / sec;
+      }
+      const need = hist[n - 1].kias - hist[n - 1 - sec].kias + climbCost;
       assert.ok(need <= full + READ_BACK_KTPS, `${what}: speeding up at ${need.toFixed(2)} kt/s at ${t.toFixed(1)} s, more than full power's ${full.toFixed(2)}`);
     }
     if (wing.overshooting) {
