@@ -81,5 +81,59 @@ export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null
     shader.fragmentShader = fs;
   };
   m.customProgramCacheKey = () => `ct156-ao-direct${dirt ? '-dirt' : ''}`;
-  return m;
+  return m.userData.ct156Grain ? paintGrain(m, m.userData.ct156Grain) : m; // a painted surface keeps its grain
+}
+
+/**
+ * Gives `material` (a MeshStandardMaterial) a painted surface drawn by the shader, so it needs no picture or uv map:
+ * a fine grain in the paint, bump-mapped and a little uneven in shine, and a faint mottling of the colour, as worn
+ * matt paint has (Patrick, 12 Oct 2026: "give the whole interior a texture, its not quite right"). Sizes in feet on the
+ * part; `unit`, the feet in one of the geometry's own units (1 for the cockpit, built in feet). `grain` the grain's size,
+ * `bump` its depth (feet), `speckle` and `mottle` how far each lightens or darkens the colour, `shine` how far the grain moves
+ * the roughness. The grain fades out where it is smaller than a pixel, so it never sparkles far off. Estimates, judged
+ * on renders. Keeps whatever the material's shader already does (aoShaded's), and returns the material.
+ */
+export function paintGrain(material, { unit = 1, grain = 0.012, bump = 0.0006, speckle = 0.05, mottle = 0.07, mottleSize = 0.4, shine = 0.12 } = {}) {
+  const opts = { unit, grain, bump, speckle, mottle, mottleSize, shine };
+  material.userData.ct156Grain = opts;
+  const before = material.onBeforeCompile, key = material.customProgramCacheKey;
+  const f = (v) => v.toFixed(6);
+  material.onBeforeCompile = (shader, renderer) => {
+    before?.call(material, shader, renderer);
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vCt156Pos;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n\tvCt156Pos = transformed * ${f(unit)};`);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vCt156Pos;
+float ct156Hash( vec3 p ) {
+	p = fract( p * 0.3183099 + 0.1 ) * 17.0;
+	return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+}
+float ct156Noise( vec3 x ) { // smooth value noise, 0 to 1
+	vec3 i = floor( x ), u = fract( x );
+	u = u * u * ( 3.0 - 2.0 * u );
+	return mix( mix( mix( ct156Hash( i ), ct156Hash( i + vec3( 1, 0, 0 ) ), u.x ), mix( ct156Hash( i + vec3( 0, 1, 0 ) ), ct156Hash( i + vec3( 1, 1, 0 ) ), u.x ), u.y ),
+		mix( mix( ct156Hash( i + vec3( 0, 0, 1 ) ), ct156Hash( i + vec3( 1, 0, 1 ) ), u.x ), mix( ct156Hash( i + vec3( 0, 1, 1 ) ), ct156Hash( i + vec3( 1, 1, 1 ) ), u.x ), u.y ), u.z );
+}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+	vec3 ct156G = vCt156Pos / ${f(grain)};
+	float ct156Fine = clamp( 1.5 - length( fwidth( ct156G ) ), 0.0, 1.0 ); // the grain only where a pixel is smaller than it
+	float ct156Grain = ( ct156Noise( ct156G ) * 0.65 + ct156Noise( ct156G * 2.7 + 7.1 ) * 0.35 - 0.5 ) * ct156Fine;
+	float ct156Mottle = ct156Noise( vCt156Pos / ${f(mottleSize)} ) * 0.6 + ct156Noise( vCt156Pos / ${f(mottleSize * 0.31)} + 3.3 ) * 0.4 - 0.5;
+	diffuseColor.rgb *= 1.0 + ${f(speckle)} * 2.0 * ct156Grain + ${f(mottle)} * 2.0 * ct156Mottle;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+	roughnessFactor = clamp( roughnessFactor + ${f(shine)} * 2.0 * ct156Grain, 0.04, 1.0 );`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+	{ // the grain's relief, as three.js bump-maps a picture (perturbNormalArb), its height from the grain
+		vec3 ct156Sx = dFdx( -vViewPosition ), ct156Sy = dFdy( -vViewPosition );
+		vec3 ct156R1 = cross( ct156Sy, normal ), ct156R2 = cross( normal, ct156Sx );
+		float ct156Det = dot( ct156Sx, ct156R1 ) * faceDirection;
+		float ct156Ft = length( dFdx( vCt156Pos ) ) / max( length( ct156Sx ), 1e-9 ); // feet on the part per scene unit
+		float ct156H = ct156Grain * ${f(bump)} / max( ct156Ft, 1e-9 );
+		vec3 ct156Grad = sign( ct156Det ) * ( dFdx( ct156H ) * ct156R1 + dFdy( ct156H ) * ct156R2 );
+		normal = normalize( abs( ct156Det ) * normal - ct156Grad );
+	}`);
+  };
+  material.customProgramCacheKey = () => `${key?.call(material) ?? ''}-ct156-grain-${Object.values(opts).join('-')}`;
+  material.needsUpdate = true;
+  return material;
 }
