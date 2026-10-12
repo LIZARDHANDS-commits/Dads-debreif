@@ -10,6 +10,7 @@ Patrick's project-only working docs from the Claude project, copied into the rep
 
 | For | Read first | Then |
 |---|---|---|
+| Where everything stands (12 Oct) | [wrap-up-handover-12oct.md](wrap-up-handover-12oct.md) | `docs/PLAN.md` |
 | Formation (turn-sim) | [turn-sim-review/formation-sim-handover.md](turn-sim-review/formation-sim-handover.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md), [fable-compiled.md](turn-sim-review/fable-compiled.md), the design folders |
 | Fix drawn-path moves on the point-mass model | [turn-sim-review/drawn-path/handover.md](turn-sim-review/drawn-path/handover.md) | the three check scripts in that folder |
 | Fable's Formation engine review | [formation-review-package/report/report.md](formation-review-package/report/report.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md) turns its renamed terms back into ours |
