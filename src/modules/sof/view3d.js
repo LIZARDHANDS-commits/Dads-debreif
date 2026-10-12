@@ -82,6 +82,7 @@ import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { airportsFor, AIRPORTS, RUNWAY_ENDS_SOURCES } from '../../airfields/airports-data.js';
 import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from '../../airfields/airspace/model.js';
 import { airspaceInSquare } from './airspace-square.js';
+import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
 import { airspaceOf, loadAirspaceFor, AIRSPACE_LOADING_WORDS, AIRSPACE_FAILED_WORDS } from '../../airfields/airspace/load.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
@@ -1958,6 +1959,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       tag.style.transform = `translate(${Math.round(p.x + 10)}px, ${Math.round(p.y + 28)}px)`;
     }
 
+    const shadowShip = selectedAc ? gl.traffic.get(selectedAc) : null;
+    gl.shadows.setEnabled(shadowShip?.kind === 'ct156');
+    gl.shadows.follow(shadowShip?.model);
     try {
       renderer.render(scene, camera);
     } catch (err) {
@@ -2354,6 +2358,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const sun = new THREE.DirectionalLight('#fff3dd', 2.6);
     sun.position.set(-0.5, -0.7, 1).normalize().multiplyScalar(1000);
     scene.add(new THREE.HemisphereLight('#e4eeff', '#8296a8', 2.4), sun, sun.target);
+    // Real-time sun shadows on a CT-156 (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"; ui-kit aircraft-shadows.js): on only while a T-6 is picked,
+    // as the others are icon-sized over a wide area; the shadow box follows the picked one.
+    const shadows = createAircraftShadows(THREE, renderer, sun, { enabled: false });
 
     let resizer = null;
     if (win.ResizeObserver) {
@@ -2367,7 +2374,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const traffic = createTraffic3d(THREE, { scene, labels, onHover: setHover, onPick: (hex) => selectAircraft(selectedAc === hex ? null : hex) });
     const weather = createWeather3dLayers({ T: THREE, scene, timers, win, labels, requestRender, reducedMotion });
     weather.setToggles(toggles);
-    gl = { THREE, canvas, renderer, scene, camera, ground, terrain, resizer, objects: null, traffic, weather, palette: paletteFor(canvas) };
+    gl = { THREE, canvas, renderer, shadows, scene, camera, ground, terrain, resizer, objects: null, traffic, weather, palette: paletteFor(canvas) };
     sceneDirty = true;
     weatherDirty = true;
     weatherSig = null;

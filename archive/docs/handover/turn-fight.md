@@ -123,13 +123,13 @@ Cut under the Streamlined build (3D is a bonus): the other 3D fallback items. Th
 
 ## Settled calls
 
-- Stall 86 kt (Patrick, D158; V-n diagram). Zoom weight 5,800 lb (D159).
-- The level MPT keeps the turn-chart bank (about 69°); the SMM's 75° is in the help text (D143).
+- Stall 86 kt (Patrick, D158; flight envelope). Zoom weight 5,800 lb (D159).
+- The level MPT keeps the turn-data bank (about 69°); the SMM's 75° is in the help text (D143).
 - The split S pulls up to 5.0 G at the shaker (D144). Above 220 KIAS, Auto picks an Immelmann or a pitch back by a short look-ahead, whichever gets there faster (D145).
 - Slice vs Split S below 140 KIAS settled by Patrick (D381): Immelmann is strictly forbidden at or below 140 KIAS; aircraft flies Split S if deck margin allows, else a descending slice turn, or level MPT if nearing the hard deck. Lowest Immelmann entry/top speed settled at 140 KIAS (D381).
 - 5.0 G tactical maneuver pull law & 4.7 G rolling G limit ratified (D407).
 - Only OVER G and STALL are flagged. Pursuit is Pure by default in engine baseline (D132); chaseAfterHeadOn defaulted to true (D403); Tactical (Dynamic) pursuit smoothly blends Lag -> Pure -> Lead with human telemetry labels (D419).
-- Every manual KIAS (VMO, stall, charts) is compared with the model's IAS, which has no compressibility (D273). The Mach limit alone is checked as true Mach 0.67 (review rows D345, D347, D349 and D350).
+- Every manual KIAS (VMO, stall, data) is compared with the model's IAS, which has no compressibility (D273). The Mach limit alone is checked as true Mach 0.67 (review rows D345, D347, D349 and D350).
 
 ## Open
 

@@ -2,7 +2,7 @@
 
 G and roll now build smoothly (6 G/s, 360°/s², both estimates), so these 11 tests that expected an instant G or roll were recast as what a pilot sees. Old check → new check.
 
-1. **Forced past the NFM line (split S).** Old: a 265 KIAS split S from 10,000 ft peaks over 316 + 1 KIAS. With G building it peaks at exactly 317, so the case now starts at 300 KIAS (still a legal merge speed). Still checks: not held at the limit, keeps flying, slows again, stays above the ground.
+1. **Forced past the reference data line (split S).** Old: a 265 KIAS split S from 10,000 ft peaks over 316 + 1 KIAS. With G building it peaks at exactly 317, so the case now starts at 300 KIAS (still a legal merge speed). Still checks: not held at the limit, keeps flying, slows again, stays above the ground.
 2. **A pull past the rolling limit shows OVER G.** Same check. The setup now turns off the chase after the head-on, which had cleared the forced G before the roll counted as rolling.
 3. **316 KIAS head-on: Red picks the Immelmann.** Old: over the top at exactly 175 KIAS, and Blue picks a pitch back. New: over the top within ±10 kt of 175 (it gives 174). Blue now picks the Immelmann too (see note A), so Blue's line only checks that it names its move with a reason.
 4. **The race decides when a chase from behind is on offer.** Same picks and race. The card text may now say "later" for the other move, as well as "no nose-on in N s".

@@ -343,9 +343,9 @@ export function energyProblem(values) {
     const limit = topKiasAt(values[altKey]);
     if (values[kiasKey] > limit) {
       const vmoGoverns = limit >= T6A_LIMITS.vmoKias;
-      const nfmKias = Math.round(maxKiasT6A(values[altKey]));
+      const refKias = Math.round(maxKiasT6A(values[altKey]));
       const limitText = vmoGoverns ? 'VMO'
-        : `Mach ${T6A_LIMITS.mmo}${nfmKias < T6A_LIMITS.vmoKias ? `; the NFM's ${nfmKias} is the same Mach on the gauge` : ''}`;
+        : `Mach ${T6A_LIMITS.mmo}${refKias < T6A_LIMITS.vmoKias ? `; the reference ${refKias} is the same Mach on the gauge` : ''}`;
       return `${who}'s merge speed (${values[kiasKey]} KIAS) is above the T-6A's limit at ${feetText(values[altKey])} ft (${limit} KIAS, ${limitText}).`;
     }
   }

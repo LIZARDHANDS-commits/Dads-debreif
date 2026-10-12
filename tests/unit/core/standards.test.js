@@ -1,25 +1,19 @@
 // Checks: formation standards labels: #2 at 5,000 ft abeam on parameters, tight, wide or fore; #3 offset; sweep 0 to 10 degrees behind the 3/9 line; lead speed by height.
-// Serves: DB-R9, DB-R10, TS-R24.
+// Serves: DB-R9, DB-R10.
 // Expected values: SMM 16.18 para 49, SMM 16.42 para 116 and Gen Book p.12 as cited in the test, and Patrick's rulings (D78, D114 to D116).
 
 // What the standards labels mean, on simple formations, including Patrick's
 // fix for #21 (D78), with what V6 said instead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { V6_STANDARDS, DEFAULT_STANDARDS, leadTargetKt, formationAxes, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines, classifyTurnSimPosition } from '../../../src/core/standards.js';
+import { V6_STANDARDS, DEFAULT_STANDARDS, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines } from '../../../src/core/standards.js';
 
 const NORTH = Math.PI / 2;
 const lead = { x: 0, y: 0, spdKt: 200 };
 // Heading north: left is west (−x), aft is south (−y).
 const at = (leftFt, aftFt) => ({ x: -leftFt, y: -aftFt });
 const only = (group) => ({ ...V6_STANDARDS, spread: { ...V6_STANDARDS.spread, on: group === 'spread' }, offset: { ...V6_STANDARDS.offset, on: group === 'offset' } });
-const labels = (id, live, std) => classifyDebriefPosition(id, { 1: lead, ...live }, NORTH, std)?.labels.join(' / ');
-
-test('the axes: heading north, forward is north and the across-vector is west, Lead\'s left', () => {
-  const { fwd, left } = formationAxes(lead, NORTH);
-  assert.ok(Math.abs(fwd.x) < 1e-15 && fwd.y === 1);
-  assert.ok(left.x === -1 && Math.abs(left.y) < 1e-15);
-});
+const labels = (id, live, std = V6_STANDARDS) => classifyDebriefPosition(id, { 1: lead, ...live }, NORTH, std)?.labels.join(' / ');
 
 test('spread: #2 5,000 ft abeam is on parameters; closer is TIGHT, further WIDE, ahead FORE', () => {
   assert.equal(labels(2, { 2: at(5000, 0) }), 'ON PARAMETERS');
@@ -32,15 +26,14 @@ test('spread: #2 5,000 ft abeam is on parameters; closer is TIGHT, further WIDE,
 
 test('#4 measures its interval from #3 when #3 is out on the same side', () => {
   const live = { 3: at(5000, 0), 4: at(10000, 0) };
-  assert.equal(classifyDebriefPosition(4, { 1: lead, ...live }, NORTH).intervalFt, 5000);
-  assert.equal(classifyDebriefPosition(4, { 1: lead, 3: at(-5000, 0), 4: at(10000, 0) }, NORTH).intervalFt, 10000, '#3 on the other side');
-  assert.equal(classifyTurnSimPosition({ id: 4, ...at(10000, 0) }, [{ id: 1, ...lead, hdg: NORTH }, { id: 3, ...at(5000, 0) }]).intervalFt, 5000);
+  assert.equal(classifyDebriefPosition(4, { 1: lead, ...live }, NORTH, V6_STANDARDS).intervalFt, 5000);
+  assert.equal(classifyDebriefPosition(4, { 1: lead, 3: at(-5000, 0), 4: at(10000, 0) }, NORTH, V6_STANDARDS).intervalFt, 10000, '#3 on the other side');
 });
 
 test('D78 (#21): with spread and offset both on, the offset standard alone judges #3\'s fore/aft', () => {
   // #3 where the offset standard wants it, 8,000 ft aft, is on parameters (V6: AFT).
   assert.equal(labels(3, { 3: at(5000, 8000) }), 'ON PARAMETERS');
-  assert.equal(classifyDebriefPosition(3, { 1: lead, 3: at(5000, 8000) }, NORTH).offsetStatus, 'OFFSET OK');
+  assert.equal(classifyDebriefPosition(3, { 1: lead, 3: at(5000, 8000) }, NORTH, V6_STANDARDS).offsetStatus, 'OFFSET OK');
   // Abeam is too far forward for the offset (V6: FORE, the same).
   assert.equal(labels(3, { 3: at(5000, 0) }), 'FORE');
   // One fore/aft label, never two (V6: FORE / FORE, AFT / AFT, AFT / FORE).
@@ -69,13 +62,13 @@ test('V6 (#21): an aircraft no standard checks is still "ON PARAMETERS"; with bo
 });
 
 test('Lead and missing aircraft get no position label', () => {
-  assert.equal(classifyDebriefPosition(1, { 1: lead }, NORTH), null);
-  assert.equal(classifyDebriefPosition(2, { 1: lead }, NORTH), null);
-  assert.equal(classifyDebriefPosition(2, { 2: at(5000, 0) }, NORTH), null);
+  assert.equal(classifyDebriefPosition(1, { 1: lead }, NORTH, V6_STANDARDS), null);
+  assert.equal(classifyDebriefPosition(2, { 1: lead }, NORTH, V6_STANDARDS), null);
+  assert.equal(classifyDebriefPosition(2, { 2: at(5000, 0) }, NORTH, V6_STANDARDS), null);
 });
 
 test('lead standard: 200 ±10 kt and 1.0 ±0.2 G; recorded G wins over the estimate', () => {
-  const lab = (l, estG, std) => classifyLeadParameters(l, estG, std)?.labels.join(' / ');
+  const lab = (l, estG, std = V6_STANDARDS) => classifyLeadParameters(l, estG, std)?.labels.join(' / ');
   assert.equal(lab({ spdKt: 205 }, 1.1), 'LEAD ON PARAMETERS');
   assert.equal(lab({ spdKt: 185 }, 1.5), 'SLOW / HIGH G');
   assert.equal(lab({ spdKt: 215, gNative: 0.7 }, 1.0), 'FAST / LOW G');
@@ -86,22 +79,12 @@ test('lead standard: 200 ±10 kt and 1.0 ±0.2 G; recorded G wins over the estim
 });
 
 test('the summary lists the standards that are on', () => {
-  assert.deepEqual(standardsSummaryLines(), [
+  assert.deepEqual(standardsSummaryLines(V6_STANDARDS), [
     'Spread: 4000-6000 ft, 3/9 ±250 ft',
     'Offset #3 aft: 8000 ±1000 ft',
     'Lead: 200 ±10 kt, 1.0 ±0.20 G',
   ]);
   assert.equal(standardsSummaryLines(only('spread')).length, 2);
-});
-
-test('Turn Sim offset box: #3 in the slot 8,000 ft back is on spacing; outside the slot it is WIDE', () => {
-  const fleet = [{ id: 1, ...lead, hdg: NORTH }, { id: 2, ...at(5000, 0) }, { id: 3, ...at(2500, 8000) }, { id: 4, ...at(7500, 8000) }];
-  const lab = a => classifyTurnSimPosition(a, fleet, 'offsetBox').labels.join(' / ');
-  assert.equal(lab(fleet[1]), 'ON SPACING');
-  assert.equal(lab(fleet[2]), 'ON SPACING');
-  assert.equal(lab(fleet[3]), 'ON SPACING', '#4 5,000 ft from #3, level with it');
-  assert.equal(lab({ id: 3, ...at(6000, 8000) }), 'WIDE');
-  assert.equal(lab({ id: 3, ...at(-600, 6500) }), 'FORE / WIDE');
 });
 
 // D116 (SMM 16.18 para 49): the sweep check, 0-10° behind the 3/9 line, in place of V6's ± 250 ft.
@@ -155,29 +138,16 @@ test('D116 sweep: a minimum below 0 lets an aircraft sit a little ahead of the 3
   assert.equal(labels(2, { 2: at(5000, -180) }, loose), 'FORE', '2.1° ahead');
 });
 
-test('D116 sweep in the Turn Sim: spread, and the offset box\'s #2 and #4', () => {
-  const lab = (a, fleet, formation) => classifyTurnSimPosition(a, fleet, formation, SWEEP).labels.join(' / ');
-  const leadN = { id: 1, ...lead, hdg: NORTH };
-  assert.equal(lab({ id: 2, ...at(5000, 500) }, [leadN], 'weighted'), 'ON SPACING');
-  assert.equal(lab({ id: 2, ...at(5000, 1000) }, [leadN], 'weighted'), 'AFT');
-  const three3 = { id: 3, ...at(5000, 1000) };
-  assert.equal(lab({ id: 4, ...at(10000, 1500) }, [leadN, three3], 'weighted'), 'ON SPACING', '#4 in spread is swept from #3');
-  assert.equal(lab({ id: 2, ...at(5000, -10) }, [leadN], 'offsetBox'), 'FORE');
-  const three = { id: 3, ...at(2500, 8000) };
-  assert.equal(lab({ id: 4, ...at(7500, 8500) }, [leadN, three], 'offsetBox'), 'ON SPACING', '5.7° off #3');
-  assert.equal(lab({ id: 4, ...at(7500, 7990) }, [leadN, three], 'offsetBox'), 'FORE', 'ahead of #3\'s 3/9 line');
-  assert.equal(classifyTurnSimPosition(three, [leadN, three], 'offsetBox', SWEEP).sweepDeg, null, '#3 in the box is the offset standard\'s');
-});
-
 // D115: 220 KIAS in the low block (6,000-10,000 ft MSL), 200 in the mid block (10,500-15,500), Gen Book p.12.
 const BLOCKS = { ...V6_STANDARDS, lead: { on: true, lowTargetKt: 220, midTargetKt: 200, lowBlockTopFt: 10250, speedTolKt: 10, targetG: 1.0, gTol: 0.2 } };
 
 test('D115 lead speed by block: 220 up to 10,250 ft, 200 above it or with no altitude', () => {
-  assert.deepEqual(leadTargetKt(BLOCKS.lead, 8000), { targetKt: 220, block: 'low' });
-  assert.deepEqual(leadTargetKt(BLOCKS.lead, 10250), { targetKt: 220, block: 'low' });
-  assert.deepEqual(leadTargetKt(BLOCKS.lead, 10251), { targetKt: 200, block: 'mid' });
-  assert.deepEqual(leadTargetKt(BLOCKS.lead, undefined), { targetKt: 200, block: 'mid' });
-  assert.deepEqual(leadTargetKt(V6_STANDARDS.lead, 8000), { targetKt: 200, block: null }, 'V6: one target');
+  const target = (std, altFt) => { const r = classifyLeadParameters({ spdKt: 0, altFt }, 1, std); return { targetKt: r.targetKt, block: r.block }; };
+  assert.deepEqual(target(BLOCKS, 8000), { targetKt: 220, block: 'low' });
+  assert.deepEqual(target(BLOCKS, 10250), { targetKt: 220, block: 'low' });
+  assert.deepEqual(target(BLOCKS, 10251), { targetKt: 200, block: 'mid' });
+  assert.deepEqual(target(BLOCKS, undefined), { targetKt: 200, block: 'mid' });
+  assert.deepEqual(target(V6_STANDARDS, 8000), { targetKt: 200, block: null }, 'V6: one target');
   const lab = (l) => classifyLeadParameters(l, 1.0, BLOCKS).labels.join(' / ');
   assert.equal(lab({ spdKt: 220, altFt: 8000 }), 'LEAD ON PARAMETERS');
   assert.equal(lab({ spdKt: 200, altFt: 8000 }), 'SLOW', '200 in the low block');
@@ -225,9 +195,4 @@ test('D114: #3 6,000-8,000 ft behind Lead\'s 3/9 line is on the offset standard'
   assert.equal(pos(5999).offsetStatus, 'FORE');
   assert.equal(pos(8001).offsetStatus, 'AFT', 'V6: OFFSET OK');
   assert.equal(pos(7000).labels.join(' / '), 'ON PARAMETERS');
-  // The Turn Sim's offset box uses the same numbers.
-  const fleet = [{ id: 1, ...lead, hdg: NORTH }, { id: 2, ...at(5000, 0) }];
-  const box = (aft) => classifyTurnSimPosition({ id: 3, ...at(2500, aft) }, fleet, 'offsetBox', DEFAULT_STANDARDS).labels.join(' / ');
-  assert.equal(box(6000), 'ON SPACING');
-  assert.equal(box(8500), 'AFT');
 });

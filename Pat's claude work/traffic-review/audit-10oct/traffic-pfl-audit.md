@@ -5,7 +5,7 @@ Read-only audit of main at `4bb266f` ("ANTIGRAVITY - > CLAUDE HANDOVER 10 OCT") 
 ## 1. The answer first
 
 - **The PFL "segment planner" is not what flies.** The new chain builder, segment stepper and re-planner in `pfl.js` are never called. The aircraft still flies the 5 Oct "middle road" loop: the same join search, the same height-needed sum, and the same steer-to-the-line follower on straights. So the spec's claims that the carrot follower is gone and that Fable's F1, F9 and F16 are fixed are not true yet.
-- **Three real gains did land:** the zoom now flies close to its plan and to the NFM table (Fable F7); drag goes out one step at a time, at least 5 s apart (F6); and directs now cross the 2,100 ft gate faster.
+- **Three real gains did land:** the zoom now flies close to its plan and to the reference data table (Fable F7); drag goes out one step at a time, at least 5 s apart (F6); and directs now cross the 2,100 ft gate faster.
 - **One start got worse in a way a pilot would call wrong:** a PFL on the inner downwind abeam the threshold in a 269/15 wind now hits the ground 171 ft short of the threshold. On v2.10.119 it landed.
 - **Most normal starts now land about 500 to 1,100 ft further down the runway** than on v2.10.119. A few now land past the first third.
 
@@ -32,9 +32,9 @@ Read-only audit of main at `4bb266f` ("ANTIGRAVITY - > CLAUDE HANDOVER 10 OCT") 
 | P1 | The segment chain is never flown. `buildSegmentChain`, `stepPflSegmentFollower`, `shouldReplanPfl` and `createSegmentFollowerState` are called by nothing. | grep over `src/` and `tests/`; flight loop `pfl.js:1351-1831` |
 | P2 | Straights are still flown by steering at the planned line with a cross-track correction (`pfl.js:1580-1585`), and the height needed is still the old `neededFt` sum (`pfl.js:966`). F9's two offsetting errors and F16 are therefore not shown to be fixed. | code |
 | P3 | Re-plans: the spec says at the keys or when 300 ft off profile. The code goes direct when the margin is more than 100 ft low after a 5 s settle, and has no 300 ft rule. | spec 4.5 item 3; `pfl.js:1685-1693` |
-| P4 | Zoom: `flyZoomT6A` is imported but not called. There are still two zoom models (the plan's and the flight's), but they now agree within about 25-65 ft, and the flight is about 7% above the NFM table (was about 20% in Fable's F7). Good enough to fly; the docs overstate it. | `zoom.mjs` run: 220 KIAS at 3,500 ft plans +962, flies +1,028, NFM table +959 |
+| P4 | Zoom: `flyZoomT6A` is imported but not called. There are still two zoom models (the plan's and the flight's), but they now agree within about 25-65 ft, and the flight is about 7% above the reference data table (was about 20% in Fable's F7). Good enough to fly; the docs overstate it. | `zoom.mjs` run: 220 KIAS at 3,500 ft plans +962, flies +1,028, reference data table +959 |
 | P5 | The plan's zoom starts with 2 s straight and level before the pull. No manual page or ruling is given. | `pfl.js:405` |
-| P6 | Push-over speed: the spec's item 5 still says "push over through 140" (EFIG p.408); the code uses 145 (NFM Fig 3-4). Fable's Q4 ("one zoom") was a question for Patrick. | spec 4.5 item 5; `PFL.pushOverKias` |
+| P6 | Push-over speed: the spec's item 5 still says "push over through 140" (EFIG p.408); the code uses 145 (reference). Fable's Q4 ("one zoom") was a question for Patrick. | spec 4.5 item 5; `PFL.pushOverKias` |
 | P7 | An area PFL that can't make the runway now ejects on the spot at 5,000 ft. Spec item 10 (TR-53) says it glides on toward the runway to Low Key or 3,700 ft, then ejects. | trace I |
 | P8 | A latent crash: if a mid-glide hand-over arrives with an "Eject" plan, the code reads `outcome`, `eject`, `notes` and `planLog` before they exist (`pfl.js:1432` before `:1446-1453`), which stops the sim with an error. Not seen in the 30 starts. | code |
 | P9 | `pfl-segment-planner.js` is a two-line file that re-exports `pfl.js`, and nothing imports it. | file |

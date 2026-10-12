@@ -49,7 +49,9 @@ export function attachCockpitModel(THREE, group, mats, own = (m) => m) {
         const base = mats[material] ?? mats.frame;
         // Lit colours take the part's baked shadows; the self-lit lamps don't.
         const m = ao && geometry.attributes.uv && base.isMeshStandardMaterial ? own(aoShaded(base, ao)) : base;
-        part.add(new THREE.Mesh(geometry, m));
+        const mesh = new THREE.Mesh(geometry, m);
+        mesh.castShadow = mesh.receiveShadow = !m.transparent; // real-time shadows where a view has them (aircraft-shadows.js)
+        part.add(mesh);
       }
       group.add(part);
       if (code) code.visible = false;

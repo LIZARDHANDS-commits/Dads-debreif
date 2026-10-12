@@ -1,18 +1,13 @@
-// Wind: the crab and ground speed that hold a track. V6 has no wind; this is
-// new for the Traffic Sim (SPEC-traffic, "Wind and aircraft types") and later
-// the SOF crosswind (FF21). With the wind calm it gives V6's numbers exactly.
+// Wind: the crab and ground speed that hold a track (the wind triangle,
+// standard navigation), used by the Traffic Sim and the SOF's crosswind. With
+// the wind calm the heading is the track and the ground speed the airspeed.
 //
 // Unlike the rest of core, these take compass degrees (000 north, 090 east),
 // because a wind is given that way in a METAR and routes are laid out that
 // way. Speeds are in knots. One steady wind: a direction it
 // blows FROM, and a speed.
-import { degToRad, radToDeg } from './angles.js';
+import { degToRad, radToDeg, wrapDeg360 } from './angles.js';
 import { ktToFtps } from './units.js';
-
-/** 0 to 360. */
-function wrap360(deg) {
-  return ((deg % 360) + 360) % 360;
-}
 
 /**
  * The wind triangle for a straight leg.
@@ -41,13 +36,13 @@ export function windTriangle(trackDeg, tasKt, windFromDeg, windKt) {
   const headwindKt = windKt * Math.cos(rel) + 0;
   if (!(tasKt > 0 && Math.abs(crosswindKt) <= tasKt)) {
     const crabDeg = 90 * Math.sign(crosswindKt);
-    return { crabDeg, headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: 0, headwindKt, crosswindKt, canHoldTrack: false };
+    return { crabDeg, headingDeg: wrapDeg360(trackDeg + crabDeg), groundSpeedKt: 0, headwindKt, crosswindKt, canHoldTrack: false };
   }
   const crab = Math.asin(crosswindKt / tasKt);
   const crabDeg = radToDeg(crab);
   const groundSpeedKt = tasKt * Math.cos(crab) - headwindKt;
   const canHoldTrack = groundSpeedKt > 0;
-  return { crabDeg, headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack ? groundSpeedKt : 0, headwindKt, crosswindKt, canHoldTrack };
+  return { crabDeg, headingDeg: wrapDeg360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack ? groundSpeedKt : 0, headwindKt, crosswindKt, canHoldTrack };
 }
 
 

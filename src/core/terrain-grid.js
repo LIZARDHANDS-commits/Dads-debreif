@@ -1,4 +1,4 @@
-// The height grids a 3D view's real ground is drawn from, worked out without a page: shared by the SOF's 3D terrain (SPEC-sof, "3D view"; Dad, 7 Oct: "real terrain") and
+// The height grids a 3D view's real ground is drawn from, worked out without a page: shared by the SOF's 3D terrain (the SOF spec's 3D view; Dad, 7 Oct: "real terrain") and
 // the Debrief's "Terrain and satellite" ground (DB-27; Dad, 11 Oct 2026: "can you add the 3d terrain and satellite to the KML viewer on the 3d tab too"). Pure: numbers in,
 // numbers out. Moved here from the SOF's terrain-model.js (SOF-65); the tile address, decoding and height store it reads are src/core/terrain-tiles.js (TR-117), not copied.
 //

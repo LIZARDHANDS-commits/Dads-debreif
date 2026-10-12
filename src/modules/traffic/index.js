@@ -35,11 +35,12 @@ function mount(root, app) {
   const settings = createSettings(memoryStore(), DEFAULTS, { allowed: ALLOWED });
   const controls = createControls(settings);
 
-  // What opens: the built-in Moose Jaw (V6's generic pattern at another home field), copied so nothing edits it.
+  // What opens: the built-in Moose Jaw, copied so nothing edits it. The home field is the SOF's alone and no longer moves the Traffic sim
+  // (Patrick, 11 Oct 2026 20:43Z: "SOF keeps its own"; Dad's US bases had opened V6's generic pattern here), so no home is passed.
   // "Scenarios and notes", with its saved profiles, came off the screen (Patrick, 4 Oct: a drop-down of the
   // ready-made scenarios is enough), so a profile saved earlier is no longer opened: nothing on screen could
   // leave it. profiles-panel.js and profile-store.js stay until Patrick says (Traffic future list).
-  const start = startingProfile({ last: null, saved: [], home: app.airfields?.home() });
+  const start = startingProfile({ last: null, saved: [], home: null });
   const place = start.place; // what the map's hint calls the setup ("Moose Jaw")
   settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
   const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
@@ -465,6 +466,11 @@ function mount(root, app) {
         setup.deconflict = true;
         sim.rebuild({ seed });
         clock.reset();
+        changed();
+      },
+      /** Picks an aircraft as its card does (its aim line and caution ring show): for the home-page clip's recorder. */
+      select: (id) => {
+        selectedAircraftId = id;
         changed();
       },
       seek: (t) => {

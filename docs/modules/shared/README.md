@@ -4,7 +4,7 @@ This folder is the shared parts every module uses: flight core (flight math), ap
 
 ## Where it stands
 
-Built and merged on main. The flight-math list is written ([flight-math.md](flight-math.md)); waiting on the one-import-point review and the combined sign-off at the end (`archive/HANDOVER.md:92`, `archive/HANDOVER.md:94`). On 10 Oct 2026 the SOF's airspace data and its 3D airspace and airfield drawing joined the shared folders (`src/airfields/airspace/`, `src/airfields/airports-data.js`, `src/ui-kit/airspace3d.js`, `airfield3d.js`; SOF-63, DB-24), so the Debrief draws them too.
+At V2.351 (11 Oct 2026). Built and merged on main. The flight-math list ([flight-math.md](flight-math.md)) has a row for every export of `src/core/`, and the core part of [spec.md](spec.md) describes the code as built. Fable's core audit (`REFACTOR_HANDOVER_CORE_V2.350.md`) is being built one step at a time: step 1 (dead code, V6 pins out of the comments, docs truth) and step 2 (one standard atmosphere) by the Core and Traffic refactor thread, step 3 by each module's thread, step 5 with Patrick; step 4 is dropped. On 10 Oct 2026 the SOF's airspace data and its 3D airspace and airfield drawing joined the shared folders (`src/airfields/airspace/`, `src/airfields/airports-data.js`, `src/ui-kit/airspace3d.js`, `airfield3d.js`; SOF-63, DB-24), so the Debrief draws them too. The one-import-point review and the combined sign-off are still to come.
 
 ## What is next
 
@@ -21,6 +21,7 @@ The plan's steps, in order: Step 1: Refresh spec.md against the new requirements
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
 | `future.md` | Ideas not being built until Patrick moves them up |
 | `flight-math.md` | Every shared flight formula, where it lives and its source: read it before writing flight math |
+| `REFACTOR_HANDOVER_CORE_V2.350.md` | Fable's audit of `src/core/` and the step-by-step refactor plan, being built (Patrick, 11 Oct 2026 23:31Z) |
 
 ## Open questions
 

@@ -63,7 +63,7 @@ Each item is something a pilot would recognise on screen. The trace names are fr
 2. `docs/modules/traffic/`, starting with its README, then spec 4.5 (the PFL), decisions TR-39 to TR-84, testing.md and future.md.
 3. `/mnt/project-files/traffic-review/fable-report.md`, Fable's review: sections 1 and 2 for the findings, section 3 for the questions.
 4. `docs/modules/shared/flight-math.md` and `src/core/`. Search for existing flight maths before writing new. Fable found the break curve and the stall-bank formula each copied three times (F14). Use the shared one and don't add a fourth.
-5. SMM chapter 13, EFIG p.402-410 and NFM Fig 3-4, from `/mnt/project-files/manuals/`. Cite pages only. Never copy manual text into the repo.
+5. SMM chapter 13, EFIG p.402-410 and reference data, from `/mnt/project-files/manuals/`. Cite pages only. Never copy manual text into the repo.
 
 ## 6. The work, in order
 
@@ -215,7 +215,7 @@ So, in order:
   6. Smaller:
      - F5: the widen is sized to zero spare, then abandoned.
      - F6: all drag is dumped at the join.
-     - F7: there are two zooms. The plan uses the NFM table and the flight uses its own 30° pull, which gains about 20% more height.
+     - F7: there are two zooms. The plan uses the reference data table and the flight uses its own 30° pull, which gains about 20% more height.
      - F8: there is no round-out, so touchdown is at 120 KIAS against the SMM's 80-90.
      - F9: join reachability and the decision layer's margin disagree by 144 ft on the same path (cause not pinned).
      - F10: the join is searched at 45° only, though 60° is allowed.
@@ -223,7 +223,7 @@ So, in order:
      - F14: generatePflTrack is dead code, and the break curve and stall-bank formula each have three copies.
   7. Lighter review: the frames are right in circuit, route, sim, deconflict, evade, randomize and high-key, and the caches include temperature. Only two things were noted: flyRejoin's flat ±2 ft/s², and deconflict's straight-line prediction. The seam from the end of a PFL into goFromRunway has not been seen on screen.
   8. Questions for Patrick, Q1-Q7: see the report, section 3.
-  10. Unsure: the 144 ft term in F9; the chart's 105 KIAS versus the SMM's 120 KIAS as the gear-drag anchor; the hot-day High Key figure being smaller than the frame error alone predicts.
+  10. Unsure: the 144 ft term in F9; the data's 105 KIAS versus the SMM's 120 KIAS as the gear-drag anchor; the hot-day High Key figure being smaller than the frame error alone predicts.
 
 ## Appendix C. The whole conversation with Patrick about this (5 Oct, his words verbatim)
 

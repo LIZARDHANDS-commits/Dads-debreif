@@ -2,11 +2,8 @@
 // would it pass within the hit radius of the target? The debrief map and the
 // 3D view both show this one solution.
 //
-// V6 had two solvers that disagreed (#19): the debrief overlay
-// (getKmlTennisSolution, line 3140) and the 3D arc (draw3DDogfightArc, line
-// 3970). This is the debrief's, pinned to V6 by a golden test, then changed
-// one answer at a time as Patrick decided on 2026-09-30 (Q33 to Q37; see
-// tasks/flight-math/tennis-ball.md). The 3D arc's solver is not kept.
+// One solver for both views (#19), as Patrick decided it on 2026-09-30, one
+// answer at a time (Q33 to Q37, D77).
 //
 // Points are { x, y } in feet with optional altFt and spdKt; headings follow
 // the angles.js convention. Reading the settings boxes, the track and the
@@ -21,13 +18,12 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  */
 
 /**
- * The tennis-ball solution (from V6's getKmlTennisSolution, line 3140).
+ * The tennis-ball solution.
  *
  * The ball leaves along the shooter's heading and carries the shooter's whole
- * velocity: its speed along the track and its climb (Q33; V6 left the climb
- * out). Pitch tilts only the ball's own speed, off the nose. The target
- * flies its recorded path, climb included (Q34, Q37; V6 flew it straight on at
- * its current heading and speed, level). The path is checked every 0.15 s or
+ * velocity: its speed along the track and its climb (Q33). Pitch tilts only
+ * the ball's own speed, off the nose. The target flies its recorded path,
+ * climb included (Q34, Q37). The path is checked every 0.15 s or
  * so (at least 8 steps).
  *
  * @param {object} o
@@ -38,10 +34,10 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  * @param {number} o.shooterHdg heading of the shooter's track now, radians
  * @param {number} [o.shooterClimbFps] the shooter's climb from its track, feet per second (+ up; 0 if unknown)
  * @param {number} o.pitchDeg   shooter pitch plus the pitch bias setting
- * @param {number} o.ballKt     ball speed setting (V6 default 350)
- * @param {number} o.coneDeg    full cone width (V6 default 6, so ±3°; Q35, D77)
- * @param {number} o.tofSec     time of flight (V6 default 3, at least 0.25)
- * @param {number} o.hitRadiusFt hit radius (V6 default 250, at least 10)
+ * @param {number} o.ballKt     ball speed setting
+ * @param {number} o.coneDeg    full cone width (Q35, D77)
+ * @param {number} o.tofSec     time of flight (at least 0.25)
+ * @param {number} o.hitRadiusFt hit radius (at least 10)
  * @param {boolean} o.gravity   whether the ball drops
  * @returns {{status: 'INTERCEPT'|'IN CONE'|'OUT OF CONE', points: PathPoint[], targetPoints: PathPoint[],
  *   best: {dist: number, t: number, ball: PathPoint|null, target: PathPoint|null}, losAngle: number,
@@ -75,7 +71,7 @@ export function tennisBall({ shooter, target, targetAt, shooterHdg, shooterClimb
     if (d < best.dist) best = { dist: d, t: tau, ball: bp, target: tp };
   }
 
-  // INTERCEPT needs the target in the cone now (Q36, D77; V6 ignored the cone).
+  // INTERCEPT needs the target in the cone now (Q36, D77).
   /** @type {'INTERCEPT'|'IN CONE'|'OUT OF CONE'} */
   let status = 'OUT OF CONE';
   if (inConeNow) status = best.dist <= hitRadius ? 'INTERCEPT' : 'IN CONE';

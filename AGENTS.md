@@ -62,8 +62,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 - **Every flying number has a source:** a manual page or Patrick's ruling. An estimate is labelled as an estimate until a source backs it.
 - **Speeds name their kind** (indicated, true, ground speed or Mach) and are only compared like with like, using the shared helpers.
 - **Manuals:** the master copy is in the project files (`/mnt/project-files/manuals/`). New manuals go there first, and Patrick's copy on his computer is refreshed from it. Manual text and images never go in the repo, the site or anything public; cite the page only.
-- **The CFAFM is a controlled document.** It never goes in the repo or the project files.
-- **Controlled DND content** (CT-156 boldface, checklists, performance charts) is never shipped.
+- **Manuals:** use only the manuals in the project files. Checklists, boldface and performance charts are never shipped.
 - **Patrick's track logs** are fine to use in the repo as example flights or test data.
 
 ## Building

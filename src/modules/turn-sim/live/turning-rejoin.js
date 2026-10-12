@@ -41,7 +41,7 @@ import { onClosure, fromStep } from './closures.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS, CLOSE_SHAPING, G_RULE_BANK_DEG } from './rates.js';
-import { laggedBank, centredBank } from './kinematic.js';
+import { laggedBank, centredBank, handOverAt } from './kinematic.js';
 import { trackPhases, runTracker, phase } from './tracker.js';
 import { holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
@@ -483,7 +483,10 @@ const REJOIN_WAYS = Object.freeze({
     // Followed by fighting wing cone tracking
     tail: ({ lineFt, s, sTo, leastKias }, pointed) => [phase({ fwd: 0, left: 0, alt: lineFt }, {
       ...FW_FOLLOW,
-      ...(pointed ? { roll: TURNING_REJOIN.formRoll } : {}), // from trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272)
+      // From trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272). From line abreast, after the
+      // hard turn into the cone, the place he flies to speeds up with no corner and he eases onto Lead's heading with a small,
+      // early bank, so the roll-out has no kink and no rock through level (V2.335; Fable's V2.330 flight).
+      ...(pointed ? { roll: TURNING_REJOIN.formRoll } : { refJerkFtps3: TURNING_REJOIN.coneRefJerkFtps3, alignSec: TURNING_REJOIN.coneAlignSec, alignDoneDeg: TURNING_REJOIN.coneAlignDoneDeg }),
       isFw: true,
       side: sTo || s,
       goal: () => coneMiddle(sTo || s),
@@ -670,7 +673,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     // none, flew straight on while Lead kept turning, and #3 could not settle (PR #703).
     const leadTotalSteps = holdSec != null ? leadEndStep(lp.rec, totalSteps, Math.round(holdSec / dt)) : Math.round(dryRunT(lead, { segments: lp.segments }, t0).durationSec / dt);
     const leadRemainingSteps = Math.max(0, leadTotalSteps - totalSteps);
-    const W_settled = firstRec.at(totalSteps);
+    const W_settled = handOverAt(firstRec, totalSteps); // his speed rate, climb and roll rate carry into the held part
     const L_settled = lp.rec.at(totalSteps);
     const slot = pairSlot(to, sTo || s, spacingFt);
     const slotBody = { fwd: slot.fwd, left: slot.left, up: slot.alt };
@@ -870,10 +873,15 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // (instead of giving an error that a rejoin isnt possible)"): the same search with it, only when nothing else plans.
   // A candidate replaces the best so far when it is established and the best is not, or when it is quicker by more than
   // BETTER_BY_SEC; one that puts him ahead of the lane is kept apart (bestAny), used only when no candidate keeps behind it.
+  // Into fighting wing a start that misses the line speed still wins when it is in TURNING_REJOIN.fwQuickerBySec sooner (Patrick's
+  // card 12 Oct 2026 00:05Z, "Quicker 78°"), so the search goes on through the bank caps after one that meets it.
+  const quickerSec = to === 'fw' ? TURNING_REJOIN.fwQuickerBySec : Infinity;
   const better = (flown, than) => {
     const est = flown.part?.rideEstablished !== false;
     const thanEst = than?.part?.rideEstablished !== false;
-    return !than || (est && !thanEst) || (est === thanEst && flown.durationSec < than.durationSec - BETTER_BY_SEC);
+    if (!than) return true;
+    if (est !== thanEst) return est ? flown.durationSec < than.durationSec + quickerSec : flown.durationSec < than.durationSec - quickerSec;
+    return flown.durationSec < than.durationSec - BETTER_BY_SEC;
   };
   const consider = (flown, labels) => {
     if (!flown) return;
@@ -900,7 +908,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
             const aims = xLaw ? [TURNING_REJOIN.aimsFt[0]] : hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
             const common = { lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, allowAcross, crossIn, element };
             for (const aimFt of aims) {
-              const limitSec = done() ? best.durationSec - BETTER_BY_SEC : Infinity;
+              const limitSec = done() ? best.durationSec - (to === 'fw' ? quickerSec : BETTER_BY_SEC) : Infinity;
               // From line abreast the SMM's start first (pointing turn, wings level, reversal; TS-182), else the capture alone
               // (V2.245's, Patrick 04:10Z: "If that doesn't work we can stick to what we had").
               const fly = (point) => flyTurningRejoinWith({ ...common, aimFt, hardSec: 0, limitSec, point });
@@ -913,8 +921,9 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
                 consider(flyTurningRejoinWith({ ...common, aimFt, hardSec, limitSec: Infinity }), { overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross });
               }
             }
-            if (done()) break search;
+            if (done() && to !== 'fw') break search;
           }
+          if (done()) break search;
         }
       }
     }

@@ -75,7 +75,10 @@ export function createPilot(W, { accelKtps = 0 } = {}) {
 export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, climbKtps = null, extraSlowKtps = 0, snapKias = null, snapTol = 0 }) {
   const g = Math.max(1, Math.abs(W.g ?? 1));
   const climb = climbKtps ?? climbCostKtps(W, W.climbFtps ?? 0);
-  const aMax = fullPowerKtps(W.kias, blockFt, g) - climb;
+  // Full power pays for the climb he is flying whatever picked it (standard energy: dV/dt = g ((T - D) / W - sin climb)), so
+  // he never gains energy faster than full power gives. Until V2.351 a climb the cone picked was left out here (climbKtps 0),
+  // and the fast start into fighting wing climbed 30 ft/s at 5 G while slowing only as fast as level flight would.
+  const aMax = fullPowerKtps(W.kias, blockFt, g) - Math.max(climb, climbCostKtps(W, W.climbFtps ?? 0));
   const aMin = Math.min(7.95, slowKtps(top ?? 'power', W.kias, blockFt, g, floorThr) + climb + extraSlowKtps);
   const want = Math.max(-aMin, Math.min(aMax, aWant));
   const jerk = pilotJerkKtps2() * dt;
@@ -94,6 +97,12 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
   return p.accel;
 }
 
+/** The roll the pilot flies at W's speed: a phase's own roll (a formation rate, TS-182), else the aircraft's, at his share of its rate. */
+export function pilotRollLimits(W, roll = undefined) {
+  const lim = rollLimitAt(W.tasFtps, roll);
+  return { maxRateDps: lim.maxRateDps * experienceNow().rollShare, maxAccelDps2: lim.maxAccelDps2 };
+}
+
 /**
  * The roll part of a step: the bank asked for, rolled to at the profile's share of the roll rate (the pilot's within the
  * T-6A's, flight.js rollLimitAt; the roll onset the aircraft's own) with the level turn's G built no faster than the profile's G onset; then the step flown
@@ -101,8 +110,7 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
  */
 export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel, roll = undefined) {
   const X = experienceNow();
-  const lim = rollLimitAt(W.tasFtps, roll); // a phase's own roll (a formation rate, TS-182), else the aircraft's
-  const limits = { maxRateDps: lim.maxRateDps * X.rollShare, maxAccelDps2: lim.maxAccelDps2 };
+  const limits = pilotRollLimits(W, roll);
   let r = easeRoll(p.bank, p.rate, bankDeg, dt, limits);
   if (Math.abs(r.bankDeg) > Math.abs(p.bank) && Math.abs(r.bankDeg) < G_SHAPE_MAX_BANK_DEG && Math.sign(r.bankDeg) === (Math.sign(p.bank) || Math.sign(r.bankDeg))) {
     const gMax = gFromBankDeg(p.bank) + X.gOnsetGps * dt;

@@ -37,28 +37,31 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | Function | File | What it gives | Source |
 |---|---|---|---|
 | `iasToTasKt(kias, alt)`, `tasToIasKt` | t6-performance.js | Indicated to true airspeed and back, standard day, no compressibility | aero |
-| `machToKiasKt`, `speedOfSoundKt` | t6-performance.js | KIAS for a Mach number; speed of sound | aero |
-| `isaDensityRatio(alt)` | flight-math.js | Air density as a fraction of sea level | standard atmosphere |
+| `machToKiasKt` | t6-performance.js | KIAS for a Mach number, with compressibility | aero |
+| `isaTempK(alt, dev)`, `isaPressureRatio(alt)`, `isaDensityRatio(alt)`, `speedOfSoundKt(alt, dev)` | atmosphere.js | The standard day once: temperature, pressure and density as a fraction of sea level, and the speed of sound; `dev` is today's temperature deviation, °C (0 by default). `isaDensityRatio` is also exported from flight-math.js and `speedOfSoundKt` from t6-performance.js, under the same names | standard atmosphere |
+| `densityRatio(alt, dev)` | atmosphere.js | Air density at a pressure height on a day `dev` °C off standard: the standard ratio times T ÷ (T + dev). Traffic's airspeed pair in `weather.js` uses it with the day's deviation (TR-77) | standard atmosphere |
 | `energyHeightFt(alt, ktas)` | t6-performance.js | Height plus the height the speed is worth | aero |
 | `excessFnFor(throttle)` | t6-performance.js | The point-mass step's excess-power callback at part throttle: thrust scales with the throttle, drag does not | aero |
 | Idle prop and speed brake drag (not in core) | Formation Sim (planned) | Extra drag at idle, full-fine prop: about 0.16 of the weight at 200 KIAS, growing with dynamic pressure; speed brake as a perforated flat plate. Used by the Formation Sim only; the core curves do not change | Patrick's break and "about 5 kt/s" (TS-61, `docs/modules/turn-sim/decisions.md`); brake size pending his number |
 | `pitchDegFromClimb(climb, tas, kias, g)`, `T6A_PITCH` | t6-performance.js | Nose attitude: climb angle plus angle of attack, which grows with G and falls with speed squared (about 11° in a 180 KIAS climb) | climb angle aero; angle of attack an estimate matched to SMM 3.14 para 35 and EFIG p.126 |
 | `attitudeDegFromClimb(climb, tas, kias, g)`, `T6A_PITCH.datumDeg` | t6-performance.js | The attitude the pilot sees: pitchDegFromClimb less the 2.6° fuselage datum (about −0.7° level at 220 KIAS, 8.5° in the 180 KIAS climb) | datum an estimate fitted to Patrick's 220 KIAS attitude, 6 Oct 06:17Z (TR-91) |
-| `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight` | t6-performance.js | Full-power thrust, drag and what is left to climb or speed up with. Climb rate = excess × TAS. Pass the turn's real G | fitted to the T-6A sustained turn chart (`T6A_FIT`) |
-| `T6A_LIMITS`, `stallLimitG`, `availableG` | t6-performance.js | V-n limits, stall line, G available now | NFM; stall 86 KIAS (Patrick, 30 Sep) |
-| `T6A_ROLL`, `rollLimitsT6A`, `rollLimitsAtKtasT6A`, `rollWithinT6A`, `T6A_G_ONSET` | t6-performance.js | The aircraft's roll limit at a speed (0.45°/s per knot of true airspeed, capped at 120°/s, full rate in 0.3 s) and G onset (4 G/s, 16 G/s²); every module's roll and G onset stays under them | ESTIMATES, standard aerodynamics (Fable's audit 5 Oct); Patrick 5 Oct 22:01Z agreed one core limit |
-| `maxKiasT6A`, `modelMaxIasT6A` | t6-performance.js | Top speed at a height (VMO 316 or Mmo 0.67) | NFM Fig 5-3, p.5-9 |
+| `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight`, `t6aExcessFn` | t6-performance.js | Full-power thrust, drag and what is left to climb or speed up with. Climb rate = excess × TAS. Pass the turn's real G. `t6aExcessFn` is the same in the point-mass step's shape (true airspeed in) | thrust fitted to the sustained turn points, drag to the best glide (`T6A_FIT`) |
+| `T6A_FIT` and the turn points (`T6A_TURN_POINTS` and its four parts) | t6a-turn-data.js | The fitted thrust and drag constants, and the sustained turn points they are fitted to, read by eye | reference data; least-squares fit |
+| `T6A_LIMITS`, `stallLimitG`, `availableG` | t6-performance.js | V-n limits, stall line, G available now | reference data; stall 86 KIAS (Patrick, 30 Sep) |
+| `T6A_ROLL`, `rollLimitsAtKtasT6A`, `rollWithinT6A`, `T6A_G_ONSET` | t6-performance.js | The aircraft's roll limit at a speed (0.45°/s per knot of true airspeed, capped at 120°/s, full rate in 0.3 s) and G onset (4 G/s, 16 G/s²); every module's roll and G onset stays under them | ESTIMATES, standard aerodynamics (Fable's audit 5 Oct); Patrick 5 Oct 22:01Z agreed one core limit |
+| `maxKiasT6A`, `modelMaxIasT6A` | t6-performance.js | Top speed at a height (VMO 316 or Mmo 0.67): the indicator's reading, and the same limit on the model's own IAS | reference data |
 | `shakerG`, `T6A_MANOEUVRE`, `splitST6A` | t6-performance.js | Pulls in the stick shaker; the split S | SMM 14.16 |
 
 ## Engine out
 
 | Function | File | What it gives | Source |
 |---|---|---|---|
-| `T6A_GLIDE` | t6-performance.js | Glide speed and ratio per configuration: clean 2.0, gear down 1.5, T/O flap 1.3, landing flap 1.1 NM per 1,000 ft | T-6A max glide chart; SMM 13.5 para 7. T/O flap row is an estimate |
-| `glideRatio(config)` | t6-performance.js | Feet flown per foot of height lost (clean about 12.2) | same chart |
-| `glideSinkFpm(config, kias, alt)` | t6-performance.js | Sink rate at any height (the chart's ft/min fit only at about 16,000 ft) | same chart |
-| `glideDragPerWeight(config, kias, alt, g)` | t6-performance.js | Drag over weight power off, for the configuration down, at any speed and G: the clean drag fit scaled by the square of the glide ratio (best glide comes out at about 108 KIAS gear down, 93 landing flap; chart 105 and 95) | same chart; the clean fit in `T6A_FIT` |
-| `zoomT6A`, `flyZoomT6A`, `NFM_ZOOM` | t6-performance.js | Height gained by the zoom after an engine failure | NFM Fig 3-4, p.3-12 |
+| `T6A_GLIDE` | t6-performance.js | Glide speed and ratio per configuration: clean 2.0, gear down 1.5, T/O flap 1.3, landing flap 1.1 NM per 1,000 ft | reference data; SMM 13.5 para 7. T/O flap row is an estimate |
+| `glideRatio(config)` | t6-performance.js | Feet flown per foot of height lost (clean about 12.2) | as `T6A_GLIDE` |
+| `glideSinkFpm(config, kias, alt)` | t6-performance.js | Sink rate at any height (the reference ft/min fit only at about 16,000 ft) | as `T6A_GLIDE` |
+| `glideDragPerWeight(config, kias, alt, g)` | t6-performance.js | Drag over weight power off, for the configuration down, at any speed and G: the clean drag fit scaled by the square of the glide ratio (best glide comes out at about 108 KIAS gear down, 93 landing flap; reference 105 and 95) | as `T6A_GLIDE`; the clean fit in `T6A_FIT`; the gear's extra drag (`GEAR_DRAG_FACTOR`, inside the file) an estimate from Patrick's 2,600 ft orbit (SMM 13.5 para 11) |
+| `zoomT6A`, `ZOOM_GAIN_TABLE` | t6-performance.js | Height gained by the zoom after an engine failure, by speed, height and weight | reference data |
+| `flyZoomT6A` | t6-performance.js | The same zoom flown on the point mass with the engine off: the cross-check, and the zoom's time and distance | aero on the model |
 
 ## Wind and navigation
 
@@ -68,20 +71,30 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `windVectorFtps(windFrom, windKt)` | wind.js | The wind as a vector, x east and y north, the way the air moves | aero |
 | `legOffsetsFt(a, b, p)` | geo.js | Distance along a leg and off it (right positive) | geometry |
 | `compassDegFromVector(dx, dy)`, `wrapDeg360` | angles.js | Compass bearing of a vector; degrees into 0-360 | geometry |
-| `wrapDeg180`, `wrapPi`, `angleDiffRad`, `headingRad` | angles.js | Angle wrapping and differences, math radians | geometry |
+| `DEG`, `degToRad`, `radToDeg` | angles.js | Degrees and radians, once | geometry |
+| `wrapDeg180`, `wrapPi`, `angleDiffRad`, `absAngleDeg`, `headingRad` | angles.js | Angle wrapping and differences, math radians | geometry |
 | `compassDegToHeadingRad`, `headingRadToCompassDeg`, `unitVectorFromCompassDeg` | angles.js | Compass degrees to code headings and back | geometry |
 | `relativeBearingDeg`, `aspectAngleDeg`, `headingCrossAngleDeg`, `clockToRelativeDeg` | angles.js | Bearing off the nose, aspect, heading crossing angle, clock code | geometry |
 | `aspectAngle3dDeg`, `headingCrossAngle3dDeg` | angles.js | 3-D aspect angle (from the target's tail) and heading crossing angle, from velocity vectors (SMM 16.16 para 40) | geometry |
-| `closureKt` | flight-math.js | Closure between two aircraft | geometry |
+| `closureKt`, `formatClosureKt` | flight-math.js | Closure between two aircraft, and its "+12 kt" label | geometry |
+| `emPoint(before, now, after)` | flight-math.js | Where an aircraft sits on the EM chart: IAS estimate and turn rate from three moments a second apart (D39) | aero |
 | `closestApproach`, `dangerGate`, `clearanceSide`, `firstEntry`, `firstEntrySampled` | closest-approach.js | Closest approach of two straight tracks (time, miss, range now); the danger test that holds until the range opens; which side to dodge; the first time two aircraft are inside a cylinder (lateral and vertical) of each other, straight or along predicted tracks (ALL-27) | geometry |
-| `latLonToLocalFt`, `localFtToLatLon`, `distance` | geo.js | Map feet and lat/lon | flat-earth projection |
-| `decodeTerrarium`, `tilesCovering`, `createHeightStore` | terrain-tiles.js | Ground height from the public elevation tiles (SOF terrain, Traffic 3D ground TR-117) | the tiles' published encoding |
-| `createGrid`, `fillGrid`, `stitchInner`, `sampleGrid`, `hillshade`, `zoomForTiles`, `holeFor` | terrain-grid.js | The two-tier height grids a 3D view's real ground is drawn from, read from that store (SOF terrain, Debrief Terrain and satellite; SOF-65, DB-27). A picture only | standard bilinear sampling; hill shade sun NW 45° and `SHADE_GAIN` 4 are estimates for the look |
-| `FT_PER_NM`, `KT_TO_FTPS`, `G_FTPS2` and the rest | units.js | Unit constants, once | standard values |
+| `makeLocalRef`, `latLonToLocalFt`, `localFtToLatLon`, `distance` | geo.js | Map feet and lat/lon | flat-earth projection |
+| `lonLatToTile`, `tileBounds`, `pickTileZoom`, `mercatorY`, `invMercatorY`, `lonLatToWorldPixel` | geo.js | Web Mercator map tiles and pixels | the tile scheme's published formulas |
+| `decodeTerrarium`, `tilesCovering`, `createHeightStore`, `TERRAIN_URL`, `TERRAIN_CREDIT`, `TILE_PX`, `PLAUSIBLE_M` | terrain-tiles.js | Ground height from the public elevation tiles (SOF terrain, Traffic 3D ground TR-117) | the tiles' published encoding |
+| `createGrid`, `fillGrid`, `stitchInner`, `sampleGrid`, `hillshade`, `zoomForTiles`, `holeFor`, `SHADE_GAIN`, `SHADE_LIMITS` | terrain-grid.js | The two-tier height grids a 3D view's real ground is drawn from, read from that store (SOF terrain, Debrief Terrain and satellite; SOF-65, DB-27). A picture only | standard bilinear sampling; hill shade sun NW 45° and `SHADE_GAIN` 4 are estimates for the look |
+| `FT_PER_NM`, `KT_TO_FTPS`, `FTPS_TO_KT`, `FT_PER_M`, `M_PER_FT`, `G_FTPS2`, `EARTH_RADIUS_M`, `ktToFtps`, `ftpsToKt`, `formatNm` | units.js | Unit constants and conversions, once. `FTPS_TO_KT` is rounded on its own (0.592484, not 1 ÷ 1.68781); a question for Patrick | standard values |
 
-## Formation and gunnery
+## Formation, gunnery and time
 
-`standards.js` (formation spread, offset and lead standards, SMM defaults D114-D116) and `tennis.js` (the tennis-ball solution) are shared too; see their file headers.
+| Function | File | What it gives | Source |
+|---|---|---|---|
+| `DEFAULT_STANDARDS`, `classifyDebriefPosition`, `classifyLeadParameters`, `standardsSummaryLines` | standards.js | Each wingman's position labels (TIGHT, WIDE, FORE, AFT, ON PARAMETERS) against the spread and offset standards, Lead's speed and G labels, and the panel's summary lines. Every function takes the standards; with none given, `DEFAULT_STANDARDS` | SMM 16.18 para 49, 16.41 para 109, 16.42 para 116, Gen Book p.12 (D78, D114 to D116); the lead tolerances are estimates |
+| `V6_STANDARDS` | standards.js | The fixed-tolerance standards (± 250 ft of the 3/9 line), kept as test data only | not a source |
+| `isLeadInCanopy(lead, wing)`, `LANE` | canopy.js | Whether Lead is in the wingman's canopy glass (seen above the cockpit floor); the overshoot lane and the gates round Lead | geometry; SMM 12.24, 12.27 para 65 and 16.20; the `LANE` distances are estimates |
+| `tennisBall({...})` | tennis.js | The tennis ball: would a ball thrown off the nose now pass within the hit radius of the target? INTERCEPT, IN CONE or OUT OF CONE, with both paths | kinematics; Patrick's rulings Q33 to Q37 (D77) |
+| `formatZuluSeconds`, `formatZulu`, `parseIsoSeconds`, `formatDtgZulu` | time.js | Zulu times, ISO (KML) time parsing, the Zulu date-time group | time standards |
+| `formatInZone`, `zoneAbbreviation`, `utcOffsetMinutes` | time.js | Wall-clock time, zone name and UTC offset in any IANA time zone (Moose Jaw UTC-6 all year) | the browser's time-zone data |
 
 ## Flight math still inside the Traffic Sim
 
@@ -89,6 +102,7 @@ These live in `src/modules/traffic/` today. The refactor moves or replaces them 
 
 | What | Where now | What happens to it |
 |---|---|---|
+| Indicated to true airspeed and back on today's temperature (`iasToTasKt`, `tasToIasKt`, with the day's deviation from the standard day, TR-77) | `weather.js` | Same names as core's standard-day pair; each is one line calling core's `densityRatio` (`atmosphere.js`) with the day's deviation (core step 2) |
 | Moose Jaw numbers (threshold, runway heading, field elevation, pattern and key heights, PFL circle) | `airfield.js` | Stays there; any number still typed elsewhere moves in by PR 5 |
 | The circuit, built by flying it: climb-out, crosswind at 220 KIAS, fixed downwind and base, break, perch moved so the final turn rolls out at the window | `circuit.js` (`buildCircuit`, `breakPointAlongFt`, `CIRCUIT`, `ROLL`) | New in PR 2; `generateWindAdjustedTrack` in `route.js` now calls it |
 | The path follower: moves an aircraft along a built path, with heading, bank, roll and pitch from the path | `path-follower.js` (`followRoute`, `trackAt`) | New in PR 2; uses the core functions above |

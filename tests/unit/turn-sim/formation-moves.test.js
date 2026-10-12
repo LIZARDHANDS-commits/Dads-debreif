@@ -113,18 +113,12 @@ test('the hot turning rejoin from the standard start: Lead turns into #2, #2 sta
 
 /**
  * #2's canopy picture of Lead (Fable's TRJ review, report trj-sight-picture.md): `frac`, the share of Lead's upper wing
- * showing aft of his fin, and `railDeg`, Lead's elevation in #2's banked frame (below about -10° he is under the canopy
- * rail, an estimate of the T-6 view). T-6 arms: fin trailing edge 17 ft behind the wing's mid-chord, half span 16.7 ft, fin
+ * showing aft of his fin. T-6 arms: fin trailing edge 17 ft behind the wing's mid-chord, half span 16.7 ft, fin
  * mid-height 3.5 ft above the wing (estimates from the 33.4 ft length and span).
  */
 function canopyPicture(L, W) {
   const rel = relativeTo(L, W);
   const dAlt = W.altAboveFt - L.altAboveFt;
-  const r2 = relativeTo(W, L);
-  const phi = W.bankDeg * DEG;
-  const bl = r2.left * Math.cos(phi) + dAlt * Math.sin(phi);
-  const bu = r2.left * Math.sin(phi) - dAlt * Math.cos(phi);
-  const railDeg = Math.atan2(bu, Math.hypot(r2.fwd, bl)) / DEG;
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const v = [-rel.fwd, -rel.left, -dAlt];
   const R = Math.hypot(...v);
@@ -143,17 +137,17 @@ function canopyPicture(L, W) {
   const g0 = (root - fin) * aft;
   const g1 = (tip - fin) * aft;
   const frac = g0 > 0 && g1 > 0 ? 1 : g0 <= 0 && g1 <= 0 ? 0 : g1 > 0 ? 1 - cut : cut;
-  return { frac, railDeg };
+  return { frac };
 }
 
 // TS-181 (Patrick 11 Oct 2026 00:03Z, 00:15Z; SMM 12.24 paras 56-58, Fig 12.14): what a pilot sees on the hot turning
 // rejoin to echelon from the standard start. On the line, Lead's fin crosses his upper wing with some of the wing showing
 // beyond it (para 56's "roughly half", Fig 12.14 frame 3's third: 0.2-0.6 of the wing aft of the fin, Fable's review), from
 // 1,000 ft (by then the capture from line abreast has put him on the line) to the window; from the window in, #2's bank
-// within Lead's ±15° (a flagged reference, Patrick 23:54Z; +5° margin, the shared table) and Lead never more than 5° under
-// the canopy rail (about -10°, an estimate, with the same margin); never over the G rule's 5 G (+0.5 G margin); and he
-// ends in echelon. No timing gate beyond the plan finishing.
-test('the hot turning rejoin to echelon flies the SMM picture: the fin on the upper wing, bank with Lead, Lead on the canopy, inside 5 G', () => {
+// within Lead's ±15° (a flagged reference, Patrick 23:54Z; +5° margin, the shared table); never over the G rule's 5 G (+0.5 G
+// margin); and he ends in echelon. No timing gate beyond the plan finishing. (The canopy-rail check retired 11 Oct 2026:
+// Patrick 23:37Z, "WE CAN GET RID OF THIS TEST".)
+test('the hot turning rejoin to echelon flies the SMM picture: the fin on the upper wing, bank with Lead, inside 5 G', () => {
   const f = createFormation();
   assert.equal(f.change('echelon'), 'started');
   let inWindow = false;
@@ -170,7 +164,6 @@ test('the hot turning rejoin to echelon flies the SMM picture: the fin on the up
     }
     if (inWindow) {
       if (Math.abs(lead.bankDeg) > 5) assert.ok(Math.abs(wing.bankDeg - lead.bankDeg) <= 20, `${at}: #2's bank ${wing.bankDeg.toFixed(0)}° against Lead's ${lead.bankDeg.toFixed(0)}°`);
-      assert.ok(pic.railDeg >= -15, `${at}: Lead ${pic.railDeg.toFixed(0)}° in #2's canopy, under the rail`);
     }
   });
   assert.ok(rideSeen > 0 && inWindow, 'he rode the line into the window');
@@ -286,30 +279,26 @@ test('the 4-ship: rejoining wingmen come off the stack first, and fighting wing 
   for (const [id, ref] of [[2, 1], [3, 2], [4, 3]]) assert.ok(inEchelon(link(a.get(ref), a.get(id))), `#${id} in echelon on #${ref}`);
 });
 
-test('2-ship close station changes: no wings overlap, the crossing is below and behind Lead, and #2 stops behind the new slot before moving up', () => {
+test('2-ship close station changes: no wings overlap, the crossing is below and behind Lead, and #2 passes behind the new slot before moving up', () => {
   for (const [from, to, side] of [['echelon', 'echelon', 'left'], ['echelon', 'astern', 'keep'], ['astern', 'echelon', 'left']]) {
     const f = createFormation();
     f.change(from);
     fly(f, `to ${from}`);
     const what = `${from} to ${to} (${side})`;
     assert.equal(f.change(to, { side }), 'started', what);
-    let prevRel = null;
-    let stoppedBehind = false;
+    let passedBehind = false;
     fly(f, what, (_b, [lead, wing], t) => {
       const l = link(lead, wing);
       assert.ok(!(l.across < WINGSPAN_FT && l.back < LENGTH_FT + 5), `${what} at ${t.toFixed(1)} s: wings overlap (${l.rel.fwd.toFixed(0)}, ${l.rel.left.toFixed(0)} ft)`);
       if (l.across < WINGSPAN_FT) assert.ok(l.down > 0, `${what} at ${t.toFixed(1)} s: crossing at or above Lead's height`);
-      if (prevRel && to === 'echelon') {
-        const relSpeed = Math.hypot(l.rel.fwd - prevRel.fwd, l.rel.left - prevRel.left) / STEP_SEC;
-        // behind the new echelon slot (left of Lead), well back of it, and at a stop (under about 1 kt against Lead)
-        if (l.rel.left > 30 && l.back > LENGTH_FT + 5 && relSpeed < 1.7) stoppedBehind = true;
-      }
-      prevRel = l.rel;
+      // behind the new echelon slot (left of Lead) and well back of it; he need not stop there (Patrick's card 12 Oct 2026
+      // 00:05Z, "Change to 'passes'"; until then the test asked for a stop under about 1 kt against Lead)
+      if (to === 'echelon' && l.rel.left > 30 && l.back > LENGTH_FT + 5) passedBehind = true;
     });
     const [lead, wing] = f.state.aircraft;
     const l = link(lead, wing);
     assert.ok(to === 'echelon' ? inEchelon(l) && l.rel.left > 0 : inAstern(l), `${what} ends in ${to}`);
-    if (to === 'echelon') assert.ok(stoppedBehind, `${what}: stopped behind the new slot before moving up`);
+    if (to === 'echelon') assert.ok(passedBehind, `${what}: passed behind the new slot before moving up`);
   }
 });
 
@@ -337,8 +326,15 @@ function steppedInPlane(what) {
   };
 }
 
-// Route: 5 wingspans down the line (TS-103), judged within ROUTE_SPANS (4 to 6 wingspans out, ~143 ft back).
-const inRoute = (l) => l.across >= 4 * WINGSPAN_FT - 15 && l.across <= 6 * WINGSPAN_FT + 15 && l.back >= 100 && l.back <= 180 && l.down > -10;
+// Route: 1 to 3 wingspans down the spinner-wingtip line from echelon (SMM 12.6 para 15, Fig 12.7; the slot at 3, TS-181).
+// The line runs 12.3 ft back for every 16.7 ft out on the CT-156 (SMM 12.4 paras 11-12, spinner to wingtip leading edge),
+// from echelon's place about 18 ft back and 43 ft out (TS-182), judged within echelon's ±15 ft of it.
+const ROUTE_LINE = [16.7 / Math.hypot(16.7, 12.3), 12.3 / Math.hypot(16.7, 12.3)]; // [out, back] per foot along the line
+const inRoute = (l) => {
+  const [out, back] = [l.across - 43, l.back - 18];
+  const along = out * ROUTE_LINE[0] + back * ROUTE_LINE[1];
+  return along >= WINGSPAN_FT - 15 && along <= 3 * WINGSPAN_FT + 15 && Math.abs(back * ROUTE_LINE[0] - out * ROUTE_LINE[1]) <= 15 && l.down > -10;
+};
 
 test('2-ship close formations turn with Lead: #2 rolls with him, stepped up on the outside and down on the inside, and ends where he started', () => {
   // Patrick 18:11Z: "do turns in any of these formations"; spec section 10.2.

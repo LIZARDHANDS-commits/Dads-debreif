@@ -90,25 +90,29 @@ export function drawAttitude(ctx, cx, cy, r, pitchDeg, bankDeg) {
 
 /**
  * Draws the HUD at the bottom left of a canvas `size` { width, height } in CSS pixels.
- * hud: { label, pitchDeg (nose up positive), bankDeg (right wing down positive), altFt, g, kias, headingDeg }.
+ * hud: { label, pitchDeg (nose up positive), bankDeg (right wing down positive), altFt, g, kias, headingDeg, rangeFt (optional) }.
  * Any number left out shows as a dash.
  */
 export function drawHud(ctx, size, hud) {
   if (!hud) return;
+  // A RANGE row (feet to Lead) only when the simulator passes rangeFt (the Formation Sim: Patrick 12 Oct 2026 01:37Z); the
+  // panel grows one row for it, and the other simulators' HUD is unchanged.
+  const ranged = 'rangeFt' in hud;
+  const height = HUD.height + (ranged ? 22 : 0);
   const x0 = HUD.margin;
-  const y0 = size.height - HUD.margin - HUD.height;
+  const y0 = size.height - HUD.margin - height;
   ctx.save();
   ctx.font = '12px system-ui, sans-serif';
   // The panel.
   ctx.fillStyle = 'rgba(8, 14, 22, 0.72)';
   ctx.strokeStyle = 'rgba(160, 200, 230, 0.6)';
   ctx.lineWidth = 1;
-  ctx.fillRect(x0, y0, HUD.width, HUD.height);
-  ctx.strokeRect(x0 + 0.5, y0 + 0.5, HUD.width - 1, HUD.height - 1);
+  ctx.fillRect(x0, y0, HUD.width, height);
+  ctx.strokeRect(x0 + 0.5, y0 + 0.5, HUD.width - 1, height - 1);
 
   // The attitude indicator (drawAttitude, shared with the CT-156 cockpit's panel).
   const cx = x0 + 10 + HUD.radius;
-  const cy = y0 + HUD.height / 2;
+  const cy = y0 + height / 2;
   const r = HUD.radius;
   const pitch = Number.isFinite(hud.pitchDeg) ? hud.pitchDeg : 0;
   drawAttitude(ctx, cx, cy, r, hud.pitchDeg, hud.bankDeg);
@@ -130,9 +134,10 @@ export function drawHud(ctx, size, hud) {
   row('ALT', `${num(hud.altFt)}`, y0 + 38);
   row('G', `${num(hud.g, 1)}`, y0 + 60);
   row('KIAS', `${num(hud.kias)}`, y0 + 82);
+  if (ranged) row('RANGE', `${num(hud.rangeFt)}`, y0 + 104);
   ctx.fillStyle = 'rgba(200, 220, 235, 0.85)';
   ctx.font = '10px system-ui, sans-serif';
   const hdg = Number.isFinite(hud.headingDeg) ? String(Math.round(((hud.headingDeg % 360) + 360) % 360) || 360).padStart(3, '0') : '—';
-  ctx.fillText(`HDG ${hdg}°  P ${num(pitch)}°  B ${num(Number.isFinite(hud.bankDeg) ? Math.abs(hud.bankDeg) : NaN)}°`, tx, y0 + 102);
+  ctx.fillText(`HDG ${hdg}°  P ${num(pitch)}°  B ${num(Number.isFinite(hud.bankDeg) ? Math.abs(hud.bankDeg) : NaN)}°`, tx, y0 + (ranged ? 124 : 102));
   ctx.restore();
 }

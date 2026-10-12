@@ -88,7 +88,8 @@ test('every change ends in the target formation, at 200 KIAS (220 in line abreas
       // The shared ±10 kt margin (TESTING.md T4; Patrick's yes to the overhaul list, 11 Oct 2026 19:24Z).
       assert.ok(Math.abs(lead.kias - kias) <= TOLERANCES.AIRSPEED_KT && Math.abs(wing.kias - kias) <= TOLERANCES.AIRSPEED_KT, `${what}: ${lead.kias.toFixed(1)} / ${wing.kias.toFixed(1)} KIAS`);
       const apart = Math.abs(Math.atan2(Math.sin(wing.headingRad - lead.headingRad), Math.cos(wing.headingRad - lead.headingRad))) / DEG;
-      assert.ok(apart <= 1, `${what}: headings ${apart.toFixed(2)}° apart`); // the shared ±5° margin is generous; a formation flies parallel
+      // The shared ±5° margin (Patrick's card 12 Oct 2026 00:17Z, "Shared ±5°"): read at the hand-over, he may still be easing the last degree.
+      assert.ok(apart <= TOLERANCES.ANGLE_DEG, `${what}: headings ${apart.toFixed(2)}° apart`);
       assert.equal(f.where().key, to, `${what}: the pair reads as ${to}`);
     }
   }
@@ -116,7 +117,7 @@ test('every hand-over is smooth through speed changes and turning rejoins: posit
         assert.ok(Math.abs(x.bankDeg - p.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-9, `${what}: bank jumped`);
         assert.ok(Math.abs(x.rollRateDps - p.rollRateDps) <= ROLL.maxAccelDps2 * STEP_SEC + 1e-9, `${what}: roll rate jumped`);
         const pitchRate = (x.pitchDeg - p.pitchDeg) / STEP_SEC;
-        if (lastPitchRate[i] !== null) assert.ok(Math.abs(pitchRate - lastPitchRate[i]) <= 1.5, `${what}: pitch rate jumped`); // 1.5°/s in a step is about 0.03 G at normal G onset rates
+        if (lastPitchRate[i] !== null) assert.ok(Math.abs(pitchRate - lastPitchRate[i]) <= 3, `${what}: pitch rate jumped`); // Patrick 11 Oct 2026 22:11Z: 3°/s in a step, so the T-6A's own G onset build (core T6A_G_ONSET, 16 G/s², an estimate) passes
         lastPitchRate[i] = pitchRate;
         // Speed: boards give up to 7.5 kt/s deceleration (TS-108), and jerk is bounded by POWER.jerkKtps2 (25 kt/s²).
         const ktps = (x.kias - p.kias) / STEP_SEC;

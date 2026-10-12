@@ -28,7 +28,7 @@ import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, se
 import { leadTurnSegs } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
 import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
-import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, closeBankNow } from './tuning.js';
+import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, POWER, closeBankNow, experienceNow } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 
@@ -343,6 +343,10 @@ export const CLOSE_TURN = Object.freeze({
   rollMargin: 1.5,
   /** The most bank off Lead's he uses to slide across Lead's wing line (estimate), the slide in proportion to the gap below it. */
   sideBankDeg: 15,
+  /** The turn ends with every wingman's bank within this of Lead's (estimate; Fable's V2.331 flight). */
+  endBankDeg: 0.2,
+  /** Handed over from the tracker, how long he takes to ease into the hold's G onset and power (estimate). */
+  handOverEaseSec: 0.5,
 });
 
 /**
@@ -374,6 +378,7 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null,
   const upMost = C.followG * G_FTPS2;
   const powerMost = C.powerG * G_FTPS2;
   const jMax = C.onsetGps * G_FTPS2 * dt;
+  const jPower = POWER.jerkKtps2 * experienceNow().leverShare * (Math.max(wing.tasFtps, 1) / Math.max(wing.kias, 1)) * dt; // ft/s² a step (tasFtps per KIAS)
   const k = C.holdPerSec;
   const placeAt = (i) => {
     const L = leadRec.at(Math.max(0, i));
@@ -382,23 +387,30 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null,
     return [p.x - L.xFt, p.y - L.yFt, p.z - L.altAboveFt];
   };
   const vel = (a) => [Math.cos(a.headingRad) * a.tasFtps, Math.sin(a.headingRad) * a.tasFtps, a.climbFtps ?? 0];
-  const vl = vel(lead);
-  const vw = vel(wing);
-  let r = [wing.xFt - lead.xFt, wing.yFt - lead.yFt, wing.altAboveFt - lead.altAboveFt]; // where he is (his place, in a turn)
-  let v = [vw[0] - vl[0], vw[1] - vl[1], vw[2] - vl[2]];
   // His turn and Lead's as they are (none at a close turn's press; a press mid-turn, replan.js), so his bank carries on.
   const turnAcc = (a) => [-Math.sin(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), Math.cos(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), 0];
-  const aw = turnAcc(wing);
-  const al = turnAcc(lead);
-  let acc = [aw[0] - al[0], aw[1] - al[1], 0];
+  // Handed over from the tracker (kinematic.js handOverAt), his whole motion as he flew it, and Lead's off Lead's own flight
+  // (second-order forward differences): his speed rate and vertical acceleration carry on as well as his turn.
+  const handOver = Boolean(wing.velFtps && wing.accFtps2);
+  const leadPts = handOver ? [0, 1, 2, 3].map((i) => { const L = leadRec.at(i); return [L.xFt, L.yFt, L.altAboveFt]; }) : null;
+  const vl = handOver ? leadPts[0].map((x, j) => (-3 * x + 4 * leadPts[1][j] - leadPts[2][j]) / (2 * dt)) : vel(lead);
+  const vw = handOver ? wing.velFtps : vel(wing);
+  let r = [wing.xFt - lead.xFt, wing.yFt - lead.yFt, wing.altAboveFt - lead.altAboveFt]; // where he is (his place, in a turn)
+  let v = [vw[0] - vl[0], vw[1] - vl[1], vw[2] - vl[2]];
+  const aw = handOver ? wing.accFtps2 : turnAcc(wing);
+  const al = handOver ? leadPts[0].map((x, j) => (2 * x - 5 * leadPts[1][j] + 4 * leadPts[2][j] - leadPts[3][j]) / (dt * dt)) : turnAcc(lead);
+  let acc = [aw[0] - al[0], aw[1] - al[1], aw[2] - al[2]];
   const rel = [{ x: r[0], y: r[1], z: r[2] }];
   const last = leadSteps + Math.ceil(CLOSE_TURN.settleSec / dt);
-  let prev = placeAt(0);
   let now = placeAt(0);
+  // Handed over, his place's motion is read from the first step too (its step before taken off the next two), so the hold
+  // starts on the way his place is already moving; otherwise from rest.
+  const [p1, p2] = handOver ? [placeAt(1), placeAt(2)] : [];
+  let prev = handOver ? now.map((x, j) => 3 * x - 3 * p1[j] + p2[j]) : now;
   for (let i = 0; i < last; i++) {
     const next = placeAt(i + 1);
-    const pv = i === 0 ? next.map((x, j) => (x - now[j]) / dt) : next.map((x, j) => (x - prev[j]) / (2 * dt));
-    const pa = i === 0 ? [0, 0, 0] : next.map((x, j) => (x - 2 * now[j] + prev[j]) / (dt * dt));
+    const pv = i === 0 && !handOver ? next.map((x, j) => (x - now[j]) / dt) : next.map((x, j) => (x - prev[j]) / (2 * dt));
+    const pa = i === 0 && !handOver ? [0, 0, 0] : next.map((x, j) => (x - 2 * now[j] + prev[j]) / (dt * dt));
     // Along each of Lead's axes, what he can do about it: G along Lead's lift line (pitch), a little power along Lead's
     // heading, and across Lead's wing line whatever bank off Lead's it takes, settling at sidePerSec. He closes each part of
     // the gap at a rate he can still stop from with that axis's own limit to spare, so he never overshoots his place.
@@ -418,10 +430,24 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null,
     const parts = [along(0, powerMost), along(1, G_FTPS2 * Math.tan(C.sideBankDeg * DEG), C.sidePerSec), up];
     const cmd = [0, 1, 2].map((j) => axes[0][j] * parts[0] + axes[1][j] * parts[1] + axes[2][j] * parts[2]);
     const step = cmd.map((c, j) => c - acc[j]);
+    // The part along Lead's heading is his power: it changes at the lever's rate (moves.js POWER.jerkKtps2 at the Rates
+    // profile's lever share, as the tracker's pilot, pilot.js), so the speed rate never steps when he starts or stops
+    // taking off closure. Until V2.341 only the G onset limited it, and a hand-over stepped the speed rate by 31-54 kt/s².
+    const fore = dot(axes[0], step);
+    // Handed over, he eases into the hold's corrections over handOverEaseSec (both limits grow from none), so his G and
+    // speed rates build from the tracker's instead of stepping.
+    const ease = handOver ? Math.min(1, ((i + 1) * dt) / C.handOverEaseSec) : 1;
+    const foreHeld = Math.max(-jPower * ease, Math.min(jPower * ease, fore));
+    for (let j = 0; j < 3; j++) step[j] += (foreHeld - fore) * axes[0][j];
     const jump = Math.hypot(...step);
-    acc = acc.map((x, j) => x + (jump > jMax ? (step[j] * jMax) / jump : step[j]));
+    acc = acc.map((x, j) => x + (jump > jMax * ease ? (step[j] * jMax * ease) / jump : step[j]));
+    // Handed over, each step moves his place on the acceleration of that step (v dt + a dt²/2), so the first step carries
+    // on the tracker's flight exactly. Until V2.344 it moved at the step's new speed (v dt + a dt²), which read as half as
+    // much again of the acceleration at the hand-over: a 2.6 ft/s² one-step kick across (2-ship to route). The close turns
+    // keep the old step, unchanged.
+    if (handOver) r = r.map((x, j) => x + v[j] * dt + (acc[j] * dt * dt) / 2);
     v = v.map((x, j) => x + acc[j] * dt);
-    r = r.map((x, j) => x + v[j] * dt);
+    if (!handOver) r = r.map((x, j) => x + v[j] * dt);
     rel.push({ x: r[0], y: r[1], z: r[2] });
     prev = now;
     now = next;
@@ -563,9 +589,21 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) 
   // Each wingman's place, fixed in Lead's real wing plane (holdInPlane).
   let maxBankDeg = Number(bank);
   const held = aircraft.slice(1).map((wing) => ({ wing, ...holdInPlane(leadRec, lead, wing, bodies.get(wing.id), leadSteps) }));
-  const n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
-  for (const { wing, rel } of held) {
-    const poses = heldPoses(leadRec, wing, rel, n, closeWingRoll(roll));
+  // The turn ends once every wingman has his place back and his wings within CLOSE_TURN.endBankDeg of Lead's, so the last
+  // pose's settle onto Lead's bank is a fraction of a degree. Until V2.337 it ended on the place alone, and in trail the
+  // wingmen still held 1-3° of bank, zeroed in one step (Fable's V2.331 flight).
+  let n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
+  const maxN = n + Math.ceil(CLOSE_TURN.settleSec / STEP_SEC);
+  let posesOf;
+  for (;;) {
+    posesOf = new Map(held.map(({ wing, rel }) => [wing.id, heldPoses(leadRec, wing, rel, n, closeWingRoll(roll))]));
+    const before = (poses) => poses[poses.length - 2] ?? poses[poses.length - 1];
+    const banked = [...posesOf.values()].some((poses) => Math.abs(before(poses).bank - (leadRec.at(n).bankDeg ?? 0)) > CLOSE_TURN.endBankDeg);
+    if (!banked || n >= maxN) break;
+    n += Math.round(1 / STEP_SEC);
+  }
+  for (const { wing } of held) {
+    const poses = posesOf.get(wing.id);
     plans[wing.id] = { segments: [{ kind: 'poseTrack', poses }] };
     for (const p of poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
   }

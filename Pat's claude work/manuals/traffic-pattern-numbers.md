@@ -68,7 +68,7 @@ CYMJ field elevation is about 1,890 ft (V6's threshold point is 1,880 ft).
 
 ## Engine-out glide (for PFLs and a future engine-failure option)
 
-T-6A Maximum Glide Distance chart (flight test, PT6A-68, June 1998; engine inoperative, IAS), uploaded by Patrick in the Traffic thread 06:33Z, saved as images/t6a-max-glide-distance.png. Checked against the image 2026-09-30:
+T-6A maximum glide distance data (PT6A-68; engine inoperative, IAS; reference), given by Patrick in the Traffic thread 06:33Z. Checked 2026-09-30:
 
 | Configuration / drag index | Propeller | Glide speed | Sink rate | Glide ratio |
 |---|---|---|---|---|
@@ -77,14 +77,14 @@ T-6A Maximum Glide Distance chart (flight test, PT6A-68, June 1998; engine inope
 | Landing flap, gear down / 80 | feathered | 95 KIAS | 1,850 ft/min | 1.1 NM per 1,000 ft |
 | Clean / 0 | windmilling | 110 KIAS | 2,350 ft/min | 1 NM per 1,000 ft |
 
-- The distance plot gives about 10 NM from 5,000 ft, 20 NM from 10,000, 39 NM from 20,000 and 61 NM from 31,000 ft at drag index 0; weight (5,000-6,500 lb) barely changes it.
+- The distance data give about 10 NM from 5,000 ft, 20 NM from 10,000, 39 NM from 20,000 and 61 NM from 31,000 ft at drag index 0; weight (5,000-6,500 lb) barely changes it.
 - **SMM agrees:** "The Harvard II glides approximately 2.0 NM for each 1000' of altitude", glide at 125 KIAS (SMM 13.5 para 7, 13.4). Rule of thumb: distance ÷ 2 × 1,000 + High Key altitude; High Key at Moose Jaw 5,000 ft MSL (3,000-4,000 ft AGL window), so 7,500 ft MSL at 5 NM (13.5 paras 7-8). Low Key about 1,700 ft AGL (3,700 MSL) (13.8 para 17). Feather the prop: an unfeathered prop "will greatly reduce glide distance" (matches the windmilling row).
-- **One difference, not a conflict:** with the gear down the SMM flies the forced-landing pattern at **120 KIAS** from High Key to the flare (SMM 13.4, 13.6), while the chart's best gear-down glide speed is 105 KIAS. 120 is the pattern speed the SMM teaches; 105 is the max-distance speed. Orbit losses: 360° at 125 KIAS, 30° bank, clean about 1,700 ft; at 120 KIAS, gear down about 2,600 ft (SMM 13.5).
+- **One difference, not a conflict:** with the gear down the SMM flies the forced-landing pattern at **120 KIAS** from High Key to the flare (SMM 13.4, 13.6), while the best gear-down glide speed in the data is 105 KIAS. 120 is the pattern speed the SMM teaches; 105 is the max-distance speed. Orbit losses: 360° at 125 KIAS, 30° bank, clean about 1,700 ft; at 120 KIAS, gear down about 2,600 ft (SMM 13.5).
 - PFL simulation: 4-6 % torque simulates a feathered engine (SMM 13; EFIG p.84 FCHT brief: "125KIAS and 4-6% Tq").
 
-## NFM: zoom, glide and USAF pattern (A1-T6AAA-NFM-100, Scribd text)
+## Reference data: zoom, glide and USAF pattern
 
-- **Zoom (NFM Fig 3-4, p.3-12):** 2 s delay after the failure, then a **20° climb held to 145 KIAS**, engine secured, prop feathered. Height gained: about 595-883 ft from 200 KIAS and 1,172-1,552 ft from 250 KIAS (range across altitude and weight). That is about 64-71 % of the ideal energy height (V1² - V2²)/2g. Compare Q74 placeholders: 15° nose up (NFM: 20°) and 70 % (NFM: supported). Zoom/glide minimum 125 knots (boldface ZOOM/GLIDE step).
-- **Glide (NFM Fig 3-5, p.3-13):** best glide 125 KIAS clean, prop feathered; gear down 105 (chart). Glide numbers match the max glide chart above. About 1,200 ft lost during an airstart attempt. Zero-thrust (feather) simulation 4-6 % torque, matching SMM 13.5.
-- **USAF overhead pattern (NFM Fig 2-8, p.2-27), info only:** initial 200-250 KIAS, break at 1,000 ft AGL, downwind 110-120, perch 120 minimum, base 110 minimum, final 100/105/110 by flap. Moose Jaw flies the SMM pattern (220 KIAS, 3,500 ft per Patrick), so no change.
-- **Stall (NFM Fig 6-3, p.6-7):** idle-power stall speed chart is an image, not in the text. Stick shaker 5-10 kt above the stall.
+- **Zoom (reference):** 2 s delay after the failure, then a **20° climb held to 145 KIAS**, engine secured, prop feathered. Height gained: about 595-883 ft from 200 KIAS and 1,172-1,552 ft from 250 KIAS (range across altitude and weight). That is about 64-71 % of the ideal energy height (V1² - V2²)/2g. Compare Q74 placeholders: 15° nose up (reference: 20°) and 70 % (reference: supported). Zoom/glide minimum 125 knots.
+- **Glide (reference):** best glide 125 KIAS clean, prop feathered; gear down 105. Glide numbers match the max glide data above. About 1,200 ft lost during an airstart attempt. Zero-thrust (feather) simulation 4-6 % torque, matching SMM 13.5.
+- **USAF overhead pattern (reference), info only:** initial 200-250 KIAS, break at 1,000 ft AGL, downwind 110-120, perch 120 minimum, base 110 minimum, final 100/105/110 by flap. Moose Jaw flies the SMM pattern (220 KIAS, 3,500 ft per Patrick), so no change.
+- **Stall (reference):** Stick shaker 5-10 kt above the stall.

@@ -87,7 +87,9 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   // Away (TS-174) is the turning rejoin's own: the tracker here would fly Lead into #2, so it stays out of the race.
   // From trail after a break (TS-175) a TRJ press is the turning rejoin's too; this one would fly a straight-ahead rejoin.
   if (options.trailSide && from.key === 'other' && rejoinOpt === 'into' && to !== 'lab') return { ok: false, reason: 'No turning rejoin from this trail. Try SARJ.' };
-  if (options.turn === 'away' && (rejoinKind === 'into' || (from.key === 'fw' && to !== 'fw'))) {
+  // The entry to line abreast is no turning rejoin, so Away leaves it alone (until V2.357 it refused it from fighting wing:
+  // Patrick's bug report 12 Oct 2026 01:30Z, "can't go to line abreast from fighting wing").
+  if (options.turn === 'away' && (rejoinKind === 'into' || (from.key === 'fw' && to !== 'fw' && to !== 'lab'))) {
     return { ok: false, reason: 'No turning rejoin with Lead turning away from here. Try Into.' };
   }
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;

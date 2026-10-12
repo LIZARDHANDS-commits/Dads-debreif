@@ -21,7 +21,7 @@ export const MODULES = [
       capabilities: [
         'Multi-ship GPS telemetry replay with play, pause, and scrub controls',
         'Automated Debrief Focus Points (DFPs) marking maneuver entry, apex, and rollout',
-        'Energy-Maneuverability (E-M) flight envelope comparison calibrated to T-6/Harvard II charts',
+        'Energy-Maneuverability (E-M) flight envelope comparison calibrated to T-6/Harvard II performance data',
         'Formation geometry, separation distance, and bearing-line analysis in 2D and 3D',
       ],
     },

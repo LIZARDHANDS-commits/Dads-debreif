@@ -28,6 +28,7 @@ import {
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
 import { createCockpitMount, aimCockpitCamera, PANEL_REDRAW_MS } from '../../../ui-kit/ct156-cockpit.js';
+import { createAircraftShadows } from '../../../ui-kit/aircraft-shadows.js';
 import { buildAirspace } from '../../../ui-kit/airspace3d.js';
 import { buildAirports } from '../../../ui-kit/airfield3d.js';
 import { SHIP_COLORS } from '../state.js';
@@ -264,7 +265,9 @@ function createPicture(THREE, glCanvas) {
   const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, preserveDrawingBuffer: true });
   renderer.setClearColor(BACKGROUND);
   const scene = new THREE.Scene();
-  addLights(THREE, scene);
+  const { sun } = addLights(THREE, scene);
+  // Real-time sun shadows on the CT-156s (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"; ui-kit aircraft-shadows.js).
+  const shadows = createAircraftShadows(THREE, renderer, sun);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
   const persp = new THREE.PerspectiveCamera(60, 1, 0.5, 400_000); // the Cockpit camera (DB-21)
   const world = new THREE.Group();
@@ -274,7 +277,7 @@ function createPicture(THREE, glCanvas) {
   // ghosts: the see-through models of ships in a filled gap, with their own materials (DB-20).
   // cockpit: the CT-156 cockpit, moved into the ridden ship (ui-kit createCockpitMount), made when first wanted.
   return {
-    renderer, scene, camera, persp, world, ships: new Map(), ghosts: new Map(), sky: null, skyFog: null, materials: new Map(), size: null,
+    renderer, shadows, scene, camera, persp, world, ships: new Map(), ghosts: new Map(), sky: null, skyFog: null, materials: new Map(), size: null,
     cockpit: null, cockpitSky: new THREE.Color(COCKPIT_SKY), doc: glCanvas.ownerDocument ?? globalThis.document,
   };
 }
@@ -581,6 +584,9 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     else modelled.add(s.slot);
     if (s.ridden) ridden = entry.mesh;
   }
+  // The shadows follow the ridden ship, or else Lead (or the lowest slot shown): one ship's box keeps them sharp.
+  const shadowShip = ridden ?? [...gl.ships].filter(([slot]) => modelled.has(slot)).sort(([a], [b]) => a - b)[0]?.[1].mesh;
+  gl.shadows.follow(shadowShip, 0.8 * (lengthFt / CT156_UNIT_LENGTH) * rootScale);
   for (const [slot, { mesh }] of gl.ships) mesh.visible = modelled.has(slot);
   for (const [slot, { mesh }] of gl.ghosts) mesh.visible = ghosted.has(slot);
   for (const slot of ghosted) modelled.add(slot); // labelled as a model, not given a flat marker

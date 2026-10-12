@@ -79,42 +79,23 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 
 ---
 
-## 2. Architecture
+## 2. Architecture (as built, V2.351)
 
-*History: 2.3 and 2.4 describe the old engine's KIN and NRG models and a model dropdown, which no longer exist (sections 1 and 1a replace them); 2.5's `computeBreakRollout` is no longer used by the flying. Step 3 of the plan rewrites this section.*
+### 2.1 One mover
+Every aircraft rides a path on the path follower (`path-follower.js` `followRoute`), which moves it along the path at the path's speed and height and takes heading, bank, roll and pitch from the path. There is no second way to move an aircraft.
 
-### 2.3 KIN vs NRG Performance Models
-- **KIN (Kinematic)** — default for normal pattern traffic:
-  - Speed: linear accel/decel toward nav-plan target (+4.0 kt/s up, -2.7 kt/s down, computed from T-6 `excessThrustPerWeight()`)
-  - Altitude: climb via `excessThrustPerWeight()` and formula/physics-based descent (caps removed per D412)
-  - Special: break decel uses V² drag formula: $V(u) = 220 \cdot e^{-0.452 u}$
-- **NRG (Energy)** — for PFL, engine failure, breakout:
-  - Speed: `excessThrustPerWeight()` determines accel/decel from physics
-  - Altitude: `glideSinkFpm(config, kias, altFt)` for engine-out descent
-  - Energy gate: `energyHeightFt()` decides can-I-make-the-runway
-  - Drag management: gear + flaps modulate sink rate to hit energy window
-  - Best glide speeds from `T6A_GLIDE`: clean 125 kt, gear down 120 kt, landing 100 kt
-- **Auto-switching**: PFL/Engine Failure commands switch to NRG. Rejoining the pattern switches to KIN. Manual override is always available via the UI dropdown.
+### 2.2 The simulated pilot makes the paths
+The paths are flown once, ahead of time, by the simulated pilot in `circuit.js` (`makePilot`): the circuit itself (`buildCircuit`, Pattern 1 built by flying it in the day's wind, section 1), and every manoeuvre from where the aircraft is when it starts: the go-around, the closed pattern (`closed-pattern.js`), the climb to High Key (`high-key.js`), the PFL (`pfl.js` `flyPfl`, section 4.5), the breakout (`breakout.js`) and the evasions (`evade.js`, section 4.12). The pilot flies by bank, power and pitch within the T-6A model in `src/core/t6-performance.js`, so the path is one a pilot could fly.
 
-### 2.4 Per-Aircraft Model Dropdown
-```
-┌─────────────────────────────────────────────┐
-│ A1  CT-156  3,500 ft  220 kt  ⟨ OHB ⟩     │
-│ [Breakout] [PFL] [Go-around]   Model: KIN ▼│
-│                                             │
-│ A2  CT-156  4,800 ft  120 kt  ⟨ PFL ⟩      │
-│ [Cancel PFL]                   Model: NRG ▼│
-└─────────────────────────────────────────────┘
-```
+### 2.3 Flown-path carriers
+An aircraft on a manoeuvre carries its flown path on one of three slots (`goAroundFlight`, `highKeyFlight`, `pflFlight`); `tick-aircraft.js` follows the slot that is set, else the route the aircraft is on. When a flown path ends, `sim.js` puts the aircraft back on its route (`goAroundEnded`, `pflEnded`). Refactor step 3 makes the three slots one carrier.
 
-### 2.5 Dynamic Downwind Geometry (`computeBreakRollout`)
-Point 10 (Break Exit) position is dynamically computed by `computeBreakRollout()` in route.js, mirroring `computeWindPerch()` for Point 11. Both ends of the downwind leg are wind-adjusted.
-
----
+### 2.4 The step
+`sim.js` steps in whole 0.05 s steps. Every tenth step it runs the SI pattern, the randomiser, the deconfliction and the runway check; then, for each aircraft, the follow, the end of a flown path, the land-or-split decisions, the end of a route and a pending closed pattern; then the collision check and, every 10 s, the snapshot that rewind restores. The day's temperature (`weather.js`) is set from the setup before each step.
 
 ## 3. Aerodynamic Baseline
 
-All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Traceability citations only — agents read this spec directly.
+All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A reference data. Traceability citations only — agents read this spec directly.
 
 ### 3.1 Speed Schedule (CT-156 Harvard II)
 | Phase | Speed (KIAS) | Source |
@@ -127,7 +108,7 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 | Touchdown | 80–90 | SMM 4.9 ¶15 |
 | Closed pattern climb | 140 | SMM 4.2, EFIG p.134 |
 | Go-around climb | 140 → 220 | SMM 4.22 ¶53 |
-| PFL glide (clean) | 125 | T-6A Max Glide Chart |
+| PFL glide (clean) | 125 | T-6A Max Glide Data |
 | PFL glide (gear down) | 120 | SMM 13.5 |
 
 ### 3.2 Bank Angles and G
@@ -155,10 +136,10 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 |---|---|---|
 | Clean stall speed ($V_{s0}$) | 86 KIAS | D158, D387 |
 | Accelerated stall: $n_{\text{stall}} = (V_{\text{ias}}/86)^2$ | At 140 kt: 2.65 G, at 120 kt: 1.94 G | Standard aero |
-| Stick shaker margin | +7 kt above stall (93 KIAS clean) | NFM p.1-52 |
+| Stick shaker margin | +7 kt above stall (93 KIAS clean) | reference data |
 | $V_{fe} / V_{le}$ (gear/flap limit) | 147 KIAS | SMM 4.6 ¶9 |
-| $V_{mo}$ | 316 KIAS | NFM p.5-9 |
-| Max G (clean) | +7.0 / -3.5 | NFM V-n diagram |
+| $V_{mo}$ | 316 KIAS | reference data |
+| Max G (clean) | +7.0 / -3.5 | reference flight envelope |
 | Roll rate (normal) | 30–50 °/s | SMM 16.18 |
 | Roll rate (tactical max) | 90 °/s | T6A_MANOEUVRE |
 
@@ -171,7 +152,7 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 | Landing flaps | 95 | 1.1 | — |
 | Windmilling | 110 | 1.0 | — |
 
-The sim uses the glide **ratio** for the configuration down (clean 2.0, gear 1.5, T/O flap 1.3 **estimate**, landing flap 1.1 NM per 1,000 ft; T-6A max glide chart, `manuals/traffic-pattern-numbers.md`). Sink rate = true airspeed ÷ ratio (`glideSinkFpm` in `src/core/t6-performance.js`). The chart's ft/min column only matches its ratios at about 16,000 ft and is not used. The SMM gives about 2,600 ft for a gear-down orbit at 120 KIAS and 30° of bank (SMM 13.5 para 11, p.46). With the chart's drag the sim loses about 1,980 ft. The chart is kept and the SMM figure is taken as conservative. The keys are targets, and the aircraft may carry them about 100 ft high (Patrick 5 Oct 23:46Z, 23:49Z; TR-89).
+The sim uses the glide **ratio** for the configuration down (clean 2.0, gear 1.5, T/O flap 1.3 **estimate**, landing flap 1.1 NM per 1,000 ft; T-6A max glide data, `manuals/traffic-pattern-numbers.md`). Sink rate = true airspeed ÷ ratio (`glideSinkFpm` in `src/core/t6-performance.js`). The data's ft/min column only matches its ratios at about 16,000 ft and is not used. The SMM gives about 2,600 ft for a gear-down orbit at 120 KIAS and 30° of bank (SMM 13.5 para 11, p.46). With the data's drag the sim loses about 1,980 ft. The data is kept and the SMM figure is taken as conservative. The keys are targets, and the aircraft may carry them about 100 ft high (Patrick 5 Oct 23:46Z, 23:49Z; TR-89).
 
 ### 3.6 Key Geometry
 | Measurement | Value | Derivation |
@@ -245,7 +226,7 @@ Approved 4 Oct 2026 (Traffic refactor PR 2). Items 10-14 cover both the circuit 
     - It ends on the glide path in both height and slope: at the rollout it is already coming down at the window's own slope (about 3°), which final carries on, so it never levels at the window and sits above the glide path (Patrick, 5 Oct 08:17Z; TR-82).
     - The 3° glide path ends at the base of the runway numbers, 207 ft past the threshold, at the runway's height: that is the aim point, so the aircraft crosses the threshold about 11 ft up, and the climb-out of a touch-and-go starts there. The straight-in's 3° line ends there too (Patrick, 6 Oct 06:33Z; TR-93).
     - The flare: from 15 ft over the runway the sink dies away and the wheels touch 400 ft past the numbers at about 120 ft/min (estimates; Patrick, 6 Oct 06:50Z: 300-500 ft); the attitude comes up to about 6°. The touch-and-go climb-out starts at the touchdown point; the straight-in flares the same way (TR-96).
-    - Crosswind on final (Patrick, 11 Oct 09:03Z and 09:23Z; SMM 4.12 paras 25-28; NFM p.2-26): from halfway between the window and touchdown, the aircraft changes from the crab to the wing-down method over about 3 s. The nose lines up with the runway, and the upwind wing comes down just enough to stop the drift. The bank is set at the window's speed by balancing the slip's side force against the bank (an estimate: about 4° in 10 kt across, 8.5° in 20 kt, 11° in 25 kt). It grows from there as the aircraft slows, because the wind's effect is stronger (about 10° in 20 kt in the flare). It lands on the upwind wheel, and the wings level as the other wheel comes down. The nose stays on the centreline through the roll. A touch-and-go goes back to the crab over about 3 s once airborne again. The ground track and glide path don't change. 25 kt across is the NFM's landing limit (p.5-12) (TR-143).
+    - Crosswind on final (Patrick, 11 Oct 09:03Z and 09:23Z; SMM 4.12 paras 25-28; reference data): from halfway between the window and touchdown, the aircraft changes from the crab to the wing-down method over about 3 s. The nose lines up with the runway, and the upwind wing comes down just enough to stop the drift. The bank is set at the window's speed by balancing the slip's side force against the bank (an estimate: about 4° in 10 kt across, 8.5° in 20 kt, 11° in 25 kt). It grows from there as the aircraft slows, because the wind's effect is stronger (about 10° in 20 kt in the flare). It lands on the upwind wheel, and the wings level as the other wheel comes down. The nose stays on the centreline through the roll. A touch-and-go goes back to the crab over about 3 s once airborne again. The ground track and glide path don't change. 25 kt across is the reference landing limit (reference data) (TR-143).
     - The perch search moves the perch by 0.6 of each miss, at most 1,500 ft a try, for up to 20 tries, and keeps the best (estimates; TR-83). It holds the window to within about 5 ft up to about 46 kt of wind from 260°-270°.
 13a. **No jumps at any hand-over.** Each piece of path starts from where the last one ended: the same place, track, bank and pitch, and the same rates of change. It is joined like a clamped curve, so the joins are smooth (Patrick, 08:27Z).
 14. **Check on screen**, at calm and in a strong wind:
@@ -283,7 +264,7 @@ One runway for now: every PFL flies to 29L, and one that makes the runway ends i
    - Key heights are what the aircraft is checked against, not a schedule it is held to.
 3. **How it flies: one planned chain (TR-113; Patrick, 10 Oct 2026).** The aircraft plans the whole glide as a chain of pieces, flies each piece as planned, and works out the height it needs by adding up the same pieces it will fly. That gives one height sum on one path (Fable F9, F16).
    - **The pieces.**
-     1. *Zoom or slow-down.* Above 150 KIAS: 2 G pull, push over, capture 125 KIAS, turning toward the join at up to 30° (item 5). At or below 150 KIAS: hold height and slow to 125. Planned and flown by the same zoom law, so the plan's apex is the flown apex; the core zoom (`flyZoomT6A`, NFM table) stays the reference for the height gained.
+     1. *Zoom or slow-down.* Above 150 KIAS: 2 G pull, push over, capture 125 KIAS, turning toward the join at up to 30° (item 5). At or below 150 KIAS: hold height and slow to 125. Planned and flown by the same zoom law, so the plan's apex is the flown apex; the core zoom (`flyZoomT6A`, reference data table) stays the reference for the height gained.
      2. *Turn.* A turn of a set size over the ground (the circle, a join turn, a turn onto final), in one direction. The bank is whatever holds that radius over the ground in the wind, up to 60° and the stall line (items 8, 11). The roll-in starts early enough to roll out on the next piece, so no corner is cut. Joining the circle from inside it, the turn onto the circle is planned too, at the 45° radius.
      3. *Straight.* A ground track held wings level, crabbed for wind.
      4. *Drag step.* Gear, T/O flap or landing flap at a planned point on the chain, at least 5 s after the step before it (Fable F6).
@@ -300,7 +281,7 @@ One runway for now: every PFL flies to 29L, and one that makes the runway ends i
      - Area and High Key PFLs don't square off. They still lose extra height before High Key (TR-43).
 
 4. **Speed.** 125 KIAS clean until the gear goes down, then 120 KIAS (SMM 13.5 para 8, 13.14 para 26; Patrick 06:26Z). Never slower to stretch the glide, except direct to the threshold (item 10).
-5. **Zoom.** Above 150 KIAS: a 2 G pull, push over through 140, capture 125 (EFIG p.408). The zoom turns toward the chosen join point at the same time, never away from the runway. At or below 150 KIAS: hold height and slow to 125. NFM Fig 3-4 (20° to 145 KIAS, p.3-12) stays a reference.
+5. **Zoom.** Above 150 KIAS: a 2 G pull, push over through 140, capture 125 (EFIG p.408). The zoom turns toward the chosen join point at the same time, never away from the runway. At or below 150 KIAS: hold height and slow to 125. Reference data (20° to 145 KIAS, p.3-12) stays a reference.
 6. **Choosing the join.** Chosen at the button press from energy height (He = h + V²/2g, true airspeed), less the expected zoom loss, and checked again at the top of the zoom.
    - Points every 5° round the wind-corrected circle are tried.
    - A point is reachable if a clean, 125 KIAS tangent glide with the wind gets there with height to spare.
@@ -554,104 +535,45 @@ Every setting starts filled in so the first look is clean and intuitive:
 
 ---
 
-## 8. Code Reuse Map & Core Libraries
+## 8. Files and the core they use (as built, V2.351)
 
-### 8.1 Reuse Map
-*History: `flight-engine.js` and the nav plans below were built, then removed on 4 Oct 2026 (Patrick's card "Rebuild, then delete", 4 Oct 17:53Z).*
+### 8.1 The flying files
+| File | What it does |
+|---|---|
+| `sim.js` | The roster, the step and its order, the commands, rewind, conflicts, the runway, taxi and ejection |
+| `tick-aircraft.js` | One aircraft's step: follow its flown path or its route |
+| `path-follower.js` | The one mover (2.1), joins and side-steps, gear and flap from the phase |
+| `circuit.js` | The simulated pilot and the circuit built by flying it |
+| `route.js` | Route geometry, lengths and positions; Pattern 1's wind-adjusted track; the wind perch marker; a new pattern |
+| `pfl.js`, `nav-plans.js` | The PFL (4.5) and where an area PFL starts |
+| `closed-pattern.js`, `high-key.js`, `breakout.js`, `evade.js` | The manoeuvres flown by the pilot |
+| `deconflict.js`, `envelope.js` | The spacing (4.12) and its limits |
+| `randomize.js`, `behaviour.js` | Random behaviour (4.13) and the behaviour tag (4.14) |
+| `weather.js`, `airfield.js` | The day's temperature, true heights and the straight-in descent; Moose Jaw's numbers |
+| `taxi.js`, `ejection.js`, `scenario-timing.js`, `glue.js`, `dice.js` | Taxi-in, ejection, the straight-in's timing, settings into the setup, the seeded dice |
 
-- **KEEP AS-IS (5,300+ lines, zero changes)**:
-  `map2d.js` (673), `view3d.js` (1,146), `layout.js` (186), `playback-bar.js` (160), `settings-panel.js` (130), `defaults.js` (196), `types.js` (169), `profile.js` (356), `clock.js` (98), `dice.js` (28), `readouts.js` (149), `glue.js` (69), `profile-store.js`, `profiles-panel.js`, `editor.js`, `index.js`, CSS.
-- **KEEP + ADAPT (~200 lines changed)**:
-  - `sim.js` (1,466): Rewind/snapshot engine, event queue, conflict detection, callsign mgmt, public API kept; `fly(a)` internals call `flight-engine.js`.
-  - `route.js` (842): Geometry utils, `computeWindPerch()`, `generateWindAdjustedTrack()`, display functions kept; `posOnRoute()` retired as flight-critical.
-  - `aircraft.js` (341): DOM gen, events, commands, roster kept; spawn presets adapted for two-dropdown UI.
-  - `scene.js` (70): Data pipeline; propagates `phase`, `model`, `bankDeg`.
-  - `moose-jaw.json` (193): Airfield, runways, PAT_INNER, entries kept; prune legacy SPL1–4.
-- **BUILD NEW (~500 lines + ~350 tests)**:
-  - `src/modules/traffic/flight-engine.js` (~300 lines): Track intercept, KIN/NRG models, phase machine.
-  - `src/modules/traffic/nav-plans.js` (~200 lines): Pattern waypoint definitions from pattern matrix.
-  - `tests/unit/traffic/flight-engine.test.js` (~200 lines): Flight engine unit tests.
-  - `tests/unit/traffic/nav-plans.test.js` (~150 lines): Nav-plan waypoint tests.
-
-### 8.2 Core Libraries Used (Read-Only)
-| Import | From | How We Use It |
-|---|---|---|
-| `rollToward(current, target, maxDelta)` | `src/core/flight-math.js` | Smooth bank transitions at 45°/s |
-| `dampedClimbG(current, target, rate)` | `src/core/flight-math.js` | Altitude convergence to glide slope |
-| `turnRadiusFt(ktas, bankDeg)` | `src/core/flight-math.js` | Lead-turn distance calculation |
-| `bankDegFromG(g)` | `src/core/flight-math.js` | Convert G to bank angle |
-| `iasToTasKt(kias, altFt)` | `src/core/t6-performance.js` | TAS conversion (always applied) |
-| `glideSinkFpm(config, kias, altFt)` | `src/core/t6-performance.js` | NRG: engine-out sink rate |
-| `excessThrustPerWeight(kias, altFt, g)` | `src/core/t6-performance.js` | NRG: powered climb/accel |
-| `energyHeightFt(altFt, ktas)` | `src/core/t6-performance.js` | NRG: can-I-make-the-runway |
-| `stallLimitG(kias)` | `src/core/t6-performance.js` | Stall protection |
-| `flyZoomT6A(kias, altFt)` | `src/core/t6-performance.js` | NFM zoom table: reference for height gained (the PFL flies the EFIG p.408 zoom, 4.5 item 5) |
-| `glideDragPerWeight(config, kias, altFt, g)` | `src/core/t6-performance.js` | PFL glide: drag for the configuration down |
-| `windTriangle(hdg, ktas, wind)` | `src/core/wind.js` | Wind crab angle on all legs |
-| `ktToFtps(kt)` | `src/core/units.js` | Speed conversion |
-| `FT_PER_NM`, `G_FTPS2` | `src/core/units.js` | Physical constants |
-| `wrapDeg180(deg)` | `src/core/angles.js` | Heading arithmetic |
+### 8.2 Core used
+| From | What |
+|---|---|
+| `src/core/flight-math.js` | Turn radius, rate and bank from G or bank, `limitG`, the smooth roll (`easeRoll`, `easeValue`), `dampedClimbG` |
+| `src/core/t6-performance.js` | Thrust and drag (`excessThrustPerWeight`, `dragPerWeight`), the glide (`glideRatio`, `glideDragPerWeight`), the stall (`stallLimitG`), roll and G onset limits, pitch attitude, `T6A_LIMITS` |
+| `src/core/atmosphere.js` | Temperature and density with the day's deviation (`weather.js`) |
+| `src/core/wind.js` | The wind triangle and the wind vector |
+| `src/core/angles.js`, `units.js`, `geo.js` | Heading wraps and compass conversions, unit constants, distance along and off a leg |
+| `src/core/closest-approach.js` | Closest approach and first entry, for the spacing and collisions |
 
 ---
 
-## 9. Task Breakdown (Pre-Phase through Phase 5)
-
-### Pre-Phase: Documentation Sync
-- [x] Merge `SPEC-traffic.md` + `SPEC-traffic-vector.md` into one unified spec
-- [x] Commit `refined_pattern_matrix.md` to `docs/references/traffic-pattern-matrix.md`
-- [x] Register D406 in `archive/docs/records/plan-decisions.md` & `archive/docs/records/decisions-log.md`
-- [x] Register R34 in `archive/docs/records/plan-requirements.md`
-- [x] Update HANDOVER.md, docs/handover/traffic.md, tasks/traffic/todo.md, tasks/traffic/plan.md, POST_PROTOTYPE_QUEUE.md, .agent/memory/handoff.md
-- [x] Create standalone checklist `archive/tasks/traffic/vector-migration-todo.md`
-
-### Phase 1: Core Flight Engine (`flight-engine.js`)
-- [ ] **Task 1.1**: Create `flight-engine.js` — track intercept guidance
-  - `stepAircraft(aircraft, dt, wind, navPlan)` → updates position, heading, bank, speed, alt
-  - Track intercept with cross-track error and along-track distance
-  - Lead-turn initiation: `leadDist = R × tan(halfAngle / 2)`
-  - Wind correction via `windTriangle()` on every step
-- [ ] **Task 1.2**: KIN performance model
-  - Linear accel/decel (4 kt/s up, 6 kt/s down), climb 2,100 fpm, descend 1,500 fpm
-  - Break special: $V(u) = 220 \cdot e^{-0.452 u}$
-  - Final turn special: cubic descent $z(u) = 3500 - 800(3u^2 - 2u^3)$
-- [ ] **Task 1.3**: NRG performance model
-  - Speed from `excessThrustPerWeight()` or best glide; altitude from `glideSinkFpm()`
-  - Energy gate: `energyHeightFt()` vs threshold distance
-  - Configuration management (clean → gear down → flaps) and $V_{fe}$ guard (147 KIAS)
-- [ ] **Task 1.4**: Phase state machine
-  - State machine covering all circuit and emergency phases
-
-### Phase 2: Pattern Definitions (`nav-plans.js`)
-- [ ] **Task 2.1**: Define all nav plans in `nav-plans.js` from `docs/references/traffic-pattern-matrix.md`
-- [ ] **Task 2.2**: Pattern-specific guidance overrides (break arc, perch pursuit, cubic descent, 3.0° glide slope)
-
-### Phase 3: Integration (sim.js Swap)
-- [x] **Task 3.1**: Replace rails in `sim.js` (`fly(a)` calls `stepAircraft()`)
-- [x] **Task 3.2**: Migrate existing command blocks (breakout, PFL, go-around, closed pattern)
-- [x] **Task 3.3**: Sync display via `scene.js`
-- [x] **Task 3.4**: Update test suites (`sim.test.js`, `vector-sim.test.js`, `route.test.js`)
-
-### Phase 4: Spawn UI Redesign
-- [ ] **Task 4.1**: Build two-dropdown spawn UI (Pattern + Start Point)
-- [ ] **Task 4.2**: Clean up aircraft types (remove fictional CT-157, confirm Harvard default)
-- [ ] **Task 4.3**: Fix aircraft disappearance (never drop without explicit landing; fallback to OHB)
-
-### Phase 5: Polish & Cleanup
-- [ ] **Task 5.1**: Settings panel cleanup (retire dead rounded-turns options)
-- [ ] **Task 5.2**: Visual polish (solid patterns, dotted entries)
-- [ ] **Task 5.3**: Reset button label ("Reset to Standard Defaults", D384)
+## 9. History
+The first Traffic engine was V6's model, moving each aircraft along its route at the speeds and heights set at the points. A physics engine (`flight-engine.js`, with kinematic and energy models, a per-aircraft model dropdown, and nav plans) was planned and partly built on 30 Sep to 4 Oct 2026, then removed on Patrick's card "Rebuild, then delete" (4 Oct 17:53Z) in favour of the simulated pilot and the one mover (sections 1, 1a and 2). The old task list and reuse map are in git history.
 
 ---
 
 ## 10. Testing Strategy
 
 1. **Core Math Verification**: `src/core/` unit tests (~800 tests) remain read-only and passing green.
-2. **Dedicated Engine Tests**:
-   - `tests/unit/traffic/flight-engine.test.js` (~60 tests): track intercept, roll rate blending, lead turns, KIN/NRG integration, stall guards.
-   - `tests/unit/traffic/nav-plans.test.js` (~30 tests): coordinate integrity against `docs/references/traffic-pattern-matrix.md`.
-3. **Module Regression Tests**:
-   - `tests/unit/traffic/sim.test.js`: adapt for vector engine.
-   - `tests/unit/traffic/route.test.js`: test display overlays and geometry utilities.
+2. **Module tests**: `tests/unit/traffic/`, one file per flying file, as listed in `testing.md`.
+3. **Refactor proof**: each step of the V2.350 refactor is proved by the same trace before and after (`REFACTOR_HANDOVER_V2.350.md` section 3); the trace driver lives in the project files, not the repo.
 4. **Tolerance Standards (D371)**:
    - Speed: $\pm 10\text{ kt}$
    - Altitude: $\pm 100\text{ ft}$

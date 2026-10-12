@@ -9,7 +9,7 @@
 // staying where it is. Drag goes out a step at a time, at least 5 s apart (Fable F6); the round-out and flare are
 // TR-110's.
 //
-// References: SMM chapter 13; NFM Fig 3-4 (zoom); EFIG p.402, 406, 408; Fable's review (F1-F16, Q1-Q7); Patrick's
+// References: SMM chapter 13; reference data (zoom); EFIG p.402, 406, 408; Fable's review (F1-F16, Q1-Q7); Patrick's
 // rulings as cited on each number.
 
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
@@ -44,7 +44,7 @@ const bearing = (a, b) => compassDegFromVector(b.x - a.x, b.y - a.y);
 export const PFL = Object.freeze({
   /** Zoom only above 150 KIAS (Patrick, 4440; card C7 06:35Z); at or below it, hold height and slow to glide speed. */
   zoomAboveKias: 150,
-  /** The zoom: 2 G pull to 20° climb, push over through 145 KIAS, capture 125 KIAS (NFM Fig 3-4, p. 3-9). */
+  /** The zoom: 2 G pull to 20° climb, push over through 145 KIAS, capture 125 KIAS (reference). */
   zoomPullG: 2,
   /** Most G the glide may pull to move the nose, never past the stall line (TR-51; Patrick 17:52Z). */
   glideMaxG: 2,
@@ -52,7 +52,7 @@ export const PFL = Object.freeze({
   gOnsetGps: 2,
   gOnsetGps2: 8,
   pushOverKias: 145,
-  /** Steepest climb attitude during zoom (NFM Fig 3-4: 20° nose up). */
+  /** Steepest climb attitude during zoom (reference data: 20° nose up). */
   zoomMaxClimbDeg: 20,
   /** Most bank while zooming, so the zoom still gains height while turning toward the join. */
   zoomMaxBankDeg: 30,
@@ -112,16 +112,10 @@ export const PFL = Object.freeze({
   planGraceUnlessShortFt: 300,
   inTurnBankDeg: 10,
   earlyGearWithinFt: 5 * FT_PER_NM,
-  interceptTurnDeg: 60,
   interceptOntoDeg: 120,
-  turnRoundOnProfileFt: 150,
   joinLeadFt: 1500,
   highKeyRunInFt: 3000,
   directFinalFt: 2000,
-  lookaheadFt: 1000,
-  cutFtPerFtLow: 8,
-  followPatternLowFt: 100,
-  maxLookaheadFt: 6000,
   widenAboveFt: 100,
   maxWidenFt: 6000,
   holdBankSec: 1,
@@ -145,41 +139,41 @@ const PLAN_DEG = [-Infinity, 0, 90, 180];
 
 // ── Shared Aerodynamic & Frame Helpers ────────────────────────────────────────
 
-export function glideKias(cfg) {
+function glideKias(cfg) {
   return cfg > 0 ? PFL.glideGearKias : PFL.glideCleanKias;
 }
 
-export function flownGlideRatio(cfg, altFt) {
+function flownGlideRatio(cfg, altFt) {
   const c = PFL_CONFIGS[cfg] ?? 'clean';
   return 1 / glideDragPerWeight(c, glideKias(cfg), altFt, 1);
 }
 
-export function stallG(kias, cfg) {
+function stallG(kias, cfg) {
   const stallK = PFL.stallKias[cfg] ?? 86;
   return stallLimitG(kias, stallK);
 }
 
-export function tradeFloorKias(cfg) {
+function tradeFloorKias(cfg) {
   const stallK = PFL.stallKias[cfg] ?? 86;
   return Math.max(PFL.minTradeKias, stallK + PFL.stallMarginKt);
 }
 
-export function speedTradeFt(kias, altFt, cfg) {
+function speedTradeFt(kias, altFt, cfg) {
   const v = ktToFtps(iasToTasKt(kias, altFt));
   const vFloor = ktToFtps(iasToTasKt(tradeFloorKias(cfg), altFt));
   return Math.max(0, (v * v - vFloor * vFloor) / (2 * G_FTPS2)) / heightFactor(altFt);
 }
 
-export function directTurnRadiusFt(altFt = 2500) {
+function directTurnRadiusFt(altFt = 2500) {
   return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, altFt)), PFL.gateFlagBankDeg);
 }
 
-export function glideJoinMinRadiusFt(altFt = 3500) {
+function glideJoinMinRadiusFt(altFt = 3500) {
   const stallBankDeg = Math.acos(1 / Math.max(stallG(PFL.glideCleanKias, 0), 1.0001)) / DEG;
   return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideCleanKias, altFt)), Math.min(PFL.maxBankDeg, stallBankDeg));
 }
 
-export function orbitRadiusFt(altFt = 4000) {
+function orbitRadiusFt(altFt = 4000) {
   return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, altFt)), PFL.orbitBankDeg);
 }
 
@@ -210,7 +204,7 @@ export function pflGeometry(windFromDeg = 360, windKt = 0, settings = {}) {
   return { th, dep, u, lenFt, rwyDeg, r, centre, at, trackAt, along, shiftFt, windFromDeg, aimAlongFt: lenFt * PFL.aimFractionOfRunway };
 }
 
-export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
+function glideFootprint(a, windFromDeg = 360, windKt = 0) {
   const alt = Number.isFinite(a?.alt) ? a.alt : FIELD_ELEV_FT;
   const altDiff = Math.max(0, alt - FIELD_ELEV_FT) * heightFactor(alt);
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a?.config ?? ''));
@@ -234,7 +228,7 @@ export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
 
 export { glideFootprint as calculateGlideFootprint };
 
-export function obviouslyShort(geo, s, cfg, wind) {
+function obviouslyShort(geo, s, cfg, wind) {
   const ring = glideFootprint({ x: s.x, y: s.y, alt: s.alt, config: PFL_CONFIG_LABELS[cfg] }, wind.windFromDeg, wind.windKt);
   const ux = geo.dep.x - geo.th.x, uy = geo.dep.y - geo.th.y, len2 = ux * ux + uy * uy || 1;
   const k = Math.max(0, Math.min(1, ((ring.cx - geo.th.x) * ux + (ring.cy - geo.th.y) * uy) / len2));
@@ -733,7 +727,7 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
   return out;
 }
 
-export function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined, cfgNow = 0) {
+function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined, cfgNow = 0) {
   const ground = THRESHOLD_DATA_ELEV_FT;
   const last = geo.lenFt - PFL.stopMarginFt;
   const trade = speedTradeFt(kias, altFt, 1);
@@ -872,7 +866,7 @@ function joinLabel(theta) {
 
 // ── Choosing the join ─────────────────────────────────────────────────────────
 
-export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = true, turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt(), bankDeg = 0 } = {}) {
+function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = true, turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt(), bankDeg = 0 } = {}) {
   const ground = THRESHOLD_DATA_ELEV_FT;
   const hk = highKeyPath(geo, from);
   const atHk = availFt - neededFt(hk, 0, from, availFt, 0, wind, false, 'high_key');
@@ -914,48 +908,6 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
   const join = one.best ?? one.high ?? run.best ?? run.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg);
   if (join) return join;
   return { kind: 'none', path: directPath(geo, from, geo.aimAlongFt, true, trackDeg), aimAlongFt: geo.aimAlongFt, label: 'Eject' };
-}
-
-// ── The tag ───────────────────────────────────────────────────────────────────
-
-export function getPflBadge(ac) {
-  if (!ac) return null;
-  const status = typeof ac.status === 'string' ? ac.status.toLowerCase() : '';
-  const phase = typeof ac.phase === 'string' ? ac.phase.toLowerCase() : '';
-  const segment = typeof ac.pflSegment === 'string' ? ac.pflSegment.toLowerCase() : '';
-
-  if (
-    status === 'ejected' ||
-    phase === 'ejected' ||
-    phase === 'eject' ||
-    phase === 'ejection' ||
-    phase === 'pfl_eject' ||
-    segment === 'eject' ||
-    segment === 'ejected'
-  ) {
-    return '[EJECT]';
-  }
-  if (
-    status === 'crashed' ||
-    phase === 'crash_short' ||
-    phase === 'pfl_crash' ||
-    phase === 'crashed' ||
-    phase === 'crash' ||
-    segment === 'crash' ||
-    segment === 'crash_short'
-  ) {
-    return '[CRASH SHORT]';
-  }
-  const marginStr = Number.isFinite(ac.pflMarginFt) ? ` (${ac.pflMarginFt >= 0 ? '+' : ''}${Math.round(ac.pflMarginFt)} ft)` : '';
-  if (ac.pflDecision) {
-    return ac.config ? `[PFL: ${ac.pflDecision}${marginStr} · ${ac.config}]` : `[PFL: ${ac.pflDecision}${marginStr}]`;
-  }
-  if (phase === 'pfl_zoom' || phase === 'zoom' || phase === 'pfl_decel' || phase === 'decel' || segment === 'zoom' || segment === 'decel') return '[PFL: ZOOM]';
-  if (phase === 'pfl_high_key' || phase === 'high_key' || phase === 'pfl_orbit' || phase === 'orbit' || segment === 'high_key') return '[PFL: HIGH KEY]';
-  if (phase === 'pfl_low_key' || phase === 'low_key' || segment === 'low_key') return '[PFL: LOW KEY]';
-  if (phase === 'pfl_base_key' || phase === 'base_key' || segment === 'base_key') return '[PFL: BASE KEY]';
-  if (phase === 'pfl_direct' || phase === 'pfl_final' || phase === 'direct' || phase === 'direct_threshold' || phase === 'pfl_direct_threshold' || phase === 'final' || segment === 'direct' || segment === 'straight' || segment === 'arc' || segment === 'roundout' || segment === 'flare') return '[PFL: DIRECT]';
-  return '[PFL: DIRECT]';
 }
 
 // ── The flight ────────────────────────────────────────────────────────────────
@@ -1466,7 +1418,6 @@ export function startPflFlight(a, wind, options = {}) {
 
   startJoin(a, a.pflFlight.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
 
-  a.mode = 'RAIL';
   a.engineFailed = true;
   a.landed = false;
   a.active = true;

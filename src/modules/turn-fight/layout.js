@@ -44,7 +44,7 @@ export const ALTITUDE_NOTE = `Above ${ENERGY_ACCURATE_MAX_FT.toLocaleString('en-
 
 /** The About panel's Energy lines: what the model does about the MPT bank, the 160 KIAS entry and the flags. Numbers and page refs only. */
 export const ENERGY_ABOUT = Object.freeze([
-  'MPT bank: the SMM gives about 75° for the level MPT at the hard deck (SMM 14.14 paras 34 to 36) and 70 to 75° for the constant-speed MPT above it (para 37). The model holds about 69° at the deck (68.5° at a 6,000 ft deck, 146 KIAS, 2.7 G) because its thrust and drag are fitted to the sustained-turn charts, and about 72° in the constant-speed MPT (3.3 G at 160 KIAS).',
+  'MPT bank: the SMM gives about 75° for the level MPT at the hard deck (SMM 14.14 paras 34 to 36) and 70 to 75° for the constant-speed MPT above it (para 37). The model holds about 69° at the deck (68.5° at a 6,000 ft deck, 146 KIAS, 2.7 G) because its thrust and drag are fitted to sustained-turn data, and about 72° in the constant-speed MPT (3.3 G at 160 KIAS).',
   'Flags: OVER G is more than +7 G, or more than +4.7 G while rolling (SMM 14.17). STALL is a pull past the stall line or a speed under the stall speed (SMM 14.14 para 32); it drops the G to 1 G for a moment, so the turn all but stops. The aircraft still flies what it did, so the flag shows what the move would cost.',
   'Start altitude: 10,000 ft is where the SMM entry speeds apply (SMM 14.5 para 10), and enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).',
 ]);
@@ -104,7 +104,7 @@ export const ADVANCED_NUMBERS = Object.freeze([
   {
     key: 'stallKias', section: 'model', label: 'Stall speed (KIAS)',
     what: 'The 1 G stall speed. The most G a jet can pull at a speed is that speed over this, squared (the stall line).',
-    why: 'Patrick kept 86, labelled an estimate (TF-56, 4 Oct 09:10Z). The V-n diagram reads about 89 and the turn charts imply about 83.',
+    why: 'Patrick kept 86, labelled an estimate (TF-56, 4 Oct 09:10Z). The flight envelope reads about 89 and the sustained-turn data imply about 83.',
     change: 'Higher: less G at every speed, so the shaker, the stall and the lost turn all come sooner. Lower: the opposite.',
   },
   {

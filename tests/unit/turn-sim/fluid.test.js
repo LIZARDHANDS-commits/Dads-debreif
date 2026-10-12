@@ -24,6 +24,7 @@ import { createFormation } from '../../../src/modules/turn-sim/live/formation.js
 import { judgeFormation } from '../../../src/modules/turn-sim/live/judge.js';
 import { checkFluidRange } from '../../../src/modules/turn-sim/live/fluid.js';
 import { TOLERANCES } from '../../helpers/tolerances.js';
+import { T6A_ROLL } from '../../../src/core/t6-performance.js';
 
 const BUBBLE_FT = 500; // SMM 16.17 para 44c; Gen Book p.11
 const CONE_HALF_DEG = 30; // Patrick 19:20Z row 2
@@ -392,4 +393,38 @@ test('at a long distance setting #2 lets the range open in the wingovers and the
     assert.ok(r.aspectDeg <= CONE_HALF_DEG, `${key}: back in the cone, aspect ${r.aspectDeg.toFixed(1)}°`);
     assert.deepEqual(failures.slice(0, 5), [], key);
   }
+});
+
+test('Live #2 (TS-194): in a steady level turn he sits on Lead\'s circle inside the cone, outside the bubble, nothing jumps, and Terminate brings him back to fighting wing', () => {
+  // The brief's first check of the live wingman (spec section 9). Both at MAX (Patrick 11 Oct 2026 22:32Z), so in a steady
+  // level turn he holds his range on Lead's own turn circle, not a fixed 15° (Patrick's card 23:06Z, "On the circle"):
+  // inside the cone (30° either side of the tail, Patrick 19:20Z row 2) and in the good part of the distance, 500-750 ft
+  // (SMM 16.17 paras 42 and 44c; Patrick row 3), with what is always true in fluid (positive G, no jumps, roll within
+  // 90°/s, outside the bubble, behind the 3/9 line); then Terminate ends in the fighting wing band. 30 s for the entry,
+  // 30 s for the turn to steady and 2 minutes for Terminate are generous limits.
+  const f = inFightingWing();
+  f.setFluid({ wing: 'live' });
+  assert.equal(f.change('fluid'), 'started');
+  const failures = [];
+  const watch = alwaysTrue(failures);
+  fly(f, 30, watch);
+  assert.equal(f.pressFluid('levelTurn', 1), 'started');
+  fly(f, 30, watch);
+  assert.ok(f.state.aircraft[0].bankDeg > 45, `Lead in a left turn, bank ${Math.round(f.state.aircraft[0].bankDeg)}`);
+  const r = f.state.fluid.readouts;
+  assert.ok(r.aspectDeg <= CONE_HALF_DEG, `Live, in the steady turn: inside the cone, aspect ${r.aspectDeg.toFixed(1)}°`);
+  assert.ok(r.rangeFt >= 500 && r.rangeFt <= 750, `Live, in the steady turn: range ${Math.round(r.rangeFt)} ft, 500-750`);
+  // #2's checks only: Lead's roll into a left level turn reaches about 113°/s with either wingman, Planned or Live (seen
+  // on V2.338 and later, Lead's flying, not this test's subject); it is on the turn-sim future.md list. Live #2 is his own
+  // aircraft, so his roll is held to the aircraft's (spec section 9, "#2, the live wingman", 6: "no roll faster than the
+  // aircraft's"; core T6A_ROLL, an estimate), not TS-37's 90°/s for the planned wingman: following Lead's roll-in he
+  // reaches about 93-98°/s for a moment.
+  const rollOk = (x) => { const m = /^#2 rolling (-?\d+)°\/s$/.exec(x); return m && Math.abs(Number(m[1])) <= T6A_ROLL.maxRateDps + ROLL_SLACK_DPS; };
+  assert.deepEqual(failures.filter((x) => !x.startsWith('Lead') && !rollOk(x)).slice(0, 5), []);
+  assert.equal(f.pressFluid('terminate'), 'started');
+  fly(f, 120);
+  assert.equal(f.state.fluid, null);
+  assert.equal(f.where().key, 'fw');
+  const [lead, wing] = f.state.aircraft;
+  assert.ok(judgeFormation('fw', lead, wing).inBand);
 });

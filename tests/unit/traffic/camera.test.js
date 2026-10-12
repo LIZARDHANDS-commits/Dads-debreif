@@ -1,7 +1,7 @@
 // Checks: the cockpit eye (front and rear seat) sits inside the canopy glass, and the tower view with nothing picked
 //   aims at the Runway 29L threshold, looking down at it from the cab.
 // Serves: TR-R2 (the views a pilot can pick), ALL-31 (the CT-156 cockpit).
-// Expected values: the canopy's own section at the eye's station (ct156-model.js, the T-6A-1 side drawing, ALL-31);
+// Expected values: the canopy's own section at the eye's station (ct156-model.js, the side view, ALL-31);
 //   the bearing and the look-down angle from the cab to the threshold worked out in the test with atan2.
 import test from 'node:test';
 import assert from 'node:assert/strict';
