@@ -634,12 +634,12 @@ function ownBank(poses) {
  * side: #2's side from the classifier (+1 left, -1 right; 0 for line astern), or undefined to hold each where he is.
  * Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec, flag }.
  */
-function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) {
+function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined, move = null) {
   const lead = aircraft[0];
   const m = MANOEUVRES[key];
-  if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
+  if (!move && !FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
   const four = aircraft.length > 2;
-  const turnDeg = FW_TURN.turnDeg[key];
+  const turnDeg = move ? 90 : FW_TURN.turnDeg[key];
   const echelon2 = !four && formation === 'echelon';
   const closeBank = closeBankNow();
   const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : (echelon2 || formation === 'route' || formation === 'astern') ? closeBank : CLOSE_TURN.bankDeg;
@@ -659,7 +659,7 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) 
   // Lead telegraphs the turn: a slow, smooth roll to his bank (rates.js TELEGRAPH, Patrick 12 Oct 2026 18:45Z), still no
   // faster than his farthest wingman can follow (closeTurnRoll).
   const roll = closeTurnRoll(telegraphRoll(bank), [...bodies.values()]);
-  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll }));
+  const leadSegs = (move ? move.segs(bank) : leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true)).map((x) => ({ ...x, roll }));
   const leadSteps = Math.round(dryRunT(lead, { segments: leadSegs }, t0).durationSec / STEP_SEC);
   const by = new Map(aircraft.map((a) => [a.id, a]));
   const leadRec = recordFlight(lead, { segments: leadSegs }, t0);
@@ -698,7 +698,7 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) 
   return {
     ok: true,
     plans,
-    note: `${turnDeg}° ${dir > 0 ? 'left' : 'right'} in ${formationWord(formation, four)}: Lead rolls in smoothly to ${bank}° of bank; the wingmen roll with him and hold their places in his wing plane with G, pitch and bank (SMM 12.19 paras 41-43, Fig 12.11). ${who}` +
+    note: move ? `${move.words(bank)} in ${formationWord(formation, four)}: the wingmen roll with Lead and hold their places in his wing plane (SMM 12.19 paras 41-43). ${who}` : `${turnDeg}° ${dir > 0 ? 'left' : 'right'} in ${formationWord(formation, four)}: Lead rolls in smoothly to ${bank}° of bank; the wingmen roll with him and hold their places in his wing plane with G, pitch and bank (SMM 12.19 paras 41-43, Fig 12.11). ${who}` +
       (intoEchelon ? ' A turn into a 4-ship echelon: the Orders normally restrict echelon to turns away (B2 ch 8 p.97); flown anyway.' : ''),
     flag: intoEchelon ? '4-ship echelon turn into the formation (Orders B2 ch 8 p.97: normally turns away only)' : null,
     leadBankDeg: bank,
@@ -774,6 +774,35 @@ export function planFormationTurn(aircraft, where, key, dir, t0 = 0, { blockFt =
   const ships = aircraft.length > 2 ? 4 : 2;
   if (!FW_TURN_KEYS.includes(key) || !TURN_FORMATIONS[ships].includes(where.key)) return null;
   return where.key === 'fw' ? planFwTurn(aircraft, key, dir, t0, { blockFt }) : planCloseTurn(aircraft, where.key, key, dir, t0, where.side);
+}
+
+/**
+ * Lead's Wings level and Reversal in a 2-ship close formation (echelon, route, line astern; Patrick 12 Oct 2026 19:16Z: "in
+ * echelon there should be a wings level and a reversal option"). Wings level rolls Lead out where he is; Reversal rolls him
+ * through to the same bank the other way and turns 90° that way (the 90° is the thread's pick), both on the telegraphed
+ * close-turn roll. #2 holds his place in Lead's wing plane, as in a close turn (planCloseTurn). where: { key, side }.
+ * Returns the plan, or { ok: false, reason }.
+ */
+export const CLOSE_MOVES = Object.freeze({
+  closeWingsLevel: { label: 'Wings level' },
+  closeReversal: { label: 'Reversal' },
+});
+export function planCloseMove(aircraft, where, key, t0 = 0) {
+  if (!CLOSE_MOVES[key]) return { ok: false, reason: `No close formation move called ${key}.` };
+  if (aircraft.length > 2 || !CLOSE_TURN_FORMATIONS[2].includes(where.key)) return { ok: false, reason: 'Wings level and Reversal fly in the 2-ship close formations.' };
+  const lead = aircraft[0];
+  const nowDir = Math.sign(lead.bankDeg ?? 0);
+  if (Math.abs(lead.bankDeg ?? 0) < 2) return { ok: false, reason: key === 'closeWingsLevel' ? 'Lead is already wings level.' : 'Reversal reverses a turn: start a turn first.' };
+  const move = key === 'closeWingsLevel'
+    ? {
+      segs: () => [{ kind: 'turn', toRad: lead.headingRad, dir: nowDir, bankDeg: Math.abs(lead.bankDeg), rollOut: true, started: true, rollingOut: true }],
+      words: () => 'Wings level',
+    }
+    : {
+      segs: (bank) => leadTurnSegs(lead.headingRad, -nowDir, 90 * DEG, bank, true),
+      words: (bank) => `Reversal ${nowDir > 0 ? 'right' : 'left'}: Lead rolls through to ${bank}° the other way and turns 90°`,
+    };
+  return planCloseTurn(aircraft, where.key, key, key === 'closeReversal' ? -nowDir : nowDir, t0, where.side, move);
 }
 
 // ---- Lead's manoeuvres in fighting wing (TS-70) ------------------------------------------------------------------------

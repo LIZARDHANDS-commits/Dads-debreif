@@ -20,7 +20,7 @@ import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
 import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/judge.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, CLOSE_MOVES } from './live/formation-turns.js';
 import { OFFSET_BOX_KEYS } from './live/offset-box-turns.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createFluidUi, pursuitWord } from './fluid-panel.js';
@@ -51,6 +51,9 @@ const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackl
 }));
 // G-warm, from Spread 4 (SMM 16.44 para 120; AFM8 brief p.16): one button, the four-ship's only for now.
 BUTTONS.push({ key: G_WARM.key, label: G_WARM.label, sided: false, ships: [4] });
+// Lead's Wings level and Reversal in the 2-ship close formations (Patrick 12 Oct 2026 19:16Z; formation-turns.js planCloseMove).
+for (const [key, m] of Object.entries(CLOSE_MOVES)) BUTTONS.push({ key, label: m.label, sided: false, ships: [2] });
+const CLOSE_MOVE_FORMATIONS = ['echelon', 'route', 'astern'];
 
 /** The setup isn't remembered between visits (saved setups are a later step), so it lives in memory. */
 function memoryStore() {
@@ -523,11 +526,13 @@ function mount(root, app) {
       ui.setMovesEnabled(false, undefined, 'Changing formation. Its manoeuvres show once the change is flown.');
     } else if (whereAll.key === 'fluid' || pairFw) {
       ui.setMovesEnabled(false, undefined, ''); // the fluid buttons show instead (transitions-panel.js), or in fighting wing Lead's moves
-    } else if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
+    } else if (TURN_FORMATIONS[ships].includes(state.current?.formationTurn?.key ?? whereAll.key)) {
+      const turnKey = state.current?.formationTurn?.key ?? whereAll.key; // mid-turn the formation the turn was called in
       // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
       // shackle, the cross turn and G-warm stay line abreast moves.
       // Break and rejoin shows in echelon only (TS-175).
-      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key) || (key === 'breakRejoin' && ships === 2 && whereAll.key === 'echelon'));
+      // Wings level and Reversal in the 2-ship close formations.
+      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key) || (key === 'breakRejoin' && ships === 2 && turnKey === 'echelon') || (CLOSE_MOVES[key] && ships === 2 && CLOSE_MOVE_FORMATIONS.includes(turnKey)));
     } else if (ships === 2) {
       ui.setMovesEnabled(true, (key) => key !== 'breakRejoin');
     } else {
@@ -600,6 +605,11 @@ function mount(root, app) {
   }
 
   function press(key, dir) {
+    if (CLOSE_MOVES[key]) {
+      if (formation.pressClose(key) !== 'refused') play();
+      refresh();
+      return;
+    }
     const how = formation.press(key, dir);
     if (how === 'queued') app.status(`${labelFor(key, dir)} is next.`);
     play(); // a button also starts the formation flying
