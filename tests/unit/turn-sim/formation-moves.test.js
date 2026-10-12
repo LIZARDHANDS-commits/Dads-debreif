@@ -196,6 +196,30 @@ test('the hot turning rejoin holds Lead frozen in the windscreen to the decision
   assert.ok(inEchelon(link(...f.state.aircraft)), 'and ends in echelon');
 });
 
+// TS-181 (3), TS-182 and Patrick 12 Oct 2026 18:41Z ("it needs to move down on to the line at route spacing, then up into
+// echelon in one smooth move"; SMM 12.24 para 58, Figs 12.7 and 12.3): on the hot turning rejoin to echelon from the
+// standard start, once #2 is in to route's spacing (route is 3 wingspans down the spinner-wingtip line from echelon,
+// TS-184, about 146 ft from Lead; 140 ft here so the check starts once he is there) he is on Lead's banked wing plane and
+// moves up the line into echelon without coming above it. 5 ft, not the shared table's 100 ft: a close formation sight line
+// (the SMM close formation band, as in tests/turn-sim/trace-echelon.mjs); more than that above the plane shows Lead's
+// spinner above his wingtip. Until V2.412 he was about 25 ft above the plane there and came up into echelon from above it.
+test('the hot turning rejoin to echelon is down on Lead\'s wing plane at route\'s spacing and moves up the line into echelon', () => {
+  const f = createFormation();
+  assert.equal(f.change('echelon'), 'started');
+  let seen = 0;
+  fly(f, 'hot rejoin to echelon', (_b, [lead, wing], t) => {
+    const l = link(lead, wing);
+    if (l.range > 140 || Math.abs(lead.bankDeg) < 5) return;
+    // #2's height off Lead's wing plane, square to it: Lead's bank tilts the plane across him (bank left wing down positive).
+    const bank = lead.bankDeg * DEG;
+    const abovePlane = l.rel.left * Math.sin(bank) - l.down * Math.cos(bank);
+    assert.ok(abovePlane <= 5, `at ${t.toFixed(1)} s, ${l.range.toFixed(0)} ft: #2 ${abovePlane.toFixed(1)} ft above Lead's wing plane`);
+    seen++;
+  });
+  assert.ok(seen > 0, 'he was inside route\'s spacing with Lead banked');
+  assert.ok(inEchelon(link(...f.state.aircraft)), 'and ends in echelon');
+});
+
 test('in fighting wing the turn buttons turn the formation: #2 stays below Lead, inside the bank cap, and ends in the band', () => {
   for (const [key, dir] of [['delayed90', 1], ['delayed90', -1], ['check', 1], ['hook', -1], ['inPlace90', 1], ['delayed45', -1]]) {
     const f = createFormation();
@@ -403,9 +427,8 @@ test('with #2 on Live, a level turn into him and its reversal keep him between 5
 // a level turn into #2 and the roll-out: nobody rolls past 90° of bank or pulls past the stick shaker (the shared 0.5 G
 // margin), and once Lead is level each wingman settles in fighting wing off the one ahead, 500-1,000 ft and 30-60° of
 // sweep, below him (SMM 12.29 para 69; SMM 16.38 para 104: each wingman flies off the preceding aircraft), with the shared
-// ±100 ft and ±5° margins. 60 s is a generous limit for the roll-out: they settle in about 15 s. The 500 ft floor is not
-// checked here: from the 4-ship change into fighting wing #2 starts about 540 ft out, near abeam, and the first turn into
-// him comes inside it (docs/modules/turn-sim/future.md).
+// ±100 ft and ±5° margins. 60 s is a generous limit for the roll-out: they settle in about 15 s. The range kept in the
+// turn is the next test's.
 test('4-ship on Live: through a level turn into #2 nobody passes 90° of bank or the shaker, and after the roll-out each wingman is in fighting wing off the one ahead', () => {
   const f = createFormation({ ships: 4 });
   f.setFluid({ fwWing: 'live' });
@@ -429,4 +452,40 @@ test('4-ship on Live: through a level turn into #2 nobody passes 90° of bank or
   const A = f.state.aircraft;
   const where = A.slice(1).map((a, k) => { const l = link(A[k], a); return `#${k + 2} ${l.range.toFixed(0)} ft, ${l.sweep.toFixed(0)}° sweep, ${l.down.toFixed(0)} ft below`; }).join('; ');
   assert.ok(settled, `after wings level each wingman is in fighting wing off the one ahead (${where})`);
+});
+
+// TS-208's fighting wing start and Patrick's 12 Oct 2026 18:17Z ruling ("hold 2 closer to the edge of the cone near to
+// lead"). What a pilot would recognise, from the default start (Spread 4) with Live set:
+//  - the change into fighting wing ends with each wingman about 650 ft off the one ahead (TS-208; Patrick 4 Oct 11:44Z)
+//    and below him by 50-100 ft (TS-208; Patrick 12 Oct 2026 17:16Z), with the shared ±100 ft margin on each; #2 sits
+//    at the aft edge of the cone, 60° of sweep (SMM 12.29 para 69's 30-60°), with the shared ±5°;
+//  - a level turn into #2 from there never brings a wingman within 300 ft of the one ahead (3D). The floor he flies to is
+//    500 ft (SMM 16.17 para 44c; Patrick 12 Oct 2026 16:49Z), a published limit flagged on screen and never a wall, so the
+//    test does not hold him at it: 300 ft (the floor less two of the shared 100 ft margins) catches the real fault, a
+//    wingman closing on the one ahead, as from the old start near abeam (about 250 ft). 30 s covers the turn's entry,
+//    where the closest point comes.
+test('4-ship on Live: the change into fighting wing ends at the start place, and a level turn into #2 keeps each wingman 300 ft or more from the one ahead', () => {
+  const f = createFormation({ ships: 4 });
+  f.setFluid({ fwWing: 'live' });
+  assert.equal(f.change('fw', {}), 'started');
+  for (let i = 0; i < CATCH_SEC / STEP_SEC && f.state.current; i++) f.step();
+  let A = f.state.aircraft;
+  A.slice(1).forEach((a, k) => {
+    const l = link(A[k], a);
+    const at = `#${k + 2}: ${l.range.toFixed(0)} ft, ${l.sweep.toFixed(0)}° sweep, ${l.down.toFixed(0)} ft below`;
+    assert.ok(Math.abs(l.range - 650) <= 100, `${at}: about 650 ft off the one ahead`);
+    assert.ok(l.down > 0 && l.down <= 100 + 100, `${at}: 50-100 ft below the one ahead`);
+    if (k === 0) assert.ok(Math.abs(l.sweep - 60) <= 5, `${at}: #2 at the aft edge of the cone`);
+  });
+  const into = Math.sign(relativeTo(A[0], A[1]).left) || -1;
+  assert.equal(f.pressFw('levelTurn', into), 'started');
+  for (let i = 0; i < 30 / STEP_SEC; i++) {
+    f.step();
+    A = f.state.aircraft;
+    A.slice(1).forEach((a, k) => {
+      const l = link(A[k], a);
+      const r = Math.hypot(l.range, l.down);
+      assert.ok(r >= 300, `level turn into #2 at ${(i * STEP_SEC).toFixed(1)} s: #${k + 2} ${Math.round(r)} ft from the one ahead`);
+    });
+  }
 });

@@ -125,8 +125,9 @@ function withTail(part, w, wing0, recs, done, leadRec, t0, blockFt) {
 /**
  * Plans one leg from `start` (the four as they are at t0). lead: Lead's segments, or a held turn ({ hold: leadTurnInto's
  * { longRec, planTo }, until: ids, rollOutRoll? }: Lead turns on until those wingmen are in, then rolls out on the whole
- * degree, at rollOutRoll if given). wings: [{ id, phases(done, recs), plane? } | { id, fly(ctx), phases?, plane? }] (plane: his
- * last leg ends in Lead's wing plane, intoLeadsPlane) in an order where the aircraft each flies off is planned first;
+ * degree, at rollOutRoll if given). wings: [{ id, phases(done, recs), plane?, accelKtps? } | { id, fly(ctx), phases?, plane? }]
+ * (plane: his last leg ends in Lead's wing plane, intoLeadsPlane; accelKtps: the speed rate his tracker legs start from,
+ * else none) in an order where the aircraft each flies off is planned first;
  * `done[id]` holds an earlier wingman's { times, inSec, endSec } for gates, `recs[id]` his recorded flight. fly(ctx) gets
  * { wing, recs, done, t0, blockFt } and returns { plan, inSec, durationSec, times? }, { ok: false, reason }, or null when
  * it does not apply from here (then `phases`, if given, flies it). then(done, recs): tracker legs flown on from where his
@@ -155,7 +156,7 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
       if (!part) {
         // Tracker legs (or the fallback when a held planner does not apply from here).
         const phases = onProfile(w.phases(done, recs));
-        let { run, profile } = trackPhases({ refs: recs, wing0, t0, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
+        let { run, profile } = trackPhases({ refs: recs, wing0, t0, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC, init: w.accelKtps != null ? { accelKtps: w.accelKtps } : null });
         if (!run.ok) return { ok: false, reason: `${NAMES[w.id]} could not settle in its place inside ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, id: w.id };
         let planeInSec = t0;
         // In his place on the level heights, before the plane's heights are laid on: in Lead's turn the plane holds him
@@ -290,6 +291,15 @@ export function inLeadFrame(slots, id) {
   return { fwd, left, alt: slots[id].alt };
 }
 
+/** A wingman's part with one more phase after his own last one: after his tracker legs, or after his held part (withTail). */
+function thenTo(w, ph) {
+  return {
+    ...w,
+    phases: w.phases ? (done, recs) => [...w.phases(done, recs), ph] : w.phases,
+    then: w.fly ? (done, recs) => [...(w.then ? w.then(done, recs) : []), ph] : w.then,
+  };
+}
+
 /**
  * Runs a list of leg makers one after another: each gets the context at its own start. A step starts as soon as everyone in
  * the one before has settled in place (when #2 sees room, SMM 16.32 para 87; Patrick 6 Oct 05:29Z), not after each has also
@@ -301,14 +311,37 @@ export function legsInTurn(start, t0, opts, makers) {
   let now = start;
   let t = t0;
   let before = null; // the last leg flown, cut at its settle time: { leg, from (the states it started from), whole (its uncut plans) }
-  for (const make of makers) {
+  let last = null; // the last leg flown and the states it started from: { leg, from }
+  const all = [...makers];
+  for (let k = 0; k < all.length; k++) {
     const c = context(now, t, opts);
-    const spec = make(c);
+    let spec = all[k](c);
+    // opts.endPhases(c): { id: phase }, where each wingman ends the move, flown after his own last phase (four-plan.js: the
+    // fighting wing start, TS-208). With Lead straight each flies on into it as soon as he is through his last phase; with
+    // Lead turning on until they are in (a turning rejoin) it is a leg of its own once Lead has rolled out, so his turn is
+    // the move's own.
+    if (opts.endPhases && k === all.length - 1 && !opts.endPhasesDone) {
+      if (!spec || (spec.lead && !Array.isArray(spec.lead))) {
+        all.push((c2) => {
+          const ends = opts.endPhases(c2);
+          // Each starts the leg at the speed rate he has at the join (runTracker's init), not from none: the turning rejoin
+          // can end with a wingman still settling his speed, and from none the first step's slowing for the start place
+          // stepped his speed rate (#4 from Spread 4, 0.65 to -0.94 kt/s in a step, once the start place moved back, V2.412).
+          const accel = last ? accelAt(last.from, last.leg, c2.t0) : {};
+          return { lead: [], wings: [2, 3, 4].map((id) => ({ id, phases: () => [ends[id]], accelKtps: accel[id] })) };
+        });
+        opts = { ...opts, endPhasesDone: true };
+      } else {
+        const ends = opts.endPhases(c);
+        spec = { ...spec, wings: spec.wings.map((w) => thenTo(w, ends[w.id])) };
+      }
+    }
     if (!spec) continue;
     const leg = flyLeg(now, t, spec.lead ?? [], spec.wings, opts.blockFt);
     if (!leg.ok) return { ok: false, reason: leg.reason, legs };
     legs.push(leg);
     const from = now;
+    last = { leg, from };
     const whole = leg.plans;
     const cut = cutAt(leg, leg.settleSec);
     before = cut ? { leg, from, whole } : null;
@@ -322,6 +355,13 @@ export function legsInTurn(start, t0, opts, makers) {
     t = before.leg.endSec;
   }
   return { ok: true, legs, end: now, endSec: t };
+}
+
+/** Each aircraft's speed rate (KIAS per second) over the last step before T of a leg flown from `from`: { id: kt/s }. */
+function accelAt(from, leg, T) {
+  if (!(T - STEP_SEC >= leg.t0 - 1e-9)) return {};
+  const [a, b] = [statesAt(from, leg, T - STEP_SEC), statesAt(from, leg, T)];
+  return Object.fromEntries(b.map((x, i) => [x.id, (x.kias - a[i].kias) / STEP_SEC]));
 }
 
 /**

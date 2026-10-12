@@ -20,7 +20,7 @@
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
-import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
+import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll, hermiteBlend } from './flight.js';
 import { MANOEUVRES, relativeTo, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT, speedSeg, leadExcessPerWeight } from './replay.js';
 import { trackPhases, phase } from './tracker.js';
@@ -34,6 +34,7 @@ import { wrapPi, DEG } from '../../../core/angles.js';
 import { thrustPerWeight, dragPerWeight, iasToTasKt, T6A_LIMITS, T6A_MANOEUVRE } from '../../../core/t6-performance.js';
 import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { throttleAtTorque } from './power.js';
+import { telegraphRoll } from './rates.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
 export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));
@@ -543,8 +544,8 @@ function turnFromRolledBank(track, poses, own, wing) {
   for (let k = k0 + 1; k <= k0 + blendSteps; k++) {
     // The quintic Hermite blend: the place and velocity differences at the start, none at the end, no acceleration step at either.
     const u = (k - k0) / blendSteps;
-    const placeShare = 1 - u ** 3 * (10 - 15 * u + 6 * u * u);
-    const velShare = (u - 6 * u ** 3 + 8 * u ** 4 - 3 * u ** 5) * T;
+    const placeShare = hermiteBlend.placeShare(u);
+    const velShare = hermiteBlend.velShare(u) * T;
     const px = k <= poses.length ? poses[k - 1].x : track.x[row(k)];
     const py = k <= poses.length ? poses[k - 1].y : track.y[row(k)];
     setTrackStep(track, k, px + dp.x * placeShare + dv.x * velShare, py + dp.y * placeShare + dv.y * velShare, track.z[row(k)]);
@@ -655,7 +656,9 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) 
     const near = slot && Math.hypot(slot.fwd - now.fwd, slot.left - now.left, slot.alt - now.up) <= SLOT_TOL_FT;
     return [wing.id, near ? { fwd: slot.fwd, left: slot.left, up: slot.alt } : now];
   }));
-  const roll = closeTurnRoll(echelon2 ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll, [...bodies.values()]);
+  // Lead telegraphs the turn: a slow, smooth roll to his bank (rates.js TELEGRAPH, Patrick 12 Oct 2026 18:45Z), still no
+  // faster than his farthest wingman can follow (closeTurnRoll).
+  const roll = closeTurnRoll(telegraphRoll(bank), [...bodies.values()]);
   const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll }));
   const leadSteps = Math.round(dryRunT(lead, { segments: leadSegs }, t0).durationSec / STEP_SEC);
   const by = new Map(aircraft.map((a) => [a.id, a]));
@@ -757,7 +760,7 @@ export function leadTurnPlan(lead, formation, key, dir) {
   const closeBank = closeBankNow();
   const isClose = formation === 'echelon' || formation === 'route' || formation === 'astern';
   const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : isClose ? closeBank : CLOSE_TURN.bankDeg;
-  return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: formation === 'echelon' ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll })) };
+  return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: telegraphRoll(bank) })) };
 }
 
 const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', astern: 'line astern', trail: 'line astern', finger: 'finger', box: 'box', fw: 'fighting wing' })[key] ?? (four ? 'the formation' : key);

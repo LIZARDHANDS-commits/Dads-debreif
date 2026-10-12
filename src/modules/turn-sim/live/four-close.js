@@ -97,7 +97,10 @@ export function fingerToEchelon(start, t0, opts, s, e) {
       wings: [
         { id: 2, phases: () => [hold(c, 2, 1)] },
         { id: 3, phases: () => [upInto(c, ech4[3])] },
-        { id: 4, phases: () => [toSlot(c, slide, ech4[4])] },
+        // #4 moves in with #3 flown off Lead, to where his place will be once #3 is in, then into it off #3 for the last few
+        // feet, as in the make-room move above: chasing #3 from the start, he followed #3's roll into place a second late, and
+        // from the finger the fighting wing start's 45° (V2.412) left him in, he swung 40 ft past his place to 19 ft of #3.
+        { id: 4, phases: () => [toSlot(c, slide, { ...inLeadFrame(ech4, 4), ref: 1 }), toSlot(c, slide, ech4[4])] },
       ],
     }),
   ]);
@@ -345,3 +348,18 @@ export function openToFw(start, t0, opts, s, from) {
     return { lead: toSpeed(c, 'fw'), wings: [two, behind(3), behind(4)] };
   }]);
 }
+
+/**
+ * The fighting wing start (TS-208; Patrick 12 Oct 2026 18:17Z, "Agreed fix it"): every change into the 4-ship's fighting
+ * wing ends with each wingman moved from wherever he settled in the cone to his place in the table, 650 ft off the one
+ * ahead at its sweep (slots.js FW4: #2 at 60°, near Lead's six; #3 and #4 at 45°) and FW_STEP_DOWN_FT (60 ft) below him,
+ * inside TS-208's 50 to 100 ft. Up to V2.411 the change stopped wherever each
+ * arrived in the cone, with the Spread 4 stack still held (from Spread 4: #2 about 540 ft out at 32° of sweep, #3 and #4
+ * about 300 ft below the one ahead), so the first turn into #2 found him near abeam with no room to lag. Each flies off
+ * the aircraft ahead, planned after it; the move is the drop back's sweep out (recipes.js sweepOut) at the gentle height
+ * rate. four-plan.js adds it after the last move into fighting wing (four-legs.js legsInTurn, endPhases).
+ */
+export const fwStartPhases = (s) => (c) => {
+  const slots = slotsFor('fw', s, { ships: 4, stacked: false });
+  return Object.fromEntries([2, 3, 4].map((id) => [id, toSlot(c, sweepOut, slots[id])]));
+};
