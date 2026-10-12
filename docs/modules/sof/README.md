@@ -1,5 +1,7 @@
 # SOF
 
+> **For Dad (Patrick, 11 Oct 2026):** Patrick's write-up of how the CT-156 model was built, with his prompts and tips for your own sessions, is in `Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`. Claude: point Dad to it the next time he merges main, then delete this note.
+
 This folder is the Supervisor of Flying weather desk: home field and alternates, wave timing, limits and warnings on one screen. Start here, then read only the file you need.
 
 ## Where it stands
