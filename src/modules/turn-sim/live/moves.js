@@ -361,7 +361,7 @@ export const TRACKER = Object.freeze({
   /** Control gains. All estimates: they shape how smoothly #2 flies, not where the formations are. */
   gain: Object.freeze({
     position: 0.3, // 1/s: position error to relative velocity
-    heading: 1.5, // 1/s: heading error to turn rate
+    heading: 1.2, // 1/s: heading error to turn rate (1.5 before #2's roll built its acceleration, TS-196: at 1.5 the roll that builds its acceleration came out of fighting wing to line abreast 17° past the bank it settles on; Fable's plan)
     refRate: 0.5, // 1/s: how fast the moving reference closes on its target
     speedLoop: 0.8, // 1/s: speed error to acceleration
     jerkKtps2: POWER_JERK_KTPS2, // kt/s²: the acceleration follows the torque, 0 to 100% in about 0.2 s (Patrick 6 Oct 03:17Z, TS-108; 1.0 until V2.119)

@@ -22,6 +22,8 @@ import { judgePair } from '../../../src/modules/turn-sim/live/judge.js';
 import { relativeTo, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC, makeAircraft, stepAircraft, planDone } from '../../../src/modules/turn-sim/live/flight.js';
 import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';
+import { T6A_ROLL } from '../../../src/core/t6-performance.js';
+import { TOLERANCES } from '../../helpers/tolerances.js';
 
 const SPACING_FT = LIVE_DEFAULTS.spacingFt; // the default line abreast spacing, 5,000 ft (TS-89, Patrick 5 Oct 22:46Z: "5000"); 6,000 until then
 const MARGIN_FT = 100; // shared table
@@ -255,4 +257,38 @@ test('a speed segment changes speed smoothly, straight on its own or during a tu
     assert.equal(a.kias, segments[0].toKias, `${name}: on the new speed`);
     assert.ok(Math.abs(lastAccel) < 0.01, `${name}: the acceleration died away`);
   }
+});
+
+test('#2\'s roll builds its acceleration (TS-196): fighting wing to line abreast, the stick pushed, not slammed, and the roll-out lands', () => {
+  // Patrick 12 Oct 2026 02:08Z: "the roll rate itself just needs to be realistic and smoothed (not instant acceleration)".
+  // The roll's acceleration builds over the T-6A's onset (core T6A_ROLL.onsetSec, Patrick's 0.2 s, 03:37Z): each step it
+  // changes by no more than the aircraft's full roll acceleration (its top rate over fullRateSec, estimates) per onset, with
+  // one step's slack (twice that). Once the turn's roll-out has passed wings level, his bank goes no further than the shared
+  // ±5° past the bank he holds 3 s later (a roll-out that lands on the heading, no rock). He ends in line abreast.
+  const f = createFormation();
+  assert.equal(f.change('fw'), 'started');
+  while (f.state.current || f.state.queued) f.step();
+  assert.equal(f.change('lab', { turn: 'into' }), 'started');
+  const perStep = 2 * (T6A_ROLL.maxRateDps / T6A_ROLL.fullRateSec / T6A_ROLL.onsetSec) * STEP_SEC;
+  const banks = [];
+  let rate0 = f.state.aircraft[1].rollRateDps;
+  let accel0 = null;
+  while (f.state.current || f.state.queued) {
+    f.step();
+    const w = f.state.aircraft[1];
+    const accel = (w.rollRateDps - rate0) / STEP_SEC;
+    if (accel0 !== null) assert.ok(Math.abs(accel - accel0) <= perStep + 1e-6, `t ${f.state.tSec.toFixed(2)} s: roll acceleration ${accel0.toFixed(0)} to ${accel.toFixed(0)}°/s² in one step`);
+    accel0 = accel;
+    rate0 = w.rollRateDps;
+    banks.push(w.bankDeg);
+  }
+  const peak = banks.reduce((m, b, i) => (Math.abs(b) > Math.abs(banks[m]) ? i : m), 0);
+  const level = banks.findIndex((b, i) => i > peak && Math.sign(b) !== Math.sign(banks[peak]));
+  assert.ok(Math.abs(banks[peak]) >= 60, `an aggressive turn: ${banks[peak].toFixed(0)}° of bank`);
+  if (level >= 0) {
+    const held = banks[Math.min(banks.length - 1, level + Math.round(3 / STEP_SEC))];
+    const past = Math.max(...banks.slice(level, level + Math.round(3 / STEP_SEC)).map((b) => (b - held) * Math.sign(held || 1)));
+    assert.ok(past <= TOLERANCES.ANGLE_DEG, `the roll-out went ${past.toFixed(1)}° past the ${held.toFixed(1)}° he then holds`);
+  }
+  assert.equal(f.where().key, 'lab');
 });

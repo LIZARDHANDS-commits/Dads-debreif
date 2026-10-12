@@ -177,7 +177,9 @@ function fly(f, label, each = () => {}) {
       const [b, n] = [before[k], after[k]];
       // No snaps: the roll rate and position move as an aircraft can (ROLL is the T-6's 90°/s, TS-36).
       assert.ok(Math.abs(n.bankDeg - b.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-6, `${label}: ${n.name ?? n.id} rolled faster than it can`);
-      const moved = Math.hypot(n.xFt - b.xFt, n.yFt - b.yFt);
+      // The move is measured in 3D (Patrick's card 12 Oct 2026 04:02Z, "Measure in 3D"): flat, a wingman climbing steeply
+      // to hold fighting wing through a hook (26°, 136 ft/s) read as 10% short of his speed though he flew it exactly.
+      const moved = Math.hypot(n.xFt - b.xFt, n.yFt - b.yFt, n.altAboveFt - b.altAboveFt);
       assert.ok(Math.abs(moved - b.tasFtps * STEP_SEC) <= 0.1 * b.tasFtps * STEP_SEC, `${label}: ${n.id} jumped`);
       // The 40 ft/s height-step check retired (Patrick 10 Oct 2026 22:15Z, "retire it"; TS-178): an estimate that became a wall
       // against the no-height-rate-cap ruling (TS-140). The flight code holds a height change to one smooth ~1 g leg.
