@@ -398,8 +398,9 @@ export function dragPerWeight(kias, altFt, g, config = 'clean', weightLb = T6A_L
  *   weight at 200 KIAS at 6,400 lb, about 7.6 sq ft. Sized on Patrick's overhead break (level, 2 G, 60° of bank, 220 to
  *   about 130 KIAS in 180°, 4 Oct 23:44Z); level at 1 G it slows about 5 kt/s at 200 KIAS (Patrick, 5 Oct 2026 00:11Z:
  *   "probably closer to 5"). TS-61 (2).
- * - idlePropFullToKias 200 and idlePropGoneByKias 250: at idle the propeller drag is full up to 200 KIAS and gone by
- *   250 KIAS (Patrick's flying experience, 12 Oct 2026). Standard propeller physics: slow, the blades sit on the fine
+ * - idlePropFullToKias 220 and idlePropGoneByKias 250: at idle the propeller drag is full up to 220 KIAS and gone by
+ *   250 KIAS (Patrick's flying experience, 12 Oct 2026). Full to 220, a 10° dive at 220 KIAS holds its speed at about
+ *   4 % torque (SMM 8.11 para 45: 4 to 6 %) and the overhead break takes about 180°. Standard propeller physics: slow, the blades sit on the fine
  *   stop and windmill as an air brake; fast enough, the governor turns them coarser to hold the propeller speed, and
  *   with a free power turbine the windmill has little to drive, so the drag falls away. A straight line between the two
  *   speeds: an ESTIMATE.
@@ -407,7 +408,7 @@ export function dragPerWeight(kias, altFt, g, config = 'clean', weightLb = T6A_L
 export const T6A_EXTRA_DRAG = Object.freeze({
   speedBrakeSqFt: 4.2,
   idlePropSqFt: 0.16 * T6A_LIMITS.weightLb / qPsf(200),
-  idlePropFullToKias: 200,
+  idlePropFullToKias: 220,
   idlePropGoneByKias: 250,
 });
 
@@ -419,7 +420,7 @@ export function speedBrakeDragPerWeight(kias, weightLb = T6A_LIMITS.weightLb) {
 
 /**
  * The idle propeller's drag ÷ weight at kias and weightLb (6,400 lb unless told), on top of dragPerWeight with no thrust
- * (T6A_EXTRA_DRAG): the whole drag area up to 200 KIAS, fading in a straight line to nothing at 250 KIAS.
+ * (T6A_EXTRA_DRAG): the whole drag area up to 220 KIAS, fading in a straight line to nothing at 250 KIAS.
  */
 export function idlePropDragPerWeight(kias, weightLb = T6A_LIMITS.weightLb) {
   checkInputs('idle propeller drag', kias, 0, 1, weightLb);
@@ -433,7 +434,7 @@ export function idlePropDragPerWeight(kias, weightLb = T6A_LIMITS.weightLb) {
  * 5% torque the propeller neither pushes nor drags, so the aircraft flies the feathered glide figures (T6A_GLIDE). At
  * idle (0%) it drags the whole idle propeller drag (T6A_EXTRA_DRAG); from 15% up it gives that share of full thrust
  * (excessFnFor's rule). Straight lines between: an ESTIMATE. With these, a 10° dive at 220 KIAS holds its speed at about
- * 3% torque (SMM 8.11 para 45: 4 to 6%).
+ * 4% torque (SMM 8.11 para 45: 4 to 6%).
  */
 export const T6A_LOW_TORQUE = Object.freeze({ zeroNetTorque: 0.05, fullShareFromTorque: 0.15 });
 

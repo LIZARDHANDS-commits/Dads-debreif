@@ -20,6 +20,7 @@ Nothing on this branch goes to main, or into a pull request, until Patrick says 
 | 10eec49 | Full power to 16,000 ft; pitch fitted to his attitudes; weight in the stall, shaker and pitch | 12 Oct 05:55Z |
 | 2c19567 | A tail slide under 1 KIAS no longer stops the split S, zoom or fight step | bug fix |
 | cc82530 | The split S settings test checks what a pilot sees, not earlier numbers | 12 Oct 06:31Z |
+| (see below) | Idle propeller drag full to 220 KIAS, gone by 250 | 12 Oct 07:18Z |
 | aabab26 | No extra drag near the stall: the level MPT is about 147 / 144 / 141 KIAS at sea level, 6,000 and 10,000 ft (SMM 14.14) | 12 Oct 06:42Z |
 
 `tools/trj-casadi/model.py` carries the same inputs.
@@ -40,7 +41,7 @@ Seven unit tests fail on this branch and pass on main. All of them are in module
 6. **Turn Fight, pure pursuit:** the chaser goes 0.06 G over the shaker.
 
 Also at integration:
-- `src/modules/turn-sim/live/slow-down.js` keeps its own idle propeller and speed brake figures. It should use core's, which now fade the idle drag out between 200 and 250 KIAS.
+- `src/modules/turn-sim/live/slow-down.js` keeps its own idle propeller and speed brake figures. It should use core's, which now fade the idle drag out between 220 and 250 KIAS.
 - `docs/modules/shared/flight-math.md` still lists `zoomT6A`, which this branch removes.
 - The page `docs/references/how-the-performance-model-works.md` (approved wording) goes in with the docs pull request.
 
