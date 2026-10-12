@@ -78,13 +78,15 @@ export const EYE_FT = Object.freeze({ x: CT156_HELMET_X[0] * F + EYE_AHEAD_OF_HE
  * How far the rear seat is raised above the side view's, feet: 5.5 in (Patrick, 11 Oct 2026 08:34Z, "Raise
  * rear eye" so the rear seat's 220 KIAS picture matches the SMM's Fig 3.5). In that figure the top of the front seat's
  * headbox sits on the horizon at 220 KIAS level; from the view's eye (both helmets drawn level) it sat about 6° above
- * it at the model's -0.7°, 5.5 in up puts it about 0.2° under. Fitted to the figure, not measured.
+ * it at the model's -0.7°, 5.5 in up puts it about 0.2° under. Fitted to the figure, not measured. Since the front
+ * seat's headbox came down 6 in to its right height (Patrick, 12 Oct 2026), 0.5 in up puts its top back on the
+ * horizon (Patrick, 12 Oct 2026, "Refit to 0.5 in"; was 5.5 in).
  */
-export const REAR_SEAT_RAISE_FT = 5.5 / 12;
+export const REAR_SEAT_RAISE_FT = 0.5 / 12;
 /**
  * Both eyes, feet (TS-155, TS-156, ALL-31). Front: EYE_FT. Rear: 2.03 ft aft of the origin (17.3 ft behind the spinner
- * tip; 3.3 ft aft until the rear seat moved 1.27 ft forward, Patrick, 12 Oct 2026) and 2.66 ft above the spinner's axis,
- * the side view's (2.2 ft up) raised REAR_SEAT_RAISE_FT (was 3.0 ft aft and 2.29 ft up until V2.238, then the view's
+ * tip; 3.3 ft aft until the rear seat moved 1.27 ft forward, Patrick, 12 Oct 2026) and 2.13 ft above the spinner's axis,
+ * its helmet's eye raised REAR_SEAT_RAISE_FT (2.66 ft up until 12 Oct 2026; was 3.0 ft aft and 2.29 ft up until V2.238, then the view's
  * until V2.279).
  */
 export const EYES_FT = Object.freeze({
@@ -120,7 +122,7 @@ export const FORWARD_BOW_FT = Object.freeze({
   tubeR: 0,
   flange: 0.25,
   lean: CT156_BOW_LEAN,
-  dots: Object.freeze([Object.freeze({ at: 0.5, n: 22, dia: 0.07 })]),
+  dots: Object.freeze([Object.freeze({ at: 0.5, n: 22, dia: 0.04 })]), // 0.07 ft across until the bow thinned (Patrick, 12 Oct 2026, "should be round")
   footFillet: Object.freeze({ r: 0.35 }),
 });
 // Its section is a T (Patrick, 12 Oct 2026, from his cockpit photos): the aft face, and along its inner edge a flange
