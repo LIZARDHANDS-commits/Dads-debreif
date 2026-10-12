@@ -24,7 +24,8 @@ import { FT_PER_NM } from '../../../core/units.js';
 export const FIN_TOP_ABOVE_WHEELS_FT = 10.6;
 /**
  * How far the wheels sit under the model's origin (the reference point a track's position stands for), feet: the fin top's height above
- * the origin on the model, taken from the fin top's height above the wheels. About 6.2 ft. An estimate (the model has no landing gear).
+ * the origin on the model, taken from the fin top's height above the wheels. About 6.2 ft. An estimate (the model has no landing gear),
+ * kept until the model has landing gear (DB-31, waiting list).
  */
 export const WHEELS_BELOW_ORIGIN_FT = FIN_TOP_ABOVE_WHEELS_FT - CT156_REFERENCE_POINTS.finTop[2] * (CT156_LENGTH_FT / CT156_UNIT_LENGTH);
 /** A step between two fixes longer than this (seconds) is a gap, not slow movement: the Debrief's 5 s hole (DB-Q6). One copy, flight-data's. */
