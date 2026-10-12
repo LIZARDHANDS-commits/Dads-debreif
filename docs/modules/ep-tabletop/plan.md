@@ -13,7 +13,7 @@ Only what is here gets built. Patrick approved `spec.md` and EP-1 to EP-3 (relay
 
 ## Step 2. The instructor's phone
 - [x] QR code on the student's screen, the console on the phone, the link as EP-Q1 settles; "Instructor link lost" handling (EP-R10).
-- Built in V2.375, not yet seen: the relay mailbox (EP-8 to EP-10), our own QR encoder (EP-Q2), the phone as the master sending only the student view, and its one test. The relay's `/ep-link` waits on Dad's redeploy (waiting list in `../../PLAN.md`); a real phone camera, iOS Safari and mobile networks are untried.
+- Built in V2.376, not yet seen: the relay mailbox (EP-8 to EP-10), our own QR encoder (EP-Q2), the phone as the master sending only the student view, and its one test. The relay's `/ep-link` waits on Dad's redeploy (waiting list in `../../PLAN.md`); a real phone camera, iOS Safari and mobile networks are untried.
 
 ## Step 3. Scenarios and log
 - [ ] The example scenarios (EP-Q3), save and load of the instructor's own, Declare boxes, the debrief log and its file.
