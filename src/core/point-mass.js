@@ -1,8 +1,8 @@
 // The point-mass step: one aircraft as a point with a velocity, flown by G and
-// bank, with thrust minus drag as a callback (SPEC-core, "API, fifth PR";
-// the motion is SPEC-turn-fight's "The model (T-6A, point mass)").
+// bank, with thrust minus drag as a callback (standard flight mechanics,
+// fourth-order Runge-Kutta).
 //
-// New math, nothing in V6 to pin. Positions in feet: x east, y north, z up
+// Positions in feet: x east, y north, z up
 // (altitude). Velocity is true airspeed in feet per second. Heading is in math
 // radians, counter-clockwise from east, as in the rest of core; a right bank
 // turns clockwise.

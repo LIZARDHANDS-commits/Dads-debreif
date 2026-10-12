@@ -124,7 +124,7 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | File | Keep, rewrite or retire | Why (policy line or requirement) | What the rewrite checks instead | Runs |
 |---|---|---|---|---|
 | `tests/unit/core/angles.test.js` | Keep | ALL-R23; geometry of the heading convention. "V6's nose/tail convention" (`:63`) is a label only | | Each change |
-| `tests/unit/core/flight-math.test.js` | Keep, with changes | ALL-R20, ALL-R23: bank = acos(1/n) and radius worked out in the test (`:21-29`). The six turnSimG tests (`:57-99`) belong to the Turn Sim's correction model, whose fate is TS-Q17 and the Turn Sim review; they move with it. "V6 gave 0.7 G" and "V6 showed half" (`:87`, `:107`) are labels only | | Each change |
+| `tests/unit/core/flight-math.test.js` | Keep, with changes | ALL-R20, ALL-R23: bank = acos(1/n) and radius worked out in the test (`:21-29`). The six turnSimG tests went with `turnSimG`, which no module called any more (core refactor step 1, 11 Oct 2026). "V6 gave 0.7 G" and "V6 showed half" (`:87`, `:107`) are labels only | | Each change |
 | `tests/unit/core/geo.test.js` | Keep | ALL-R16; the nautical mile by definition | | Each change |
 | `tests/unit/core/point-mass.test.js` | Keep | ALL-R20, T1: energy height held through a loop and a split S; the climbing-turn formula worked out in the test | | Each change |
 | `tests/unit/core/properties.test.js` | Keep | ALL-R20, T1, T6 (fixed seeds): radius rises with speed and falls with G; available G never above the G limit or stall line. Few seeds each change, more at sign-off (Q-T10, decided). "V6's constants" (`:145-158`) are labels only; the unit factors are standard definitions | | Each change (few seeds); sign-off (many) |

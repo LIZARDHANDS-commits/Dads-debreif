@@ -8,7 +8,7 @@
 // standard day. G is the load factor.
 import { FT_PER_NM, G_FTPS2, KT_TO_FTPS, M_PER_FT } from './units.js';
 import { isaDensityRatio } from './flight-math.js';
-import { T6A_FIT } from './t6a-turn-charts.js';
+import { T6A_FIT } from './t6a-turn-data.js';
 import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js';
 
 /**
@@ -55,11 +55,6 @@ export const T6A_G_ONSET = Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 });
 export function rollLimitsAtKtasT6A(ktas) {
   const maxRateDps = Math.min(T6A_ROLL.maxRateDps, T6A_ROLL.rollPerKtasDps * Math.max(0, ktas));
   return { maxRateDps, maxAccelDps2: maxRateDps / T6A_ROLL.fullRateSec };
-}
-
-/** The T-6A's roll limits at an indicated airspeed and pressure height. Estimates (T6A_ROLL). */
-export function rollLimitsT6A(kias, altFt) {
-  return rollLimitsAtKtasT6A(iasToTasKt(kias, altFt));
 }
 
 /**
@@ -195,7 +190,7 @@ export const T6A_PITCH = Object.freeze({
  * Extending flaps increases wing camber, shifting zero-lift angle negative and requiring less body AoA
  * for a given lift coefficient (AETCMAN 11-248, RCAF SMM).
  */
-export function flapAoADeltaDeg(config) {
+function flapAoADeltaDeg(config) {
   if (!config || typeof config !== 'string') return 0;
   const c = config.toLowerCase();
   if (c.includes('land') || c === 'landing') return T6A_PITCH.landingFlapAoADeg;
@@ -298,7 +293,7 @@ export function glideDragPerWeight(config, kias, altFt, g = 1) {
  * para 11) instead of the data's about 1,980 (Patrick, 6 Oct 08:24Z: "base it on the drag that's required to lose
  * 2600 in a 30 deg orbit with gear no flaps"). Fitted, an estimate; best glide stays near 105 KIAS.
  */
-export const GEAR_DRAG_FACTOR = 1.322;
+const GEAR_DRAG_FACTOR = 1.322;
 
 /**
  * The zoom reference data: height gained after an
@@ -307,7 +302,7 @@ export const GEAR_DRAG_FACTOR = 1.322;
  * capture 125 KIAS (reference). Its lightest and heaviest rows, [speed][altitude];
  * the rows between are straight lines from these to within 1 ft.
  */
-export const NFM_ZOOM = Object.freeze({
+export const ZOOM_GAIN_TABLE = Object.freeze({
   kias: Object.freeze([200, 250]),
   altFt: Object.freeze([500, 1500, 3000, 6000]),
   lightLb: 5400,
@@ -391,7 +386,7 @@ export function flyZoomT6A(kias, altFt) {
 export function zoomT6A(kias, altFt, weightLb = ZOOM_DEFAULT_LB) {
   const { timeSec, distanceFt } = flyZoomT6A(kias, altFt);
   if (kias <= ZOOM_MIN_KIAS) return { gainFt: 0, timeSec, distanceFt };
-  const z = NFM_ZOOM;
+  const z = ZOOM_GAIN_TABLE;
   const w = (clamp(weightLb, z.lightLb, z.heavyLb) - z.lightLb) / (z.heavyLb - z.lightLb);
   const alt = clamp(altFt, z.altFt[0], z.altFt[z.altFt.length - 1]);
   // The table's share of the ideal at each of its speeds, at this altitude and weight.

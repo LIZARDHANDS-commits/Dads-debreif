@@ -1,51 +1,42 @@
 // Turn performance: how steep, how tight and how fast an aircraft turns at a
-// given speed and G, in a level turn; and the EM chart point from a track.
-//
-// V6 has three copies of this physics: Turn Sim (lines 787 to 789), Turn Fight
-// (`M`, line 4237) and the Traffic page (`bankFromG` and `turnRadiusFromG`,
-// lines 147 and 148). They agree, except that each limits G its own way (see
-// limitG) and Turn Fight works out the turn rate in a different order, which
-// changes the last digit only (see turnRateRadPerSec).
+// given speed and G, in a level turn (standard aerodynamics: bank = acos(1/G),
+// radius = v² ÷ (g √(G² − 1))); the EM chart point from a track; closure and G
+// from recorded tracks; and the smooth roll every module flies.
 //
 // Speeds are true airspeed in feet per second (units.ktToFtps). G is the load
 // factor; a level turn needs more than 1 G.
-//
-// Line numbers refer to original/shell.html unless a sub-page is named.
 import { G_FTPS2, KT_TO_FTPS, FTPS_TO_KT, M_PER_FT } from './units.js';
 import { degToRad, radToDeg, headingRad, wrapPi } from './angles.js';
 
-/** The least G V6 lets any turn use: at exactly 1 G there is no turn. */
+/** The least G any turn uses: at exactly 1 G there is no turn (D74). */
 export const MIN_TURN_G = 1.01;
 
 /**
- * Keeps G between MIN_TURN_G and maxG, as V6 does before turning.
- * Turn Fight and Turn Sim have no upper limit; the Traffic page uses maxG = 9.
- * (The Traffic page also reads an empty or zero G box as 2 G: `+g || 2`.)
+ * Keeps G between MIN_TURN_G and maxG before turning. With no maxG there is
+ * no upper limit.
  */
 export function limitG(g, maxG = Infinity) {
   return Math.max(MIN_TURN_G, Math.min(maxG, g));
 }
 
-/** Bank angle in degrees for a level turn at g (Turn Sim `bankFromG`, line 788). */
+/** Bank angle in degrees for a level turn at g: acos(1 / g). */
 export function bankDegFromG(g) {
   return radToDeg(Math.acos(1 / g));
 }
 
 /**
- * Turn radius in feet (Turn Sim `turnRadius`, line 788).
- * G below 1 gives NaN, as in V6: callers limit G first (limitG).
+ * Turn radius in feet: v² ÷ (g √(G² − 1)).
+ * G below 1 gives NaN: callers limit G first (limitG).
  */
 export function turnRadiusFt(speedFtps, g) {
   return speedFtps * speedFtps / (G_FTPS2 * Math.sqrt(g * g - 1));
 }
 
 /**
- * Turn rate in radians per second (Turn Sim `turnRate`, line 789).
- * Turn Fight computes it as gravity × √(g² − 1) / speed instead, which differs
- * from this in the last digit for about a third of inputs. A single turn shows
- * no change, but the Turn Fight's chase ("First nose chases") compounds it: after
- * about 40 s the paths can drift apart by up to V6's own 50-vs-60 fps spread
- * (SPEC-turn-fight, Testing strategy).
+ * Turn rate in radians per second: speed ÷ turnRadiusFt. Worked out as
+ * gravity × √(G² − 1) ÷ speed instead it differs in the last digit for about a
+ * third of inputs, which a long chase can compound, so every module calls this
+ * one.
  */
 export function turnRateRadPerSec(speedFtps, g) {
   return speedFtps / turnRadiusFt(speedFtps, g);
@@ -79,53 +70,12 @@ export function bankDegFromTurnRate(speedFtps, rateRadPerSec) {
   return radToDeg(Math.atan((speedFtps * rateRadPerSec) / G_FTPS2));
 }
 
-/**
- * The G one Turn Sim aircraft turns at this step (`moveAircraftList`, lines
- * 1582 and 1583). Everything V6 reads from the page comes in as an argument:
- *
- * - gSetting: the G box as typed. V6's `baseG()` (line 787) limits it to 1.01,
- *   and so does this, before the error is added.
- * - gErr: this aircraft's own G error (`a.gErr`), added only when
- *   useErrorsAndCorrection is true.
- * - useErrorsAndCorrection: V6's `moveAircraftList` argument. V6's stepping
- *   (`stepSim`, line 1687) always passes true, so real flying has errors on;
- *   false skips both the error and the correction.
- * - correction: the Correction model box, 'gfix' for "G fix".
- * - aircraftId: the aircraft's number, 1 for lead. Lead is never corrected.
- * - distToLeadFt: how far this aircraft is from lead. V6 moves the aircraft
- *   one after another inside one loop, so for a wingman this is the distance
- *   to lead's position already moved this step, from the wingman's own
- *   position before its own move.
- * - spacingFt: the Spacing box; its slot is spacingFt × (aircraftId − 1) from lead.
- * - corrStrength: the Correction strength box.
- *
- * With G fix on, the wingman's G moves by (distance − slot) / 6,000 ft × strength,
- * never more than 0.8 G either way: too far back pulls more G, too close pulls less.
- *
- * V6 limits G to 1.01 first and corrects after, so its G could end below 1 (G
- * setting plus error under 1.8 with the full −0.8 correction). Then
- * turnRateRadPerSec gave NaN, and V6's aircraft position with it; at exactly
- * 1 G there was no turn. Here G is limited to 1.01 again after the correction
- * (D74, Patrick's pick), so the wingman flies almost straight. That is the only
- * difference from V6's stepping: where V6's G was 1.01 or more, this gives the
- * same number. V6's turn circles (`currentAircraftGForCircle`, line 1838)
- * already floored at 1.01 after the correction, so with errors on this gives
- * the same G as they do (the circles and the flying no longer disagree).
- */
-export function turnSimG({ gSetting, gErr, useErrorsAndCorrection, correction, aircraftId, distToLeadFt, spacingFt, corrStrength }) {
-  let g = Math.max(MIN_TURN_G, limitG(gSetting) + (useErrorsAndCorrection ? gErr : 0));
-  if (useErrorsAndCorrection && correction === 'gfix' && aircraftId !== 1) {
-    const e = distToLeadFt - spacingFt * Math.abs(aircraftId - 1);
-    g += Math.max(-.8, Math.min(.8, e / 6000 * corrStrength));
-  }
-  return Math.max(MIN_TURN_G, g);
-}
-
 // ── Air data and the EM chart point ──────────────────────────────────────────
 
 /**
  * Air density at altFt as a fraction of sea level, in the standard atmosphere
- * (EM chart `isaRhoRatio`, line 4154). Above 11,000 m V6 uses 0.297.
+ * (temperature falling 6.5 °C per km from 15 °C). Above 11 km it is held at
+ * 0.297, about the ratio at 11 km.
  */
 export function isaDensityRatio(altFt) {
   const h = altFt * M_PER_FT, T0 = 288.15, L = .0065, g = 9.80665, R = 287.05287;
@@ -137,7 +87,7 @@ export function isaDensityRatio(altFt) {
 }
 
 /**
- * Where an aircraft sits on the EM chart (EM chart `metrics`, line 4158), from
+ * Where an aircraft sits on the EM chart, from
  * its track one second before, at, and one second after the moment shown.
  * Points are { x, y } in feet with optional spdKt and altFt; any missing point
  * gives null. Ground speed comes from spdKt, or from the distance flown over
@@ -145,8 +95,7 @@ export function isaDensityRatio(altFt) {
  * estimated as ground speed × √(density ratio), with the ratio at least 0.15.
  *
  * turnRateDeg is the change between the headings of the two one-second legs,
- * whose middles are one second apart. V6 divided it by 2, showing half the real
- * rate; Dad confirmed that was wrong, and it is fixed here (D39).
+ * whose middles are one second apart: the whole rate, not half of it (D39).
  */
 export function emPoint(before, now, after) {
   if (!now || !before || !after) return null;
@@ -164,7 +113,7 @@ export function emPoint(before, now, after) {
 
 /**
  * Closure between aircraft A and B in knots, from where each was dtSec ago and
- * where each is now (debrief `closureRateKt`, line 3119). Positive means the
+ * where each is now. Positive means the
  * range is shrinking. Null if a position is missing or dtSec is not above 0.
  */
 export function closureKt(prevA, prevB, nowA, nowB, dtSec) {
@@ -174,7 +123,7 @@ export function closureKt(prevA, prevB, nowA, nowB, dtSec) {
   return ((prevR - nowR) / dtSec) * FTPS_TO_KT;
 }
 
-/** Closure for the screen: "+12 kt", "-5 kt", "0 kt" under a knot, "--" if unknown (`fmtClosureKt`, line 3131). */
+/** Closure for the screen: "+12 kt", "-5 kt", "0 kt" under a knot, "--" if unknown. */
 export function formatClosureKt(kt) {
   if (kt === null || !Number.isFinite(kt)) return '--';
   const rounded = Math.round(kt);
@@ -184,8 +133,8 @@ export function formatClosureKt(kt) {
 
 /**
  * G of a level turn flown between two moments dtSec apart, from the positions
- * p0 and p1 and the headings h0 and h1 there (debrief `estimatedGAtTrack`,
- * line 2462). Null below 20 ft/s, or when the answer is outside 0.8 to 9 G.
+ * p0 and p1 and the headings h0 and h1 there: √(1 + (v ω ÷ g)²). Null below
+ * 20 ft/s, or when the answer is outside 0.8 to 9 G.
  */
 export function gFromTrack(p0, h0, p1, h1, dtSec) {
   if (!p0 || !p1) return null;

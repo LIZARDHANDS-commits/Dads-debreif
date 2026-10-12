@@ -1,46 +1,43 @@
 // Formation standards: is each wingman where he should be?
 //
-// Two V6 copies judge the same standards: the debrief (classifyKmlError,
-// classifyLeadDesired and kmlStandardsSummary, lines 3051 to 3117), where
-// they are settings, and Turn Sim (classifyFormationError, line 1881), where
-// the same numbers are written into the code. Both are ported here unchanged.
-// V6_STANDARDS holds V6's values, which the golden tests pin. DEFAULT_STANDARDS
-// is the default preset (R18): the SMM's numbers, per D114, D115 and D116.
+// One judge for the Debrief's position and lead labels and the standards panel.
+// DEFAULT_STANDARDS is the default preset (R18): the SMM's numbers, per D114,
+// D115 and D116. Every function takes the standards to judge by; with none
+// given it uses DEFAULT_STANDARDS.
 //
 // Distances are in feet. Positions are { x, y } and headings follow the
 // angles.js convention. "Fore/aft" is measured along Lead's heading from
-// Lead's 3/9 line (+ ahead); "interval" is measured across it. V6 calls the
-// across-vector `right`, but it is Lead's heading turned 90° counter-clockwise,
-// which is Lead's LEFT; here it is named `left`, and lateralFromLead is + to
-// Lead's left. Intervals are unsigned, so no label depends on this.
+// Lead's 3/9 line (+ ahead); "interval" is measured across it. The
+// across-vector is Lead's heading turned 90° counter-clockwise, Lead's LEFT,
+// so lateralFromLead is + to Lead's left. Intervals are unsigned, so no label
+// depends on this.
 //
-// One change from V6 (D78, #21): with both the spread and the offset standard
-// on, the offset standard alone judges #3's fore/aft and the spread standard
-// its interval. V6 judged #3's fore/aft by both, so #3 was never "ON
-// PARAMETERS". Kept from V6: an aircraft no standard applies to is still
-// labelled "ON PARAMETERS".
+// With both the spread and the offset standard on, the offset standard alone
+// judges #3's fore/aft and the spread standard its interval (D78, #21). An
+// aircraft no standard applies to is labelled "ON PARAMETERS".
 //
-// The spread standard's fore/aft check comes in two kinds. V6's (foreAftTolFt)
-// allows ± that many feet of Lead's 3/9 line. The SMM's line abreast (D116,
-// SMM 16.18 para 49) allows sweepMinDeg (0) to sweepMaxDeg (10) degrees of
-// sweep behind the 3/9 line, measured from the aircraft the interval is
-// measured from: less is FORE, more is AFT. A standards object with a number
-// in spread.sweepMaxDeg gets the sweep check; one without keeps V6's.
+// The spread standard's fore/aft check comes in two kinds. The fixed kind
+// (foreAftTolFt) allows ± that many feet of Lead's 3/9 line. The SMM's line
+// abreast (D116, SMM 16.18 para 49) allows sweepMinDeg (0) to sweepMaxDeg (10)
+// degrees of sweep behind the 3/9 line, measured from the aircraft the
+// interval is measured from: less is FORE, more is AFT. A standards object
+// with a number in spread.sweepMaxDeg gets the sweep check; one without gets
+// the fixed one.
 //
-// The lead standard's speed comes in two kinds too. V6's is one targetKt. The
-// SMM's (D115: 220 KIAS in the low block, 200 in the mid block, Gen Book p.12)
-// picks lowTargetKt at or below lowBlockTopFt and midTargetKt above it; a lead
-// standard with a number in lead.lowTargetKt gets it.
+// The lead standard's speed comes in two kinds too. The single kind is one
+// targetKt. The SMM's (D115: 220 KIAS in the low block, 200 in the mid block,
+// Gen Book p.12) picks lowTargetKt at or below lowBlockTopFt and midTargetKt
+// above it; a lead standard with a number in lead.lowTargetKt gets it.
 import { radToDeg } from './angles.js';
 
 /**
- * The spread standard. V6's kind has foreAftTolFt; the SMM's has sweepMinDeg and sweepMaxDeg.
+ * The spread standard. The fixed kind has foreAftTolFt; the SMM's has sweepMinDeg and sweepMaxDeg.
  * @typedef {{ on: boolean, minFt: number, maxFt: number, foreAftTolFt?: number,
  *   sweepMinDeg?: number, sweepMaxDeg?: number }} SpreadStandard
  */
 /** @typedef {{ on: boolean, aftTargetFt: number, aftTolFt: number }} OffsetStandard */
 /**
- * The lead standard. V6's kind has targetKt; the SMM's has lowTargetKt, midTargetKt and lowBlockTopFt.
+ * The lead standard. The single kind has targetKt; the SMM's has lowTargetKt, midTargetKt and lowBlockTopFt.
  * @typedef {{ on: boolean, targetKt?: number, lowTargetKt?: number, midTargetKt?: number,
  *   lowBlockTopFt?: number, speedTolKt: number, targetG: number, gTol: number }} LeadStandard
  */
@@ -51,7 +48,11 @@ import { radToDeg } from './angles.js';
  *   gNative?: number }} FormationAircraft
  */
 
-/** V6's standards: the debrief's default settings, and Turn Sim's fixed numbers. */
+/**
+ * The fixed-tolerance standards (spread ± 250 ft of the 3/9 line, #3 8,000 ± 1,000 ft back, Lead 200 ± 10 kt):
+ * the Debrief's settings before the SMM preset. No module judges by them now; they stay as data for the tests
+ * of the fixed and single kinds. Not a source: DEFAULT_STANDARDS is.
+ */
 export const V6_STANDARDS = Object.freeze({
   spread: Object.freeze({ on: true, minFt: 4000, maxFt: 6000, foreAftTolFt: 250 }),
   offset: Object.freeze({ on: true, aftTargetFt: 8000, aftTolFt: 1000 }),
@@ -61,8 +62,8 @@ export const V6_STANDARDS = Object.freeze({
 /**
  * The default standards, from the SMM (Patrick, 2026-09-30 05:37Z): what app.standards starts
  * with and resets to.
- * - spread: 4,000-6,000 ft with 0-10° of sweep (D116, SMM 16.18 para 49), not V6's ± 250 ft
- * - offset: #3 7,000 ± 1,000 ft back, so 6,000-8,000 ft passes (D114, SMM 16.41 para 109); V6 8,000
+ * - spread: 4,000-6,000 ft with 0-10° of sweep (D116, SMM 16.18 para 49)
+ * - offset: #3 7,000 ± 1,000 ft back, so 6,000-8,000 ft passes (D114, SMM 16.41 para 109)
  * - lead: 220 KIAS in the low block, 200 in the mid block (D115); the blocks meet at 10,250 ft,
  *   between the low block's 10,000 ft top and the mid block's 10,500 ft floor (Gen Book p.12)
  */
@@ -72,16 +73,14 @@ export const DEFAULT_STANDARDS = Object.freeze({
   lead: Object.freeze({ on: true, lowTargetKt: 220, midTargetKt: 200, lowBlockTopFt: 10250, speedTolKt: 10, targetG: 1.0, gTol: 0.2 }),
 });
 
-/** #4 measures its interval from #3 when #3 is more than this far out on the same side (both copies). */
+/** #4 measures its interval from #3 when #3 is more than this far out on the same side. */
 const SAME_SIDE_FT = 500;
-/** In Turn Sim's offset box, #3 is WIDE when more than this outside the slot between Lead and #2. */
-const SLOT_MARGIN_FT = 500;
 
 /**
  * The spread standard's fore/aft label, or null when within it.
  *
  * @param {SpreadStandard} spread     the spread standard
- * @param {number} foreAftFt  along Lead's heading from Lead's 3/9 line (+ ahead): V6's check
+ * @param {number} foreAftFt  along Lead's heading from Lead's 3/9 line (+ ahead): the fixed check
  * @param {number} sweepDeg   degrees behind the reference's 3/9 line (+ aft): the sweep check
  */
 function spreadForeAft(spread, foreAftFt, sweepDeg) {
@@ -100,11 +99,8 @@ function sweepDegFrom(p, ref, fwd, interval) {
   return radToDeg(Math.atan2(-along(p, ref, fwd), interval));
 }
 
-/**
- * Lead's forward and left unit vectors (debrief `kmlAxes` line 3041, Turn Sim
- * `formationAxes` line 1877, where the left vector is called `right`).
- */
-export function formationAxes(lead, leadHdg) {
+/** Lead's forward and left unit vectors. */
+function formationAxes(lead, leadHdg) {
   return {
     lead,
     fwd: { x: Math.cos(leadHdg), y: Math.sin(leadHdg) },
@@ -123,18 +119,18 @@ function along(p, ref, fwd) {
 }
 
 /**
- * Debrief position labels for aircraft `id` (debrief `classifyKmlError`, line 3051),
- * with D78: when the offset standard is on, it alone judges #3's fore/aft.
+ * Debrief position labels for aircraft `id`, with D78: when the offset standard
+ * is on, it alone judges #3's fore/aft.
  *
  * @param {number} id        2, 3 or 4 (Lead, 1, gets null)
  * @param {Object<number, FormationAircraft>} live  positions now, by id: { 1: lead, 2: …, 3: …, 4: … }
- * @param {number} leadHdg   Lead's track heading now (V6 uses 0 with no Lead track)
- * @param {Standards} [std]  standards, shaped like V6_STANDARDS
+ * @param {number} leadHdg   Lead's track heading now
+ * @param {Standards} [std]  standards (DEFAULT_STANDARDS unless given)
  * @returns {{labels: string[], intervalFt: number, foreAftFt: number, sweepDeg: number,
  *   offsetAftFt: number|null, offsetStatus: string|null}|null} null for Lead or a missing aircraft;
  *   sweepDeg is behind the 3/9 line of the aircraft the interval is from (+ aft)
  */
-export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
+export function classifyDebriefPosition(id, live, leadHdg, std = DEFAULT_STANDARDS) {
   const lead = live[1], p = live[id];
   if (!lead || !p || id === 1) return null;
   const { fwd, left } = formationAxes(lead, leadHdg);
@@ -170,32 +166,32 @@ export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
 /**
  * Lead's target speed (D115). With lowTargetKt set: lowTargetKt at or below
  * lowBlockTopFt, midTargetKt above it or when the altitude is unknown.
- * A V6-shaped lead standard has one targetKt and no block.
+ * A single-kind lead standard has one targetKt and no block.
  *
  * @param {LeadStandard} leadStd  the lead standard
  * @param {number} [altFt]  Lead's altitude, feet MSL
  * @returns {{targetKt: number, block: 'low'|'mid'|null}}
  */
-export function leadTargetKt(leadStd, altFt) {
+function leadTargetKt(leadStd, altFt) {
   if (!Number.isFinite(leadStd.lowTargetKt)) return { targetKt: leadStd.targetKt, block: null };
   if (Number.isFinite(altFt) && altFt <= leadStd.lowBlockTopFt) return { targetKt: leadStd.lowTargetKt, block: 'low' };
   return { targetKt: leadStd.midTargetKt, block: 'mid' };
 }
 
 /**
- * Lead's speed and G against the lead standard (debrief `classifyLeadDesired`, line 3088).
+ * Lead's speed and G against the lead standard.
  * G is the recorded G (lead.gNative) when there is one, else estG (from gFromTrack).
- * Speed is lead.spdKt, ground speed as in V6 (D31 changes this at the screen).
+ * Speed is lead.spdKt, the speed the caller passes (the Debrief passes indicated airspeed, D31).
  * The target speed is leadTargetKt's, from lead.altFt.
  *
  * @param {{ spdKt?: number, altFt?: number, gNative?: number }} lead  Lead now
  * @param {number|null|undefined} estG  G estimated from the track
- * @param {Standards} [std]  standards, shaped like V6_STANDARDS
+ * @param {Standards} [std]  standards (DEFAULT_STANDARDS unless given)
  * @returns {{labels: string[], spd: number, targetKt: number, block: 'low'|'mid'|null, speedTol: number,
  *   gVal: number|null, targetG: number, gTol: number, nativeG: number|undefined, estG: number|null}|null}
  *   null when the lead standard is off or Lead is missing
  */
-export function classifyLeadParameters(lead, estG, std = V6_STANDARDS) {
+export function classifyLeadParameters(lead, estG, std = DEFAULT_STANDARDS) {
   const { on, speedTolKt: speedTol, targetG, gTol } = std.lead;
   if (!on) return null;
   if (!lead) return null;
@@ -215,10 +211,10 @@ export function classifyLeadParameters(lead, estG, std = V6_STANDARDS) {
 }
 
 /**
- * One line per standard that is on, for the standards panel (debrief `kmlStandardsSummary`, line 3110).
- * @param {Standards} [std]
+ * One line per standard that is on, for the standards panel.
+ * @param {Standards} [std]  standards (DEFAULT_STANDARDS unless given)
  */
-export function standardsSummaryLines(std = V6_STANDARDS) {
+export function standardsSummaryLines(std = DEFAULT_STANDARDS) {
   const { spread, offset, lead } = std;
   const lines = [];
   if (spread.on) {
@@ -235,89 +231,4 @@ export function standardsSummaryLines(std = V6_STANDARDS) {
     lines.push(`Lead: ${speed}, ${lead.targetG.toFixed(1)} ±${lead.gTol.toFixed(2)} G`);
   }
   return lines;
-}
-
-/**
- * Turn Sim position labels for aircraft `a` (Turn Sim `classifyFormationError`, line 1881).
- * Turn Sim always applies the spread and offset numbers; the `on` switches don't apply.
- * D78 needs no change here: each Turn Sim formation judges #3 by one standard only.
- * V6's Turn Sim wrote V6_STANDARDS' numbers in; the rebuilt Turn Sim passes app.standards
- * (D89, Q46), so it judges by the same standards as the debrief.
- *
- * @param {FormationAircraft} a    the aircraft: { id, x, y }
- * @param {FormationAircraft[]} fleet  all four aircraft, Lead first ({ id, x, y, hdg })
- * @param {string} [formation] Turn Sim's formation setting; 'offsetBox' judges by the offset box,
- *   anything else by spread (V6 reads 'weighted' when the setting is missing)
- * @param {Standards} [std]  standards, shaped like V6_STANDARDS
- * @returns {{labels: string[], intervalFt: number, foreAftFt: number, sweepDeg: number|null,
- *   lateralFromLead: number, measureNote: string, aftDistanceFt?: number}} sweepDeg as for the
- *   debrief (#3 in the offset box, judged by the offset standard, has none)
- */
-export function classifyTurnSimPosition(a, fleet, formation = 'weighted', std = V6_STANDARDS) {
-  const lead = fleet[0];
-  const { fwd, left } = formationAxes(lead, lead.hdg);
-  const { spread, offset } = std;
-  const lateralFromLead = across(a, lead, left);
-  const foreAft = along(a, lead, fwd);
-  const labels = [];
-  let interval = 0;
-  let sweepDeg = null;
-  let measureNote = '';
-
-  if (formation === 'offsetBox') {
-    const two = fleet.find(x => x.id === 2);
-    const three = fleet.find(x => x.id === 3);
-    if (a.id === 2) {
-      // Front element: #2 is judged from Lead's 3/9 line and its interval from Lead.
-      interval = Math.abs(lateralFromLead);
-      sweepDeg = sweepDegFrom(a, lead, fwd, interval);
-      if (interval < spread.minFt) labels.push('TIGHT');
-      else if (interval > spread.maxFt) labels.push('WIDE');
-      const fa = spreadForeAft(spread, foreAft, sweepDeg);
-      if (fa) labels.push(fa);
-      measureNote = 'front element';
-    } else if (a.id === 3) {
-      // Slot: #3 is judged by the straight-back distance from Lead's 3/9 line to its own.
-      const aftDistance = -foreAft;
-      if (aftDistance < offset.aftTargetFt - offset.aftTolFt) labels.push('FORE');
-      else if (aftDistance > offset.aftTargetFt + offset.aftTolFt) labels.push('AFT');
-      // #3 stays in the slot between #1 and #2; WIDE only if it leaves it by more than 500 ft.
-      if (two) {
-        const lat2 = across(two, lead, left);
-        const minLat = Math.min(0, lat2), maxLat = Math.max(0, lat2);
-        if (lateralFromLead < minLat - SLOT_MARGIN_FT || lateralFromLead > maxLat + SLOT_MARGIN_FT) labels.push('WIDE');
-      }
-      measureNote = 'Lead 3/9 to #3 3/9';
-      return { labels: labels.length ? labels : ['ON SPACING'], intervalFt: aftDistance, foreAftFt: foreAft, sweepDeg, lateralFromLead, measureNote, aftDistanceFt: aftDistance };
-    } else if (a.id === 4 && three) {
-      // #4 behind #3: interval from #3, fore/aft against #3's 3/9 line.
-      interval = Math.abs(across(a, three, left));
-      const foreAftFrom3 = along(a, three, fwd);
-      sweepDeg = sweepDegFrom(a, three, fwd, interval);
-      if (interval < spread.minFt) labels.push('TIGHT');
-      else if (interval > spread.maxFt) labels.push('WIDE');
-      const fa = spreadForeAft(spread, foreAftFrom3, sweepDeg);
-      if (fa) labels.push(fa);
-      measureNote = '#3 3/9 reference';
-      return { labels: labels.length ? labels : ['ON SPACING'], intervalFt: interval, foreAftFt: foreAftFrom3, sweepDeg, lateralFromLead, measureNote };
-    }
-  } else {
-    // Spread: #2 and #3 from Lead; #4 from #3 when #3 is well out on the same side.
-    let ref = lead;
-    if (a.id === 4) {
-      const three = fleet.find(x => x.id === 3);
-      if (three) {
-        const lat3 = across(three, lead, left);
-        if (Math.sign(lat3) === Math.sign(lateralFromLead) && Math.abs(lat3) > SAME_SIDE_FT) ref = three;
-      }
-    }
-    interval = Math.abs(across(a, ref, left));
-    sweepDeg = sweepDegFrom(a, ref, fwd, interval);
-    if (interval < spread.minFt) labels.push('TIGHT');
-    else if (interval > spread.maxFt) labels.push('WIDE');
-    const fa = spreadForeAft(spread, foreAft, sweepDeg);
-    if (fa) labels.push(fa);
-  }
-  if (!labels.length) labels.push('ON SPACING');
-  return { labels, intervalFt: interval, foreAftFt: foreAft, sweepDeg, lateralFromLead, measureNote };
 }

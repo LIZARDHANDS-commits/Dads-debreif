@@ -12,7 +12,7 @@ KT_TO_FTPS = 1.68781
 FTPS_TO_KT = 1.0 / KT_TO_FTPS
 DEG = 3.141592653589793 / 180.0
 
-# T6A Fit Constants (from src/core/t6a-turn-charts.js)
+# T6A Fit Constants (from src/core/t6a-turn-data.js)
 T6A_FIT = {
     'dragA': 2.63326e-6,
     'dragB': 642.886,
