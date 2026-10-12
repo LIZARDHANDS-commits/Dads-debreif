@@ -112,7 +112,7 @@ function gOf(acc, nose) {
 
 /**
  * #2's wings one step on (dt): rolled toward the path's lift at no more than the T-6A's roll at this speed (flight.js
- * rollLimitAt, TS-85), the way fluid-wing.js wingPose rolls them. wings: the last step's { up, rollDps }. Returns the new
+ * rollLimitAt, TS-85), as the retired Planned wingman rolled his. wings: the last step's { up, rollDps }. Returns the new
  * wings and missG, the share of the path's lift (in G) the wings don't yet point: at low G over the top the lift swings
  * faster than any roll, and there so little is missing that the path flown is the same.
  */
