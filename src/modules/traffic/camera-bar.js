@@ -131,7 +131,7 @@ export function createCameraBar({
     subGroup,
     seatGroup,
     followContainer,
-    qualityGroup
+    // The High | Performance switch moved to the playback bar beside 2D | 3D (TR-152); qualityGroup is no longer shown.
   );
 
   const element = h('div', { class: 'traffic-3d-bar', role: 'group', 'aria-label': '3D camera' },

@@ -14,7 +14,7 @@
 //   createSceneKit       the three.js objects for the routes, aircraft, rings and ground, with their freeing
 //   createView3d         the canvases, the renderer, the camera's hands (drag, wheel, keys) and the frame
 import {
-  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
+  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, disposeAircraftMesh, blurProp, createLightHarvard,
 } from '../../ui-kit/three-aircraft.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
@@ -112,6 +112,7 @@ const CHASE_SPAN_FT = 3000;
 const CHASE_LERP = 0.15; // how fast the chase camera swings behind a turning aircraft, a share of the gap each frame
 
 /** Real length of a T-6 in feet (kept in types.js). A zoomed-out aircraft is drawn bigger, so it can still be seen. */
+export { blurProp }; // moved to ui-kit/three-aircraft.js (TS-210), so the Formation sim's 3D uses it too
 export { T6_LENGTH_FT, CLOSE_UP_DRAW_FT };
 /** The length an aircraft is drawn at least, on screen, in pixels. */
 export const MIN_PLANE_PX = 44;
@@ -232,48 +233,6 @@ export function wheelLiftFt(lengthFt) {
   return (GEAR_LIFT_UNITS * lengthFt) / CT156_UNIT_LENGTH + RUNWAY_TOP_FT;
 }
 
-/** The see-through blurred disc of a turning prop (Patrick, 5 Oct 02:42Z: "a still graphic that looks like spinning"). */
-function drawPropBlur(ctx, w, h) {
-  const cx = w / 2;
-  const cy = h / 2;
-  const r = w / 2;
-  const g = ctx.createRadialGradient(cx, cy, r * 0.12, cx, cy, r);
-  g.addColorStop(0, 'rgba(40, 44, 52, 0)');
-  g.addColorStop(0.35, 'rgba(40, 44, 52, 0.22)');
-  g.addColorStop(0.8, 'rgba(30, 34, 40, 0.30)');
-  g.addColorStop(0.88, 'rgba(210, 32, 44, 0.32)'); // the red blade tips as a faint ring
-  g.addColorStop(0.97, 'rgba(210, 32, 44, 0.12)');
-  g.addColorStop(1, 'rgba(210, 32, 44, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = 'rgba(20, 22, 28, 0.10)';
-  for (let k = 0; k < 4; k++) { // faint blade streaks
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * (0.5 + k * 0.1), k * 0.9, k * 0.9 + 1.1);
-    ctx.lineWidth = r * 0.06;
-    ctx.stroke();
-  }
-}
-
-// One small blur picture for the whole page, made on first use and kept (a 128-pixel texture).
-const propBlurMaps = new WeakMap();
-function propBlurMap(THREE) {
-  if (propBlurMaps.has(THREE)) return propBlurMaps.get(THREE);
-  const doc = globalThis.document;
-  const canvas = doc?.createElement ? doc.createElement('canvas') : null;
-  const ctx = canvas?.getContext?.('2d');
-  let map = null;
-  if (ctx) {
-    canvas.width = 128;
-    canvas.height = 128;
-    drawPropBlur(ctx, 128, 128);
-    map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-  }
-  propBlurMaps.set(THREE, map);
-  return map;
-}
-
 /**
  * The satellite photo's colour grade (TR-146; Patrick, 11 Oct: "Colour-grade the photo ... so the grass gets greener, the fields
  * richer and the concrete brighter"). Esri's photo comes out hazy and flat, so grass and concrete read as near the same grey. Applied
@@ -298,32 +257,6 @@ function gradePhoto(material) {
   };
   material.customProgramCacheKey = () => 'photo-grade';
   return material;
-}
-
-function propBlurMaterial(THREE) {
-  const map = propBlurMap(THREE);
-  return new THREE.MeshBasicMaterial({
-    color: map ? '#ffffff' : '#2c3036', map, transparent: true, opacity: map ? 1 : 0.22, side: THREE.DoubleSide, depthWrite: false, fog: false,
-  });
-}
-
-/** Shows a T-6 model's prop as turning: its blades hidden and its disc given the blurred look. Only this model changes. */
-export function blurProp(THREE, mesh) {
-  const ct = mesh.userData?.ct156;
-  const blades = ct ? new Set([ct.kit.geo.blade, ct.kit.geo.bladeTip]) : new Set();
-  const material = propBlurMaterial(THREE);
-  let used = false;
-  mesh.traverse((o) => {
-    if (!o.isMesh) return;
-    if (blades.has(o.geometry)) o.visible = false;
-    else if (o.geometry?.type === 'CircleGeometry') {
-      if (!ct) o.material.dispose(); // the plain model's own disc material; the full model's is shared, so kept
-      o.material = material;
-      used = true;
-    }
-  });
-  if (!used) material.dispose();
-  else if (ct) ct.mine.push({ dispose: () => material.dispose() }); // freed with the model; the shared picture stays
 }
 
 /** Feet an aircraft is drawn at, at a zoom (pixels to 1,000 ft): CLOSE_UP_DRAW_FT (half the runway width, Patrick 5 Oct), or MIN_PLANE_PX if that is smaller on screen, times the Aircraft size setting. */
@@ -568,6 +501,8 @@ export function loadFatLines() {
 }
 
 /** How many T-6s flying at once get the full Harvard model (55 draw calls each); later ones get the ui-kit's plain T-6 (about 10). */
+/** How strongly the own aircraft's blurred prop disc shows from the seat (TR-152; an estimate by eye, as the Formation sim's). */
+const PROP_DISC_INSIDE_OPACITY = 0.2;
 export const MAX_FULL_T6 = 24;
 /**
  * The full Harvard model is only worth its draw calls when the aircraft is drawn this many pixels long or more
@@ -666,7 +601,6 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   drops.frustumCulled = false;
   root.add(drops);
   let dropCount = 0;
-  let fullModels = false; // the zoom is close enough for the full Harvard model
   let targetedId = null;
   let lastScene = null;
 
@@ -815,6 +749,24 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   // Roads and power lines from OpenStreetMap (TR-147)
   const osmFeatures = createOsmFeatures(THREE, DEFAULT_FLOOR_FT);
   root.add(osmFeatures);
+  /**
+   * Performance (TR-152; Patrick, 12 Oct 2026): no roads, power lines or tree rows, and no parked aircraft, ramp vehicles or
+   * signs. High shows them all.
+   */
+  let treeRows = null;
+  let qualityShown = null;
+  function showForQuality(low) {
+    if (low === qualityShown) return;
+    qualityShown = low;
+    osmFeatures.visible = !low;
+    for (const name of ['parked-aircraft', 'ramp-vehicles', 'taxiway-signs']) {
+      const part = furniture.getObjectByName(name);
+      if (part) part.visible = !low;
+    }
+    treeRows ??= [];
+    if (!treeRows.length) landmarks.traverse((o) => { if (o.isInstancedMesh && /trees/.test(o.name)) treeRows.push(o); });
+    for (const t of treeRows) t.visible = !low;
+  }
 
   const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
   grid.rotation.x = Math.PI / 2; // GridHelper lies in X-Z; the ground here is X-Y
@@ -982,11 +934,11 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   // `kind` is which builder made the mesh: 'ct156' (the full Harvard model), 't6plain' (the ui-kit's plain T-6) or 'standin'.
   function planeFor(ac, kind, paint) {
     const have = planes.get(ac.id);
-    if (have && have.kind === kind && (kind !== 'ct156' || have.paint === paint)) return have.mesh;
+    if (have && have.kind === kind && (kind === 'standin' || have.paint === paint)) return have.mesh;
     if (have) disposeAircraftMesh(have.mesh); // the T-6 in another paint or another detail: built again
     const options = { color: aircraftColor(ac), number: numberOf(ac.id), paint, type: ac.type };
     const mesh = models[kind](THREE, options);
-    if (kind !== 'standin') blurProp(THREE, mesh);
+    if (kind === 'ct156') blurProp(THREE, mesh); // the light Harvard brings its own
     mesh.rotation.order = 'ZYX';
     root.add(mesh);
     planes.set(ac.id, { mesh, kind, paint });
@@ -1044,13 +996,14 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     const dropAt = dropGeometry.attributes.position;
     const floor = altToZ(options.groundFt ?? 0, ALT_SCALE);
     let n = 0;
-    // The full model is some 55 draw calls, so only a T-6 drawn big enough to show it gets it, and only the first few of those.
-    fullModels = options.fullModels !== undefined ? options.fullModels : wantsFullModel(planePx(options.zoom), fullModels);
-    const maxT6 = options.graphicsQuality === 'low' ? 4 : MAX_FULL_T6;
-    let fullLeft = fullModels ? maxT6 : 0;
+    // The full model is some 55 draw calls, so only the aircraft being followed or flown in gets it (TR-152; Patrick, 12 Oct
+    // 2026: "the only harvard aircraft that is the detailed model is the one that we're viewing/inside"); the rest are the light
+    // Harvard. A test's options.fullModels true still gives every T-6 the full model.
+    const fullId = options.followId ?? null;
     for (const ac of flying) {
       present.add(ac.id);
-      const kind = modelKindFor(ac.type) === 'ct156' ? (fullLeft-- > 0 ? 'ct156' : 't6plain') : 'standin';
+      const full = options.fullModels === true || ac.id === fullId;
+      const kind = modelKindFor(ac.type) === 'ct156' ? (full ? 'ct156' : 't6plain') : 'standin';
       const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
       const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
@@ -1221,6 +1174,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     sync(scene, options = {}) {
       if (disposed) return;
       lastScene = scene;
+      showForQuality(options.graphicsQuality === 'low');
       syncRoutes(scene.routes, options);
       syncAircraft(scene, options);
       syncPflGround(scene, options);
@@ -1393,7 +1347,7 @@ export function threeStats(kit) {
 function defaultModels() {
   return {
     ct156: (THREE, { color, number, paint }) => createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH }),
-    t6plain: (THREE, { color }) => createAircraftMesh(THREE, { color, outline: '#0b1620' }),
+    t6plain: (THREE, { color, paint }) => createLightHarvard(THREE, { color, paint }), // the shared light Harvard (TR-152)
     standin: (THREE, { color, type }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) }),
   };
 }
@@ -1855,7 +1809,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     try {
       // A logarithmic depth buffer, so the perspective views can draw from a foot away (the cockpit on the runway) without the
       // stacked photo squares flickering far off (TR-96).
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document), logarithmicDepthBuffer: true });
+      // Performance draws without edge smoothing (TR-152); a switch reloads the page, as the canvas keeps its first setting.
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document) && source.settings?.().graphicsQuality !== 'low', logarithmicDepthBuffer: true });
     } catch (err) {
       canvas.remove();
       labels.remove();
@@ -1895,10 +1850,17 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
    * seen from `seat` ('front' or 'rear'): built on first need, attached to the ship's root, and detached
    * when switching away to Chase or flat views.
    */
+  /** The blurred prop disc (blurProp) is faint from the own seat, as through the windscreen, and full from outside (TR-152). */
+  function propDiscOpacity(ship, opacity) {
+    const m = ship?.userData?.ct156?.disc?.material;
+    if (m) m.opacity = opacity;
+  }
+
   function syncCockpit(root, seat = 'front') {
     const pit = gl?.cockpit;
     if (pit?.root && pit.root !== root) {
       setCockpitView(pit.root, { seat: null });
+      propDiscOpacity(pit.root, 1);
       pit.part.group.removeFromParent();
       pit.root = null;
     }
@@ -1908,6 +1870,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     if (gl.cockpit.root !== root || gl.cockpit.seat !== s) {
       root.add(gl.cockpit.part.group);
       setCockpitView(root, { seat: s });
+      propDiscOpacity(root, PROP_DISC_INSIDE_OPACITY);
       gl.cockpit.root = root;
       gl.cockpit.seat = s;
     }
@@ -2172,7 +2135,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       cautionLatFt: options.cautionLatFt,
       aircraftScale: options.aircraftScale,
       zoom: povTarget || freeOn ? CAMERA_LIMITS.zoom[1] : shown.zoom, groundFt: floor, time: source.time(), // in perspective, aircraft at their close-up size
-      fullModels: options.fullModels ?? true,
+      fullModels: options.fullModels, // true only from a test; otherwise the followed aircraft alone gets the full model (TR-152)
+      followId: follow?.id ?? null,
       layerHeightLines: options.layerHeightLines !== false,
       layerEngineReach: options.layerEngineReach,
       layerWindTrack: options.layerWindTrack,

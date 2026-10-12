@@ -683,7 +683,15 @@ function mount(root, app) {
       redraw();
     }); // after the choice itself has been saved
   });
+  let graphicsWas = layout.get().graphics;
   const stopLayout = layout.subscribe((values) => {
+    // Graphics (TS-210): the 3D canvas keeps its edge smoothing from when it started, so a switch reloads the page (Patrick,
+    // 12 Oct 2026: "make the switch to high and performance auto-reload"). The setting is saved first; the flight starts over.
+    if (values.graphics !== graphicsWas) {
+      graphicsWas = values.graphics;
+      app.scheduler.after(50, () => globalThis.location?.reload());
+      return;
+    }
     ui.applyLayout(values);
     if (values.autoFit !== autoFitWas) {
       autoFitWas = values.autoFit;
