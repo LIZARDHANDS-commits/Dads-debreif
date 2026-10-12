@@ -17,7 +17,7 @@ Ideas for the shared parts (flight core, app frame, weather, airfields, storage,
 
 ## Tooling
 
-- Update Playwright (the browser-test tool) past 1.56; 1.63 fails the two offline tests in tests/e2e/offline.spec.js (page doesn't load from its offline copy), so find what changed first (PR #162, closed 4 Oct).
+- Update Playwright (the browser-test tool) past 1.56; 1.63 fails the two offline tests in tests/e2e/offline.spec.js (page doesn't load from its offline copy), so find what changed first (PR #162, closed 4 Oct). Done 12 Oct (#956, 1.64.0): the test server's "Vary: Origin" header kept the main script out of the offline copy; it is off now.
 
 ## Cockpit (shared 3D)
 
