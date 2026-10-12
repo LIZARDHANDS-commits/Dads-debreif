@@ -79,6 +79,10 @@ SMM formation pages as pictures.
 
 - [plan.md](test-trim/plan.md): Which tests would go and which stay in the test trim.
 
+### performance-rebuild/
+
+- [handover.md](performance-rebuild/handover.md): where the performance model rebuild stands on its own branch (12 Oct 2026), and what is left before it can go to main.
+
 ### traffic-deconfliction/
 
 - [design.md](traffic-deconfliction/design.md): Traffic automatic deconfliction, design on paper (4 Oct).
