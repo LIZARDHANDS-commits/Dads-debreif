@@ -255,10 +255,12 @@ export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.2
  * strap that runs 0.05 ft inboard and down onto the coaming, and a short dark cylinder (its light) under the ball, as
  * the figure draws them (Patrick, 11 Oct 2026: "the compas has a square top mount as per the diagrams"; V2.293 stood it
  * on a stem). Until V2.293 a bowl 2.2 in across under a 3.2 in square flange with an arm out to the bow's leg, 0.84 ft
- * right of the middle (V2.264, from Patrick's cockpit frame; V2.266 tried the diagram's size). Sizes estimates; the
- * rear seat's is unseen.
+ * right of the middle (V2.264, from Patrick's cockpit frame; V2.266 tried the diagram's size). Since Patrick's
+ * reference picture of the cockpit (12 Oct 2026, "Compass is too big? and sits too low?") the ball is 1.6 in across
+ * (r 0.065, was 0.1), its bottom `clear` 2.1 in over the coaming (was 0.36 in) and 0.56 ft right of the middle (was
+ * 0.71), scaled off that picture on the EADI's width. Sizes estimates; the rear seat's is unseen.
  */
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.1, cardR: 0.085, cardBandDeg: 35, clear: 0.03, flange: 0.68, cornerR: 0.025, flangeT: 0.022, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.71, yRear: -0.8 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, cardR: 0.055, cardBandDeg: 35, clear: 0.175, flange: 0.68, cornerR: 0.018, flangeT: 0.02, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.56, yRear: -0.8 });
 // Since 12 Oct 2026 (Patrick, from his photo) the flange is smaller (0.68 of the ball's width, so turned 45° its corners
 // stay inside the ball's outline; was 0.95, and 1.3 before that, "smaller footprint for the compass mount"), its corners
 // rounded and turned 45°, it and its strap light grey, and the card black with white marks (was cream with black).
