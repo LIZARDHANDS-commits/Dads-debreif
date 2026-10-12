@@ -58,7 +58,7 @@ Every module keeps its ideas and rough spots in its own `future.md`. Counts are 
 
 **Formation.** V2.387 (#961) merged on Patrick's word without a second Fable review. The hand-overs (line abreast to echelon, echelon to line abreast, fighting wing to route) re-fly roll lags of 1 s or less at the bank flown; longer roll-ins, such as #4's 5.65 s in the echelon hook, still fly the planned path. The two timings are estimates (`ROLLED_MAX_SEC` 1 s, `ROLLED_BLEND_SEC` 6 s), and the item stays on the Turn Sim future list until Patrick flies it (#966). Unseen: the 3D view and Patrick's flying. The Formation branch has no open work.
 
-**Fluid (live wingman).** Finished (Patrick, 12 Oct 07:06Z), all on main: v9 at V2.382 (#950, TS-198), the Planned wingman retired and the swap at the inverted top at V2.384 (#955, TS-199), Terminate eased at V2.385 (#959), height in the cone at V2.386 (#962, TS-200, docs #964). TS-201 (the eased Terminate) is waiting for Patrick's yes to its words, with a docs pull request to follow; the next free Turn Sim row after it is TS-202. The open rough spots are in the "Live fluid #2 after v9" bullet of [turn-sim/future.md](../docs/modules/turn-sim/future.md). Patrick hasn't flown V2.382 to V2.386.
+**Fluid (live wingman).** Finished (Patrick, 12 Oct 07:06Z), all on main: v9 at V2.382 (#950, TS-198), the Planned wingman retired and the swap at the inverted top at V2.384 (#955, TS-199), Terminate eased at V2.385 (#959, TS-201), height in the cone at V2.386 (#962, TS-200, docs #964). TS-201 (the eased Terminate) is written up (#968, Patrick's yes 07:27Z); the next free Turn Sim row is TS-202. The open rough spots are in the "Live fluid #2 after v9" bullet of [turn-sim/future.md](../docs/modules/turn-sim/future.md). Patrick hasn't flown V2.382 to V2.386.
 
 ## Tags to push
 
@@ -83,4 +83,4 @@ The one waiting list is the end of [docs/PLAN.md](../docs/PLAN.md), "Waiting on 
 - **No idle on long runs:** run long checks in the background in their own worktree and keep working. Compare against the stored baseline instead of re-running main's traces.
 - **Wording first:** anything Patrick approves (rule book, spec, decision rows) goes to him as the exact words before it is written.
 - **Public repo:** manual text and pictures never go in it; cite pages only. Checklists, boldface and performance charts are never shipped.
-- **Docs keeper:** one thread keeps `docs/PLAN.md` and the whole-tool docs current after each merge. The next free whole-tool decision row is ALL-37; the next Formation row is TS-202 (TS-201 is waiting on its words).
+- **Docs keeper:** one thread keeps `docs/PLAN.md` and the whole-tool docs current after each merge. The next free whole-tool decision row is ALL-37; the next Formation row is TS-202.
