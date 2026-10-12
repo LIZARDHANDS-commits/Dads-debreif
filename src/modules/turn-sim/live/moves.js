@@ -149,10 +149,11 @@ export const TURNING_REJOIN = Object.freeze({
   fwQuickerBySec: 10, // into fighting wing, a start that misses the line speed above still wins when it is in this much sooner than one that meets it (Patrick's card 12 Oct 2026 00:05Z, "Quicker 78°": from line abreast the 78° start in 21 s over a 60° one in 34 s that met 210 KIAS; the 10 s is an estimate)
   // The turning rejoin to fighting wing's ride (turning-rejoin.js REJOIN_WAYS.fw), all estimates (Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 9)
   fwApproach: Object.freeze({ windowFt: 1200, carrotWindowFt: 250, decisionFt: 1000, coneEaseFarFt: 1500, captureFt: 250,
-    // He starts the turn into the cone from 1,800 ft and 5° back of Lead's wing line, not at the cone's edge (1,250 ft, 25°):
+    // He starts the turn into the cone from 1,700 ft and 7° back of Lead's wing line, not at the cone's edge (1,250 ft, 25°):
     // at the rejoin's 4.5 G (TS-182) the turn from the edge carried him through the cone to 28° off Lead's tail; from here it
-    // ends near the middle, about 840 ft and 44° (Patrick 12 Oct 2026 16:13Z card "Turn in earlier"; estimates).
-    coneEntryFt: 1800, coneEntrySweepDeg: 5 }),
+    // ends about 825 ft and 37° off the tail, in 19 s (was 21 s) (Patrick 12 Oct 2026 16:13Z card "Turn in earlier";
+    // estimates). From 1,800 ft and 5° he ended at 44°, but the Live law's level turn into him from there closed to 473 ft.
+    coneEntryFt: 1700, coneEntrySweepDeg: 7 }),
   rideCaptureAlongFt: 1750, // he joins (the middle of Patrick's 1,500-2,000 ft, G6) the line no closer to Lead than this, or where he already is if closer (Patrick G1: established by 1,500 ft; 8 Oct 20:16 inside 2,000 ft get on it where he is)
   rideLeadFt: 1000, // he aims at the line this far further up it than his own place, so off it he heads across and onto it along it (estimate)
   rideMinLeadFt: 400, // ...and never less than this, so he never heads straight across it (estimate)
