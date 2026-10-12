@@ -79,7 +79,7 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 
 ---
 
-## 2. Architecture (as built, V2.351)
+## 2. Architecture (as built, V2.360)
 
 ### 2.1 One mover
 Every aircraft rides a path on the path follower (`path-follower.js` `followRoute`), which moves it along the path at the path's speed and height and takes heading, bank, roll and pitch from the path. There is no second way to move an aircraft.
@@ -535,7 +535,7 @@ Every setting starts filled in so the first look is clean and intuitive:
 
 ---
 
-## 8. Files and the core they use (as built, V2.351)
+## 8. Files and the core they use (as built, V2.360)
 
 ### 8.1 The flying files
 | File | What it does |
@@ -549,7 +549,7 @@ Every setting starts filled in so the first look is clean and intuitive:
 | `closed-pattern.js`, `high-key.js`, `breakout.js`, `evade.js` | The manoeuvres flown by the pilot |
 | `deconflict.js`, `envelope.js` | The spacing (4.12) and its limits |
 | `randomize.js`, `behaviour.js` | Random behaviour (4.13) and the behaviour tag (4.14) |
-| `weather.js`, `airfield.js` | The day's temperature, true heights and the straight-in descent; Moose Jaw's numbers |
+| `weather.js`, `airfield.js` | The day's temperature, true heights and the straight-in descent; Moose Jaw's numbers and the runway frame (along and across the centreline, lined up) |
 | `taxi.js`, `ejection.js`, `scenario-timing.js`, `glue.js`, `dice.js` | Taxi-in, ejection, the straight-in's timing, settings into the setup, the seeded dice |
 
 ### 8.2 Core used

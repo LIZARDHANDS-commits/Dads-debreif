@@ -14,7 +14,7 @@ export const PUCK_CHOICES = Object.freeze([
 /**
  * Where the puck sits, feet from the aircraft's reference point (the 3D model's origin) in its axes (x forward, y left,
  * z up). DB-Q25's working answer: on the chosen cockpit's glareshield, on the centre line, at the coaming's aft edge
- * and crown. ESTIMATES off the CT-156 cockpit model (TS-157): front 3.35 ft ahead and 1.85 ft up (GLARESHIELD_FT),
+ * and crown. ESTIMATES off the CT-156 cockpit model (TS-157): front 5.1 ft ahead and 1.6 ft up since the cockpit rebuild, ALL-31 (GLARESHIELD_FT, read live; was 3.35 and 1.85),
  * rear 0.8 ft aft and 1.9 ft up (REAR_HUMP_FT). One copy of each number: they are read from the cockpit's own.
  */
 export const PUCK_OFFSETS_FT = Object.freeze({

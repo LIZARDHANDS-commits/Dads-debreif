@@ -66,14 +66,17 @@ export function rollWithinT6A(limits, ktas) {
   return { maxRateDps: Math.min(limits.maxRateDps, t6.maxRateDps), maxAccelDps2: Math.min(limits.maxAccelDps2, t6.maxAccelDps2) };
 }
 
-/** True airspeed from indicated: IAS ÷ √σ (standard atmosphere, no compressibility). */
-export function iasToTasKt(kias, altFt) {
-  return kias / Math.sqrt(isaDensityRatio(altFt));
+/**
+ * True airspeed from indicated: IAS ÷ √σ (no compressibility). σ is the standard atmosphere's at altFt unless the
+ * caller passes the day's own (Traffic's weather.js passes atmosphere.js densityRatio with the day's temperature).
+ */
+export function iasToTasKt(kias, altFt, sigma = isaDensityRatio(altFt)) {
+  return kias / Math.sqrt(sigma);
 }
 
-/** Indicated airspeed from true: TAS × √σ. */
-export function tasToIasKt(ktas, altFt) {
-  return ktas * Math.sqrt(isaDensityRatio(altFt));
+/** Indicated airspeed from true: TAS × √σ, σ as for iasToTasKt. */
+export function tasToIasKt(ktas, altFt, sigma = isaDensityRatio(altFt)) {
+  return ktas * Math.sqrt(sigma);
 }
 
 // The speed of sound and the pressure ratio live in atmosphere.js; speedOfSoundKt
@@ -163,6 +166,9 @@ export const T6A_PITCH = Object.freeze({
   datumDeg: 2.6,
   takeoffFlapAoADeg: -1.7,
   landingFlapAoADeg: -3.3,
+  /** On the wheels, level ground: the gear holds the nose 2.5° up (Patrick, 6 Oct 06:17Z and 11 Oct 2026 01:26Z). Traffic's
+   * path-follower.js GROUND_ATTITUDE_DEG is the same number, kept there until Patrick points it here. */
+  onGearDeg: 2.5,
 });
 
 /**

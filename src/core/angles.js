@@ -13,6 +13,9 @@
 /** Radians per degree: multiply degrees by it (the Formation Sim's one copy, refactor step 2). */
 export const DEG = Math.PI / 180;
 
+/** Degrees per radian: multiply radians by it (Traffic's PFL, refactor step 2). */
+export const RAD = 180 / Math.PI;
+
 export function degToRad(deg) {
   return deg * Math.PI / 180;
 }
