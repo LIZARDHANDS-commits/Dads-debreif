@@ -65,8 +65,9 @@ const GATE_G_MAX_BANK_DEG = 85;
  *     T-6A's normal 4 G/s; estimates), so the last of a roll into a very steep bank slows down; rolling out is not held;
  *   - stall: never steeper than the bank whose G the speed can give (core stallLimitG; 86 KIAS 1 G stall, Patrick's).
  * A planner may ask for anything; the aircraft flies only this. tasFtps and kias are the aircraft's now. accelDps2: the
- * roll acceleration the aircraft carries (carriedRollAccel), built over the T-6A's onset (core T6A_ROLL.onsetSec, an
- * estimate); undefined rolls without it (every aircraft but the wingmen the pilot flies). Returns easeRoll's { bankDeg, rollRateDps, rollAccelDps2 }.
+ * roll acceleration the aircraft carries (carriedRollAccel), built over the T-6A's onset (core T6A_ROLL.onsetSec,
+ * Patrick's 0.2 s, TS-196); undefined rolls without it (every aircraft but the wingmen the pilot flies). Returns easeRoll's
+ * { bankDeg, rollRateDps, rollAccelDps2 }.
  */
 export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, accelDps2 = undefined) {
   const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2 };
