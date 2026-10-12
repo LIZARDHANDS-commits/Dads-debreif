@@ -237,13 +237,11 @@ async function main() {
     + `[v0][v1]xfade=transition=fade:duration=${fade}:offset=${(dur1 - fade).toFixed(3)}[v01];`
     + `[v01][v2]xfade=transition=fade:duration=${fade}:offset=${(dur1 + dur2 - 2 * fade).toFixed(3)},format=yuv420p[out]`;
   const inputs = ['-framerate', String(FPS), '-i', join(dir2d, 'f%05d.jpg'), '-framerate', String(FPS), '-i', join(dir3d, 'f%05d.jpg'), '-framerate', String(FPS), '-i', join(dirCk, 'f%05d.jpg')];
-  // Written at 30 fps with a lighter encode so the card videos stay inside the R15 budget.
-  const OUT_FPS = 30;
   const outMp4 = join(CARDS_DIR, 'traffic.mp4'), outWebm = join(CARDS_DIR, 'traffic.webm'), outJpg = join(CARDS_DIR, 'traffic.jpg');
-  execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(OUT_FPS), '-c:v', 'libx264', '-crf', '30', '-preset', 'slow', '-movflags', '+faststart', '-t', total.toFixed(3), outMp4]);
-  execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(OUT_FPS), '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '44', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2', '-t', total.toFixed(3), outWebm]);
+  execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(FPS), '-c:v', 'libx264', '-crf', '28', '-preset', 'slow', '-movflags', '+faststart', '-t', total.toFixed(3), outMp4]);
+  execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(FPS), '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '40', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2', '-t', total.toFixed(3), outWebm]);
   execFileSync(ffmpegPath, ['-y', '-v', 'error', '-ss', '3.0', '-i', outMp4, '-vframes', '1', '-q:v', '3', outJpg]);
-  console.log(`Done: ${total.toFixed(1)} s at ${OUT_FPS} fps`);
+  console.log(`Done: ${total.toFixed(1)} s at ${FPS} fps`);
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });

@@ -1,15 +1,15 @@
 // Checks: the size-budget checker: which files count toward the home screen, card videos counted by the larger file,
-//   each exceeded budget reported.
+//   a home screen over budget reported, card videos never (R15: no size limit on card videos, Patrick, 12 Oct 2026).
 // Serves: ALL-R9.
-// Expected values: fake build folders written to a temp directory; the budgets are the 3 MB constants from
-//   tools/check-size.mjs (R5, R15).
+// Expected values: fake build folders written to a temp directory; the budget is the 3 MB constant from
+//   tools/check-size.mjs (R5).
 
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { homeFiles, measure, check, HOME_CODE_BUDGET_BYTES, CARD_MEDIA_BUDGET_BYTES } from '../../../tools/check-size.mjs';
+import { homeFiles, measure, check, HOME_CODE_BUDGET_BYTES } from '../../../tools/check-size.mjs';
 
 const tempDirs = [];
 after(() => tempDirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
@@ -52,9 +52,8 @@ test('measure adds up home files, card stills and card videos', () => {
   assert.deepEqual(check(result), []);
 });
 
-test('check reports each budget that is exceeded', () => {
-  const problems = check({ homeBytes: HOME_CODE_BUDGET_BYTES + 1, mediaBytes: CARD_MEDIA_BUDGET_BYTES + 1 });
-  assert.equal(problems.length, 2);
+test('check reports a home screen over budget, and no limit on card videos (R15)', () => {
+  const problems = check({ homeBytes: HOME_CODE_BUDGET_BYTES + 1, mediaBytes: 100_000_000 });
+  assert.equal(problems.length, 1);
   assert.match(problems[0], /R5/);
-  assert.match(problems[1], /R15/);
 });
