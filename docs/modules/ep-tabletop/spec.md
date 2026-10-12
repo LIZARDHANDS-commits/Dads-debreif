@@ -1,6 +1,6 @@
 # EP Tabletop: spec
 
-Dad's ask (12 Oct 2026), Patrick approved as a new module (relayed by Dad; ALL-34). Source for the method: AETCMAN 11-248 (13 Aug 2025) para 1.19 to 1.20.3.7 and Fig 1.4, p.29 to 31, cited by paragraph only. **Waiting on Patrick's approval; nothing is built until he approves it.**
+Dad's ask (12 Oct 2026), Patrick approved as a new module (relayed by Dad; ALL-36). Source for the method: AETCMAN 11-248 (13 Aug 2025) para 1.19 to 1.20.3.7 and Fig 1.4, p.29 to 31, cited by paragraph only. **Waiting on Patrick's approval; nothing is built until he approves it.**
 
 ## What it is for
 

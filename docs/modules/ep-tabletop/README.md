@@ -4,7 +4,7 @@ This folder is the emergency procedures tabletop: an instructor runs a practice 
 
 ## Where it stands
 
-**Spec written, waiting on Patrick's approval of the spec; no code yet.** Dad's ask, 12 Oct 2026; Patrick approved it as a new module (relayed by Dad the same day; ALL-34). The rule book says a module's building starts once its spec is approved, so the spec and the first questions are on the waiting list in `../../PLAN.md`.
+**Spec written, waiting on Patrick's approval of the spec; no code yet.** Dad's ask, 12 Oct 2026; Patrick approved it as a new module (relayed by Dad the same day; ALL-36). The rule book says a module's building starts once its spec is approved, so the spec and the first questions are on the waiting list in `../../PLAN.md`.
 
 ## What is next
 
