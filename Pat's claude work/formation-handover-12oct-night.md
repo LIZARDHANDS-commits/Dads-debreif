@@ -42,7 +42,7 @@ Local paths (Patrick asked for them here, 12 Oct 2026; everything else in this n
 |---|---|
 | `Dads-debreif-physics` | This session's worktree (Formation physics). The dev server for Patrick serves whichever branch it is on, on port 5174; it was left on `formation-gauge-and-design-tools` (#1014, main plus the tools). `local-test-flying` is an old local-only branch, now superseded by main. |
 | `Dads-debreif-graphics` | The graphics session's worktree (branch `graphics`; CT-156 Blender work). Don't edit Formation files there. |
-| `Dads-debreif-formation` | A clean checkout of `main`, read by agents and probes. Fast-forward it before reading. |
+| ~~`Dads-debreif-formation`~~ | Removed 12 Oct 2026 night (Patrick: it held nothing new). It was a clean checkout of `main`; with it gone `main` is free, so a worktree may check it out. Agents read `main` with `git show origin/main:<path>` or from any worktree; the old probe scripts that point at this folder need their path changed before reuse. |
 | `Dads-debreif` | The original checkout, detached at V2.238. Holds two uncommitted docs Patrick shelved: edits to `docs/references/open-source-performance-baseline.md` (its JSBSim/FlightGear values are unverified) and the untracked `docs/references/aero-performance-compliance-synthesis.md`, which discusses controlled manuals and must never be committed. Its leftover `.claude\worktrees\pull-d78c2a` folder is locked by a process; delete it once free. |
 | `_reference\jsbsim` | JSBSim, shallow clone for reading only (LGPL; `aircraft/t6texan2` is an Aeromatic template, `aircraft/pc7`). Nothing built, run or copied. |
 
