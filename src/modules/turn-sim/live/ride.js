@@ -113,8 +113,9 @@ export function rideAim(ph, L, Lprev, ref, W) {
   const back = -rel.fwd;
   const sweep = Math.atan2(back, Math.max(across, 1e-6)) * (180 / Math.PI);
   const correctSide = ph.side == null || (ph.side > 0 ? rel.left > 50 : rel.left < -50);
-  // In the cone the sim flies (slots.js FW_LIMITS, 450-1,250 ft, 25-65°; until 10 Oct its own 450-1,500 ft copy).
-  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= FW_LIMITS.rangeFt[0] && r <= FW_LIMITS.rangeFt[1] && sweep >= FW_LIMITS.sweepDeg[0] && sweep <= FW_LIMITS.sweepDeg[1];
+  // In the cone the sim flies (slots.js FW_LIMITS, 450-1,250 ft, 25-65°; until 10 Oct its own 450-1,500 ft copy), or a phase's
+  // own earlier entry to it (coneEntryFt, coneEntrySweepDeg: the turning rejoin from line abreast starts its turn in sooner).
+  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= FW_LIMITS.rangeFt[0] && r <= (ph.coneEntryFt ?? FW_LIMITS.rangeFt[1]) && sweep >= (ph.coneEntrySweepDeg ?? FW_LIMITS.sweepDeg[0]) && sweep <= FW_LIMITS.sweepDeg[1];
   if (inFwCone && !st.established) {
     st.established = true;
     st.establishedRange = r;
