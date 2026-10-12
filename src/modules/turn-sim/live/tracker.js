@@ -13,7 +13,7 @@ import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK, pullToClimb, pullR
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
-import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, lineKiasNow } from './tuning.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, POWER, lineKiasNow } from './tuning.js';
 import { FW_BAND, LANE } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, pilotRollLimits, coneUpFtNow } from './pilot.js';
 import { G_RULE } from './rates.js';
@@ -911,7 +911,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         reentered = true;
         continue; // re-enter this step with the next phase (nothing has moved for #2 yet)
       }
-      if (inPos.settled && stopWhenSettled) {
+      // Settled, the run stops only once his speed change is small enough to end in one step of the engine's (POWER.jerkKtps2):
+      // until 12 Oct 2026 it stopped mid slow-down, 1.7 kt/s to none in a step, about 3 KIAS fast (echelon to line abreast).
+      if (inPos.settled && stopWhenSettled && Math.abs(pilot.accel ?? 0) <= POWER.jerkKtps2 * STEP_SEC) {
         times[k].t1 = t;
         ok = true;
         break;
