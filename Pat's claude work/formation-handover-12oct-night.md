@@ -8,11 +8,25 @@ For the next Formation session, and for this thread after compaction. Read `AGEN
 |---|---|
 | V2.419: the nose goes over the top of a loop without a jump (J1; the 3D view draws each aircraft from its own frame, `live/attitude.js` drawnAttitudeOf) | Merged, #1008; Patrick has flown it |
 | TS-211: #2 reacts to what he sees (0.3 s close, 0.3-0.5 s fighting wing; caught up by the end of Lead's telegraph ease-in) | Decision merged, #1009; not built |
-| V2.420: the HUD and the 3D camera bar each minimise on their own (a small – on each, a tab to bring it back; layout `camBar`, the HUD's is `tagHud`) | PR #1011, waiting for Patrick's merge |
-| V2.421: fighting wing moves always fly the live law; the Tracker / Live setting is gone; TS-212 with Patrick's note (for now the 4-ship keeps the tracker turn buttons and the live moves as two separate sets) | PR #1012, waiting for Patrick's merge (after #1011; renumber if not) |
+| V2.420: the HUD and the 3D camera bar each minimise on their own (a small – on each, a tab to bring it back; layout `camBar`, the HUD's is `tagHud`) | Merged, #1011 (`8ffe8390`); tag `v2.420-hud-camera-minimise` made locally, not pushed |
+| V2.421: fighting wing moves always fly the live law; the Tracker / Live setting is gone; TS-212 with Patrick's note (for now the 4-ship keeps the tracker turn buttons and the live moves as two separate sets) | PR #1012, updated with main after #1011; merges when its CI is green |
 | Step 12 of the Formation plan (ratified 12 Oct late) and the waiting-list line | This docs PR |
 
-GitHub blocks merges by the thread (a repository rule): Patrick merges.
+Merging: `main` has a branch rule that lets only Patrick's account update it, so the thread merges with `gh pr merge --squash --admin` (Patrick allowed `gh pr merge` in Claude's settings, 12 Oct 2026). GitHub CLI was installed after this session started, so call it by its full path, `C:\Program Files\GitHub CLI\gh.exe`, until the session restarts.
+
+## Directories on Patrick's PC
+
+Local paths (Patrick asked for them here, 12 Oct 2026; everything else in this note is repo-relative). All under `C:\Users\patri\Documents\antigravity\wise-mendeleev\`:
+
+| Folder | What it is |
+|---|---|
+| `Dads-debreif-physics` | This session's worktree (Formation physics). Branches: `local-test-flying` (local only, what the test server shows), `formation-fighting-wing-live-only` (#1012), `formation-docs-plan-step-12` (this note). |
+| `Dads-debreif-graphics` | The graphics session's worktree (branch `graphics`; CT-156 Blender work). Don't edit Formation files there. |
+| `Dads-debreif-formation` | A clean checkout of `main`, read by agents and probes. Fast-forward it before reading. |
+| `Dads-debreif` | The original checkout, detached at V2.238. Holds two uncommitted docs Patrick shelved: edits to `docs/references/open-source-performance-baseline.md` (its JSBSim/FlightGear values are unverified) and the untracked `docs/references/aero-performance-compliance-synthesis.md`, which discusses controlled manuals and must never be committed. Its leftover `.claude\worktrees\pull-d78c2a` folder is locked by a process; delete it once free. |
+| `_reference\jsbsim` | JSBSim, shallow clone for reading only (LGPL; `aircraft/t6texan2` is an Aeromatic template, `aircraft/pc7`). Nothing built, run or copied. |
+
+The probe scripts behind the review's "measured today" numbers are kept in `Pat's claude work/formation-review-12oct/probes/` (Node, importing the code by absolute file URL from the worktrees above; throwaway, the gauge in Step 12.1 replaces them): `probe.mjs` (press and step timing, G, roll, separation), `four.mjs` (4-ship fighting wing roll reversals), `loop.mjs` (drawn attitude at the vertical), `seq.mjs` (Standard sequence step by step), `drawn.mjs` (old against new drawn attitude).
 
 ## Working setup
 
