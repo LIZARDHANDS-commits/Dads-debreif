@@ -27,6 +27,13 @@ export const G_RULE = Object.freeze({ normalG: 5, lastResortG: 7 });
 export const G_RULE_BANK_DEG = bankDegFromG(G_RULE.normalG);
 /** No bank cap (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; 04:07:49Z: "no bank cap on rejoins or movements around a station"): only the aircraft's own limits hold: the bank of a level 7 G turn, about 82° (t6-performance.js T6A_LIMITS.maxG; the stall line too, availableG); the G rule is flagged, never a wall. */
 export const NO_BANK_CAP_DEG = bankDegFromG(T6A_LIMITS.maxG);
+/**
+ * Formation moves pull 4.5 G, the same as the rejoin (TS-205; Patrick 12 Oct 2026 09:40Z card, 09:42Z: "4.5 g is the target,
+ * more if required"). Still no bank cap: the bank follows from the G, about 77° level. A target, not a wall: where nothing
+ * plans within it the planners' last try keeps the aircraft's own limits (REJOIN.bankCapDeg), flagged on screen.
+ */
+export const MOVE_TARGET_G = 4.5;
+export const MOVE_BANK_DEG = bankDegFromG(MOVE_TARGET_G);
 
 // ---- Patrick's two rate sets: holding close formation, and tactical (the tidy-up, TS-84) -------------------------------
 
@@ -283,9 +290,9 @@ export const HAND_OVER_FT = 500;
  */
 export const WING_BANKS = Object.freeze({
   closeBankCapDeg: CLOSE_BANK_DEG, // Patrick 06:43Z: up to 60° as required (30° from 06:16Z item 12 until then)
-  kickOutBankCapDeg: NO_BANK_CAP_DEG, // moves around a station: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 12, until V2.116)
+  kickOutBankCapDeg: MOVE_BANK_DEG, // moves around a station: no bank cap, the moves' 4.5 G target (TS-205; the aircraft's own limits from V2.116, Patrick 6 Oct 04:07Z, until V2.395; the G rule only, 5 Oct 06:16Z item 12, until V2.116)
   fwFollowBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 11: the G rule only
-  rejoinBankCapDeg: NO_BANK_CAP_DEG, // rejoins: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 1, until V2.116) (the 4-ship's rejoin legs since step 3)
+  rejoinBankCapDeg: MOVE_BANK_DEG, // rejoins: no bank cap, the moves' 4.5 G target (TS-205; the aircraft's own limits from V2.116, Patrick 6 Oct 04:07Z, until V2.395; the G rule only, 5 Oct 06:16Z item 1, until V2.116) (the 4-ship's rejoin legs since step 3)
   fwTurnBankDeg: 60, // Patrick 06:16Z item 9: 60° of bank, 2 G level, every fighting wing turn
 });
 

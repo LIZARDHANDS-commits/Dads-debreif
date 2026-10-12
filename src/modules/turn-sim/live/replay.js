@@ -4,10 +4,13 @@
 // look-ahead, and recordFlight records an aircraft through its plan as the moving reference a tracker or a kinematic line
 // flies off. speedSeg is the speed change every move's Lead flies (slow-down.js, TS-61).
 // It changes no flight physics: the step is flight.js's and the tracker's, unchanged.
-import { STEP_SEC, stepAircraft, copyAircraft, planDone, holdToEnvelope } from './flight.js';
+import { STEP_SEC, SMOOTHER_PEAK, stepAircraft, copyAircraft, planDone, holdToEnvelope } from './flight.js';
 import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded } from './tracker.js';
+import { throttleAtTorque } from './power.js';
+import { thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 
 // Slowing down: slow-down.js (TS-61) replaces the fixed 1.5 kt/s estimate (SLOW_DOWN_KTPS, until V2.20). A formation
 // change slows with power only (a set, controlled overtake held with power, Patrick 23:37Z); the speed brake and idle are
@@ -88,8 +91,30 @@ export function dryRunT(aircraft, plan, t0, { maxSec = 600, sampleSec = 0.25 } =
   return { end: a, durationSec: t - t0, points };
 }
 
-/** A speed segment from `from` to `to` KIAS: full power to speed up, power back to slow down (slow-down.js, TS-61). */
+/** The most torque Lead sets in formation (Patrick 12 Oct 2026 09:17Z: "lead NEVER goes above 80 tq in formation"; TS-204). */
+export const LEAD_TORQUE_PCT = 80;
+
+/** What Lead's 80% torque leaves him at kias, altFt and g, as a share of his weight (thrust less drag; standard energy). */
+export function leadExcessPerWeight(kias, altFt, g = 1) {
+  return throttleAtTorque(LEAD_TORQUE_PCT, kias, altFt) * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
+}
+
+/**
+ * The average rate (KIAS per second) of Lead's smooth speed-up from `from` to `to` KIAS at 80% torque at most: the
+ * ramp's steepest point (flight.js, SMOOTHER_PEAK times the average) asks no more than 80% gives at the middle speed.
+ */
+export function leadSpeedUpKtps(from, to, altFt = 8000) {
+  const mid = (from + to) / 2;
+  const ktps = (leadExcessPerWeight(mid, altFt) * G_FTPS2 * (mid / iasToTasKt(mid, altFt))) / KT_TO_FTPS;
+  return Math.max(0.1, ktps / SMOOTHER_PEAK);
+}
+
+/**
+ * Lead's speed segment from `from` to `to` KIAS: power back to slow down (slow-down.js, TS-61), and to speed up 80% torque
+ * at most (TS-204). Until V2.394 he sped up at full power.
+ */
 export function speedSeg(from, to, blockFt = 8000) {
+  if (to > from) return { kind: 'speed', toKias: to, rateKtps: leadSpeedUpKtps(from, to, blockFt) };
   return speedSegFor(from, to, blockFt, 'power');
 }
 

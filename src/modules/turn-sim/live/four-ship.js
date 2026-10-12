@@ -27,7 +27,7 @@
 import { DEG } from '../../../core/angles.js';
 import { makeAircraft } from './flight.js';
 import { STACK_FT } from './slots.js'; // the brief's stack (AFM8 brief p.14-15), held in the slot table
-import { planManoeuvre, relativeTo, dryRun, exactWaitSec, turnSeg, wholeDegree, unit, dot, onStep, TURN_BANK_DEG, MANOEUVRES } from './manoeuvres.js';
+import { planManoeuvre, relativeTo, dryRun, exactWaitSec, tacticalSeg, backToSpeed, wholeDegree, unit, dot, onStep, MANOEUVRES } from './manoeuvres.js';
 
 
 /** The buttons in the four-ship, in screen order (briefs p.17-18; SMM 16.43 para 118). */
@@ -97,10 +97,13 @@ function delayedChain(aircraft, m, dir, t0, withCheck) {
   const hCheck = wholeDegree(h0 - dir * CHECK_TURN_DEG * DEG); // toward the outside, the way the aircraft ahead came from
   const v = lead.tasFtps;
   const u0 = unit(h0);
-  const turn = () => [turnSeg(h1, dir, TURN_BANK_DEG)];
-  const withChecks = () => [turnSeg(hCheck, -dir, TURN_BANK_DEG), turnSeg(h1, dir, TURN_BANK_DEG)];
-  // The heading the plain turn really rolls out on (the fixed step leaves a fraction of a degree).
-  const u1 = unit(dryRun(lead, { segments: turn() }, t0).end.headingRad);
+  const turn = () => [tacticalSeg(h1, dir)];
+  const withChecks = () => [tacticalSeg(hCheck, -dir), tacticalSeg(h1, dir)];
+  // The heading the plain turn really rolls out on (the fixed step leaves a fraction of a degree), and the speed the
+  // full-power turn leaves him at (TS-204).
+  const turned = dryRun(lead, { segments: turn() }, t0).end;
+  const u1 = unit(turned.headingRad);
+  const vEnd = turned.tasFtps;
 
   // Outside of the turn first: for a left turn (+1) the aircraft furthest to the right, and so on in.
   const order = aircraft
@@ -112,15 +115,16 @@ function delayedChain(aircraft, m, dir, t0, withCheck) {
   const checked = withCheck && abreast;
   const programme = (i) => (checked && i > 0 ? withChecks() : turn());
 
-  // How far along the new heading each programme leaves the aircraft, beyond flying straight at v (a dry run each).
+  // How far along the new heading each programme leaves the aircraft, beyond flying on at the speed the turn leaves him
+  // (a dry run each).
   const along = order.map((a, i) => {
     const run = dryRun(a, { segments: programme(i) }, t0);
-    return dot({ x: run.end.xFt - a.xFt, y: run.end.yFt - a.yFt }, u1) - v * run.durationSec;
+    return dot({ x: run.end.xFt - a.xFt, y: run.end.yFt - a.yFt }, u1) - vEnd * run.durationSec;
   });
   const waits = [0];
   for (let i = 1; i < order.length; i++) {
     const rel = { x: order[i].xFt - order[i - 1].xFt, y: order[i].yFt - order[i - 1].yFt };
-    waits.push(waits[i - 1] + exactWaitSec(rel, u0, u1, v, along[i] - along[i - 1]));
+    waits.push(waits[i - 1] + exactWaitSec(rel, u0, u1, v, along[i] - along[i - 1], vEnd));
   }
   // A line that is not abreast can give a negative wait to someone: the earliest goes first.
   const earliest = Math.min(...waits);
@@ -129,6 +133,7 @@ function delayedChain(aircraft, m, dir, t0, withCheck) {
     const wait = onStep(waits[i] - earliest);
     plans[a.id] = { segments: [...(wait > 0 ? [{ kind: 'hold', untilSec: t0 + wait }] : []), ...programme(i)] };
   });
+  backToSpeed(plans, aircraft, t0);
   const first = order[waits.indexOf(earliest)];
   const names = order.map(nameOf).join(', ');
   const how = checked

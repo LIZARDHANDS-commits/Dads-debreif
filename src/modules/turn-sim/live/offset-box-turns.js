@@ -56,10 +56,10 @@ function onStack(plans) {
 }
 
 /** The rear element's plans for a delay: straight on until t0 + delay, then the pair's manoeuvre from where they are then. */
-function rearPlans(three, four, key, dir, t0, delaySec) {
+function rearPlans(three, four, key, dir, t0, delaySec, kias) {
   const d = onStep(delaySec);
   const [t3, t4] = [straightOn(three, d), straightOn(four, d)];
-  const { plans } = planManoeuvre([t3, t4], key, dir, t0 + d);
+  const { plans } = planManoeuvre([t3, t4], key, dir, t0 + d, { kias }); // back to Lead's speed after the turn (TS-204)
   const lifted = onStack(plans);
   const hold = d > 0 ? [{ kind: 'hold', untilSec: t0 + d }] : [];
   return { [three.id]: { ...lifted[three.id], segments: [...hold, ...lifted[three.id].segments] }, [four.id]: { ...lifted[four.id], segments: [...hold, ...lifted[four.id].segments] } };
@@ -85,7 +85,7 @@ export function planOffsetBoxTurn(aircraft, key, dir, t0, { spacingFt = 5000 } =
   const slotAcross = sNow * spacingFt / 2;
   const slotAircraft = Math.abs(relativeTo(lead, four).left - slotAcross) < Math.abs(relativeTo(lead, three).left - slotAcross) ? four : three;
   const missFor = (delaySec) => {
-    const rear = rearPlans(three, four, key, dir, t0, delaySec);
+    const rear = rearPlans(three, four, key, dir, t0, delaySec, lead.homeKias ?? lead.kias);
     const rSlot = dryRun(slotAircraft, rear[slotAircraft.id], t0);
     const T = Math.max(t0 + leadEnd.durationSec, t0 + twoEnd.durationSec, t0 + rSlot.durationSec);
     const L = poseAt(lead, frontPlans[lead.id], t0, T);
@@ -109,7 +109,7 @@ export function planOffsetBoxTurn(aircraft, key, dir, t0, { spacingFt = 5000 } =
     }
     delaySec = onStep(best.d);
   }
-  const rear = rearPlans(three, four, key, dir, t0, delaySec);
+  const rear = rearPlans(three, four, key, dir, t0, delaySec, lead.homeKias ?? lead.kias);
   const plans = { ...frontPlans, ...rear };
   // A wingman still a few knots off Lead's speed as the box settled takes it off as he goes (the turns are planned at Lead's).
   for (const a of [two, three, four]) {

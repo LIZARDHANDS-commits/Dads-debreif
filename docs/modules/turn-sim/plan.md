@@ -259,3 +259,7 @@ Patrick 10 Oct 2026 20:20Z: "Keep both, route 1 first, prototype decides". Order
 - [x] **3D ground in wheat stubble for contrast with the navy Harvards** (Patrick, 11 Oct: "Form sim's ground doesnt have enough contrast against the blue of the harvards", card "go with 3"; built V2.296, TS-189). Unseen: in the running Formation Simulator; Patrick to judge.
 - [x] **Chase then Freelook no longer jitters** (Patrick, 11 Oct: "free look is really jittery", "its wehn i hit chase freelook", "just fix it"; built V2.296, TS-190). Checked: the camera now moves steadily frame to frame. Unseen: Patrick's look at it.
 - [x] **Lean to see Lead** (TS-191, V2.298; Patrick 11 Oct 2026 09:46Z, "Now"): from a wingman's seat the eye moves up to 6 in, sideways for the bow and up for the glareshield, when Lead hides behind them, easing there and back; Camera menu "Lean to see Lead", on by default. Unseen: a live rejoin, the rear seat.
+
+## Step 11. Fighting wing on the live law, stage 1 (Patrick 12 Oct 2026 08:15Z, card "FW on live law"; words agreed 08:19Z)
+
+- [ ] **Fighting wing on the live law, stage 1** (2-ship Lead moves, behind the Tracker / Live switch; TS-202). Done when, with Live, through a level turn into #2 and its reversal #2 stays outside 500 ft, never past 1,000 ft, and is back in the cone after Lead rolls out (one test), and Patrick has flown Live from the default start.

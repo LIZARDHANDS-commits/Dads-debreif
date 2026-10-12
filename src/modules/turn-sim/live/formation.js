@@ -10,7 +10,7 @@ import { DEG } from '../../../core/angles.js';
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { createEvents } from './events.js';
-import { STEP_SEC, makeAircraft, planDone } from './flight.js';
+import { STEP_SEC, makeAircraft, planDone, planDoneBut } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
 import { flyStep, dryRunT } from './replay.js';
 import { setKias } from './pilot.js';
@@ -23,6 +23,7 @@ import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFluid4Turn, planFwMove } from './formation-turns.js';
+import { planFwMoveLive } from './fw-live.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
@@ -44,6 +45,7 @@ export const LIVE_DEFAULTS = Object.freeze({
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
   fluidWing: /** @type {'planned' | 'live'} */ ('planned'), // how #2 is flown in fluid manoeuvring (TS-194): Planned until Live is flown and passed
+  fwWing: /** @type {'tracker' | 'live'} */ ('tracker'), // how #2 flies the 2-ship's fighting wing moves (TS-202): Tracker until Patrick has flown Live
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -184,6 +186,13 @@ export function createFormation(options = {}) {
     // In the offset box each element flies the line abreast manoeuvre, the rear one after its delay (offset-box-turns.js, TS-135).
     const box = four && where.key === 'offsetBox' && OFFSET_BOX_KEYS.includes(key);
     const turnIn = fluid4 || box || (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key)) ? { key: where.key, side: where.side } : null;
+    // A turn called while the last tactical turn's reset to speed is still running takes them back to that same speed
+    // after it (TS-204; manoeuvres.js backToSpeed reads homeKias).
+    for (const a of state.aircraft) {
+      const reset = state.plans[a.id]?.segments.find((seg) => seg.background && seg.kind === 'speed');
+      if (reset) a.homeKias = reset.toKias;
+      else delete a.homeKias;
+    }
     const plan = box
       ? planOffsetBoxTurn(state.aircraft, key, dir, state.tSec, { spacingFt: state.spacingFt ?? opts.spacingFt })
       : fluid4
@@ -212,7 +221,9 @@ export function createFormation(options = {}) {
       state.plans[a.id] = p;
       const run = dryRunT(a, p, state.tSec);
       state.planned[a.id] = run.points;
-      endSec = Math.max(endSec, state.tSec + run.durationSec);
+      // The reset to speed after a tactical turn runs in the background (TS-204): the manoeuvre ends at the roll-out.
+      const fg = p.segments.some((seg) => seg.background) ? dryRunT(a, { ...p, segments: p.segments.filter((seg) => !seg.background) }, state.tSec) : run;
+      endSec = Math.max(endSec, state.tSec + fg.durationSec);
     }
     state.current = {
       key,
@@ -449,9 +460,10 @@ export function createFormation(options = {}) {
   function holdStationIdle() {
     if (state.current || state.fluid) return;
     const lead = state.aircraft[0];
-    if (lead.bankDeg !== 0 || !planDone(lead, state.plans[lead.id])) return;
+    // The heading trim runs through a reset to speed after a tactical turn too (TS-204); the speed trim waits for its end.
+    if (lead.bankDeg !== 0 || !planDoneBut(lead, state.plans[lead.id])) return;
     for (const a of state.aircraft.slice(1)) {
-      if (a.bankDeg !== 0 || !planDone(a, state.plans[a.id])) continue;
+      if (a.bankDeg !== 0 || !planDoneBut(a, state.plans[a.id])) continue;
       const off = Math.atan2(Math.sin(a.headingRad - lead.headingRad), Math.cos(a.headingRad - lead.headingRad));
       if (Math.abs(off) > IDLE_TRIM.offRad) continue;
       const trim = IDLE_TRIM.rateRad * STEP_SEC;
@@ -459,6 +471,7 @@ export function createFormation(options = {}) {
       // and his speed the same way, so he doesn't creep fore or aft
       const dk = a.kias - lead.kias;
       const kTrim = IDLE_TRIM.ktps * STEP_SEC;
+      if (!planDone(lead, state.plans[lead.id]) || !planDone(a, state.plans[a.id])) continue;
       if (dk !== 0 && Math.abs(dk) <= IDLE_TRIM.offKt) setKias(a, Math.abs(dk) <= kTrim ? lead.kias : a.kias - Math.sign(dk) * kTrim);
     }
   }
@@ -575,11 +588,17 @@ export function createFormation(options = {}) {
       };
       if (!FW_MOVES[key]) throw new Error(`No fighting wing move called ${key}`);
       if (state.fluid) return refuse('In fluid manoeuvring Lead flies the fluid buttons; Terminate first.');
-      if (state.aircraft.length > 2) return refuse('Fighting wing moves for the 4-ship come later.');
+      // In the 4-ship the moves fly only on the live law (TS-206): the tracker's are the 2-ship's.
+      const live = opts.fwWing === 'live';
+      if (state.aircraft.length > 2 && !live) return refuse('Fighting wing moves for the 4-ship fly on the live law: set "#2 in fighting wing" to Live in Settings, Fluid settings.');
       const c = state.current;
       if (c && !c.fwMove && c.change?.to !== 'fw') return refuse(`Wait for ${c.label} to finish.`);
       if (!c?.fwMove && whereNow().key !== 'fw') return refuse('These are fighting wing moves; change to fighting wing first.');
-      const plan = planFwMove(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank) });
+      // #2 on the tracker or, with the setting at Live, on the live wingman's law (fw-live.js, TS-202; the 4-ship's wingmen
+      // each off the one ahead, TS-206), carrying on their live states from the move being flown when there is one.
+      const ws0 = live && c?.fwLive ? c.fwLive[Math.round((state.tSec - c.startSec) / STEP_SEC) - 1] ?? null : null;
+      const fwOpts = { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank) };
+      const plan = live ? planFwMoveLive(state.aircraft, key, dir, state.tSec, { ...fwOpts, ws0 }) : planFwMove(state.aircraft, key, dir, state.tSec, fwOpts);
       if (!plan.ok) return refuse(plan.reason);
       state.plans = plan.plans;
       state.planned = {};
@@ -592,7 +611,7 @@ export function createFormation(options = {}) {
       const label = `${FW_MOVES[key].label}${FW_MOVES[key].sided ? (dir > 0 ? ' left' : ' right') : ''}`;
       state.current = {
         key: `fw:${key}`, dir: FW_MOVES[key].sided ? dir : 0, label, note: plan.note, firstId: null, shape: 'formation',
-        formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
+        formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, fwLive: plan.wsTrack ?? null, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
       };
       state.queued = null;
       state.judged = null;
@@ -624,6 +643,7 @@ export function createFormation(options = {}) {
      * (`wing`, the Planned or Live choice, went with the planned wingman, TS-199: #2 is the live wingman, TS-194.)
      */
     setFluid(next = {}) {
+      if (next.fwWing !== undefined) opts.fwWing = next.fwWing; // taken at the next fighting wing press (TS-202)
       if (next.rangeFt !== undefined) opts.fluidRangeFt = next.rangeFt;
       if (next.bank !== undefined) opts.fluidBank = next.bank;
       if (state.fluid) {
@@ -665,7 +685,7 @@ export function createFormation(options = {}) {
           g.flown[i].max = Math.max(g.flown[i].max, a.g);
         }
       }
-      if (state.current && state.aircraft.every((a) => planDone(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
+      if (state.current && state.aircraft.every((a) => planDoneBut(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
       else if (state.current && inBandAndSteady()) finish();
       else if (state.current) replanAtEvents();
       return true;
