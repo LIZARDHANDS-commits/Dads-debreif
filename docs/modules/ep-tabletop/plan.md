@@ -16,7 +16,8 @@ Only what is here gets built. Patrick approved `spec.md` and EP-1 to EP-3 (relay
 - Built in V2.384, not yet seen: the relay mailbox (EP-8 to EP-10), our own QR encoder (EP-Q2), the phone as the master sending only the student view, and its one test. The relay's `/ep-link` is live (deployed 12 Oct 2026); a real phone camera, iOS Safari and mobile networks are untried.
 
 ## Step 3. Systems model: faults drive the gauges, the gauges drive the lights (`systems-plan.md` Phase 1)
-- [ ] `systems.js`: the instructor sets causes (oil leak, chip, fuel imbalance, fire, generator, roughness, engine failure); gauges follow by time and severity; lights follow by thresholds; the instructor's typed values still win (EP-11). The console split into sections with a Faults section; `index.js` split into screen and phone. A second example, "Oil pressure dropping on departure". Thresholds without a page show "(estimate)" (EP-Q10 working answer).
+- [x] `systems.js`: the instructor sets causes (oil leak, chip, fuel imbalance, fire, generator, roughness, engine failure); gauges follow by time and severity; lights follow by thresholds; the instructor's typed values still win (EP-11). The console split into sections with a Faults section; `index.js` split into screen and phone. A second example, "Oil pressure dropping on departure". Thresholds without a page show "(estimate)" (EP-Q10 working answer).
+- Built in V2.389, not yet seen by Patrick or Dad in the app. Every rate and threshold is an estimate, flagged "(estimate)" on the console. Its one test: `tests/unit/ep-tabletop/systems.test.js`.
 
 ## Step 4. Lights that flicker and the visual cues (Phase 2)
 - [ ] Flicker, a small cockpit shake, smoke haze and fire glow as overlays, cue words per fault, all applied by the instructor and only then seen by the student (EP-12). No 3D cues (future list).
