@@ -121,13 +121,14 @@ export const FORWARD_BOW_FT = Object.freeze({
   flange: 0.25,
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([Object.freeze({ at: 0.5, n: 22, dia: 0.07 })]),
-  footPlate: Object.freeze({ up: 0.4, aft: 0.45, inset: 0.09 }),
+  footFillet: Object.freeze({ r: 0.35 }),
 });
 // Its section is a T (Patrick, 12 Oct 2026, from his cockpit photos): the aft face, and along its inner edge a flange
 // running forward `flange` (3 in) at the same distance inside the glass, in place of the dark tube 0.025 ft round; it
 // stands 1 in in from the glass (Patrick, 12 Oct 2026, "its not as thick as you have it"; was 1.8 in, the flange 3.4 in). At
-// each foot a triangular plate joins it to the canopy's lower frame, `up` the bow and `aft` along the frame (sizes
-// estimates), the ejection seat's placard on the right one.
+// each foot it sweeps into the canopy's lower frame in a rounded join `r` round
+// (Patrick, 12 Oct 2026, "its supposed to have a nice rounded join", from his photos; sizes estimates). It was a flat
+// triangular plate 0.4 ft up and 0.45 ft aft, the seat's placard on the right one.
 
 /**
  * The inter-cockpit arch over the rear seat's panel, feet (TS-157): the model's centre frame hoop (CT156_FRAME_X[1],
@@ -1833,27 +1834,33 @@ function sideFrameParts(THREE) {
 function bowFoot(s) {
   const b = FORWARD_BOW_FT, pts = ct156HoopPoints(b.bandX / F, 32, 0, b.lean);
   const q = s > 0 ? pts[0] : pts[pts.length - 1];
-  return [q.x * F, q.y * F, ct156CanopySection(q.x / F).base * F];
+  return [q.x * F, q.y * F, ct156CanopySection(q.x).base * F];
 }
 /**
- * The forward bow's foot plates (FORWARD_BOW_FT.footPlate): a flat triangle each side just inside the glass, from the
- * bow's foot up its leg and aft along the canopy's lower frame, light like the bow, and the ejection seat's placard (a
- * dark square with a light border) on the right one. [geometry, slot] pairs.
+ * The forward bow's rounded joins into the canopy's lower frame (FORWARD_BOW_FT.footFillet): each side a light web as
+ * thick as the frame, filling the corner between the bow's aft edge and the frame's top with a concave quarter circle.
+ * [geometry, slot] pairs.
  */
 function bowFootParts(THREE) {
-  const { up, aft, inset } = FORWARD_BOW_FT.footPlate, out = [];
+  const { r } = FORWARD_BOW_FT.footFillet, t = SIDE_FRAME_FT.thick, out = [];
   for (const s of [1, -1]) {
-    const [x, y, z] = bowFoot(s), yi = s * (Math.abs(y) - inset);
-    const tri = new THREE.BufferGeometry();
-    tri.setAttribute('position', new THREE.Float32BufferAttribute([x, yi, z, x - aft, yi, z, x - 0.04, yi, z + up], 3));
-    tri.setIndex(s > 0 ? [0, 1, 2] : [0, 2, 1]);
-    tri.computeVertexNormals();
-    out.push([tri, SLOT.band]);
-    if (s < 0) {
-      const px = x - aft * 0.35, pz = z + up * 0.3;
-      out.push([box(THREE, px - 0.07, px + 0.07, yi + 0.002, yi + 0.006, pz - 0.07, pz + 0.07), SLOT.knob]);
-      out.push([box(THREE, px - 0.06, px + 0.06, yi + 0.006, yi + 0.009, pz - 0.06, pz + 0.06), SLOT.black]);
-    }
+    // Where the bow's aft edge crosses the frame's top (z0) and how fast it runs forward going up (lean).
+    const z0 = bowFoot(s)[2] + SIDE_FRAME_FT.height, b = FORWARD_BOW_FT;
+    const hoop = ct156HoopPoints(b.bandX / F, 64, 0, b.lean).map((q) => [q.x * F, q.y * F, q.z * F]);
+    const side = s > 0 ? hoop : hoop.slice().reverse();
+    const atZ = (zz) => {
+      const k = side.findIndex((q) => q[2] >= zz), [a, c] = [side[k - 1], side[k]], u = (zz - a[2]) / (c[2] - a[2]);
+      return [lerp(a[0], c[0], u), lerp(a[1], c[1], u)];
+    };
+    const [x, y] = atZ(z0), lean = (x - atZ(z0 + r)[0]) / r;
+    const sh = new THREE.Shape();
+    sh.moveTo(x, z0); sh.lineTo(x - r, z0); sh.absarc(x - r, z0 + r, r, -Math.PI / 2, 0, false); sh.lineTo(x, z0);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: t - 0.01, bevelEnabled: false, curveSegments: 12 }).rotateX(Math.PI / 2);
+    g.translate(0, s > 0 ? Math.abs(y) - 0.01 : -Math.abs(y) + t, 0);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setX(i, pos.getX(i) - lean * (pos.getZ(i) - z0));
+    g.computeVertexNormals();
+    out.push([g, SLOT.band]);
   }
   return out;
 }
@@ -2013,15 +2020,18 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // housing, FIRE a separate square box to their right. Each lamp: [y, slot, lens half-width, lens half-height].
   const lx = h.aftX - 0.003, lz = front ? h.top - lipDrop - 0.035 : h.top - lipDrop / 2 - 0.015;
   const lamps = front
-    ? [[0.11, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.14, SLOT.lampRed, 0.026, 0.026]]
+    ? [[0.21, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.22, SLOT.lampRed, 0.026, 0.026]]
     : [[0.16, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.16, SLOT.lampRed, 0.042, 0.025]];
   if (front) {
-    // On a grey strip across the panel's top under the lip, a small screw either side of each oblong lamp (Patrick,
-    // 12 Oct 2026, "there is a grey surface the buttons are on"; sizes off his photo).
-    put(box(THREE, lx, lx + 0.012, -0.25, 0.27, lz - 0.06, h.top - lipDrop), SLOT.grey);
-    put(box(THREE, lx - 0.02, lx, -0.055, 0.165, lz - 0.035, lz + 0.035), SLOT.black);
-    put(box(THREE, lx - 0.02, lx, -0.177, -0.103, lz - 0.037, lz + 0.037), SLOT.black);
-    for (const y of [-0.045, 0.045, 0.065, 0.155]) put(new THREE.CylinderGeometry(0.007, 0.007, 0.006, 8).rotateZ(Math.PI / 2).translate(lx - 0.023, y, lz), SLOT.metal);
+    // On a grey strip across the panel's top under the lip, each in its own housing about 2.5 in apart, a small screw
+    // either side of each oblong lamp (Patrick, 12 Oct 2026, "there is a grey surface the buttons are on" and "these
+    // are more spaced out"; sizes off his photo, scaled on the lamps' width; until then 1.3 in apart in one housing).
+    put(box(THREE, lx, lx + 0.012, -0.47, 0.5, lz - 0.048, h.top - lipDrop), SLOT.grey);
+    for (const [y, , hw, hh] of lamps) {
+      const m = hw === hh ? 0.011 : 0.013;
+      put(box(THREE, lx - 0.02, lx, y - hw - m, y + hw + m, lz - hh - m, lz + hh + m), SLOT.black);
+      if (hw !== hh) for (const sy of [-1, 1]) put(new THREE.CylinderGeometry(0.007, 0.007, 0.006, 8).rotateZ(Math.PI / 2).translate(lx - 0.003, y + sy * (hw + 0.03), lz), SLOT.metal);
+    }
   } else {
     put(box(THREE, lx - 0.006, lx, -0.42, 0.42, lz - 0.045, lz + 0.045), SLOT.knob);
     for (const [y] of lamps) put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
