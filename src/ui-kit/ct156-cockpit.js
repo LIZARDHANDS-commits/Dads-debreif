@@ -122,7 +122,7 @@ export const FORWARD_BOW_FT = Object.freeze({
   tubeR: 0,
   section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.1, innerT: 0.025 }),
   foot: Object.freeze({ len: 0.35, rise: 0.2, plateT: 0.025 }),
-  studs: Object.freeze({ n: 25, r: 0.01, head: 0.017 }),
+  studs: Object.freeze({ n: 25, r: 0.009, head: 0.02, tip: 0.02 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
   footFillet: null,
@@ -132,9 +132,10 @@ export const FORWARD_BOW_FT = Object.freeze({
 // about as thick as the outer part of the canopy bow. and the bolts extend to its surface"): a flange along the glass
 // `section.outer` (1.9 in) fore and aft, a web down its middle `section.web` thick and a flange `section.inner` (1.2 in)
 // fore and aft along the web's inner edge, both flanges 0.3 in thick, `bandDepth` (1.6 in) from the glass inward
-// ("this side should be thinner?"), its aft face at bandX. A row of `studs` stands aft out of the web, halfway between
-// the flanges, out as far as their aft edges, and the web's aft face is dark, so from the seat it reads as two flanges
-// with a shadowed groove of bolts between ("Construction only"). At each foot the web flares fore and aft over the
+// ("this side should be thinner?"), its aft face at bandX. A row of bolts (`studs`) runs through the inner flange aft of
+// the web, a round head on its glass side and the tip `tip` out of its inner face ("See here?" on that picture), and
+// the web's aft face is dark, so from the seat it reads as two flanges with a shadowed groove between ("Construction
+// only"). At each foot the web flares fore and aft over the
 // leg's last `foot.rise` into a plate `foot.len` long on the sill ("the middle part goes out to a flange in both
 // directions at the bottom?", his card "At the feet", and "the flange seems shallower than yours"). Sizes are
 // estimates off his sketch, that picture and Fig 3.5's band. Before (all 12 Oct 2026): a T with no inner flange and a
@@ -1785,21 +1786,26 @@ function bandGeometries(THREE, b) {
     band = loft(THREE, pts.map((_, j) => ring.map(([dx, d]) => hoops.get(dx)[j](d))), { closed: true });
     const rec = hoops.get(c - web / 2 - 0.002);
     recess = loft(THREE, [pts.map((_, j) => rec[j](d0 + outerT)), pts.map((_, j) => rec[j](d1 - innerT))], { closed: false });
-    // The studs: one row standing aft out of the web's aft face, halfway between the flanges, out as far as the
-    // flanges' aft edges, evenly spaced by length, half a spacing in from each sill.
+    // The bolts: one row through the inner flange's aft overhang, each a round head on its glass side and its tip
+    // poking out of its inner face, evenly spaced by length, half a spacing in from each sill.
     if (b.studs) {
-      const { n: ns, r, head } = b.studs, len = c - web / 2, line = hoops.get(0), mid = pts.map((_, j) => line[j]((d0 + outerT + d1 - innerT) / 2));
+      const { n: ns, r, head, tip } = b.studs, dxRow = (c - I / 2 + c - web / 2) / 2, line = hoop(dxRow);
+      const at = (d) => pts.map((_, j) => line[j](d)), mid = at(d1 - innerT);
       const along = [0];
       for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(...[0, 1, 2].map((i) => mid[j][i] - mid[j - 1][i])));
-      const total = along[along.length - 1];
+      const total = along[along.length - 1], up = new THREE.Vector3(0, 1, 0);
       for (let q = 0; q < ns; q++) {
         const want = ((q + 0.5) / ns) * total;
         let j = 1;
         while (j < along.length - 1 && along[j] < want) j++;
         const t = (want - along[j - 1]) / (along[j] - along[j - 1] || 1);
-        const [x, y, z] = [0, 1, 2].map((i) => mid[j - 1][i] + (mid[j][i] - mid[j - 1][i]) * t);
-        studs.push(new THREE.CylinderGeometry(r, r, len, 10).rotateZ(Math.PI / 2).translate(x + len / 2, y, z));
-        studs.push(new THREE.CylinderGeometry(head, head, 0.01, 12).rotateZ(Math.PI / 2).translate(x + 0.005, y, z));
+        const p = (d) => { const a0 = line[j - 1](d), a1 = line[j](d); return new THREE.Vector3(...[0, 1, 2].map((i) => a0[i] + (a1[i] - a0[i]) * t)); };
+        const outer0 = p(d1 - innerT), inner0 = p(d1 + tip), dir = inner0.clone().sub(outer0).normalize();
+        const turn = new THREE.Quaternion().setFromUnitVectors(up, dir);
+        const shankLen = outer0.distanceTo(inner0), shankMid = outer0.clone().add(inner0).multiplyScalar(0.5);
+        studs.push(new THREE.CylinderGeometry(r, r, shankLen, 8).applyQuaternion(turn).translate(shankMid.x, shankMid.y, shankMid.z));
+        const hc = outer0.clone().addScaledVector(dir, -0.011);
+        studs.push(new THREE.CylinderGeometry(head, head, 0.022, 12).applyQuaternion(turn).translate(hc.x, hc.y, hc.z));
       }
     }
   } else {
