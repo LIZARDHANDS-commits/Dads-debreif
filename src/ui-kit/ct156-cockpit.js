@@ -1693,7 +1693,9 @@ function hoodHalf(h, ts, x) {
  */
 function cheekHalf(h, ts, x) {
   const c = ct156CanopySection(x / F);
-  const [y0, z0] = insideGlass(x, ...hoodHalf(h, ts, x)[1]);
+  // From the foot of the top's side skirt since 12 Oct 2026, so the side stays under the top and never shows beside it
+  // as a sliver (Patrick, 12 Oct 2026, "More clipping/needs to be smooth/merged"; it ran from the top's edge).
+  const [y0, z0] = insideGlass(x, ...hoodHalf(h, ts, x).at(-1));
   // Its outer edge just outside and under the glass's foot ahead of the sill rail (so no skin shows past it), and over
   // the rail (0.07 ft round) from 0.15 ft ahead of the rail's front end aft, so the rail runs in under it and its end
   // doesn't show (Patrick, 11 Oct 2026, the corner "still doesnt look quite right").
@@ -2121,12 +2123,12 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     for (const side of [1, -1]) {
       const rows = secs.map((sec) => cheekHalf(h, ts, sec[0][0]).map(([y, z]) => [sec[0][0], side * y, z]));
       put(loft(THREE, rows, { closed: false }), SLOT.grey);
-      // Its aft face, from the rail's line out to the side's first section and down to the sill, so nothing shows under
-      // the side's edge (it stopped at the side's edge, leaving the sill and the tub's wall showing under it).
+      // Its aft face, from the side's first section down to the sill, so nothing shows under the side's edge (it stopped
+      // at the side's edge, leaving the sill and the tub's wall showing under it).
       const edge = rows[0].map(([, y, z]) => [Math.abs(y), z]);
       const hood = hoodHalf(h, ts, h.aftX).slice(1);
       const [yIn] = hood[hood.length - 1], zSill = edge[edge.length - 1][1];
-      put(flatAft(THREE, h.aftX + 0.002, [...edge, [yIn, zSill], ...hood.slice(1).reverse()].map(([y, z]) => [side * y, z])), SLOT.grey);
+      put(flatAft(THREE, h.aftX + 0.002, [...edge, [yIn, zSill]].map(([y, z]) => [side * y, z])), SLOT.grey);
       // Its rivets: a row along the side's edge and one down the rail's side, on the aft face.
       const { r: rr, pitch, inset } = CHEEK_RIVETS_FT;
       const lines = [edge.map(([y, z]) => [y - inset, z - inset]), [[yIn + inset, hood[hood.length - 1][1] - inset], [yIn + inset, zSill + inset]]];

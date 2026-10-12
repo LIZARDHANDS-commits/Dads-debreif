@@ -1645,9 +1645,13 @@ function railGeometry(THREE, side) {
   };
   const rows = [[0, 0.0004], [tall - seam, 0.0004], [tall - seam, 0.0007], [tall, 0.0007]];
   const pos = [], idx = [];
+  // Under the windscreen it eases in from nothing at its front end to its full height 1 ft aft, and keeps to the lower
+  // 40 % of the glass, so it runs out along the sill rather than ending in a dark spike up the glass beside the
+  // coaming (Patrick, 12 Oct 2026, "More clipping/needs to be smooth/merged"; it started at full height).
   for (let i = 0; i <= N; i++) {
-    const x = x0 + ((x1 - x0) * i) / N;
-    for (const [dz, grow] of rows) pos.push(...at(x, dz, grow));
+    const x = x0 + ((x1 - x0) * i) / N, c = canopyAt(x, 0);
+    const k = Math.min(Math.sin((Math.PI / 2) * Math.min(1, (x0 - x) / FT)), (0.4 * (c.top - c.base)) / (tall * FT));
+    for (const [dz, grow] of rows) pos.push(...at(x, dz * k, grow));
   }
   const R = rows.length;
   for (let i = 0; i < N; i++) {
@@ -1939,12 +1943,12 @@ function cheatLine(THREE) {
  * A thin piece hugging the fuselage's side (side +1 left, -1 right) through rows [x, zTop, zBottom] from aft to front,
  * nz steps down each row: a painted or dark shape that follows the skin's curve.
  */
-function skinStrip(THREE, rows, side, nz = 3) {
+function skinStrip(THREE, rows, side, nz = 3, lift = 0.0025) {
   const pos = [], idx = [];
   for (const [x, zTop, zBottom] of rows) {
     for (let j = 0; j <= nz; j++) {
       const z = zTop + ((zBottom - zTop) * j) / nz;
-      pos.push(x, side * fuseSurf(x, z), z);
+      pos.push(x, side * (fuseSurf(x, z) - 0.0025 + lift), z);
     }
   }
   for (let i = 0; i < rows.length - 1; i++) {
@@ -2163,7 +2167,7 @@ function buildKit(THREE) {
     geometry: skinStrip(THREE, Array.from({ length: 13 }, (_, i) => {
       const t = i / 12, x = 0.304 + 0.053 * t, top = topAt(x) - 0.0045 - 0.0027 * t;
       return [x, top, top - mouth(t)];
-    }), side),
+    }), side, 3, 0.0006), // close on the skin, so from the seat it doesn't stand off the cowl as a blade (it sat 0.7 in out; Patrick, 12 Oct 2026, "More clipping")
     materials: [0],
   }, {
     geometry: patch(THREE, (LOWER_VENT.x0 + LOWER_VENT.x1) / 2, (LOWER_VENT.z0 + LOWER_VENT.z1) / 2, LOWER_VENT.x1 - LOWER_VENT.x0, LOWER_VENT.z1 - LOWER_VENT.z0, side, fuseSurf),
