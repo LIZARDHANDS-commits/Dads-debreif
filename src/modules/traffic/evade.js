@@ -5,8 +5,7 @@
 //
 //   - the flinch (Layer 2): a few seconds out of the way, up if free to climb, else a bank away, then the breakout;
 //   - the climb straight ahead before a fly-through breaks out (Patrick's Q4);
-//   - the rejoin of a broken-out straight-in onto its own straight-in (Patrick's Q7), and the same rejoin
-//     flown by the breakout onto ENT1 (breakout.js).
+//   - the rejoin onto a straight-in line (Patrick's Q7), flown by the breakout onto ENT1 (breakout.js).
 //
 // Positions in map feet (x east, y north), headings compass degrees true, speeds KIAS. Nothing here reads a
 // setting or the page.
@@ -124,24 +123,9 @@ export function buildClimbAhead(from, wind, toAltFt) {
 }
 
 /**
- * The way back onto a straight-in after a breakout (Patrick's Q7; SMM 4.5 para 8): back to a gate on the
- * straight-in's first leg 2 NM before the leg's end (from beyond it, out past the gate first), turning onto
- * the line there and settling at the line's height and 220 KIAS; the path follower then joins the
- * straight-in itself. `route` is the straight-in. Returns the path.
- */
-export function buildRejoin(from, wind, route) {
-  const pilot = makePilot(startOf(from, 'rejoin'), wind);
-  pilot.s.bank = from.bankDeg ?? 0;
-  pilot.record();
-  flyRejoin(pilot, route, 0);
-  pilot.record();
-  return pilot.points;
-}
-
-/**
  * Flies `pilot` (circuit.js makePilot) back onto leg `leg` of `route` (from point `leg` to point `leg + 1`):
  * to a gate 2 NM before the leg's end, turning onto the line there and settling at the line's height and
- * 220 KIAS. Used by the straight-in rejoin above and by the breakout's rejoin onto ENT1 (breakout.js).
+ * 220 KIAS. Used by the breakout's rejoin onto ENT1 (breakout.js).
  */
 export function flyRejoin(pilot, route, leg = 0) {
   const p0 = route.points[leg], p1 = route.points[leg + 1];

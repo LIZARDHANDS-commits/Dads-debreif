@@ -1,7 +1,6 @@
 // Where a PFL "From Area" aircraft starts (Traffic spec 4.5): a radial and distance from the field, at a
-// height, heading for the field at 125 KIAS (the clean glide speed, T-6A max glide data; PFL in pfl.js).
-// The old nav plans that fed the physics controllers were removed with them on Patrick's card
-// "Rebuild, then delete" (4 Oct 17:53Z).
+// height, heading for the field at 125 KIAS (the clean glide speed, T-6A max glide data; PFL in pfl.js),
+// and the start height that puts it on profile at High Key.
 
 import { FT_PER_NM } from '../../core/units.js';
 import { flyPfl, PFL } from './pfl.js';

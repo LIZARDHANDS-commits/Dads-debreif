@@ -1,6 +1,6 @@
 # Traffic Pattern Sim
 
-Setup on the left (scenarios, wind, routes), aircraft on the right, a map in the middle. The spec is [`specs/SPEC-traffic.md`](../../../specs/SPEC-traffic.md); the task list is in [`tasks/traffic/`](../../../tasks/traffic/todo.md).
+Setup on the left (scenarios, wind, routes), aircraft on the right, a map in the middle. The spec, plan and decisions are in [`docs/modules/traffic/`](../../../docs/modules/traffic/README.md).
 
 ## Screen
 
@@ -25,7 +25,7 @@ How it behaves:
 
 - Every change goes into the setup the engine flies, so the map and the aircraft follow at once. Point values, names and labels are checked (range, length, a most of 30 routes and 100 points a route) and refused in plain words; names go on the page as text, never as HTML.
 - "+ Point" adds a point halfway to the next one with the average height, speed and G, called "New Point". "Delete point" leaves a pattern at least 3 points and an entry or split at least 2. Links between routes are by point number, so adding or deleting a point moves the links of routes that join it, and a route joined to a deleted point is moved to the point before it.
-- "+ New route" makes a pattern, entry or split from the engine's builders and picks it. An entry or split joins the selected pattern, or the first pattern. Route ids are never reused.
+- The one route builder left is `newPattern` (a profile opened at a field with no setup of its own). The entry and split builders had no caller and went in the Traffic refactor, step 1.
 - Space plays or pauses, Home resets, and `[` and `]` step back and ahead 10 s, never while typing. Escape closes an open menu and puts focus back on its button.
 
 Not built yet: dragging points on the map and typing a point's position, Duplicate route, Delete route (when it is built it must refuse to delete the last route, because the engine throws when the routes are emptied while aircraft exist), editing an aircraft after it is spawned, plans, wind, PFLs and the rules.
@@ -49,18 +49,18 @@ Tests: `tests/unit/traffic/` for each file (in Node, on a stand-in page), and `t
 
 ## Engine API
 
-The engine is `route.js`, `sim.js`, `dice.js` and `readouts.js` (PR A, tasks 1 to 3). It is pure: plain objects in, plain objects out, no page, no clock, no `Math.random`. The screen calls it and draws what it returns; the drawing never changes a number. Everything is pinned to V6's own Traffic page by `tests/golden/traffic-*.test.js`.
+The engine is `sim.js` and the flying files it calls: `route.js` (route geometry), `path-follower.js` (the one mover: every aircraft rides a path), `circuit.js` (the simulated pilot, which flies each manoeuvre once to make that path), `pfl.js`, `closed-pattern.js`, `high-key.js`, `breakout.js`, `evade.js` and `deconflict.js` (the manoeuvres and the spacing), `weather.js` (the day's temperature), `airfield.js` (Moose Jaw's numbers), `dice.js` and `readouts.js`. It is pure: plain objects in, plain objects out, no page, no clock, no `Math.random`. The screen calls it and draws what it returns; the drawing never changes a number. The flying numbers are checked against the manuals and Patrick's rulings, never V6.
 
 ### Conventions
 
 - Positions are **feet**, x east and **y north**, origin at the setup's anchor (`setup.anchor = { lat, lon }`). V6 stored y pointing south; the built-in data was flipped once and nothing else changed.
 - Altitudes are feet, speeds are knots, times are seconds of sim time, headings are compass degrees (0 north, 90 east).
 - Point numbers on the screen count from 1. Inside the engine a point is its 0-based index in `route.points` (`startIndex`, `sourceIndex`, `mergeIndex`), as in V6; only `sim.spawn`'s `startPoint` is 1-based, because it is what the spawner's box holds.
-- This is V6's simple model (SPEC-traffic, Assumption 1): an aircraft is a point that moves along its route at the speed set at the route points, at the height set there. No wind, no types yet (a type is only a colour, as in V6), no avoiding action.
+- An aircraft flies its route as the simulated pilot would, in the day's wind and temperature, and its manoeuvres (go-around, closed pattern, High Key climb, PFL, breakout, evasion) are paths flown once from where it is. The type sets the colour and the 3D model.
 
 ### The setup
 
-`src/modules/traffic/data/moose-jaw-v6.json` is V6's built-in "Moose Jaw Dynamic" profile in this shape, unchanged; the golden tests and the engine's unit tests read it, so the V6 pins stay on V6's own data. `src/modules/traffic/data/moose-jaw.json` is the default setup: the same routes with the numbers the manuals clearly differ on corrected, each change its own commit (see the manual cross-check, `tests/crosscheck/`). The V6 setup is a read-only built-in profile, "Moose Jaw (V6 original)", beside the default "Moose Jaw (built-in)" (see Profiles below). `sim.createSim(setup, …)` reads `routes`, `aircraft`, `routeOptions` and `conflictLimits`; the rest is for the screen.
+`src/modules/traffic/data/moose-jaw-v6.json` is V6's built-in "Moose Jaw Dynamic" profile in this shape, unchanged; some unit tests read it. `src/modules/traffic/data/moose-jaw.json` is the default setup: the same routes with the numbers the manuals clearly differ on corrected, each change its own commit (see the manual cross-check, `tests/crosscheck/`). The V6 setup is a read-only built-in profile, "Moose Jaw (V6 original)", beside the default "Moose Jaw (built-in)" (see Profiles below). `sim.createSim(setup, …)` reads `routes`, `aircraft`, `routeOptions` and `conflictLimits`; the rest is for the screen.
 
 ```js
 {
@@ -101,9 +101,9 @@ Every function that needs the route options takes them as an optional last argum
 | `positionAt(route, distFt, options?)` | `{ x, y, alt, kt, headingDeg, leg, g }` at that distance along the route (a pattern wraps round; an open route stops at its ends). `leg` is V6's "Leg" column, counted from 1 |
 | `legDistances(route)` | `[{ routeId, from, to, ft, nm, x, y }]`, one per leg, points counted from 1 (a pattern's last leg goes back to 1, so a pattern of two points has 1→2 and 2→1, as V6 draws it). `x`, `y` is the middle of the leg in feet, where the map puts its label |
 | `pointTurn(route, i, options?)` | `{ radiusFt, bankDeg }` for the turn at point `i` (from 0), or `null` where V6 shows none: the first point of a pattern, the first and last of an entry or split (bug #49, kept for now). `pointRows` uses it; `turnAtPoint(point, options?)` is the same numbers for any point |
-| `newPattern(id, name, opts?)`, `newEntry(id, name, patternId, routes, opts?)`, `newSplit(id, name, patternId, routes, opts?)` | V6's builders (`defaultPattern`, `defaultEntry`, `defaultSplit`): a route, not yet in any list. `opts.color` sets the colour; `newPattern` also takes `offsetEastFt` and `offsetNorthFt` |
+| `newPattern(id, name, opts?)` | A new generic pattern: a route, not yet in any list. `opts.color` sets the colour, `offsetEastFt` and `offsetNorthFt` move it |
 
-V6's own functions are there too, for the tests and the editor: `roundedPoints`, `navSegs`, `routeLengthFt`, `pointDistFt` (V6 `pointProg`: distance to where the turn at a point starts), `posOnRoute` (`positionAt` with V6's `seg` and `u`), `closestDistFt` (V6 `closestProg`), `pointTurnRadiusFt`, `isClosedRoute`, and the constants `DEFAULT_ROUTE_OPTIONS`, `ROUTE_COLORS` and `nextRouteColor(routes)` (V6's palette in turn).
+Also: `routeLengthFt`, `pointDistFt` (distance to where the turn at a point starts), `posOnRoute` (`positionAt` with the leg and the share along it), `closestDistFt`, `isClosedRoute`, `computeWindPerch` (the map's wind perch marker), `generateWindAdjustedTrack` (Pattern 1 built by flying it in the wind, `circuit.js`), and `DEFAULT_ROUTE_OPTIONS`.
 
 ### `sim.js`: the flying
 
@@ -124,7 +124,7 @@ sim.remove(id)        // true if it was there; a timed event: going back to befo
 sim.clearFinished()   // drops every aircraft that has landed or is done (V6 "Clear inactive"), from this step on (timed like remove); returns how many
 sim.aircraftSpecs()   // the aircraft as setup.aircraft has them, for saving a profile
 sim.trailOf(id)       // [{ x, y }]: a point every 0.5 s of sim time for the last 2 minutes, oldest first. V6 also adds the split point to the trail when a split is taken; this does not (display only)
-sim.diceState()       // where the dice are (changes with every roll; the golden tests compare it with V6's)
+sim.diceState()       // where the dice are (changes with every roll)
 sim.state()           // what is where right now
 sim.remapStarts(routeId, mapIndex)  // a point was added to or deleted from a route: move the start points of its aircraft the same way
 ```
@@ -141,7 +141,7 @@ The clock is added up 0.05 s at a time, as V6 does, so a whole second can come o
 
 V6 reads a missing speed as 120 kt and a missing height as 2,500 ft, and so does this. The aircraft type's own speed (V6's 125, 180, 150 and 230 kt for CT-157, CT-156, CT-102 and CT-114) is used only on a route with no legs (one point or none), and the height its start point had when it was made (2,500 ft if none) there too, as V6's `acProfile` does; the app never makes a point with no speed.
 
-Constants: `STEP_SEC` (0.05), `TYPE_COLORS` (V6's four types and the colour each is drawn in) and `DEFAULT_CONFLICT_LIMITS` (200, 200, 500, 500 ft, used when `setup.conflictLimits` is missing).
+Constants: `STEP_SEC` (0.05) and `TYPE_COLORS` (each type's colour). When `setup.conflictLimits` is missing the sim uses 200, 200, 500 and 500 ft.
 
 `sim.state()` returns:
 
@@ -169,7 +169,7 @@ A landed or done aircraft keeps the place it stopped at. Conflicts are between a
 
 ### `readouts.js`: text, with V6's rounding
 
-Everything is plain text: put it on the page with `textContent`. These strings (`labelText`, `dataText`, `turnText`, the table cells) are for the tables and lists and are pinned to V6's own text. The map keeps the spec's own style ("1,880 ft 100 kt", with commas) in `map2d.js` and takes its numbers from `legDistances` and `pointTurn`, not from these strings. Numbers are rounded as V6 rounds them (`Math.round`, so .5 goes up; NM and G with `toFixed`), and the golden test compares each string with V6's own.
+Everything is plain text: put it on the page with `textContent`. These strings (`labelText`, `dataText`, `turnText`, the table cells) are for the tables and lists and keep V6's wording. The map keeps the spec's own style ("1,880 ft 100 kt", with commas) in `map2d.js` and takes its numbers from `legDistances` and `pointTurn`, not from these strings. Numbers are rounded as V6 rounds them (`Math.round`, so .5 goes up; NM and G with `toFixed`).
 
 | Function | Returns |
 |---|---|
