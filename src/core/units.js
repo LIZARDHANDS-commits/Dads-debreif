@@ -6,12 +6,8 @@ export const FT_PER_NM = 1852 / 0.3048; // exact: 1,852 m, 0.3048 m per ft (6,07
 /** Feet per second per knot. */
 export const KT_TO_FTPS = 1.68781;
 
-/**
- * Knots per foot per second. Rounded on its own, so it is not exactly
- * 1 / KT_TO_FTPS (0.592484 vs 0.5924838); whether to keep the rounding is
- * on the list for Patrick (core refactor handover, step 5).
- */
-export const FTPS_TO_KT = 0.592484;
+/** Knots per foot per second: exactly 1 / KT_TO_FTPS (Patrick, 12 Oct 2026, "make it exact"; 0.592484 until then). */
+export const FTPS_TO_KT = 1 / KT_TO_FTPS;
 
 /** Feet per metre. */
 export const FT_PER_M = 3.28084;
