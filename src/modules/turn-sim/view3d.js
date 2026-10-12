@@ -860,7 +860,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ctx.clearRect(0, 0, w, h);
     const tags = layers.tags ? source.tags?.() : null;
     const links = source.leadLinks?.();
-    const hud = layers.camHud === false ? null : source.hud?.(); // folded away by the HUD and camera button (Patrick, 12 Oct 2026)
+    const hud = source.hud?.();
     if (!tags && !links && !hud) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const screenOf = (a) => {

@@ -911,24 +911,59 @@
   display: none;
 }
 
-/* The small HUD and camera button, bottom right of the picture (Patrick, 12 Oct 2026): folds both away. */
-[data-module='turn-sim'] .ts-camhud-toggle {
+/* Each window's own minimise (Patrick, 12 Oct 2026): a small – on its top right, and a small tab that brings it back. */
+[data-module='turn-sim'] .ts-mini {
   position: absolute;
   z-index: 11;
-  right: var(--space-2, 8px);
-  bottom: var(--space-2, 8px);
-  padding: 3px 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
+  border-radius: 5px;
   background: rgba(13, 17, 23, 0.75);
   color: rgb(227, 238, 245);
   font: 600 11px / 1.2 system-ui, sans-serif;
   cursor: pointer;
 }
 
-[data-module='turn-sim'] .ts-camhud-toggle:hover,
-[data-module='turn-sim'] .ts-camhud-toggle:focus-visible {
+[data-module='turn-sim'] .ts-mini:hover,
+[data-module='turn-sim'] .ts-mini:focus-visible {
   border-color: var(--accent, #4fc3f7);
+}
+
+[data-module='turn-sim'] .ts-mini[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .ts-mini-close {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  line-height: 16px;
+}
+
+/* The camera bar's –, inside its top right corner. */
+[data-module='turn-sim'] .ts-cam-bar > .ts-mini-close {
+  top: 4px;
+  right: 4px;
+}
+
+/* The HUD's –, inside the top right corner of the HUD drawn on the canvas (ui-kit/hud.js HUD: 12 px margin, 210 px wide,
+   134 px tall with the Formation Sim's RANGE row). */
+[data-module='turn-sim'] .ts-hud-min {
+  left: calc(12px + 210px - 22px);
+  bottom: calc(12px + 134px - 22px);
+}
+
+[data-module='turn-sim'] .ts-mini-tab {
+  padding: 3px 8px;
+  bottom: var(--space-2, 8px);
+}
+
+[data-module='turn-sim'] .ts-hud-tab {
+  left: 12px;
+}
+
+[data-module='turn-sim'] .ts-cam-tab {
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 [data-module='turn-sim'] .ts-cam-row {
