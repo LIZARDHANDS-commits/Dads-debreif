@@ -66,6 +66,7 @@ export const LIVE = Object.freeze({
   minG: 0.5, // never below 0.5 G on the lift he has (as Lead's push, 2 CFFTS Orders B2 ch 8 para 1a; 0.5 an estimate)
   normalG: G_RULE.normalG, // SMM 16.17 para 44a; Gen Book p.11 (flagged, the normal ceiling)
   acrossDps: 3, // how fast his place moves across the tail (a swap, the entry, Terminate): 3°/s, a 30° swap in about 10 s (estimate; inside WING.swapMinSec-swapMaxSec)
+  slotAcrossDps: 1.5, // in Terminate his place moves across to the fighting wing slot at 1.5°/s (estimate), slow enough that Lead's turn away from him does it and he only turns less, never away first
   shareSec: 6, // the lag or lead share swings from full lag to full lead in no less than 6 s (estimate)
   overTop: Object.freeze(['loop', 'wingover', 'barrelRoll']), // Lead's manoeuvres over the top
   startFt: 600, // he starts them no further out than 600 ft, the default setting (Patrick 11 Oct 2026 22:54Z, card: 600 ft rather than near 500 ft)
@@ -184,9 +185,13 @@ export function stepLiveWing(ws, ctx) {
   const want = toSlot
     ? { rangeFt: ws.slot.rangeFt, acrossDeg: side * ws.slot.acrossDeg, alt: ws.slot.alt }
     : { rangeFt: overTop ? Math.min(ctx.rangeFt, LIVE.startFt) : ctx.rangeFt, acrossDeg: side * LIVE.latDeg, alt: 0 };
+  // Terminate: Lead's turn reaches him along Lead's path only after the time he is behind on it, so his place starts to
+  // move across to the fighting wing slot then, with the turn, not before it (rolling away first, then back into the turn).
+  const slotAt = toSlot ? (ws.slotAt ?? t + Math.max(0, (ctx.k - (ws.j ?? ctx.k)) * dt)) : null;
+  const acrossNow = !toSlot || t >= slotAt;
   const place = {
     rangeFt: toward(ws.place.rangeFt, want.rangeFt, LIVE.rangeFtps),
-    acrossDeg: toward(ws.place.acrossDeg, want.acrossDeg, overTop ? LIVE.topAcrossDps : LIVE.acrossDps),
+    acrossDeg: acrossNow ? toward(ws.place.acrossDeg, want.acrossDeg, overTop ? LIVE.topAcrossDps : toSlot ? LIVE.slotAcrossDps : LIVE.acrossDps) : ws.place.acrossDeg,
     alt: toward(ws.place.alt, want.alt, LIVE.altFtps),
   };
   const across = place.acrossDeg * DEG;
@@ -375,7 +380,7 @@ export function stepLiveWing(ws, ctx) {
     && aspect >= FW_BAND.sweepDeg[0] && aspect <= FW_BAND.sweepDeg[1] && Math.abs(next.kias - e.st.kias) < LIVE.settleKt;
 
   return {
-    ws: { ...ws, st: next, side, place, off, j: j0, tau0, topSwaps, outside, trail: [...trail], share, lastLatDeg: latDeg, swapUntil, word },
+    ws: { ...ws, st: next, side, place, off, j: j0, slotAt, tau0, topSwaps, outside, trail: [...trail], share, lastLatDeg: latDeg, swapUntil, word },
     pose,
     power,
     cue,
