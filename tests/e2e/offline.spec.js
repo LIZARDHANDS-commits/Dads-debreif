@@ -39,7 +39,7 @@ test('after one visit, home and About open with the network off', async ({ page,
   await page.reload();
   // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
   await expect(page.getByRole('heading', { level: 1 })).toContainText("OODA LOOP");
-  await expect(page.locator('.card')).toHaveCount(6);
+  await expect(page.locator('.card')).toHaveCount(7); // six modules (EP Tabletop added V2.369) and About Us
   await page.locator('a.card-about').click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Us');
   const photo = page.locator('.about-photo img');
@@ -53,7 +53,7 @@ test('offline, the home cards show their stills and fetch no videos', async ({ p
   const failed = [];
   page.on('requestfailed', (req) => failed.push(req.url()));
   await page.reload();
-  await expect(page.locator('.card')).toHaveCount(6);
+  await expect(page.locator('.card')).toHaveCount(7); // six modules (EP Tabletop added V2.369) and About Us
   // Give the cards' visibility checks a few frames to run.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 300)))));
   await expect(page.locator('.card-video.is-playing')).toHaveCount(0);
