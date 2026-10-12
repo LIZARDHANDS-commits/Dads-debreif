@@ -508,7 +508,7 @@ export function stepAircraft(a, plan, t) {
       const change = seg.toKias - a.kias;
       const span = rate > 0 ? Math.abs(change) / rate : 0;
       seg.begun = true;
-      if (Math.abs(change) > 1e-9 && span > 0) plan.speedLeg = { t0: t, t1: t + span, fromKias: a.kias, toKias: seg.toKias, tasPerKias: a.tasFtps / a.kias, stage: seg.stage ?? null };
+      if (Math.abs(change) > 1e-9 && span > 0) plan.speedLeg = { t0: t, t1: t + span, fromKias: a.kias, toKias: seg.toKias, tasPerKias: a.tasFtps / a.kias, stage: seg.stage ?? null, background: Boolean(seg.background) };
     }
     if (seg.begun && (seg.withNext || !plan.speedLeg)) {
       plan.segments.shift();

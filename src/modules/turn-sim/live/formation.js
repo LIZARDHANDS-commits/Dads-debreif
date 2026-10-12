@@ -223,7 +223,9 @@ export function createFormation(options = {}) {
       state.planned[a.id] = run.points;
       // The reset to speed after a tactical turn runs in the background (TS-204): the manoeuvre ends at the roll-out.
       const fg = p.segments.some((seg) => seg.background) ? dryRunT(a, { ...p, segments: p.segments.filter((seg) => !seg.background) }, state.tSec) : run;
-      endSec = Math.max(endSec, state.tSec + fg.durationSec);
+      // ... but not before a height leg still being flown (the crossing turns' miss) is done.
+      const profileEnd = p.profile?.length ? p.profile[p.profile.length - 1].t1 : 0;
+      endSec = Math.max(endSec, state.tSec + fg.durationSec, profileEnd);
     }
     state.current = {
       key,
@@ -432,7 +434,12 @@ export function createFormation(options = {}) {
       }
     } else {
       state.judged = { label: state.current.label, ...judge(state.aircraft, { shape: state.current.shape }, { spacingFt: state.spacingFt }) };
-      if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
+      if (state.current.errorRun) {
+        state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
+        // After a full-power turn the speed is still coming back (TS-204) and #2's fix is planned to that end: judged again then.
+        const resetting = state.aircraft.some((a) => state.plans[a.id]?.segments.some((seg) => seg.background));
+        if (resetting) state.errorOutcome.rejudge = { run: state.current.errorRun, label: state.current.label };
+      }
     }
     state.current = null;
     state.planned = {};
@@ -685,6 +692,8 @@ export function createFormation(options = {}) {
           g.flown[i].max = Math.max(g.flown[i].max, a.g);
         }
       }
+      const rejudge = state.errorOutcome?.rejudge;
+      if (rejudge && state.aircraft.every((a) => planDone(a, state.plans[a.id]))) state.errorOutcome = outcomeOf(rejudge.run, state.aircraft[0], state.aircraft[1], rejudge.label);
       if (state.current && state.aircraft.every((a) => planDoneBut(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
       else if (state.current && inBandAndSteady()) finish();
       else if (state.current) replanAtEvents();
