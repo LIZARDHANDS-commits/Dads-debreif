@@ -38,7 +38,7 @@
 // own panel may differ.
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
-  CT156_TUB_FLOOR_FT, CT156_RAIL_FORE_X, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
+  CT156_TUB_FLOOR_FT, CT156_RAIL_FORE_X, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
 import { attachCockpitModel } from './ct156-cockpit-model.js';
@@ -191,18 +191,23 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + FACE_AHEAD_FT, leanD
 const FRONT_CROWN = CT156_COAMING_CROWNS_FT.front;
 export const GLARESHIELD_FT = Object.freeze({
   crown: FRONT_CROWN, aftX: FRONT_CROWN[0][0], foreX: FRONT_CROWN[FRONT_CROWN.length - 1][0], top: FRONT_CROWN[0][1], foreTop: FRONT_CROWN[FRONT_CROWN.length - 1][1],
-  lipDrop: 0, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1, railOut: -0.1, diagPow: 1, cheeks: true,
+  lipDrop: 0.05, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1, railOut: -0.1, diagPow: 1, cheeks: true,
 });
-// Since the panel came up 1.2 in (Patrick, 12 Oct 2026) the rail's lower edge meets the EADI's case, so no lip hangs
-// under it (lipDrop was worked out from the eye to just cover the EADI's top, about 0.15 ft) and the three lamps sit on
-// the rail; its sides run 0.1 ft inside the panel's edge (railOut, was 0.05) and its diagonals are straight (diagPow).
+// Since the panel came up 1.2 in (Patrick, 12 Oct 2026) the rail's lower edge meets the EADI's case, so only a small
+// lip (0.05 ft, an estimate off his cockpit photo) hangs under it over the three lamps (it was worked out from the eye
+// to just cover the EADI's top, about 0.15 ft); the rail's sides run 0.1 ft inside the panel's edge (railOut, was
+// 0.05) and its diagonals are straight (diagPow).
 /**
  * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
  * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
  * (AETCMAN 11-248 Fig 2.7, p.42; TS-156), 0.05 ft out from the panel's edge. Its top is the windscreen's bottom edge
  * straight ahead. Sizes estimates.
  */
-export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05, lowV: 0.18 });
+// In the front seat it no longer stops at brackets: it runs on down the panel's sides, coming forward onto the face's
+// edge by `faceAbove` over the main face's bottom, jogging out onto the lower panel's edge `jogAbove` over it, and down
+// that edge to the console's top (Patrick, 12 Oct 2026, from his cockpit photos; it stopped at brackets 18 % up the
+// face). The rear seat's still ends at brackets.
+export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05, lowV: 0.18, faceAbove: 0.3, jogAbove: 0.18 });
 
 /**
  * The AOA indexer on the front coaming's left, feet: a dark box 0.19 ft (2.3 in) tall, 0.065 ft wide and 0.24 ft deep,
@@ -1921,34 +1926,65 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
       put(flatAft(THREE, h.aftX + 0.002, [...edge, ...hood.slice(1).reverse()].map(([y, z]) => [side * y, z])), SLOT.black);
     }
   }
-  // The rear hump's lip under its aft edge; the front coaming has none since its panel came up (GLARESHIELD_FT).
+  // The lip under the coaming's aft edge: a small one in the front seat, over the three lamps (Patrick, 12 Oct 2026,
+  // from his cockpit photo; it went with the panel's rise), the rear hump's own.
   const lipDrop = h.lipDrop;
   if (lipDrop > 0) put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -lipDrop)], { closed: false }), SLOT.black);
-  // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7): the
+  // The three lamps under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7): the
   // panel layout's master warning panel, MASTER WARN red on the left, MASTER CAUTION amber in the
-  // middle and FIRE red on the right (was amber). Centred over the EADI, 1.4 in apart on a strip
-  // about 4.8 in across (Patrick, 11 Oct 2026: "the three lights above the eadi are misaligned"; V2.289 had them where
-  // the figure draws them, off the middle, and until then 1.9 in apart on a 10 in strip; front seat).
-  // In the front seat they sit on the grab rail, just aft of its middle (Patrick, 12 Oct 2026); in the rear on the lip.
-  const lx = front ? h.aftX - RIM_FT.aftOfGlareshield - RIM_FT.r + 0.004 : h.aftX - 0.003, lz = front ? h.top : h.top - lipDrop / 2 - 0.015;
-  const strip = front ? [0.2, -0.2] : [0.42, -0.42];
-  const lamps = front ? [[0.12, SLOT.lampRed], [0, SLOT.lampAmber], [-0.12, SLOT.lampRed]] : [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampRed]];
-  put(box(THREE, lx - 0.006, lx, strip[1], strip[0], lz - 0.045, lz + 0.045), SLOT.knob);
-  lamps.forEach(([y, slot]) => {
-    put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
-    put(box(THREE, lx - 0.024, lx - 0.02, y - 0.042, y + 0.042, lz - 0.025, lz + 0.025), slot);
-  });
+  // middle and FIRE red on the right (was amber). Rear seat: centred over the EADI, 1.4 in apart on a light strip
+  // (Patrick, 11 Oct 2026: "the three lights above the eadi are misaligned"). Front seat (Patrick, 12 Oct 2026, from his
+  // cockpit photo): tucked under the small lip, MASTER WARN and MASTER CAUTION two oblong lamps side by side in one
+  // housing, FIRE a separate square box to their right. Each lamp: [y, slot, lens half-width, lens half-height].
+  const lx = h.aftX - 0.003, lz = front ? h.top - lipDrop - 0.035 : h.top - lipDrop / 2 - 0.015;
+  const lamps = front
+    ? [[0.11, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.14, SLOT.lampRed, 0.026, 0.026]]
+    : [[0.16, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.16, SLOT.lampRed, 0.042, 0.025]];
+  if (front) {
+    put(box(THREE, lx - 0.02, lx, -0.055, 0.165, lz - 0.035, lz + 0.035), SLOT.black);
+    put(box(THREE, lx - 0.02, lx, -0.177, -0.103, lz - 0.037, lz + 0.037), SLOT.black);
+  } else {
+    put(box(THREE, lx - 0.006, lx, -0.42, 0.42, lz - 0.045, lz + 0.045), SLOT.knob);
+    for (const [y] of lamps) put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
+  }
+  for (const [y, slot, hw, hh] of lamps) put(box(THREE, lx - 0.024, lx - 0.02, y - hw, y + hw, lz - hh, lz + hh), slot);
   // Where each lamp's face is (MASTER_LAMPS' order), for the live lamps laid just aft of them (liveEngine).
-  const lampFaces = lamps.map(([y]) => ({ x: lx - 0.0245, y, z: lz, w: 0.084, h: 0.05 }));
+  const lampFaces = lamps.map(([y, , hw, hh]) => ({ x: lx - 0.0245, y, z: lz, w: 2 * hw, h: 2 * hh }));
 
   // The grab rail (the rim): along the coaming's aft edge and down the panel's sides to brackets (TS-156, TS-157).
   const rx = h.aftX - RIM_FT.aftOfGlareshield;
   const edge = hoodHalf(h, ts, h.aftX).slice(0, -1).map(([y, z]) => [Math.min(y, glassHalfWidthFt(z, rx, 0.06)), z]);
   const sideY = edge[edge.length - 1][0], lowZ = zOf(RIM_FT.lowV);
-  const rail = chaikin([[sideY, lowZ], ...edge.slice(1).reverse(), ...edge.slice(1).map(([y, z]) => [-y, z]), [-sideY, lowZ]].map(([y, z]) => [rx, y, z]), 2);
-  put(tubeThrough(THREE, rail, RIM_FT.r, 72, { smooth: true, radial: 7 }), SLOT.rail);
-  for (const end of [rail[0], rail[rail.length - 1]]) {
-    put(tubeThrough(THREE, [end, [end[0], end[1], end[2] - 0.05], [p.x, end[1] * 0.96, end[2] - 0.1]], 0.028, 6, { radial: 6 }), SLOT.rail);
+  if (front) {
+    // Down the sides: from the shoulder forward onto the face's edge, then out onto the lower panel's edge (its flare
+    // carried on up) and down it to the console's top.
+    const LP = LOWER_PANEL_FT, LW = Math.max(ts.side, LP.halfWidth), LT = Math.min(LP.top, LW);
+    const shoulderZ = edge[edge.length - 1][1], lean = Math.tan(rad(p.leanDeg ?? 0));
+    const faceX = (z) => p.x + Math.max(0, z - p.bottom) * lean - RIM_FT.r - 0.005;
+    const flareY = (z) => Math.min(LW, LT + ((LW - LT) * (p.bottom - z)) / LP.flare);
+    const zf = p.bottom + RIM_FT.faceAbove, zj = p.bottom + RIM_FT.jogAbove;
+    const down = [
+      [faceX(c.top), LW, c.top], [faceX(p.bottom - LP.flare), LW, p.bottom - LP.flare], [faceX(p.bottom), LT, p.bottom],
+      [faceX(zj), flareY(zj), zj], [faceX(zf), sideY, zf],
+      [lerp(faceX(zf), rx, 0.5), sideY, (zf + shoulderZ) / 2],
+    ];
+    const top = [...edge.slice(1).reverse(), ...edge.slice(1).map(([y, z]) => [-y, z])].map(([y, z]) => [rx, y, z]);
+    const rail = chaikin([...down, ...top, ...down.slice().reverse().map(([x, y, z]) => [x, -y, z])], 2);
+    put(tubeThrough(THREE, rail, RIM_FT.r, 120, { smooth: true, radial: 7 }), SLOT.rail);
+    // The flat wall each side of the panel below the coaming's side, from the panel's edge out to the fuselage's
+    // inside, the canopy's sill down to the console's top (Patrick, 12 Oct 2026, from his photos; until then the
+    // tub's wall showed there).
+    const sill = ct156CanopySection(p.x / F).base * F, wallY = ct156FuselageSection(p.x / F).halfWidth * F - 0.06;
+    for (const side of [1, -1]) {
+      const wall = [[LW, c.top], [wallY, c.top], [wallY, sill], [LT, sill], [LT, p.bottom], [LW, p.bottom - LP.flare]];
+      put(flatAft(THREE, p.x + 0.003, wall.map(([y, z]) => [side * y, z])), SLOT.grey);
+    }
+  } else {
+    const rail = chaikin([[sideY, lowZ], ...edge.slice(1).reverse(), ...edge.slice(1).map(([y, z]) => [-y, z]), [-sideY, lowZ]].map(([y, z]) => [rx, y, z]), 2);
+    put(tubeThrough(THREE, rail, RIM_FT.r, 72, { smooth: true, radial: 7 }), SLOT.rail);
+    for (const end of [rail[0], rail[rail.length - 1]]) {
+      put(tubeThrough(THREE, [end, [end[0], end[1], end[2] - 0.05], [p.x, end[1] * 0.96, end[2] - 0.1]], 0.028, 6, { radial: 6 }), SLOT.rail);
+    }
   }
   // The rear hump's second rail, across its top near the front (Dad's pictures 27, 29).
   if (!front) {
