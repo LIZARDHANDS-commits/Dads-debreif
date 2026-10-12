@@ -9,7 +9,12 @@
 // setting nobody has asked about, or anything about how it ends; and never a cause (fault), its severity or its trend (EP-11): the panel
 // carries only the gauges and lights they move, once revealed. The picture cues (EP-12) are `cues`: a haze and a glow (0 to 1), a shake
 // (degrees) and the names of revealed lights that flicker, worked out from what has been applied, never from what is waiting.
+// The flight (plan Step 5, EP-13) is `flight`: where the aircraft is and how it is flying (position, altitude, KTAS and KIAS, heading,
+// bank, pitch, climb rate, G, the ground velocity and turn rate), the pick it is flying in words, and the outcome in words once it is down.
+// Never the engine's state behind it (that is a cause): the student sees only what the aircraft does.
 import { STEPS, panelOf } from './scenario.js';
+import { flightNow, manoeuvreWords } from './flight.js';
+import { windVectorFtps } from '../../core/wind.js';
 import { definitionOf, CUE_LEVELS, FLICKER_CUES } from './indications.js';
 import { shownOf } from './systems.js';
 import { ENGINE_LIVE } from '../../ui-kit/ct156-cockpit.js';
@@ -62,6 +67,63 @@ export function studentView(s) {
     prompts: { fever: s.prompts.fever, tccc: s.prompts.tccc },
     panel: panelOf(s).set,
     cues: cuesOf(s),
+    flight: flightViewOf(s),
+  };
+}
+
+/** Outcome kinds a student view may carry (flight.js): words only, never right or wrong. */
+const OUTCOME_KINDS = Object.freeze(['landed', 'offRunway', 'ejected']);
+
+/**
+ * The flight as the student's side draws it, or null with no flight. The ground velocity adds the scenario's wind (core windVectorFtps)
+ * to the air's, so a screen between the phone's sends can carry the aircraft on along its track (flightAhead).
+ * @param {any} s
+ */
+export function flightViewOf(s) {
+  const f = s.flight;
+  if (!f) return null;
+  const n = flightNow(f);
+  const w = f.outcome ? { x: 0, y: 0 } : windVectorFtps(Number(s.scenario.start.wind?.fromDegT) || 0, Math.max(0, Number(s.scenario.start.wind?.kt) || 0));
+  const still = Boolean(f.outcome);
+  return {
+    x: n.x,
+    y: n.y,
+    altFt: n.altFt,
+    ktas: n.ktas,
+    kias: n.kias,
+    headingDegM: n.headingDegM,
+    bankDeg: n.bankDeg,
+    pitchDeg: n.pitchDeg,
+    climbFpm: still ? 0 : n.climbFpm,
+    g: n.g,
+    turnDps: n.turnDps,
+    gsxFtps: still ? 0 : f.pm.vx + w.x,
+    gsyFtps: still ? 0 : f.pm.vy + w.y,
+    manoeuvre: manoeuvreWords(f),
+    outcome: f.outcome ? { kind: f.outcome.kind, words: f.outcome.words } : null,
+  };
+}
+
+/**
+ * A student view's flight carried on `ageS` seconds along its ground velocity, climb rate and turn rate (at most 1 s, about the phone's
+ * send interval; then it waits for the next), so the student's screen moves smoothly between the phone's sends (phone mode). The phone stays
+ * the master: its next state replaces this. Plain dead reckoning, not the flight model: running the model here would need the engine's
+ * state, which is a cause and never reaches the student (EP-2, EP-11).
+ * @param {any} flight a cleaned student view's flight
+ * @param {number} ageS
+ */
+export function flightAhead(flight, ageS) {
+  if (!flight || flight.outcome) return flight;
+  const t = Math.min(1, Math.max(0, Number(ageS) || 0));
+  if (t === 0) return flight;
+  const finite = (v) => (Number.isFinite(v) ? v : null);
+  const plus = (v, rate) => (finite(v) === null ? v : v + (finite(rate) ?? 0) * t);
+  return {
+    ...flight,
+    x: plus(flight.x, flight.gsxFtps),
+    y: plus(flight.y, flight.gsyFtps),
+    altFt: plus(flight.altFt, (finite(flight.climbFpm) ?? 0) / 60),
+    headingDegM: finite(flight.headingDegM) === null ? flight.headingDegM : (((flight.headingDegM + (finite(flight.turnDps) ?? 0) * t) % 360) + 360) % 360,
   };
 }
 
@@ -78,6 +140,12 @@ const FLIGHT_RANGE = Object.freeze({
 });
 const MAX_WORDS = 120;
 const MAX_LINE = 160;
+/** The flight's ranges a screen can draw (not flying limits): 300 NM round Moose Jaw in feet, speeds, rates and G to a sane span. */
+const FLIGHT_VIEW_RANGE = Object.freeze({
+  x: [-1.83e6, 1.83e6], y: [-1.83e6, 1.83e6], altFt: FLIGHT_RANGE['flight.altFt'], ktas: [0, 600], kias: FLIGHT_RANGE['flight.kias'],
+  headingDegM: [0, 360], bankDeg: FLIGHT_RANGE['flight.bankDeg'], pitchDeg: FLIGHT_RANGE['flight.pitchDeg'], climbFpm: [-30000, 30000],
+  g: [-5, 10], turnDps: [-60, 60], gsxFtps: [-1500, 1500], gsyFtps: [-1500, 1500],
+});
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) ? clamp(v, lo, hi) : null);
@@ -128,6 +196,14 @@ export function cleanStudentView(raw) {
     }
   }
   const rawCues = isObject(raw.cues) ? raw.cues : {};
+  let flight = null;
+  const rf = /** @type {any} */ (raw).flight;
+  if (isObject(rf)) {
+    flight = Object.fromEntries(Object.entries(FLIGHT_VIEW_RANGE).map(([k, range]) => [k, num(rf[k], ...range)]));
+    flight.manoeuvre = text(rf.manoeuvre, MAX_WORDS) ?? '';
+    const ro = isObject(rf.outcome) ? rf.outcome : null;
+    flight.outcome = ro && OUTCOME_KINDS.includes(ro.kind) ? { kind: ro.kind, words: text(ro.words, MAX_LINE) ?? '' } : null;
+  }
   const flicker = Array.isArray(rawCues.flicker) ? FLICKER_CUES.map((d) => d.name).filter((n) => rawCues.flicker.includes(n)) : [];
   return {
     format: VIEW_FORMAT,
@@ -157,5 +233,6 @@ export function cleanStudentView(raw) {
       shakeDeg: num(rawCues.shakeDeg, 0, CUE_LEVELS.find((d) => d.key === 'fx.shakeDeg').max) ?? 0,
       flicker,
     },
+    flight,
   };
 }

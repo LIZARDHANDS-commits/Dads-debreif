@@ -4,7 +4,8 @@
 //
 //   shownOf(session) = overrides  over  lightsOf(gauges + overrides)  over  gauges,   gauges = gaugesOf(baseline, faults, clockS)
 //
-// The baseline is the scenario's healthy start (scenario.start.shown). Lights are references, never walls: a lit light never stops a gauge
+// The baseline is the scenario's healthy start (scenario.start.shown), with the flight instruments (and the gear and flaps once a pick has
+// moved them) from the flight since plan Step 5 (flight.js flightShown). Lights are references, never walls: a lit light never stops a gauge
 // moving on (rule book, "Flying numbers and manuals").
 //
 // A fault is { id, kind, severity, startedAtS, trend, params, effectS, effectAtS }:
@@ -20,7 +21,9 @@
 // ruling, or 'estimate' until one backs it. No manual page is cited here yet: none of the thresholds or rates has one (EP-Q10's working
 // answer: build with the estimates, each shown "(estimate)" on the console).
 
-/** The causes the instructor can set (systems-plan section 2.1). engineFail moves the gauges only; flying the aircraft is plan Step 5. */
+import { flightShown } from './flight.js';
+
+/** The causes the instructor can set (systems-plan section 2.1). engineFail and roughness also reach the flight (flight.js engineOf, plan Step 5). */
 export const FAULT_KINDS = Object.freeze(['oilLeak', 'chip', 'fuelImbalance', 'fire', 'smoke', 'genFail', 'genFlicker', 'roughness', 'engineFail', 'hydLeak', 'fuelLeak']);
 export const TRENDS = Object.freeze(['worsening', 'steady', 'improving']);
 /** The severity a new fault starts at, and the one the rates below are written for (systems-plan section 2.1: "0.5 by default"). A tool choice. */
@@ -103,15 +106,15 @@ export const FAULT_EFFECTS = Object.freeze({
     effects: Object.freeze([
       Object.freeze({ key: 'engine.fuelFlowPph', swingAtFull: 80, source: 'estimate', note: 'fuel flow swings ±40 pph at severity 0.5 (the spec\'s mock-up)' }),
       Object.freeze({ key: 'engine.torquePct', swingAtFull: 6, source: 'estimate', note: 'torque swings ±3 % at severity 0.5' }),
-      Object.freeze({ key: 'engine.npPct', swingAtFull: 2, source: 'estimate', note: 'Np swings ±1 % at severity 0.5' }),
+      Object.freeze({ key: 'engine.npPct', swingAtFull: 2, source: 'estimate', note: 'Np swings ±1 % at severity 0.5; the thrust drops 20 % at severity 0.5 (flight.js, estimate)' }),
       Object.freeze({ key: 'fx.shakeDeg', levelAtFull: SHAKE_DEG_AT_FULL, source: 'picture choice', note: 'a small shake of the view, up to 0.3° at severity 1' }),
       Object.freeze({ key: 'cue.roughness', words: 'roughness', source: 'picture choice', note: 'default cue words' }),
     ]),
   }),
   engineFail: Object.freeze({
-    label: 'Engine failure (gauges only)', severity: false, trend: false,
+    label: 'Engine failure', severity: false, trend: false,
     effects: Object.freeze([
-      Object.freeze({ key: 'engine.torquePct', to: 0, overS: 10, source: 'estimate', note: 'torque, N1, fuel flow and oil pressure run down to zero and ITT to 100 °C over about 10 s' }),
+      Object.freeze({ key: 'engine.torquePct', to: 0, overS: 10, source: 'estimate', note: 'torque, N1, fuel flow and oil pressure run down to zero and ITT to 100 °C over about 10 s; the aircraft has no thrust from the start (flight.js)' }),
       Object.freeze({ key: 'engine.n1Pct', to: 0, overS: 10, source: 'estimate' }),
       Object.freeze({ key: 'engine.fuelFlowPph', to: 0, overS: 10, source: 'estimate' }),
       Object.freeze({ key: 'engine.ittC', to: 100, overS: 10, source: 'estimate' }),
@@ -273,11 +276,12 @@ export function lightsOf(gauges, overrides = {}) {
 
 /**
  * Every indication as the aircraft shows it now, revealed or not (the instructor's view): the instructor's overrides win, then the lights,
- * then the gauges. `s` is a scenario.js session: { scenario: { start: { shown } }, faults, overrides, clockS }.
+ * then the gauges. `s` is a scenario.js session: { scenario: { start: { shown } }, faults, overrides, clockS, flight? }.
  */
 export function shownOf(s) {
   const overrides = s.overrides ?? {};
-  const gauges = gaugesOf(s.scenario.start.shown, s.faults, s.clockS);
+  const baseline = s.flight ? { ...s.scenario.start.shown, ...flightShown(s.flight) } : s.scenario.start.shown;
+  const gauges = gaugesOf(baseline, s.faults, s.clockS);
   return { ...gauges, ...lightsOf({ ...gauges, ...overrides }, overrides), ...overrides };
 }
 

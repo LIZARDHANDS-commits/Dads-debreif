@@ -1,14 +1,18 @@
 // The EP Tabletop's scenario engine (docs/modules/ep-tabletop/spec.md, "Scenarios", "Pause and live changes"): pure, no page and no flight
-// maths. The aircraft holds the state the scenario and the instructor give it (spec, "What the module uses").
+// maths of its own. Since plan Step 5 the aircraft flies (flight.js, EP-13): the session holds the flight, `advance` steps it with the clock
+// (to each timed development's own time first, so a cause starts where it should), and a pick ('pick', manoeuvres.js) changes what it flies.
 //
 // A scenario is { id, title, start, developments }:
-//   start: { phase, altFt, kias, headingDegM, position: { fromIcao, bearingDegT, distNm }, fuelLb, weather (words), shown: { key: value } }
-//     (start.shown is the healthy baseline the systems model works from, systems.js)
+//   start: { phase, altFt, kias, headingDegM, position: { fromIcao, bearingDegT, distNm }, fuelLb, weather (words), wind: { fromDegT, kt },
+//            manoeuvre (the pick it starts flying, 'straightLevel' unless said), shown: { key: value } }
+//     (start.shown is the healthy baseline the systems model works from, systems.js; the flight instruments come from the flight)
 //   developments: [{ id, label, at: { timeS } | { step } | { tap: true }, set: { key: value },
 //                    fault?: { id, kind, severity, trend, params } (or a list), faultChange?: { id, severity, trend, clear } (or a list) }]
 // An indication key names what it is: 'engine.<ENGINE_LIVE key>' (a number, or { v, swing } for a fluctuating one), 'light.<name>' (true when
 // lit), 'cue.<name>' (words: smoke, flames, oil on the windscreen, roughness, noises), 'config.gear' and 'config.flaps' (words) and
 // 'flight.<pitchDeg | bankDeg | altFt | kias | headingDegM>' (numbers, always on the panel: the student flies by them in Aircraft control).
+// The flight instruments are the flight's (flight.js flightShown). A typed altitude, airspeed or heading (the console, or a development's
+// `set`) puts the aircraft there on Apply and it flies on from there; it is not kept as a typed value. Pitch and bank are flown, not typed.
 //
 // A session holds the clock (it moves only while running), the step on the A-A-B-C-D-E-F track, the causes set (`faults`, systems.js) and
 // the instructor's typed values (`overrides`, which win), which indications the student has asked about (`revealed`: only those reach the
@@ -16,6 +20,8 @@
 // come, the FEVER and TCCC prompts, marks and notes, the Declare boxes and the log (EP-R9). What the panel shows is worked out, not stored:
 // systems.js shownOf (EP-11). Every function returns a new session; none changes the one it is given.
 import { shownOf, makeFault, changeFault, faultLabel, FAULT_EFFECTS } from './systems.js';
+import { createFlight, flyTo, applyPick, placeFlight, FIELD_IDS } from './flight.js';
+import { cleanPick, manoeuvreById } from './manoeuvres.js';
 
 /** The step track, in Fig 1.4's order (AETCMAN 11-248 para 1.20.3, cited by paragraph only). */
 export const STEPS = Object.freeze([
@@ -64,8 +70,38 @@ export function startSession(scenario) {
     prompts: { fever: false, tccc: false },
     marks: {},
     declare: Object.fromEntries(DECLARE_FIELDS.map((f) => [f, ''])),
+    flight: createFlight(scenario.start),
+    picks: [],
     log: [{ tS: 0, step: 'A', text: `Scenario: ${scenario.title}` }],
   };
+}
+
+/** What the flight reads from the session: the causes applied (the engine's state, systems.js) and the scenario's wind. */
+const flightEnv = (s) => ({ faults: s.faults, wind: s.scenario.start.wind });
+
+/**
+ * Typed settings (an Apply, or a development's `set`) into the session: the flight instruments' altitude, airspeed and heading put the
+ * aircraft there (flight.js placeFlight); pitch and bank are flown, so a typed one is dropped; everything else becomes a typed value.
+ */
+function putSettings(s, set) {
+  const typed = {};
+  const place = {};
+  for (const [key, value] of Object.entries(set ?? {})) {
+    if (!isFlight(key)) typed[key] = value;
+    else if (key === 'flight.altFt') place.altFt = Number(value);
+    else if (key === 'flight.kias') place.kias = Number(value);
+    else if (key === 'flight.headingDegM') place.headingDegM = Number(value);
+  }
+  const out = { ...s, overrides: { ...s.overrides, ...typed } };
+  return Object.keys(place).length && out.flight ? { ...out, flight: placeFlight(out.flight, place, flightEnv(out)) } : out;
+}
+
+/** The flight stepped to clock `clockS`, with the outcome logged once when it comes (words only, never right or wrong). */
+function flyOn(s, clockS) {
+  if (!s.flight) return { ...s, clockS };
+  const flight = flyTo(s.flight, clockS, flightEnv(s));
+  const out = { ...s, clockS, flight };
+  return flight.outcome && !s.flight.outcome ? log(out, flight.outcome.words) : out;
 }
 
 /** The value the aircraft shows for `key` now, revealed or not (the instructor's view): the systems model's, with typed values winning. */
@@ -106,9 +142,8 @@ export function faultsOf(s) {
 export const nextDevelopment = (s) => s.developments.find((d) => !d.done) ?? null;
 
 function fire(s, dev) {
-  const overrides = { ...s.overrides, ...dev.set };
   const developments = s.developments.map((d) => (d.id === dev.id ? { ...d, done: true } : d));
-  let out = log({ ...s, overrides, developments }, `Development: ${dev.label}`);
+  let out = log(putSettings({ ...s, developments }, dev.set), `Development: ${dev.label}`);
   // A timed development's cause starts at its own time, so the gauges are the same however the clock was stepped.
   const atS = Number.isFinite(dev.at?.timeS) ? Math.min(dev.at.timeS, s.clockS) : s.clockS;
   for (const f of list(dev.fault)) out = putFault(out, f, atS);
@@ -122,13 +157,17 @@ function fireStep(s) {
   return out;
 }
 
-/** Moves the clock on `dtS` seconds if it is running, firing each timed development whose time has come, in time order. */
+/**
+ * Moves the clock on `dtS` seconds if it is running, firing each timed development whose time has come, in time order, and flying the
+ * aircraft on with it: up to each development's own time first, then to the end (so the path is the same however the clock was stepped).
+ */
 export function advance(s, dtS) {
   if (!s.running || !(dtS > 0)) return s;
-  let out = { ...s, clockS: s.clockS + dtS };
-  const due = out.developments.filter((d) => !d.done && Number.isFinite(d.at.timeS) && d.at.timeS <= out.clockS).sort((a, b) => a.at.timeS - b.at.timeS);
-  for (const d of due) out = fire(out, d);
-  return out;
+  const end = s.clockS + dtS;
+  const due = s.developments.filter((d) => !d.done && Number.isFinite(d.at.timeS) && d.at.timeS <= end).sort((a, b) => a.at.timeS - b.at.timeS);
+  let out = s;
+  for (const d of due) out = fire(flyOn(out, Math.max(out.clockS, d.at.timeS)), d);
+  return flyOn(out, end);
 }
 
 function goStep(s, to) {
@@ -145,7 +184,8 @@ function goStep(s, to) {
  * The instructor's (and the step track's) actions. `a.type`:
  * resume, pause; step { to }; next; backToA; reanalyse; reveal { key }; stage { key, value }; discard; apply; fireNext; delayNext;
  * addDevelopment { when: 'tap' | 'later' | a step id, label }; prompt { which: 'fever' | 'tccc', on }; mark { step, mark }; note { step, text };
- * declare { field, value }; addFault { kind, severity, trend, params }; setFault { id, severity, trend }; clearFault { id }.
+ * declare { field, value }; addFault { kind, severity, trend, params }; setFault { id, severity, trend }; clearFault { id };
+ * pick { manoeuvre, headingDegM?, fieldIcao? } (the student's pick, or the instructor's for them: it flies at once, never waits for Apply).
  * stage, addFault, setFault and clearFault wait in pending until apply (or + Add makes them into a development); discard drops them all.
  * Anything else returns the session unchanged.
  */
@@ -201,7 +241,7 @@ export function act(s, a) {
       if (!keys.length && !faultIds.length) return s;
       const shown = shownOf(s);
       let out = { ...s, pending: {}, pendingFaults: {} };
-      if (keys.length) out = log({ ...out, overrides: { ...s.overrides, ...s.pending } }, `Changed: ${keys.map((k) => `${k} ${words(shown[k])} to ${words(s.pending[k])}`).join('; ')}`);
+      if (keys.length) out = log(putSettings(out, s.pending), `Changed: ${keys.map((k) => `${k} ${words(shown[k])} to ${words(s.pending[k])}`).join('; ')}`);
       for (const id of faultIds) {
         const w = s.pendingFaults[id];
         const set = s.faults.find((f) => f.id === id);
@@ -252,6 +292,17 @@ export function act(s, a) {
       return log({ ...s, marks: { ...s.marks, [a.step]: { ...s.marks[a.step], note: a.text } } }, `Note, ${stepName(a.step)}: ${a.text}`);
     case 'declare':
       return DECLARE_FIELDS.includes(a.field) ? { ...s, declare: { ...s.declare, [a.field]: String(a.value ?? '') } } : s;
+    case 'pick': {
+      // The student's pick (EP-14), or the instructor's for them in one-screen mode: checked (cleanPick), flown at once. Declare marks D on the
+      // step track (systems-plan 4.1); Eject ends the flight. Once the flight has an outcome, a pick changes nothing.
+      const pick = cleanPick(a, FIELD_IDS);
+      if (!pick || !s.flight || s.flight.outcome) return s;
+      const { flight, words: said, resolved } = applyPick(s.flight, pick, flightEnv(s));
+      let out = log({ ...s, flight, picks: [...(s.picks ?? []), { clockS: s.clockS, ...resolved }] }, `Pick: ${said}`);
+      if (flight.outcome) out = log(out, flight.outcome.words);
+      if (manoeuvreById(pick.manoeuvre).id === 'declare' && out.step !== 'D') out = goStep(out, 'D');
+      return out;
+    }
     default:
       return s;
   }

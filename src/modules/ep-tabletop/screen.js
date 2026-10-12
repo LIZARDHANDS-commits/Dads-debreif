@@ -1,7 +1,10 @@
 // The EP Tabletop's student's screen (docs/modules/ep-tabletop/spec.md, "The two screens"): the CT-156 front cockpit over Moose Jaw, the
 // A-A-B-C-D-E-F step track, the situation and what the instructor has revealed, with the instructor's console behind an Instructor switch
 // (one-screen mode, plan Step 1) or on the instructor's phone, opened by the QR code the "Instructor's phone" button shows (plan Step 2,
-// EP-8 to EP-10). Moved out of index.js as it was (plan Step 3); what it adds: the console's scenario picker before Start.
+// EP-8 to EP-10). Moved out of index.js as it was (plan Step 3); what it adds: the console's scenario picker before Start. Plan Step 5: the
+// aircraft flies (flight.js); the 3D view and the panel follow the student view's flight, and the step track says in words what it is
+// flying and, once it is down, the outcome. In phone mode the phone is the master: between its sends (at most twice a second) this screen
+// carries the last flight on by dead reckoning (student-view.js flightAhead) and takes the phone's next state when it comes.
 //
 // The student's side is drawn only from a student view (student-view.js): in one-screen mode made here from the local session, with the
 // phone made on the phone and read over the link. Never on the student's side: the scenario's name, the developments to come, the causes
@@ -9,15 +12,15 @@
 import { h, clear } from '../../ui-kit/dom.js';
 import { encodeQr, qrSvg } from '../../ui-kit/qr.js';
 import { startSession, act, advance, valueNow, STEPS } from './scenario.js';
-import { studentView, cleanStudentView } from './student-view.js';
+import { studentView, cleanStudentView, flightAhead } from './student-view.js';
 import { SCENARIOS, scenarioById } from './scenarios.js';
 import { NUMBERS, LIGHTS, WORDS, labelOf, valueWords, hudOf, shakeOffsetDeg } from './indications.js';
 import { createConsole, clockWords } from './console.js';
 import { createWorld3d, startPositionFt } from './world3d.js';
 import { createLink, newLinkId, consoleAddress, LOST_MS } from './link.js';
 
-/** While running, the 3D picture is drawn at most this often (milliseconds): only the panel moves, so 10 a second is plenty (an estimate). */
-const DRAW_MS = 100;
+/** While running, the 3D picture is drawn at most this often (milliseconds): 25 a second, now that the aircraft flies (an estimate; it was 10 when only the panel moved). */
+const DRAW_MS = 40;
 
 const ftWords = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const COMPASS_8 = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
@@ -60,6 +63,7 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
   const stepItems = STEPS.map((st) => h('li', { class: 'ep-step', dataset: { step: st.id } }, h('b', {}, st.letter), ` ${st.name}`, h('span', { class: 'ep-done', 'aria-hidden': 'true' })));
   const banner = h('p', { class: 'ep-banner', role: 'status' });
   const prompts = h('p', { class: 'ep-prompts' });
+  const flying = h('p', { class: 'ep-flying', hidden: true });
   const situationList = h('ul', { class: 'ep-situation' });
   const revealedList = h('ul', { class: 'ep-revealed' });
   const track = h('aside', { class: 'ep-track', 'aria-label': 'Step track' },
@@ -67,7 +71,7 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
     situationList,
     h('h2', {}, 'A-A-B-C-D-E-F'),
     h('ol', { class: 'ep-steps' }, stepItems),
-    banner, prompts,
+    banner, prompts, flying,
     h('h2', {}, 'Revealed'),
     revealedList);
 
@@ -139,6 +143,11 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
     const on = [v.prompts.fever ? 'FEVER' : null, v.prompts.tccc ? 'TCCC' : null].filter(Boolean);
     prompts.textContent = on.length ? `Prompt: ${on.join(' · ')}` : '';
     prompts.hidden = !on.length;
+    // What the aircraft is flying (the student's own picks, Step 6; the instructor's for them until then), and the outcome in words once down.
+    const fl = v.flight;
+    flying.hidden = !fl || (!fl.outcome && !v.started);
+    flying.textContent = fl ? (fl.outcome ? fl.outcome.words : `Flying: ${fl.manoeuvre}`) : '';
+    flying.className = `ep-flying${fl?.outcome ? ' is-down' : ''}`;
     clear(revealedList);
     const order = [...WORDS, ...NUMBERS, ...LIGHTS].map((d) => d.key);
     const shown = order.filter((k) => k in v.panel);
@@ -154,9 +163,14 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
     if (!world) return;
     const v = currentView();
     const clockS = clockOf(v);
-    const hud = hudOf(panelNow(v, clockS), { ...cueClock(v, clockS), flicker: v.cues.flicker });
+    // The flight now: the local session's as it is, or the phone's last carried on to this moment (phone mode, at most 1 s).
+    const fl = v.flight ? flightAhead(v.flight, remote && v.running ? clockS - v.clockS : 0) : null;
+    const hud = hudOf(panelNow(v, clockS), { ...cueClock(v, clockS), flicker: v.cues.flicker }, fl);
     const shakeDeg = Math.round(shakeOffsetDeg({ ...cueClock(v, clockS), shakeDeg: v.cues.shakeDeg }) * 100) / 100;
-    world.setPose({ ...startPositionFt(v.situation.position), altFt: hud.altFt, headingDegM: hud.headingDeg, pitchDeg: hud.pitchDeg, bankDeg: hud.bankDeg, shakeDeg });
+    const at = Number.isFinite(fl?.x) && Number.isFinite(fl?.y) ? { x: fl.x, y: fl.y } : startPositionFt(v.situation.position);
+    // A missing altitude keeps the last one drawn (world3d setPose), never the ground: the panel's, then the situation's, then nothing.
+    const altFt = [fl?.altFt, hud.altFt, v.situation.altFt].find(Number.isFinite);
+    world.setPose({ ...at, altFt, headingDegM: hud.headingDeg, pitchDeg: hud.pitchDeg, bankDeg: hud.bankDeg, shakeDeg });
     world.setHud(hud);
     const key = JSON.stringify([hud, shakeDeg]);
     const now = nowMs();

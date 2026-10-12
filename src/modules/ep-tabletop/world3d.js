@@ -3,7 +3,8 @@
 // 3D environment (Patrick, relayed by Dad, 12 Oct 2026: "use the moose jaw 3d environment") built from the shared pieces: the real terrain
 // (ui-kit terrain3d.js) with the satellite picture draped on it (ui-kit draped-ground.js), Moose Jaw's runways from Patrick's measured points
 // and the other fields round it (ui-kit airfield3d.js, src/airfields), and the shared sky (ui-kit sky-clouds.js). Traffic's richer CYMJ world
-// (buildings, landmarks) stays Traffic's for now (EP-7). A picture only: the aircraft holds the pose it is given (no flight maths).
+// (buildings, landmarks) stays Traffic's for now (EP-7). A picture only: the aircraft is drawn at the pose it is given (the flight, flight.js,
+// plan Step 5); no flight maths here.
 //
 // When data fails: a terrain tile that doesn't come leaves its part flat at the field's elevation; a satellite tile that doesn't come leaves the
 // plain ground colour there; no WebGL leaves a message in place of the view, and the step track and the instructor's console still work.
@@ -19,12 +20,10 @@ import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../core/geo.j
 import { zoomForTiles, holeFor } from '../../core/terrain-grid.js';
 import { compassDegToHeadingRad, degToRad } from '../../core/angles.js';
 import { FT_PER_NM } from '../../core/units.js';
+import { MAG_VARIATION_DEG_E } from './flight.js';
 
-/**
- * Magnetic variation at Moose Jaw, degrees east (Patrick's ruling, TR-65: 9° E). Scenario headings are magnetic, the world is drawn in true.
- * The Traffic sim keeps the same number in its airfield.js (MAG_VARIATION_DEG_E); a shared home for it is a proposal (EP-7).
- */
-export const MAG_VARIATION_DEG_E = 9;
+/** Magnetic variation at Moose Jaw, 9° E (TR-65): the one copy in this module is flight.js's; re-exported here for the screens that read it from this file. */
+export { MAG_VARIATION_DEG_E };
 
 /** The head turn a drag allows from the nose, degrees: modest, so the panel and the windscreen stay the picture (an estimate, a tool choice). */
 export const HEAD_LIMITS = Object.freeze({ yawDeg: 60, pitchDeg: [-35, 25] });
@@ -83,11 +82,8 @@ function mooseJawArea() {
   };
 }
 
-/** Where a scenario's start puts the aircraft, map feet from CYMJ's origin: `bearingDegT` and `distNm` from the field. */
-export function startPositionFt({ bearingDegT = 0, distNm = 0 } = {}) {
-  const b = degToRad(bearingDegT);
-  return { x: Math.sin(b) * distNm * FT_PER_NM, y: Math.cos(b) * distNm * FT_PER_NM };
-}
+/** Where a scenario's start puts the aircraft: flight.js's, the one copy (re-exported for the screens that read it from this file). */
+export { startPositionFt } from './flight.js';
 
 /**
  * Builds the view in `host` (an element; the canvas fills it). timers: the module's scheduler scope; doc: the page's document.
@@ -151,6 +147,8 @@ export async function createWorld3d({ host, timers, doc = globalThis.document })
   const zoomKey = createCockpitZoomKey(doc.defaultView ?? globalThis, () => draw());
   zoomKey.start();
   let hud = null;
+  /** The pose last drawn; before the first, the example's area height (scenarios.js, an estimate) rather than the ground. */
+  let pose = { x: 0, y: 0, altFt: 8000, headingDegM: 0, pitchDeg: 0, bankDeg: 0 };
   let size = { w: 0, h: 0 };
   let disposed = false;
 
@@ -207,10 +205,15 @@ export async function createWorld3d({ host, timers, doc = globalThis.document })
     /**
      * The aircraft's pose: map feet from CYMJ, altitude (feet above sea level), heading (°M), pitch and bank (right wing down positive).
      * shakeDeg: a small offset in degrees already swung by the caller's clock (EP-12), added to pitch and half of it to bank.
+     * A number that is missing or not finite keeps the last one drawn (until the first, the scenario's 8,000 ft example height), so a dropped
+     * altitude never puts the aircraft on the ground (the Step 4 review's note).
      */
-    setPose({ x = 0, y = 0, altFt = fieldFt, headingDegM = 0, pitchDeg = 0, bankDeg = 0, shakeDeg = 0 }) {
-      ship.position.set(x, y, altFt);
-      ship.rotation.set(-degToRad(bankDeg + shakeDeg / 2), -degToRad(pitchDeg + shakeDeg), compassDegToHeadingRad(headingDegM + MAG_VARIATION_DEG_E), 'ZYX');
+    setPose({ x, y, altFt, headingDegM, pitchDeg, bankDeg, shakeDeg = 0 }) {
+      const keep = (v, last) => (Number.isFinite(v) ? v : last);
+      pose = { x: keep(x, pose.x), y: keep(y, pose.y), altFt: keep(altFt, pose.altFt), headingDegM: keep(headingDegM, pose.headingDegM), pitchDeg: keep(pitchDeg, pose.pitchDeg), bankDeg: keep(bankDeg, pose.bankDeg) };
+      const shake = Number.isFinite(shakeDeg) ? shakeDeg : 0;
+      ship.position.set(pose.x, pose.y, pose.altFt);
+      ship.rotation.set(-degToRad(pose.bankDeg + shake / 2), -degToRad(pose.pitchDeg + shake), compassDegToHeadingRad(pose.headingDegM + MAG_VARIATION_DEG_E), 'ZYX');
     },
     /** The panel's numbers (ct156-cockpit.js update's `hud`, with `engine` for the live engine displays). */
     setHud(next) {

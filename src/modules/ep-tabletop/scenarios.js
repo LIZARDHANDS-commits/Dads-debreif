@@ -2,6 +2,8 @@
 // their causes only, never a checklist or boldface step, and nothing that names the right action (EP-3). A development may set a cause
 // (`fault`, systems.js) as well as indications (`set`). Each number names its source: the open-source baseline (ALL-30,
 // docs/references/open-source-performance-baseline.md) or "estimate" until a source backs it. The instructor can type any value.
+// Since plan Step 5 the aircraft flies from the start (flight.js): `wind` is the weather line's wind as the flight reads it (degrees true,
+// as a METAR gives it; an example, not a forecast), and `manoeuvre` is what it is flying when the scenario starts.
 
 /**
  * A healthy PT6A-68 in cruise in the area, the panel before anything goes wrong.
@@ -38,6 +40,8 @@ export const ENGINE_ROUGHNESS = Object.freeze({
     position: Object.freeze({ fromIcao: 'CYMJ', bearingDegT: 225, distNm: 12 }), // estimate: 12 NM south-west of Moose Jaw
     fuelLb: 900, // the two tanks below (estimates)
     weather: 'Clear, visibility 15 SM, wind 290° at 10 kt (an example, not a forecast)',
+    wind: Object.freeze({ fromDegT: 290, kt: 10 }), // the weather line's wind
+    manoeuvre: 'straightLevel', // cruising in the area
     shown: Object.freeze({
       'flight.pitchDeg': 2, // estimate, level cruise
       'flight.bankDeg': 0,
@@ -119,6 +123,8 @@ export const OIL_PRESSURE_DEPARTURE = Object.freeze({
     position: Object.freeze({ fromIcao: 'CYMJ', bearingDegT: 300, distNm: 2 }), // estimate: 2 NM west-north-west of Moose Jaw
     fuelLb: 880, // the two tanks below (estimates)
     weather: 'Clear, visibility 15 SM, wind 290° at 10 kt (an example, not a forecast)',
+    wind: Object.freeze({ fromDegT: 290, kt: 10 }), // the weather line's wind
+    manoeuvre: 'climb', // climbing out after take-off
     shown: Object.freeze({
       'flight.pitchDeg': 8, // estimate, climbing
       'flight.bankDeg': 0,

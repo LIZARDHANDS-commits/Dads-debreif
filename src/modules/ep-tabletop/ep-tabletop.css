@@ -58,6 +58,12 @@
 .ep-banner { margin: var(--space-3) 0 0; padding: 8px 10px; border-radius: var(--radius); background: var(--bg-raised); text-align: center; font-weight: 600; }
 .ep-banner.is-still { background: #5a3d06; color: #ffd27a; }
 .ep-prompts { margin: var(--space-2) 0 0; font-weight: 600; color: var(--accent); }
+.ep-flying { margin: var(--space-2) 0 0; color: var(--text-muted); }
+.ep-flying.is-down { color: var(--text); font-weight: 600; }
+.ep-pick-flying { margin: var(--space-2) 0 0; font-weight: 600; }
+.ep-pick-numbers { margin: 2px 0; }
+.ep-pick-outcome { margin: var(--space-1) 0; font-weight: 600; }
+.ep-pick-log { margin: var(--space-1) 0; padding-left: 1.4em; font-size: var(--text-sm); }
 .ep-foot { margin: 0; text-align: center; color: var(--text-faint); font-size: var(--text-sm); }
 
 .ep-btn {

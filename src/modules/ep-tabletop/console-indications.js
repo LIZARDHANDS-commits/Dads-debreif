@@ -19,7 +19,8 @@ export function createIndicationsSection({ dispatch, button, stage, onAtOnce }) 
     return button('Reveal', () => dispatch({ type: 'reveal', key }), { class: 'ep-btn ep-btn-small', 'aria-label': `Reveal ${labelOf(key)}` });
   }
   function numberRow(d, revealable = true) {
-    const value = h('input', { type: 'number', step: String(d.step), class: 'ep-num', 'aria-label': `${d.label}, ${d.unit}` });
+    // A flown number (pitch, bank) is shown, not typed: the pilot flies it (plan Step 5).
+    const value = h('input', { type: 'number', step: String(d.step), class: 'ep-num', 'aria-label': `${d.label}, ${d.unit}`, readonly: Boolean(d.flown), title: d.flown ? 'Flown by the aircraft, not typed' : null });
     const swing = d.swing ? h('input', { type: 'number', step: String(d.step), min: '0', class: 'ep-num ep-swing', placeholder: '±', 'aria-label': `${d.label} fluctuates by ±` }) : null;
     const read = () => {
       const v = Number(value.value);
@@ -67,7 +68,7 @@ export function createIndicationsSection({ dispatch, button, stage, onAtOnce }) 
     h('h4', {}, 'Engine and systems'), NUMBERS.map((d) => numberRow(d)),
     h('h4', {}, 'Lights'), LIGHTS.filter((d) => MAIN_LIGHTS.includes(d.key)).map(lightRow), moreLights,
     h('h4', {}, 'Outside, gear and flaps (words)'), WORDS.map(wordsRow),
-    h('h4', {}, 'Flight instruments'), FLIGHT.map((d) => numberRow(d, false)));
+    h('h4', {}, 'Flight instruments ', h('span', { class: 'ep-sub' }, 'a typed altitude, airspeed or heading puts the aircraft there on Apply')), FLIGHT.map((d) => numberRow(d, false)));
 
   function update(s, shown) {
     for (const [key, r] of rows) {

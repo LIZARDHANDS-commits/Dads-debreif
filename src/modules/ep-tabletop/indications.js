@@ -42,13 +42,16 @@ export const WORDS = Object.freeze([
   { key: 'config.flaps', label: 'Flaps' },
 ]);
 
-/** The flight instruments, always on the panel (EP-4); the instructor can set them. */
+/**
+ * The flight instruments, always on the panel (EP-4). They are the flight's (plan Step 5): the instructor's typed altitude, airspeed or
+ * heading puts the aircraft there on Apply; pitch and bank are flown (`flown`), shown but not typed.
+ */
 export const FLIGHT = Object.freeze([
   { key: 'flight.altFt', label: 'Altitude', unit: 'ft', step: 100 },
   { key: 'flight.kias', label: 'Airspeed', unit: 'KIAS', step: 5 },
   { key: 'flight.headingDegM', label: 'Heading', unit: '°M', step: 5 },
-  { key: 'flight.pitchDeg', label: 'Pitch', unit: '°', step: 1 },
-  { key: 'flight.bankDeg', label: 'Bank (right +)', unit: '°', step: 5 },
+  { key: 'flight.pitchDeg', label: 'Pitch', unit: '°', step: 1, flown: true },
+  { key: 'flight.bankDeg', label: 'Bank (right +)', unit: '°', step: 5, flown: true },
 ]);
 
 /**
@@ -108,10 +111,13 @@ export function shakeOffsetDeg({ shakeDeg = 0, clockS = 0, running = false } = {
 
 /**
  * The shared cockpit's `hud` for a panel (scenario.js panelOf): the flight instruments always, and `engine` with only the revealed
- * numbers and lit lights (an unrevealed number shows dashes and an unrevealed light stays dark, EP-4).
+ * numbers and lit lights (an unrevealed number shows dashes and an unrevealed light stays dark, EP-4). With a student view's `flight`
+ * (plan Step 5), the attitude, altitude, airspeed, heading, G and vertical speed are the flight's (carried on between the phone's sends,
+ * student-view.js flightAhead); a number missing from it falls back to the panel's, and without a flight G is 1 and the VSI 0.
  */
-export function hudOf(panel, cues = {}) {
+export function hudOf(panel, cues = {}, flight = null) {
   const now = panel.now;
+  const from = (key, panelKey) => (Number.isFinite(flight?.[key]) ? flight[key] : now[panelKey]);
   const dark = flickerDark(cues);
   const engine = { lights: [] };
   for (const [key, value] of Object.entries(now)) {
@@ -119,13 +125,13 @@ export function hudOf(panel, cues = {}) {
     else if (key.startsWith('light.') && value && !dark.has(key.slice(6))) engine.lights.push(key.slice(6));
   }
   return {
-    pitchDeg: now['flight.pitchDeg'],
-    bankDeg: now['flight.bankDeg'],
-    altFt: now['flight.altFt'],
-    kias: now['flight.kias'],
-    headingDeg: now['flight.headingDegM'],
-    g: 1, // the aircraft holds its state: 1 G (no flight maths in this version)
-    vsFpm: 0,
+    pitchDeg: from('pitchDeg', 'flight.pitchDeg'),
+    bankDeg: from('bankDeg', 'flight.bankDeg'),
+    altFt: from('altFt', 'flight.altFt'),
+    kias: from('kias', 'flight.kias'),
+    headingDeg: from('headingDegM', 'flight.headingDegM'),
+    g: Number.isFinite(flight?.g) ? flight.g : 1,
+    vsFpm: Number.isFinite(flight?.climbFpm) ? flight.climbFpm : 0,
     engine,
   };
 }
