@@ -6,6 +6,8 @@ This folder is the formation turn sim. From V2.6 it shows the first version of l
 
 ## Where it stands
 
+**12 Oct 2026, evening: V2.417 on main.** Since V2.410: TS-208 fighting wing on Lead's circle for 2- and 4-ship (V2.411); 4-ship fighting wing start 650 ft, #2 60°, #3/#4 45°, 60 ft stack (V2.412, V2.415); turning rejoin drops onto Lead's plane at route spacing before echelon (V2.413); TS-209 Lead telegraphs close turns (V2.414); Wings level and Reversal in the 2-ship close formations and one version label (V2.416); fluid #2 rolls back to Lead when Lead turns into him (V2.417). Handover: `Pat's claude work/formation-handover-12oct-evening.md`. Open rough spots: `future.md` (end of list). The older history follows.
+
 Live as a PROTOTYPE, V2.304 on main (11 Oct 2026). The flying core is in `src/modules/turn-sim/live/`. Formation's bug round closed at V2.304 (#820): the 2-ship and 4-ship turning rejoins fly to the SMM picture (TS-181 to TS-191), and the rough spots left for later are in `future.md`. Patrick flies after Fable's PASS on each renamed copy.
 
 Now running: the refactor in `REFACTOR_HANDOVER_V2.304.md` (Fable's plan, Patrick agreed 11 Oct 10:49Z), six steps, one pull request each. Steps 1 to 4 are tidies proved by the same driver trace before and after; steps 1 to 4 are merged (V2.305 to V2.309); step 5 (the straight rejoin onto the ride, V2.310, TS-192) was built overnight on Patrick's order and approved by him 11 Oct 16:27Z; step 6 is the unsourced-numbers table (`unsourced-numbers.md`), which Patrick agreed 11 Oct 16:26Z, carried out by the clean-up in V2.311. The earlier refactor (V2.92 to V2.101) and clean-up steps 1 to 5 (V2.155 to V2.161) are merged.

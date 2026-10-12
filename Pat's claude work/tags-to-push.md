@@ -169,3 +169,41 @@ git tag v2.387-handover-bank-speed 08263f83
 git tag v2.388-ct156-cockpit-photos 3c1fa1e1
 git push origin --tags
 ```
+
+## V2.389 to V2.417 (added 12 Oct 2026 evening)
+
+The same way: paste into a clone of main. V2.415 to V2.417 use the names posted in the Formation thread.
+
+```
+git fetch origin
+git tag v2.389-ct-156-model-solid-canopy d1a28080
+git tag v2.390-formation-2-can-fly-fighting ca4d6333
+git tag v2.391-ct-156-model-canopy-bow 91747400
+git tag v2.392-formation-the-turning-rejoin-into f8667971
+git tag v2.393-formation-no-wrong-way-roll 303db572
+git tag v2.394-formation-lead-never-above-80 fcc00a9c
+git tag v2.395-formation-moves-pull-4-5 a954140b
+git tag v2.396-ct-156-model-bow-feet 95f3484c
+git tag v2.397-formation-line-abreast-tactical-turns 395a3d16
+git tag v2.398-ct-156-model-look-around 757878ab
+git tag v2.399-formation-a-line-abreast-turn 3f2f2095
+git tag v2.400-formation-live-fighting-wing-2 476be7ea
+git tag v2.401-ct-156-model-interior-paint e6a162e3
+git tag v2.402-formation-4-ship-fighting-wing d4bb2628
+git tag v2.403-ct-156-model-canopy-section 93964822
+git tag v2.404-ct-156-model-forward-bow 29ffd2aa
+git tag v2.405-ct-156-model-forward-bow ce197453
+git tag v2.406-formation-line-abreast-turns-keep 7c5dec4c
+git tag v2.407-formation-fix-it-errors-delayed 80e8e1bd
+git tag v2.408-formation-the-turning-rejoin-from 632c8a0d
+git tag v2.409-ct-156-model-glareshield-sides a8e0a34c
+git tag v2.410-ct-156-model-panel-face 470b5e87
+git tag v2.411-formation-fighting-wing-wingmen-fly a0d4a827
+git tag v2.412-formation-4-ship-fighting-wing 7a34f22f
+git tag v2.413-formation-on-the-turning-rejoin ecc45f69
+git tag v2.414-formation-lead-telegraphs-close-formation 60e2ee41
+git tag v2.415-fw4-tests-green 5961be6e
+git tag v2.416-close-wings-level-reversal 666a015c
+git tag v2.417-fluid-roll-back-to-lead cfdc99d9
+git push origin --tags
+```
