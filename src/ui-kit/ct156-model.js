@@ -1099,12 +1099,14 @@ function gearGeometries(THREE) {
   const A = L.noseAxle, at = (f, dx = 0, dy = 0) => [A[0] * f + dx, dy, A[2] * f];
   const fy = n.forkYFt * GFT, crown = 0.8, link = n.linkFt * GFT;
   // The mudguard: a thin curved plate over the tyre's aft top, from the fork crown aft and down (the photo of 126).
-  const gR = (n.tyreRFt + n.guardFt) * GFT, gW = (n.tyreWFt / 2 + 0.06) * GFT, guard = [];
-  for (let k = 0; k < 6; k++) {
-    const a0 = Math.PI / 2 + (k / 6) * 1.1, a1 = Math.PI / 2 + ((k + 1) / 6) * 1.1;
-    const p = (a) => [A[0] - gR * Math.cos(a) * -1, 0, A[2] + gR * Math.sin(a)];
-    guard.push({ geometry: gearRod(THREE, [p(a0)[0], -gW, p(a0)[2]], [p(a0)[0], gW, p(a0)[2]], 0.025 * GFT, 4), materials: [0] });
-  }
+  const gR = (n.tyreRFt + n.guardFt) * GFT, gW = (n.tyreWFt / 2 + 0.06) * GFT;
+  const guard = [{
+    geometry: gearDoor(THREE, (u, v) => {
+      const a = Math.PI / 2 + 1.1 * u;
+      return [A[0] + gR * Math.cos(a), -gW + 2 * gW * v, A[2] + gR * Math.sin(a)];
+    }, [0, 0, -1], 0.02 * GFT, (q) => q, 10, 2),
+    materials: [0, 0],
+  }];
   geo.gearNose = joinGeometries(THREE, [
     { geometry: gearRod(THREE, at(-0.04), at(0.5), n.legRFt * GFT, 12), materials: [0] },
     { geometry: gearRod(THREE, at(0.45), at(crown), n.pistonRFt * GFT, 12), materials: [3] },
