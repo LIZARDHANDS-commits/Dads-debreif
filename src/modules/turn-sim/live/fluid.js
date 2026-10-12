@@ -227,8 +227,12 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
-      // Wings level and straight while #2 flows back to fighting wing (Patrick 12 Oct 2026 04:01Z).
-      case 'terminate': return [terminate()];
+      case 'terminate': {
+        // A predictable turn: on the way Lead is already turning, or away from #2 if wings level (the live wingman's own
+        // side when he is live: he may have come out of the last manoeuvre on the other side, fluid-wing-live.js).
+        const way = Math.abs(tsBank) > 5 ? Math.sign(tsBank) : -((live && liveNow?.side) || at.wing.side);
+        return [terminate(way)];
+      }
       default: throw new Error(`No fluid manoeuvre called ${key}`);
     }
   }
