@@ -1,5 +1,6 @@
-// The EP Tabletop's example scenario (plan Step 1; more and save/load are Step 3). EP-Q3's working answer: the aircraft's indications only,
-// never a checklist or boldface step (EP-3). Each number names its source: the open-source baseline (ALL-30,
+// The EP Tabletop's example scenarios (plan Steps 1 and 3; save/load is Step 9). EP-Q3's working answer: the aircraft's indications and
+// their causes only, never a checklist or boldface step, and nothing that names the right action (EP-3). A development may set a cause
+// (`fault`, systems.js) as well as indications (`set`). Each number names its source: the open-source baseline (ALL-30,
 // docs/references/open-source-performance-baseline.md) or "estimate" until a source backs it. The instructor can type any value.
 
 /**
@@ -70,9 +71,91 @@ export const ENGINE_ROUGHNESS = Object.freeze({
       id: 'chip-at-boldface',
       label: 'Chip light on; roughness worse',
       at: Object.freeze({ step: 'B' }),
-      set: Object.freeze({ 'light.CHIP': true, 'light.MASTER CAUTION': true, 'cue.roughness': 'roughness worse, the airframe shaking' }),
+      // The chip is a cause now (systems.js): it lights CHIP, and CHIP lights MASTER CAUTION (EP-11). Until V2.389 this development set the
+      // two lights directly. The engine note is an example cue, an estimate.
+      fault: Object.freeze({ id: 'chip', kind: 'chip' }),
+      set: Object.freeze({ 'cue.roughness': 'roughness worse, the airframe shaking', 'cue.noises': 'engine note rougher' }),
     }),
   ]),
 });
 
-export const SCENARIOS = Object.freeze([ENGINE_ROUGHNESS]);
+/**
+ * A healthy PT6A-68 climbing out after take-off, the panel before anything goes wrong.
+ * - engine.npPct 100: 100 % Np = 1,995 RPM (baseline); held at 100 in the climb is an estimate.
+ * - engine.oilPsi 105: inside the 90 to 120 psi normal range (baseline, "Lubrication System Pressure Limits").
+ * - engine.ittC 760: an estimate, below the 820 °C maximum continuous (baseline).
+ * - engine.n1Pct 98: an estimate, below the 104 % maximum take-off N1 (baseline).
+ * - engine.torquePct 95: an estimate, below the 100 % maximum (baseline).
+ * - engine.fuelFlowPph 450, oilTempC 70, fuel 440 lb a side, volts 28.5, amps 30, hydPsi 3,000: estimates for the example.
+ */
+export const CLIMB_ENGINE = Object.freeze({
+  'engine.torquePct': 95,
+  'engine.n1Pct': 98,
+  'engine.npPct': 100,
+  'engine.ittC': 760,
+  'engine.fuelFlowPph': 450,
+  'engine.oilPsi': 105,
+  'engine.oilTempC': 70,
+  'engine.fuelLeftLb': 440,
+  'engine.fuelRightLb': 440,
+  'engine.volts': 28.5,
+  'engine.amps': 30,
+  'engine.hydPsi': 3000,
+});
+
+/**
+ * "Oil pressure dropping on departure" (the spec's example list; systems-plan Phase 1): shortly after take-off an oil leak starts, so the
+ * oil pressure falls and, once it is low, OIL PX and MASTER CAUTION come on by themselves (EP-11); later a film of oil appears on the
+ * windscreen. Indications and the cause only (EP-3). The leak's rate and the OIL PX threshold are estimates (systems.js).
+ */
+export const OIL_PRESSURE_DEPARTURE = Object.freeze({
+  id: 'oil-pressure-departure',
+  title: 'Oil pressure dropping on departure',
+  start: Object.freeze({
+    phase: 'Take-off and departure',
+    altFt: 3500, // estimate: about 1,600 ft above Moose Jaw's 1,892 ft, climbing out
+    kias: 150, // estimate
+    headingDegM: 290, // estimate, off a westerly runway
+    position: Object.freeze({ fromIcao: 'CYMJ', bearingDegT: 300, distNm: 2 }), // estimate: 2 NM west-north-west of Moose Jaw
+    fuelLb: 880, // the two tanks below (estimates)
+    weather: 'Clear, visibility 15 SM, wind 290° at 10 kt (an example, not a forecast)',
+    shown: Object.freeze({
+      'flight.pitchDeg': 8, // estimate, climbing
+      'flight.bankDeg': 0,
+      'flight.altFt': 3500,
+      'flight.kias': 150,
+      'flight.headingDegM': 290,
+      ...CLIMB_ENGINE,
+      'light.MASTER WARN': false,
+      'light.MASTER CAUTION': false,
+      'light.FIRE': false,
+      'light.CHIP': false,
+      'light.OIL PX': false,
+      'cue.smoke': 'none',
+      'cue.flames': 'none',
+      'cue.oilWindscreen': 'none',
+      'cue.roughness': 'none',
+      'cue.noises': 'normal engine noise',
+      'config.gear': 'up, three lights out',
+      'config.flaps': 'up',
+    }),
+  }),
+  developments: Object.freeze([
+    Object.freeze({
+      id: 'oil-leak-starts',
+      label: 'Oil leak starts: the pressure begins to fall',
+      at: Object.freeze({ timeS: 15 }),
+      fault: Object.freeze({ id: 'oil-leak', kind: 'oilLeak', severity: 0.5 }),
+      set: Object.freeze({}),
+    }),
+    Object.freeze({
+      id: 'oil-on-windscreen',
+      label: 'A film of oil on the windscreen',
+      at: Object.freeze({ timeS: 120 }),
+      set: Object.freeze({ 'cue.oilWindscreen': 'a thin film of oil spreading up the windscreen' }),
+    }),
+  ]),
+});
+
+export const SCENARIOS = Object.freeze([ENGINE_ROUGHNESS, OIL_PRESSURE_DEPARTURE]);
+export const scenarioById = (id) => SCENARIOS.find((sc) => sc.id === id) ?? null;
