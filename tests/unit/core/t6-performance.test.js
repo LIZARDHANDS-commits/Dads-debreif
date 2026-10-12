@@ -155,10 +155,10 @@ test('drag: the zero-lift part plus the induced part, from the polar\'s inputs',
   assert.ok(dragPerWeight(330, 2000, 1) > dragPerWeight(316, 2000, 1), 'past VMO');
 });
 
-test('thrust: falls with speed, holds its sea-level value to about 14,500 ft, then falls with density', () => {
+test('thrust: falls with speed, holds its sea-level value to about 16,000 ft, then falls with density', () => {
   assert.ok(thrustPerWeight(100, 0) > thrustPerWeight(150, 0) && thrustPerWeight(150, 0) > thrustPerWeight(250, 0), 'falls with speed');
-  // Same true airspeed, sea level and 12,000 ft (density ratio above the 0.64 flat-rating corner): same thrust.
-  near(thrustPerWeight(tasToIasKt(200, 12000), 12000), thrustPerWeight(200, 0), 1e-12, 'flat-rated below about 14,500 ft');
+  // Same true airspeed, sea level and 12,000 ft (density ratio above the flat-rating corner at 16,000 ft, about 0.61): same thrust.
+  near(thrustPerWeight(tasToIasKt(200, 12000), 12000), thrustPerWeight(200, 0), 1e-12, 'flat-rated below about 16,000 ft');
   assert.ok(thrustPerWeight(tasToIasKt(200, 20000), 20000) < thrustPerWeight(200, 0), 'less above it');
   // As power: a propeller turns 50 to 90 % of the shaft power into thrust power (standard aerodynamics); the shaft
   // power is the PT6A-68's 1,100 shp, flat-rated (EASA.IM.A.636), and the exhaust adds a little.
