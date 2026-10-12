@@ -56,7 +56,10 @@ blender -b --factory-startup -P tools/blender/build_ct156_cockpit.py -- ct156-co
 The shadow bake takes about a minute and a half. Without the last two arguments the file has only the bow and rails, and
 no shadows.
 
-Rebuild it after every change to the cockpit in the code. Each part carries the code's fingerprint of its shape; a part
+Rebuild it after every change to the cockpit in the code, and rebuild the outside and gear files too when the
+model's shape tables change (the cockpit follows the canopy's shape). To check a change, open Turn Sim from the default
+start, choose the cockpit view, front seat, and look ahead and to both sides, then the rear seat; give the model a few
+seconds to load, or the code's own parts show first. Each part carries the code's fingerprint of its shape; a part
 whose shape has changed since the file was built is skipped (the console says "out of date") and the code's own part
 shows instead, so a forgotten rebuild loses the rounding and shadows but never shows a stale shape.
 
