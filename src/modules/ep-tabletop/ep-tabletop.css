@@ -106,3 +106,33 @@
   .ep-ind-row { grid-template-columns: 7rem minmax(0, 1fr) 4.5rem; }
 }
 .ep-con-section h3 .ep-sub { text-transform: none; letter-spacing: normal; color: var(--text-muted); }
+
+/* The phone link (plan Step 2): the status in the bar, the QR code over the 3D view, and the console laid out for a phone. */
+.ep-link-status { font-size: var(--text-sm); color: var(--text-muted); }
+.ep-link-status.is-ok, .ep-phone-status.is-ok { color: var(--good); }
+.ep-link-status.is-lost, .ep-phone-status.is-lost { color: var(--caution); }
+.ep-qr { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: var(--space-3); background: rgba(5, 10, 18, 0.72); overflow-y: auto; }
+.ep-qr-card {
+  max-width: 24rem; padding: var(--space-4); text-align: center;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg); box-shadow: var(--shadow);
+}
+.ep-qr-card h2 { margin: 0 0 var(--space-3); font-size: var(--text-md); }
+.ep-qr-code svg { display: block; width: min(17rem, 45vh, 100%); height: auto; margin: 0 auto var(--space-3); }
+.ep-qr-status { font-weight: 600; }
+.ep-qr-buttons { justify-content: center; }
+
+.ep-phone { height: auto; min-height: 0; max-width: 40rem; margin: 0 auto; padding: var(--space-2) 16px; }
+.ep-phone .ep-bar h1 { font-size: var(--text-md); }
+.ep-phone-status { margin: 0; padding: 8px 10px; border-radius: var(--radius); background: var(--bg-raised); font-weight: 600; }
+.ep-console-phone { position: static; width: auto; padding: 0; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.ep-console-phone .ep-btn { min-height: 44px; padding: 8px 14px; font-size: var(--text-md); }
+.ep-console-phone .ep-btn-small { min-width: 44px; padding: 8px 10px; }
+.ep-console-phone input:not([type="checkbox"]), .ep-console-phone select { min-height: 40px; font-size: 16px; }
+.ep-console-phone input[type="checkbox"] { width: 22px; height: 22px; vertical-align: middle; }
+.ep-console-phone .ep-ind-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'label reveal' 'edit edit'; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.ep-console-phone .ep-ind-label { grid-area: label; font-weight: 600; }
+.ep-console-phone .ep-edit { grid-area: edit; }
+.ep-console-phone .ep-ind-reveal { grid-area: reveal; }
+.ep-console-phone .ep-num { width: 7rem; }
+.ep-console-phone .ep-declare { grid-template-columns: 1fr; }
+.ep-console-phone .ep-applybar { bottom: 0; margin: 0 -16px; padding: var(--space-2) 16px; }

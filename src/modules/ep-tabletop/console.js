@@ -1,5 +1,5 @@
-// The instructor's console in one-screen mode (spec, "The two screens"; plan Step 1): behind the Instructor switch on the student's screen,
-// until the phone link comes (EP-Q1, plan Step 2). It shows the script the student must never see: every indication and what it is set to,
+// The instructor's console (spec, "The two screens"): on the instructor's phone, opened by the QR code (plan Step 2, mode 'phone'), or
+// behind the Instructor switch on the student's screen (one-screen mode, mode 'screen'). It shows the script the student must never see: every indication and what it is set to,
 // the developments to come, marks, notes and the Declare boxes. Changes wait for Apply unless "Apply each change at once" is ticked (spec,
 // "Pause and live changes"). Builds its elements once; update(session) brings them up to date without touching a box being typed in.
 import { h, clear } from '../../ui-kit/dom.js';
@@ -18,9 +18,12 @@ function whenWords(at) {
 }
 
 /**
- * dispatch(action): scenario.js act's actions; onClose() when its Hide button is pressed. Returns { element, update(session) }.
+ * dispatch(action): scenario.js act's actions; onClose() when its Hide button is pressed (one-screen mode only).
+ * mode: 'screen' (one-screen, starts hidden, with a Hide button) or 'phone' (the whole page on the instructor's phone, laid out in one
+ * column with big buttons by the stylesheet). Returns { element, update(session) }.
  */
-export function createConsole({ dispatch, onClose = () => {} }) {
+export function createConsole({ dispatch, onClose = () => {}, mode = 'screen' }) {
+  const phone = mode === 'phone';
   let session = null;
   let atOnce = false;
   const stage = (key, value) => {
@@ -133,10 +136,12 @@ export function createConsole({ dispatch, onClose = () => {} }) {
     DECLARE_FIELDS.map((f) => h('label', { class: 'ep-declare' }, h('span', {}, DECLARE_LABELS[f]), declareBoxes[f])));
 
   const title = h('span', {});
-  const element = h('aside', { class: 'ep-console', 'aria-label': 'Instructor console', hidden: true },
+  const element = h('aside', { class: `ep-console${phone ? ' ep-console-phone' : ''}`, 'aria-label': 'Instructor console', hidden: !phone },
     h('header', { class: 'ep-con-head' },
-      h('div', { class: 'ep-row ep-con-title' }, h('h2', {}, 'Instructor · ', title), button('Hide', () => onClose(), { 'aria-label': 'Hide the instructor console' })),
-      h('p', { class: 'ep-sub' }, 'One-screen mode: keep this closed while the student watches. Running it from your phone comes later.')),
+      h('div', { class: 'ep-row ep-con-title' }, h('h2', {}, 'Instructor · ', title), phone ? null : button('Hide', () => onClose(), { 'aria-label': 'Hide the instructor console' })),
+      h('p', { class: 'ep-sub' }, phone
+        ? 'On your phone: the student\'s screen shows only what you apply and reveal, never this page.'
+        : 'One-screen mode: keep this closed while the student watches, or run it from your phone with the "Instructor\'s phone" code.')),
     timeSection, indSection, devSection, markSection, declareSection,
     // Always in sight while changes wait, so the student's screen never changes until it is pressed.
     h('div', { class: 'ep-applybar' }, waiting, applyBtn, undoBtn));
