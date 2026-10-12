@@ -16,7 +16,8 @@
 import { sampleAt, headingAt, pitchAt, STILL_KT } from '../../../flight-data/flight.js';
 import { GAP_S } from '../../../flight-data/clean.js';
 import { hermite, smoothAt, fillAt, fillSampleAt } from '../../../flight-data/gap-fill.js';
-import { attitudeDegFromClimb } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, T6A_PITCH } from '../../../core/t6-performance.js';
+import { trackGround } from './ground.js';
 import { gFromBankDeg } from '../../../core/flight-math.js';
 import { windVectorFtps } from '../../../core/wind.js';
 import { wrapPi, headingRadToCompassDeg } from '../../../core/angles.js';
@@ -32,10 +33,22 @@ export const COCKPIT_CAPTION = Object.freeze({
 });
 
 /**
- * The attitude table of one track at its fix times: [{ t, nose (radians, unwrapped along the table), bankDeg,
- * pitchDeg, kias, g }]. wind(t, altFt): the model wind as { dirDeg, kt } (true "from", knots) or null.
+ * On the wheels: within ON_GEAR_FT of the tracks' ground (DB-26), climbing or sinking slower than ON_GEAR_FTPS and slower
+ * than ON_GEAR_KIAS, a ship is rolling on the gear (taxi, take-off roll, landing rollout), so its pitch is the gear's
+ * T6A_PITCH.onGearDeg instead of the flying attitude (which reads 13 to 22° at rollout speeds on the example). 40 ft because the field
+ * isn't flat: on the example the 29L rollout reads 17-19 ft above the ramp's median; 100 kt because a T-6 near the ground
+ * and level below that is landing or taking off. Estimates.
  */
-export function attitudeTable(track, wind = null) {
+export const ON_GEAR_FT = 40;
+export const ON_GEAR_FTPS = 2;
+export const ON_GEAR_KIAS = 100;
+
+/**
+ * The attitude table of one track at its fix times: [{ t, nose (radians, unwrapped along the table), bankDeg,
+ * pitchDeg, kias, g }]. wind(t, altFt): the model wind as { dirDeg, kt } (true "from", knots) or null. groundFt: the
+ * tracks' ground level (ground.js trackGround), or null when unknown (then no fix counts as on the wheels).
+ */
+export function attitudeTable(track, wind = null, groundFt = null) {
   const f = track.fixes;
   const rows = [];
   let lastNose = null;
@@ -59,11 +72,12 @@ export function attitudeTable(track, wind = null) {
     const climbFtps = after.t > before.t ? (after.altFt - before.altFt) / (after.t - before.t) : 0;
     const bank = shipBank(track, t, { sample: s, pitchDeg: pitchAt(track, t).deg, iasKt: kias });
     const g = gFromBankDeg(bank.bankDeg);
+    const onGear = groundFt !== null && Math.abs(s.altFt - groundFt) < ON_GEAR_FT && Math.abs(climbFtps) < ON_GEAR_FTPS && kias < ON_GEAR_KIAS;
     rows.push({
       t,
       nose,
-      bankDeg: bank.bankDeg,
-      pitchDeg: moving ? attitudeDegFromClimb(climbFtps, Math.max(tasFtps, 1), kias, g) : 0,
+      bankDeg: onGear ? 0 : bank.bankDeg,
+      pitchDeg: onGear ? T6A_PITCH.onGearDeg : moving ? attitudeDegFromClimb(climbFtps, Math.max(tasFtps, 1), kias, g) : 0,
       kias,
       g: believedEstimatedG(track, t, { gsKt: s.speedKt, iasKt: kias }),
     });
@@ -149,7 +163,7 @@ export function createRide() {
         tables.clear();
         key = { flight, windKey };
       }
-      if (!tables.has(slot)) tables.set(slot, attitudeTable(track, windKey ? wind : null));
+      if (!tables.has(slot)) tables.set(slot, attitudeTable(track, windKey ? wind : null, trackGround(flight)?.altFt ?? null));
       return rideAt(track, tables.get(slot), t, fillAt(fills?.[slot], t));
     },
   };

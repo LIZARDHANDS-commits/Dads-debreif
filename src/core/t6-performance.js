@@ -166,6 +166,9 @@ export const T6A_PITCH = Object.freeze({
   datumDeg: 2.6,
   takeoffFlapAoADeg: -1.7,
   landingFlapAoADeg: -3.3,
+  /** On the wheels, level ground: the gear holds the nose 2.5° up (Patrick, 6 Oct 06:17Z and 11 Oct 2026 01:26Z). Traffic's
+   * path-follower.js GROUND_ATTITUDE_DEG is the same number, kept there until Patrick points it here. */
+  onGearDeg: 2.5,
 });
 
 /**
