@@ -470,8 +470,9 @@ function tombstone(p) {
 /**
  * Leaning to see Lead (Patrick, 11 Oct 2026: "whenever lead is obscured by the canopy bow or the glare shield the eye
  * sight 'leans' (realistically, smoothly) up to 6 inches in any direction to see lead"; Fable's design): while a target
- * hides behind the seat's forward bow band (front seat; the arch from the rear) or under its coaming, with a margin, the
- * eye moves the smallest amount that clears him, at most `maxFt` (6 in): sideways for the bow, up for the coaming,
+ * hides behind the seat's forward bow band (front seat, both its faces; the arch from the rear), under its coaming or
+ * under the nose's top (since 12 Oct 2026, Patrick: "the head moves around the new canopy bow and glare shield/nose"),
+ * with a margin, the eye moves the smallest amount that clears him, at most `maxFt` (6 in): sideways for the bow, up for the coaming,
  * both when neither alone does it, never down. It eases there and back (easePerS, about 0.5 s to get there), and back to
  * the seat's eye once he shows `clearDeg` clear from it. Only the eye moves; the cockpit stays put. The rear seat's
  * headbox ahead isn't tested. The margins, step and ease are estimates.
@@ -494,15 +495,31 @@ function leanObstructions(seat) {
   const rx = h.aftX - RIM_FT.aftOfGlareshield;
   const edge = hoodHalf(h, ts, h.aftX).slice(0, -1); // the grab rail's top, as seatParts lays the rail
   deck.push([...edge.slice(1).reverse(), ...edge.slice(1).map(([y, z]) => [-y, z])].map(([y, z]) => [rx, y, z + RIM_FT.r]));
-  const pts = ct156HoopPoints(b.bandX / F, 32, 0, b.lean ?? 0);
-  const base = ct156CanopySection(b.bandX / F).base * F;
-  const inward = ({ x, y, z }, d) => {
-    const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz) || 1;
-    return [x * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
+  // The nose ahead of the coaming: the fuselage's top outline across each station from the coaming's fore end to the
+  // cowl's front (Patrick, 12 Oct 2026, "the head moves around the new canopy bow and glare shield/nose").
+  for (let i = 0; i <= 12; i++) {
+    const x = lerp(GLARESHIELD_FT.foreX / F, NOSE_FRONT_X, i / 12), f = ct156FuselageSection(x), zc = (f.top + f.bottom) / 2, hh = (f.top - f.bottom) / 2;
+    deck.push(Array.from({ length: 17 }, (_, k) => {
+      const a = (Math.PI * k) / 16, c = Math.cos(a);
+      return [x * F, Math.sign(c) * f.halfWidth * Math.abs(c) ** (2 / f.nUp) * F, (zc + hh * Math.sin(a) ** (2 / f.nUp)) * F];
+    }));
+  }
+  // The bow: its outline at its aft face and at its fore face (its full fore-and-aft width), from the glass in to its
+  // inner face and the bolts' tips (since the bow became an I section with bolts, 12 Oct 2026; the aft face only until then).
+  const depth = b.glassInset + b.bandDepth + 2 * (b.tubeR ?? 0) + (b.studs?.tip ?? 0);
+  const outline = (x) => {
+    const pts = ct156HoopPoints(x / F, 32, 0, b.lean ?? 0), base = ct156CanopySection(x / F).base * F;
+    const inward = ({ x: px, y, z }, d) => {
+      const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz) || 1;
+      return [px * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
+    };
+    return [...pts.map((q) => inward(q, 0)), ...pts.map((q) => inward(q, depth)).reverse()];
   };
-  const band = [...pts.map((q) => inward(q, 0)), ...pts.map((q) => inward(q, b.glassInset + b.bandDepth + 2 * (b.tubeR ?? 0))).reverse()];
-  return (leanParts[seat] = { deck, band });
+  const bands = [outline(b.bandX), ...(b.section ? [outline(b.bandX + b.section.outer)] : [])];
+  return (leanParts[seat] = { deck, bands });
 }
+/** The cowl's front, model units (the fuselage table's first station), where the lean's nose outline ends. */
+const NOSE_FRONT_X = 0.578;
 
 /** A point's bearing from an eye, degrees: [right of the nose, above the eye's level line] (the aircraft's own axes, feet). */
 function bearingOf(eye, [x, y, z]) {
@@ -522,17 +539,20 @@ function leanHidden(eye, target, o, margin) {
       if (te < lerp(e0, e1, t) + margin) return true;
     }
   }
-  // Behind the band: inside its outline, or within the margin of its edge.
-  const poly = o.band.map((q) => bearingOf(eye, q));
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [ai, ei] = poly[i], [aj, ej] = poly[j];
-    if ((ei > te) !== (ej > te) && ta < ((aj - ai) * (te - ei)) / (ej - ei) + ai) inside = !inside;
-    const da = aj - ai, de = ej - ei, l2 = da * da + de * de || 1;
-    const t = clamp01(((ta - ai) * da + (te - ei) * de) / l2);
-    if (Math.hypot(ta - (ai + t * da), te - (ei + t * de)) < margin) return true;
+  // Behind the band: inside either face's outline, or within the margin of its edge.
+  for (const band of o.bands) {
+    const poly = band.map((q) => bearingOf(eye, q));
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [ai, ei] = poly[i], [aj, ej] = poly[j];
+      if ((ei > te) !== (ej > te) && ta < ((aj - ai) * (te - ei)) / (ej - ei) + ai) inside = !inside;
+      const da = aj - ai, de = ej - ei, l2 = da * da + de * de || 1;
+      const t = clamp01(((ta - ai) * da + (te - ei) * de) / l2);
+      if (Math.hypot(ta - (ai + t * da), te - (ei + t * de)) < margin) return true;
+    }
+    if (inside) return true;
   }
-  return inside;
+  return false;
 }
 
 /**
