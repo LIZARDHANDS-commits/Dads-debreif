@@ -55,8 +55,11 @@ import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
 
-/** The aircraft's named groups of state (path-follower.js groupOf), copied into each snapshot. */
-const GROUPS = Object.freeze(['random', 'spacing', 'landing', 'pfl']);
+/**
+ * Per-aircraft objects a step changes in place, copied into each snapshot so a rewind never shares one with the live run:
+ * the named groups of state (path-follower.js groupOf), the join's blend and the side-step (path-follower.js, `t` advances).
+ */
+const GROUPS = Object.freeze(['random', 'spacing', 'landing', 'pfl', 'joinOffset', 'sideStep']);
 
 /** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
 export const TYPE_COLORS = Object.freeze({
@@ -1112,7 +1115,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── Snapshots ──────────────────────────────────────────────────────────────
 
-  /** Fresh copies of an aircraft's named groups (path-follower.js groupOf), so a snapshot and the live run never share one. */
+  /** Fresh copies of an aircraft's in-place objects (GROUPS), so a snapshot and the live run never share one. */
   const copyGroups = (rec) => Object.fromEntries(GROUPS.filter((g) => rec[g]).map((g) => [g, { ...rec[g] }]));
 
   /** Everything a later step depends on. The trail is kept flat (x, y, x, y, ...): it is up to 240 points an aircraft. */
