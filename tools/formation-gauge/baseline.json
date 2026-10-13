@@ -2647,5 +2647,1077 @@
     }
    }
   }
+ ],
+ "b5-into-in-position": [
+  {
+   "label": "Level turn into #2, in position, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.51,
+      3.5
+     ],
+     "gRateMax": 4,
+     "gReversals": 15,
+     "rollMax": 59,
+     "rollAccMax": 437,
+     "rollReversals": 11,
+     "drawnMax": 62,
+     "rangeMin": 533,
+     "fw": {
+      "slantMinFt": 533,
+      "horizMinFt": 519,
+      "in500Sec": 0,
+      "in600Sec": 3.3,
+      "gMax": 3.5,
+      "rollMaxDps": 59,
+      "gReversalsSmoothed": 8,
+      "rollReversalsSmoothed": 3,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 619,
+       "sweepDeg": 82.5,
+       "heightFt": -77,
+       "dKias": -2.7
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.86,
+      2.15
+     ],
+     "gRateMax": 2.72,
+     "gReversals": 13,
+     "rollMax": 59,
+     "rollAccMax": 449,
+     "rollReversals": 12,
+     "drawnMax": 62,
+     "rangeMin": 616,
+     "fw": {
+      "slantMinFt": 616,
+      "horizMinFt": 598,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.15,
+      "rollMaxDps": 59,
+      "gReversalsSmoothed": 6,
+      "rollReversalsSmoothed": 3,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 662,
+       "sweepDeg": 54.8,
+       "heightFt": -73,
+       "dKias": 1.3
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-away-in-position": [
+  {
+   "label": "Level turn away from #2, in position, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.76,
+      2.78
+     ],
+     "gRateMax": 1.93,
+     "gReversals": 4,
+     "rollMax": 55,
+     "rollAccMax": 448,
+     "rollReversals": 5,
+     "drawnMax": 61,
+     "rangeMin": 630,
+     "fw": {
+      "slantMinFt": 630,
+      "horizMinFt": 629,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.78,
+      "rollMaxDps": 55,
+      "gReversalsSmoothed": 2,
+      "rollReversalsSmoothed": 0,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 658,
+       "sweepDeg": 83.1,
+       "heightFt": -64,
+       "dKias": 0.8
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.91,
+      2.01
+     ],
+     "gRateMax": 2.13,
+     "gReversals": 2,
+     "rollMax": 56,
+     "rollAccMax": 439,
+     "rollReversals": 5,
+     "drawnMax": 62,
+     "rangeMin": 657,
+     "fw": {
+      "slantMinFt": 657,
+      "horizMinFt": 654,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.01,
+      "rollMaxDps": 56,
+      "gReversalsSmoothed": 0,
+      "rollReversalsSmoothed": 1,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 668,
+       "sweepDeg": 55.6,
+       "heightFt": -64,
+       "dKias": 0.8
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-into-stretched": [
+  {
+   "label": "Level turn into #2, stretched (950 ft), 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.5,
+      3.5
+     ],
+     "gRateMax": 4,
+     "gReversals": 16,
+     "rollMax": 58,
+     "rollAccMax": 437,
+     "rollReversals": 18,
+     "drawnMax": 64,
+     "rangeMin": 544,
+     "fw": {
+      "slantMinFt": 544,
+      "horizMinFt": 538,
+      "in500Sec": 0,
+      "in600Sec": 2.9,
+      "gMax": 3.5,
+      "rollMaxDps": 58,
+      "gReversalsSmoothed": 9,
+      "rollReversalsSmoothed": 8,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 625,
+       "sweepDeg": 83.9,
+       "heightFt": -84,
+       "dKias": -2.9
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.78,
+      2.16
+     ],
+     "gRateMax": 3.08,
+     "gReversals": 13,
+     "rollMax": 59,
+     "rollAccMax": 448,
+     "rollReversals": 10,
+     "drawnMax": 63,
+     "rangeMin": 618,
+     "fw": {
+      "slantMinFt": 618,
+      "horizMinFt": 601,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.16,
+      "rollMaxDps": 59,
+      "gReversalsSmoothed": 5,
+      "rollReversalsSmoothed": 3,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 670,
+       "sweepDeg": 55.6,
+       "heightFt": -83,
+       "dKias": 1.8
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-away-stretched": [
+  {
+   "label": "Level turn away from #2, stretched (950 ft), 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.76,
+      3.31
+     ],
+     "gRateMax": 2.18,
+     "gReversals": 5,
+     "rollMax": 55,
+     "rollAccMax": 455,
+     "rollReversals": 2,
+     "drawnMax": 61,
+     "rangeMin": 657,
+     "fw": {
+      "slantMinFt": 657,
+      "horizMinFt": 655,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 3.31,
+      "rollMaxDps": 55,
+      "gReversalsSmoothed": 3,
+      "rollReversalsSmoothed": 0,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 657,
+       "sweepDeg": 82.9,
+       "heightFt": -55,
+       "dKias": 0.4
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.93,
+      2.03
+     ],
+     "gRateMax": 2.15,
+     "gReversals": 4,
+     "rollMax": 59,
+     "rollAccMax": 438,
+     "rollReversals": 3,
+     "drawnMax": 62,
+     "rangeMin": 657,
+     "fw": {
+      "slantMinFt": 657,
+      "horizMinFt": 654,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.03,
+      "rollMaxDps": 59,
+      "gReversalsSmoothed": 0,
+      "rollReversalsSmoothed": 1,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 672,
+       "sweepDeg": 55.6,
+       "heightFt": -66,
+       "dKias": 0.9
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-into-tight": [
+  {
+   "label": "Level turn into #2, tight (520 ft), 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.5,
+      3.5
+     ],
+     "gRateMax": 4,
+     "gReversals": 17,
+     "rollMax": 59,
+     "rollAccMax": 437,
+     "rollReversals": 14,
+     "drawnMax": 62,
+     "rangeMin": 394,
+     "fw": {
+      "slantMinFt": 394,
+      "horizMinFt": 372,
+      "in500Sec": 4.6,
+      "in600Sec": 7.2,
+      "gMax": 3.5,
+      "rollMaxDps": 59,
+      "gReversalsSmoothed": 5,
+      "rollReversalsSmoothed": 4,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 617,
+       "sweepDeg": 75.9,
+       "heightFt": -61,
+       "dKias": -3
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.55,
+      2.11
+     ],
+     "gRateMax": 3.54,
+     "gReversals": 13,
+     "rollMax": 60,
+     "rollAccMax": 449,
+     "rollReversals": 10,
+     "drawnMax": 63,
+     "rangeMin": 611,
+     "fw": {
+      "slantMinFt": 611,
+      "horizMinFt": 596,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.11,
+      "rollMaxDps": 60,
+      "gReversalsSmoothed": 5,
+      "rollReversalsSmoothed": 3,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 643,
+       "sweepDeg": 55,
+       "heightFt": -65,
+       "dKias": 0.9
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-away-tight": [
+  {
+   "label": "Level turn away from #2, tight (520 ft), 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.5,
+      3.33
+     ],
+     "gRateMax": 4,
+     "gReversals": 10,
+     "rollMax": 58,
+     "rollAccMax": 438,
+     "rollReversals": 4,
+     "drawnMax": 65,
+     "rangeMin": 520,
+     "fw": {
+      "slantMinFt": 520,
+      "horizMinFt": 520,
+      "in500Sec": 0,
+      "in600Sec": 2.4,
+      "gMax": 3.33,
+      "rollMaxDps": 58,
+      "gReversalsSmoothed": 2,
+      "rollReversalsSmoothed": 1,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 664,
+       "sweepDeg": 84,
+       "heightFt": -74,
+       "dKias": 1.2
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.82,
+      2.02
+     ],
+     "gRateMax": 2.1,
+     "gReversals": 3,
+     "rollMax": 56,
+     "rollAccMax": 442,
+     "rollReversals": 3,
+     "drawnMax": 62,
+     "rangeMin": 663,
+     "fw": {
+      "slantMinFt": 663,
+      "horizMinFt": 658,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.02,
+      "rollMaxDps": 56,
+      "gReversalsSmoothed": 0,
+      "rollReversalsSmoothed": 2,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 669,
+       "sweepDeg": 55.5,
+       "heightFt": -63,
+       "dKias": 0.7
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-reversal-mid-entry": [
+  {
+   "label": "Level turn away from #2, 3 s of it",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.98
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.76,
+      2.3
+     ],
+     "gRateMax": 1.93,
+     "gReversals": 1,
+     "rollMax": 55,
+     "rollAccMax": 378,
+     "rollReversals": 0,
+     "drawnMax": 61,
+     "rangeMin": 784,
+     "fw": {
+      "slantMinFt": 784,
+      "horizMinFt": 784,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.3,
+      "rollMaxDps": 55,
+      "gReversalsSmoothed": 1,
+      "rollReversalsSmoothed": 0,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 845,
+       "sweepDeg": 65.8,
+       "heightFt": -26,
+       "dKias": 0.6
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Reversal mid-entry (now into #2), 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.33,
+     "gReversals": 1,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.99,
+      2.76
+     ],
+     "gRateMax": 3.28,
+     "gReversals": 8,
+     "rollMax": 54,
+     "rollAccMax": 444,
+     "rollReversals": 2,
+     "drawnMax": 62,
+     "rangeMin": 652,
+     "fw": {
+      "slantMinFt": 652,
+      "horizMinFt": 650,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.76,
+      "rollMaxDps": 54,
+      "gReversalsSmoothed": 2,
+      "rollReversalsSmoothed": 0,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 653,
+       "sweepDeg": 82.9,
+       "heightFt": -53,
+       "dKias": 0.2
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.71,
+      2.02
+     ],
+     "gRateMax": 2.65,
+     "gReversals": 13,
+     "rollMax": 59,
+     "rollAccMax": 447,
+     "rollReversals": 8,
+     "drawnMax": 62,
+     "rangeMin": 617,
+     "fw": {
+      "slantMinFt": 617,
+      "horizMinFt": 601,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.02,
+      "rollMaxDps": 59,
+      "gReversalsSmoothed": 5,
+      "rollReversalsSmoothed": 3,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 673,
+       "sweepDeg": 55.7,
+       "heightFt": -74,
+       "dKias": 1.3
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-climb": [
+  {
+   "label": "Straight climb, 40 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.99,
+      1.28
+     ],
+     "gRateMax": 1.18,
+     "gReversals": 1,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 4,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.76,
+      1.11
+     ],
+     "gRateMax": 1.74,
+     "gReversals": 1,
+     "rollMax": 3,
+     "rollAccMax": 61,
+     "rollReversals": 0,
+     "drawnMax": 7,
+     "rangeMin": 784,
+     "fw": {
+      "slantMinFt": 784,
+      "horizMinFt": 784,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 1.11,
+      "rollMaxDps": 3,
+      "gReversalsSmoothed": 0,
+      "rollReversalsSmoothed": 0,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 841,
+       "sweepDeg": 55.1,
+       "heightFt": -140,
+       "dKias": 0.4
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Descend, 40 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.5,
+      1.01
+     ],
+     "gRateMax": 1.68,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 5,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.75,
+      1.02
+     ],
+     "gRateMax": 0.36,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 2,
+     "rangeMin": 720,
+     "fw": {
+      "slantMinFt": 720,
+      "horizMinFt": 719,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 1.02,
+      "rollMaxDps": 0,
+      "gReversalsSmoothed": 0,
+      "rollReversalsSmoothed": 0,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 720,
+       "sweepDeg": 48.7,
+       "heightFt": 50,
+       "dKias": 0
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-turn-button": [
+  {
+   "label": "Turn button: 90° into #2 in fighting wing",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 1,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 1,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.75,
+      5.05
+     ],
+     "gRateMax": 6.53,
+     "gReversals": 20,
+     "rollMax": 125,
+     "rollAccMax": 258,
+     "rollReversals": 7,
+     "drawnMax": 126,
+     "rangeMin": 649,
+     "fw": {
+      "slantMinFt": 649,
+      "horizMinFt": 649,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 5.05,
+      "rollMaxDps": 125,
+      "gReversalsSmoothed": 9,
+      "rollReversalsSmoothed": 4,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 1011,
+       "sweepDeg": 56.5,
+       "heightFt": -120,
+       "dKias": 0
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-outside-cone": [
+  {
+   "label": "Level turn into #2 from outside the cone (1,300 ft), 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 2.22,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.76,
+      3.5
+     ],
+     "gRateMax": 4,
+     "gReversals": 16,
+     "rollMax": 58,
+     "rollAccMax": 664,
+     "rollReversals": 16,
+     "drawnMax": 62,
+     "rangeMin": 601,
+     "fw": {
+      "slantMinFt": 601,
+      "horizMinFt": 600,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 3.5,
+      "rollMaxDps": 58,
+      "gReversalsSmoothed": 8,
+      "rollReversalsSmoothed": 3,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 623,
+       "sweepDeg": 83.3,
+       "heightFt": -56,
+       "dKias": -2.7
+      }
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level, 30 s",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.98,
+      2
+     ],
+     "gRateMax": 2.35,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 300,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.72,
+      2.06
+     ],
+     "gRateMax": 3,
+     "gReversals": 13,
+     "rollMax": 59,
+     "rollAccMax": 449,
+     "rollReversals": 10,
+     "drawnMax": 63,
+     "rangeMin": 618,
+     "fw": {
+      "slantMinFt": 618,
+      "horizMinFt": 600,
+      "in500Sec": 0,
+      "in600Sec": 0,
+      "gMax": 2.06,
+      "rollMaxDps": 59,
+      "gReversalsSmoothed": 5,
+      "rollReversalsSmoothed": 3,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 671,
+       "sweepDeg": 55.3,
+       "heightFt": -85,
+       "dKias": 1.9
+      }
+     }
+    }
+   }
+  }
+ ],
+ "b5-echelon-to-fw": [
+  {
+   "label": "Echelon to fighting wing",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0.05,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.97,
+      1.9
+     ],
+     "gRateMax": 2.41,
+     "gReversals": 1,
+     "rollMax": 101,
+     "rollAccMax": 380,
+     "rollReversals": 2,
+     "drawnMax": 101,
+     "rangeMin": 43,
+     "fw": {
+      "slantMinFt": 43,
+      "horizMinFt": 43,
+      "in500Sec": 11,
+      "in600Sec": 19.7,
+      "gMax": 1.9,
+      "rollMaxDps": 101,
+      "gReversalsSmoothed": 1,
+      "rollReversalsSmoothed": 2,
+      "aimSwitches": 0,
+      "jobSwitches": 0,
+      "end": {
+       "slantFt": 587,
+       "sweepDeg": 49.3,
+       "heightFt": -3,
+       "dKias": -0.5
+      }
+     }
+    }
+   }
+  }
  ]
 }
