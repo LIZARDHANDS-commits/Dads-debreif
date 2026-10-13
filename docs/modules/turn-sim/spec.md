@@ -578,7 +578,7 @@ Patrick's order (14 Oct 2026): fighting wing first (B5), then "TRJ and SARJ from
 - Checkpoint F: Patrick flies them.
 
 **8. Questions for Patrick.**
-(a) From fighting wing, does the live wingman fly the whole rejoin, with no tracker? Recommended.
+(a) **Answered** (Patrick 14 Oct 2026, card "All live, no tracker"): from fighting wing the live wingman flies the whole rejoin, with no tracker.
 (b) The close minimum and its closure.
 (c) The overtake middles: 15 KIAS on TRJ, 25 on SARJ.
 
