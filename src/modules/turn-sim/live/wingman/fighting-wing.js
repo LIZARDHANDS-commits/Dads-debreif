@@ -599,17 +599,31 @@ export function stepFwWingman(w, refSt) {
   const downPower = Y.on && pitchOwner === 'yoyoDown' && st.kias > leadKias;
   const lowMax = job.low && (!Y.on || owner.name === 'stack');
   const power = missPower || downPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : lowMax ? { throttle: 1 } : { holdKias: wantKias };
-  const powerBack = missPower || downPower || wantKias < leadKias - Y.powerBackKt;
-  const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...power });
+  // Idle and the boards (Patrick 14 Oct 2026, his rulings on Fable's questions: his to use, smartly, since it is easy to get
+  // stretched after): only while he closes faster than power back answers (idleFtps, boardsFtps) and is inside the happy band
+  // or closing on the pass line, and not already slow; released early (idleOffFtps, boardsOffFtps), the engine taking 3.5 s
+  // to spool up from idle (live/handling.js ENGINE). Flagged in the trace (BOARDS, IDLE).
+  const BI = W.brakes;
+  let idle = false;
+  let boards = false;
+  if (BI) {
+    const cNow = job.turning && arcFt != null ? closing : seen.closure;
+    const where = seen.slant < W.happyFt[1] || (flt.passShort && seen.closure > 0);
+    const fastEnough = st.kias > leadKias - BI.slowKt;
+    idle = fastEnough && (w.idle ? cNow > BI.idleOffFtps : cNow > BI.idleFtps && where);
+    boards = fastEnough && (w.boards ? cNow > BI.boardsOffFtps : cNow > BI.boardsFtps && where);
+  }
+  const powerBack = missPower || downPower || idle || wantKias < leadKias - Y.powerBackKt;
+  const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...(idle ? { throttle: 0 } : power), ...(boards ? { boards: true } : {}) });
   const gAsk = len3(lift);
   const jobName = (W.guard.engage ? engaged : filterOn) ? 'guard-filter' : guard.on && !W.guard.filter ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
   return {
-    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing, yoyo, owner, lineShort, powerBack, behindOn, filterEngaged: engaged, filterClearSec: engageClear, lagSec, leadBankDeg: bNow },
+    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing, yoyo, owner, lineShort, powerBack, behindOn, idle, boards, filterEngaged: engaged, filterClearSec: engageClear, lagSec, leadBankDeg: bNow },
     trace: {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
       heightTargetFt: Math.round(dz), wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
-      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null, lineShort, passFt: passFt == null ? null : Math.round(passFt), yoyoFt: yoyo.phase === 'up' ? Math.round(yoyo.hFt) : null, omNomDps: omNom, omPickDps: omPick,
+      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null, lineShort, passFt: passFt == null ? null : Math.round(passFt), yoyoFt: yoyo.phase === 'up' ? Math.round(yoyo.hFt) : null, omNomDps: omNom, omPickDps: omPick, brakes: boards ? (idle ? 'IDLE + BOARDS' : 'BOARDS') : idle ? 'IDLE' : null,
     },
   };
 }

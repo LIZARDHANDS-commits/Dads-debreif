@@ -483,6 +483,11 @@ export const FW_WING = Object.freeze({
   // toward Lead's tail"): once Lead's bank passes 10° toward his side, his path 20° outward of Lead's circle (Fable's
   // steer-behind cap, Q1's working answer) for 2.5 s (the research's 2-3 s, a guess), then eased back over 1 s (estimate)
   lagFirst: Object.freeze({ on: true, deg: 20, sec: 2.5, easeSec: 1 }),
+  // Idle and the speed brake (Patrick 14 Oct 2026, rulings on Fable's questions: his to use, smartly): idle once closing faster
+  // than 40 ft/s, the boards past 60 ft/s, more than power back answers in a few seconds (estimates), while inside the happy
+  // band or closing on the pass line and not slower than Lead; released early, under 25 and 35
+  // ft/s (estimates), for the 3.5 s spool-up from idle (live/handling.js ENGINE). null: neither used.
+  brakes: Object.freeze({ idleFtps: 40, idleOffFtps: 25, boardsFtps: 60, boardsOffFtps: 35, slowKt: 0 }),
   // F6's action when the wing line binds (Patrick 14 Oct 2026, rulings on Fable's questions: never ahead of Lead's 3/9 line,
   // "nose pointed BEHIND Lead, banking steeply in and down", hot turning rejoin style): he aims where Lead was guard.lagSec
   // ago and goes down 300 ft (the miss's deepest, estimate) until 200 ft behind the wing line again (estimate). When on,
