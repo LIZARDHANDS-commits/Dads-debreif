@@ -355,6 +355,25 @@ Sources (Patrick found them, 13 Oct 2026): MIT OpenCourseWare 16.400 Human Facto
 - **From the PID sources** (how to run it step by step without jolts): the rate term acts on the motion he sees, not on the error, so a jump in where he wants to be (a new place, the next step of plane, line, hinge) never jolts the stick (the "derivative kick"); the rate he reads is lightly smoothed, as an eye judges motion over a moment, not one step; the trim is held still while a control is at its limit (anti-windup); a new job or technique starts from the controls he already has, so a change of job never steps them (bumpless transfer, rungs B3 to B5); and the gains are tuned one at a time in widening steps. In their words this is two-degree-of-freedom control (react to Lead, stay in position) with a cascade for big moves (pace, then power).
 - **What the sources don't cover.** None of them models formation flying: they are single-axis tracking tasks. The structure and the ranges carry over; the numbers for echelon are ours, tuned against Patrick's flying. He corrects from the smallest error he can see (about 0.5 ft, estimate). Each axis settles without overshoot; settle times are estimates to be tuned (up and down, in and out about 2 s; fore and aft about 4 s).
 
+#### 6c. How we use PID (13 Oct 2026)
+
+Three small loops, one per control, run every step in Lead's wing frame: pitch (G) on up and down, roll (bank off Lead's) on in and out, power (torque) on forward and back. Each is what he sees Lead do (feed-forward) plus P (how far off), D (how fast it is changing) and a weak I (how long it has been there).
+
+| Part | What it does | Where it lives |
+|---|---|---|
+| Feed-forward | Lead's bank and G as he sees them; the telegraph sizes the first inputs; the holding power for what Lead is doing | close-formation.js, from perception.js |
+| P | Pressure in proportion to how far off he is | close-formation.js (core helper `pilotAxis`) |
+| D | Pressure in proportion to how fast it is changing, on the motion he sees (never the error, so a new target never jolts the stick), lightly smoothed as an eye judges motion | rate from perception.js, used in close-formation.js |
+| I (weak) | A slow trim for an offset that stays; held still while a control is at its limit (anti-windup); starts at zero, added only if an offset remains | close-formation.js |
+| Limits | Pressure sizes per job, the T-6A's roll and G onset, the engine; a new job starts from the inputs he already has (bumpless transfer) | shaper.js |
+
+- **Plane, line, hinge with three loops.** On station all three hold together, coordinated. Correcting an error, the supervisor hands the loops a moving target: the plane's share of the error first, then the line's, then the rest along the line, so the loops see one or two dimensions of error at a time. Under Lead, out comes before up.
+- **Power is a cascade.** The distance to go picks the pace (gentle, jogging 8 ft/s, running 13 ft/s; B1 tops out at 8); the power loop closes the gap between that pace and the closure he sees, around the holding setting.
+- **The helper.** About 10 lines of plain JavaScript in `src/core/` beside `dampedClimbG` (already a PD: it holds Lead's climb angle): `pilotAxis(memory, deviation, rate, dt, gains)` returns the pressure and the new memory, never changing the old in place. From the textbook difference equation (Bhandari and Csurcsia 2022; Toochinda 2011); no library.
+- **Starting gains (estimates).** Plane axis: P 0.04 G per foot, D 0.06 G per foot per second: with the 0.3 s reaction it crosses over near 2 rad/s with about 37° of phase margin, settling in about 2 s without chasing; a few feet off is about a tenth of a G. Line and hinge are worked out in `tools/flight-design` during B1 with their own lags (the roll's onset, the engine's 0.25 s); expected softer, hinge near 1 rad/s and about 4 s.
+- **Tuning.** One axis at a time in Patrick's order, one gain at a time in widening steps; margins checked offline in `tools/flight-design` (python-control 0.10.2, already pinned) with the real delay; tuned by eye on the plot page; each run measured by the gauge; then Patrick flies it.
+- **Looked at, not used.** The mcpmarket "Systematic PID Loop Tuning" skill (jamestjsp/control-skills, commit 099120c2591c): no licence, needs Python libraries we don't have, built for industrial process loops. Nirnay (a PID bench in the browser, MIT): safe to open, but it has no time delay, so on its own it gives gains too firm for a 0.3 s reaction.
+
 #### 7. Success criteria: what Patrick checks, from the default start
 
 1. Straight and level: on his references, within about 1 ft (estimate), with no visible hunting.
