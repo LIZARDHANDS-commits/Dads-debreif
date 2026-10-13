@@ -7,7 +7,8 @@ gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/
 
 ## Latest (13 Oct 2026, about 04:20Z): first batch approved and verified
 
-- **Read `3d-work` `ct156/fix-list.md` first:** its "Resume here" block, the decisions log, the **fix-it plan** (how to
+- **Read `3d-work` `ct156/plan.md` first** (the plan was split into `plan.md`, `measurements.md` and `fix-list.md` on 13 Oct):
+  its "Resume here" block and decisions log; then in `fix-list.md` the **fix-it plan** (how to
   fix each approved row: targets, code lines, master parts, checks), the verified rows and M1 to M40.
 - **Rule (Patrick):** an agent's finding is verified by the thread itself before it goes on the fix list; unverified
   ones wait in `ct156/agent-findings.md` (85 rows, areas B to H). Verifying changed several: two approved rows did not
