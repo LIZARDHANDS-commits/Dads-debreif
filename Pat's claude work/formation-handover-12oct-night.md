@@ -2,6 +2,13 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
+## 13 Oct 2026, late night: B1 built (#1029, V2.426)
+
+- **#1029** (base `roll-rate-raise`, head `formation-close-wingman-b1`) holds B1: T1-T4 from the Opus agent (built in `Dads-debreif/.claude/worktrees/agent-a921760de2c654d1c`, which the thread then used for T5-T8 so the physics folder's dev server stayed on V2.424 for Patrick), T5-T8 by the thread. Checkpoint A shown; Patrick ruled TS-228 (no threshold).
+- **How it is wired:** `formation.js` option `closeWing` ('held' default), read at each press (`state.closeWing`); `startLiveWing()` at the end of `finish()` when the pair is idle in echelon; `step()` flies Lead then `stepWingman` off Lead's point mass taken before his step, and `applyTo` writes #2's fields; any press (`state.current`) hands #2 back. `events.js` `liveHandOver` replaces the 0.5 kt and climb gates for a live change into echelon with a can-he-stop test. The switch is in `transitions-panel.js` (2-ship only), wired in `index.js` to `formation.setOptions`.
+- **Checked:** Held gauge traces byte-identical to the pre-B1 run (saved in the session scratchpad); Live 60 s hold within 0.04 ft, both sides; presses in and out of the live hold all finish. Not run locally: the test (CI is the check).
+- **Next:** CI on #1029; Patrick flies V2.426 (Checkpoint B); then B2 (telegraphed turns on the live wingman, the trim term earns its keep there). Before flying, re-check every gain comment in wing-moves.js against the final tuning.
+
 ## 13 Oct 2026, night (after the fourth compaction)
 
 - **B1 approved and under way.** Patrick approved the plan (plan 12.4, B1 T1-T8) and the branch: `formation-close-wingman-b1`, stacked on #1018, base 7d62ec30. One Opus agent (high effort, isolated worktree under `Dads-debreif/.claude/worktrees/`) builds T1-T4 (the gauge's echelon hold, the PID function `pilotAxis`, perception, the wingman's law), pushes to that branch, opens no pull request, and stops at Checkpoint A with the probe numbers. Its brief makes it check its base commit first (observation 62). The thread audits its work against TS-211, TS-226 and 7b.6d before Patrick sees it, then does T5-T8 (merge `roll-rate-raise` into the B1 branch first).
