@@ -23,6 +23,8 @@ function rows(text) {
   let block = null; // the exported object being read
   let doc = '';
   let depth = 0;
+  let lead = ''; // the comment lines above a field, its source when it has none beside it (fields after one comment share it)
+  let afterField = false;
   for (const line of lines) {
     const docLine = line.match(/^\s*\/\*\*\s?(.*?)(\*\/)?$/) || line.match(/^\s*\*\s(.*)$/);
     if (!block && /^\s*\/\*\*/.test(line)) doc = '';
@@ -43,14 +45,28 @@ function rows(text) {
       continue;
     }
     if (block) {
+      const above = line.match(/^\s{2,4}\/\/\s?(.*)$/);
+      if (above) {
+        lead = afterField ? above[1] : `${lead} ${above[1]}`;
+        afterField = false;
+        continue;
+      }
       depth += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
       const field = line.match(/^\s{2}(\w+): (.*?),?\s*(\/\/\s?(.*))?$/);
-      if (field && depth >= 1 && !/^\s{4}/.test(line)) out.push([`${block}.${field[1]}`, cell(field[2].replace(/,$/, '')), cell(field[4] ?? '')]);
+      if (field && depth >= 1 && !/^\s{4}/.test(line)) {
+        out.push([`${block}.${field[1]}`, cell(field[2].replace(/,$/, '')), cell(field[4] ?? lead).slice(0, 400)]);
+        afterField = true;
+      }
       else if (/^\s{4}\w+: /.test(line) && depth >= 2) {
         const f = line.match(/^\s{4}(\w+): (.*?),?\s*(\/\/\s?(.*))?$/);
-        if (f) out.push([`${block}.…${f[1]}`, cell(f[2].replace(/,$/, '')), cell(f[4] ?? '')]);
+        if (f) out.push([`${block}.…${f[1]}`, cell(f[2].replace(/,$/, '')), cell(f[4] ?? lead).slice(0, 400)]);
+        afterField = true;
       }
-      if (depth <= 0) block = null;
+      if (depth <= 0) {
+        block = null;
+        lead = '';
+        afterField = false;
+      }
     }
   }
   return out;
