@@ -5,7 +5,31 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026, evening): the rebuild under way; read `3d-work` `ct156/plan.md` "Resume here" first
+## Latest (13 Oct 2026, night): chunks 1 to 5 built, Patrick measured at work; read `3d-work` `ct156/plan.md` "Resume here" first
+
+- **The master (3d-work), stacked, none merged:** #30 chunk 1 (station-change references), #38 chunk 2 (canopy), #41
+  chunk 3 (outside shell, gear on the ground line, the checks fixed: seams measure again, the budget counts the hull
+  drawn, nothing pokes through the skin), #50 chunk 4 (small outside parts), #56 chunk 5 (front cockpit, Performance
+  cockpit 94,665 to 50,400), then a readings pass from Patrick's measurements (running). Each verified by the
+  orchestrator (line ends, its own `check_master`, the pictures).
+- **App branches, stacked after #1032 (none merged):** #1032 `shared-3d-delivery-import` (the delivery command's app
+  half, chunk 1 and the pitot imported, the look on the model only with ALL-41, the `.gitattributes`);
+  `shared-3d-ct156-lights-and-prop` (chunk 4b: the lights per the CFAFM, the stopped prop, `setPropStopped` called by
+  no module yet); `shared-3d-ct156-canopy-and-shell` (the app's numbers for chunks 2 and 3, and the model drawn 2.5
+  degrees nose-down inside its root, `CT156_DATUM_DEG`, Patrick: "Yes, offset 2.5"). The delivery of chunks 2 to 5
+  and the readings, and its import, wait on about 5 GB of free memory.
+- **Patrick measured at work (13 Oct 2026):** the ramp 1 degree nose up and the canopy sill 1 degree nose down (the
+  spinner axis level on the ground, chunk 3's gear confirmed), the EADI about 2.7 degrees on level ground, the tyres
+  20x4.4 and 16x4.4, the pitot, the tie-down lug (to 8.85 ft out), the AOA vane, the aft paddle, the canopy's
+  detonating cord and the rear bow. 38 photos in `3d-work` `refs/measurements/2026-10-13-patrick/` (not in git;
+  indexed in `ct156/references.md`; backed up to OneDrive).
+- **For other lanes (the 2.5 degree datum):** Debrief's `debrief/puck.js` glare-shield points are in the model's axes
+  and need the datum applied (about 0.2 ft off); EP Tabletop's `BORESIGHT_PITCH_DEG` (-12) may want revisiting (the
+  panel now sits 2.5 degrees lower in the picture); every module's seat camera still looks along the root's x axis.
+- **Waiting on Patrick:** the app look at High and Performance, then the merges in order; ALL-34's amendment wording
+  for the datum; the estimates listed in the plan; his action items for the next day at work (the plan's list).
+
+## Earlier (13 Oct 2026, evening): the rebuild under way
 
 - **How it runs:** one Opus orchestrator session talks to Patrick and verifies every agent result itself; one agent per
   lane, reused for the lane's next job (Patrick: "keep reusing the agents that are already working"): A, the master
