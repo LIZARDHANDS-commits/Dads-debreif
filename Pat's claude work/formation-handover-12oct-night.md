@@ -2,6 +2,13 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
+## 13 Oct 2026, night (after the fourth compaction)
+
+- **B1 approved and under way.** Patrick approved the plan (plan 12.4, B1 T1-T8) and the branch: `formation-close-wingman-b1`, stacked on #1018, base 7d62ec30. One Opus agent (high effort, isolated worktree under `Dads-debreif/.claude/worktrees/`) builds T1-T4 (the gauge's echelon hold, the PID function `pilotAxis`, perception, the wingman's law), pushes to that branch, opens no pull request, and stops at Checkpoint A with the probe numbers. Its brief makes it check its base commit first (observation 62). The thread audits its work against TS-211, TS-226 and 7b.6d before Patrick sees it, then does T5-T8 (merge `roll-rate-raise` into the B1 branch first).
+- **Names:** "the helper" became "the PID function" in the spec, the plan and the doc, so it isn't confused with the Architecture page's "helper laws" (`fw-pursuit.js`, `fw-switch.js`, `ride.js`, `lead-turn-in.js`, `holdStationIdle`), which retire.
+- **Pages updated 13 Oct night:** Architecture, Rough Spots (statuses for J3, J7, J8, T11, A4, A12, A13, A15, A16, W1), How Lead Flies, Handling Ratify List, Workspace Map, and the doc "Close-In Wingman Spec" (status line). Patrick likes the spec as it is; the symptom table (what you see, which gain fixes it) waits until after Checkpoint A if wanted.
+- CI on #1018 was running at the last look; not yet read.
+
 ## 13 Oct 2026, later (after the third compaction)
 
 - **One Lead is in #1018.** The agent's three commits were cherry-picked onto `roll-rate-raise` (822f383d, a5a23502, 0649c2c3); the agent's worktree branch `worktree-agent-a06d78348763c6746` still exists (ask Patrick before deleting it). Audit: "merge after fixes"; its fixes are made: the roll bugs fixed in core (f62e9480, TS-223), the climbs and descents to Patrick's ruling (022b5cd2). The 80% torque top-speed question is closed (Patrick: "He just stays at 80 tq and climbs at his airspeed, whatever that gives him").

@@ -5,7 +5,16 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026): every agent finding verified and ruled
+## Latest (13 Oct 2026, later): station-change references first; pictures wanted listed
+
+- **Station-change references (Patrick: "its vital that we get this right", his formation slide `F07`):** the tie-down
+  rings, the pitot and the aft belly paddle lead the fixes, checked from the slide's wingman positions. The hanging ring
+  stays (dark, about 0.4 ft, an "8"). "Ignore the tan dome." Open: G20, the number under the left wing.
+- **Pictures and measurements wanted:** `3d-work` `ct156/measurements.md` now lists P1 to P15 and M1 to M47; keep it
+  up to date whenever a row waits on one (Patrick).
+- **Next:** `3d-work` `ct156/plan.md`, "Resume here".
+
+## Earlier (13 Oct 2026): every agent finding verified and ruled
 
 - **Read `3d-work` `ct156/plan.md` first**, then `ct156/fix-list.md` (114 rows; the fix-it plan has, for each approved
   row, today's values with code lines, the targets, the checks and a labelled picture in `refs/review/`).
