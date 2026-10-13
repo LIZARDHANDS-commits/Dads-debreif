@@ -201,3 +201,47 @@ Also kept: the `wip-turn-sim` stash (from `fix-four-ship-offset-box`, 9 Oct) Pat
    Acceptance: the turn cases end 500-900 ft back and within 15 KIAS, the most aspect stays under 90°, least slant 500 ft (a brief kiss allowed), and job switches are 3 or fewer.
 4. Re-run the keep-unchanged checks before any merge: Held and close-formation traces byte-identical, the B1-B3 probes, the 4-ship hash, and the Old law's b5 entries.
 5. Then T29b (wings level and the swept place), T29c (entry, exit and S-turns), T30 (stretch), T31 (test), Checkpoint G.
+
+### 14 Oct 2026, later still: round 3 measured, research in, round 4 running
+
+**Round 3.** The stopped B5 agent built Fable's F5, F2, F3, F4, F10, F1 and F7 (F7 off) on `formation-fighting-wing-b5`, head 2380ce07, each behind a switch in `FW_WING` with gauge numbers in its commit message. The thread's run (tag r3), with least slant, end of turn and most aspect:
+- into, in position: 650 / 743 ft, −41 kt / aspect 140°;
+- into, tight: 520 / 600 / 155°;
+- into, stretched: 618 / 2,215 / 60°;
+- away, tight: 520 / 1,276 / 40°.
+
+Not converged: ahead of the 3/9 line on turns into #2, and stretched ends far back.
+
+**Web research** (`docs/references/formation-control-research-14oct.md`, background only):
+- the range loop's half-gain trap, confirmed in fighting-wing.js (17f32caa: `dss + (cArc − closing)/omega` settles at half the closure);
+- the US Navy T-34C cruise technique (lag first, then inside; power off slightly on a turn into);
+- the filter as a published predictive safety filter (smooth max or dwell for side changes; separation hard, stay-behind soft);
+- the delay sweep.
+
+**Patrick's rulings, all in TS-233 (c96bc73b):**
+- all of Fable's answers as recommended, except no cap on the yo-yo inside the cone;
+- failure is no correction back to the ideal (ending 1,000 ft or nipping 500 ft is not a failure);
+- never ahead of the 3/9 line (roll over Lead, or nose behind him, in and down);
+- very stretched, he may cut across, then reset onto a circle;
+- boards (a step in drag) and idle (fast cut, slow return) allowed.
+
+**Round 4: a fresh Opus builder in its own worktree, branch b5-round4, pushing to `formation-fighting-wing-b5`.** In order:
+1. F6;
+2. the half-gain fix;
+3. lag first from Lead's bank;
+4. boards and idle, and the speed feed-forward (it may add an optional `ask.boards` to stepLead, default off, everything else byte-identical);
+5. F8/F9, the yo-yo with no cap;
+6. side-switch smoothing;
+7. the delay sweep.
+
+Acceptance:
+- ends 500-900 ft, or outside it and closing;
+- never aspect over 90°;
+- least 500 ft (a kiss allowed; its depth and time reported);
+- 3 job switches or fewer.
+
+**On its report the thread audits it:**
+- each commit against TS-233 and spec 7e;
+- rerun the gauge (helpers in `formation-review-12oct/`);
+- check the keep-unchanged checks itself (the default gauge byte-identical, the Old law's b5 entries, the 4-ship);
+- then merge into b2 behind the switch, bump the version, and give Patrick the version and what to fly.
