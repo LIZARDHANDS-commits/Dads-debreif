@@ -467,7 +467,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 4. ~~The speed brakes~~: answered (very rarely, for too much closure; not ideal).
 5. ~~The echelon place~~: settled by TS-182 (18 back, 43 out, 3 down from the SMM references); section 4's table corrected.
 
-## 7c. Route and the station changes on the live wingman (B3; DRAFT, awaiting Patrick's approval)
+## 7c. Route and the station changes on the live wingman (B3; DRAFT, every open question answered 14 Oct 2026, awaiting Patrick's approval)
 
 **Objective.** With "#2 in close formation: Live", the live close-in wingman of 7b also holds route and line astern, follows Lead's telegraphed turns in them, and flies the changes between the close formations himself: echelon to route and back along the line, echelon to line astern and back, and the station change to echelon on the other side through the corner (the crossunder). The tracker and the held poses keep flying them with Held. Patrick's order (14 Oct 2026): B3 now; then fighting wing, its TRJ and SARJ, the line abreast manoeuvres and the hot turning rejoin, the 4-ship, the training errors.
 
@@ -488,7 +488,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 - Echelon to line astern: back and down into the corner, nose at least 10 ft behind Lead's tail and at line astern's height, below the wash, where he stabilizes (flows through within 5 ft and 5 kt, not stopped, TS-117); then across, slightly aft of line astern, to Lead's centreline.
 - Line astern to echelon: across to directly behind the new slot, stabilized, then forward and up into it, at about 5 ft/s (SMM 12.20).
 - The station change, echelon to echelon on the other side: the first half then the second half, through the corner and across behind Lead.
-- Route to route on the other side, and route to line astern: the same corner, from route's place (to confirm).
+- Route to route on the other side (Patrick 14 Oct 2026: "route to route would go to echelon then station change then to othr route"): in along the line to echelon, the station change through the corner to echelon on the other side, then out along that side's line to route. Route to line astern: in to echelon, then the corner.
 
 **4. Paces.** B1 and B2 move him at most at a jogging 8 ft/s (Patrick 13 Oct 2026). Patrick: "Instructors will 'run' from route to echelon", 13 ft/s. The Rates setting (TS-65) times route to echelon at 10, 5 and 2.5 s (Student, Instructor, AI): about 10, 20 and 40 ft/s on average over route's 100 ft, past both paces. **Answered** (Patrick 14 Oct 2026, "Jogging only for now"): every close move on the live wingman at most 8 ft/s, tapering to stop on the place; running (13 ft/s) and the Rates choice come later. The Rates times stay for Held.
 
@@ -496,14 +496,14 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 
 **6. Tasks (plan 12.4 B3, T14-T19).** T14 this section approved; T15 the gauge's route hold and turns, the crossunder both ways, echelon to route and back, echelon to line astern and back, with the pre-B3 run saved and a known-bad case; T16 route and line astern held and turned live; T17 the changes on the live wingman; T18 B3's one test (the crossunder, echelon to echelon the other side, live: never within a wingspan, never ahead of the 3/9 line, in position at the end); T19 docs and the pages; Checkpoint E, Patrick flies B3.
 
-**7. Boundaries.** Held flies as today, checked on the gauge against the run saved before B3. Fighting wing, the rejoins, opening out to line abreast and the 4-ship stay on today's flying until their rungs. No number without its source or "estimate".
+**7. Boundaries.** Held flies as today, checked on the gauge against the run saved before B3. Fighting wing, the rejoins, opening out to line abreast and the 4-ship stay on today's flying until their rungs. No number without its source or "estimate". Opening out from a close formation to line abreast stays on today's flying until the line abreast rung (Patrick 14 Oct 2026, "Leave it for the LAB rung").
 
 **8. Open questions for Patrick** (one at a time):
 1. ~~Paces~~: answered, jogging only for now (section 4).
 2. ~~Route's tolerance in a turn~~: answered, about 3x echelon (section 2).
 3. ~~The corner~~: answered, as today (Patrick 14 Oct 2026, "Yes, as today"): TS-117 unchanged.
-4. Opening out from a close formation to line abreast: on the live wingman here, or with the line abreast rung?
-5. Route to route on the other side: through the corner as echelon, or another way?
+4. ~~Opening out to line abreast~~: answered, left for the line abreast rung (section 7).
+5. ~~Route to route~~: answered, through echelon and the station change (section 3).
 
 ## 8. Fighting wing
 
