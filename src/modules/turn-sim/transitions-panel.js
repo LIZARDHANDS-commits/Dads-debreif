@@ -226,8 +226,9 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
 
   // #2 in close formation: Held (today's planned poses) or Live (the close-in wingman, TS-226; B1 flies the echelon hold
   // straight and level). Read at the next press, so it is set before pressing Echelon (plan 12.4 B1 T6). 2-ship only.
-  let closeWing = 'held';
-  const CLOSE_WING_HINT = 'Held: #2 flies today\'s planned poses. Live: the close-in wingman flies #2 off what he sees of Lead, 0.3 s late (echelon: the hold, the close turns, Wings level and Reversal; route and line astern stay Held until B3). Takes effect at once when nothing is being flown, otherwise at the next press.';
+  // Live the default since Patrick 14 Oct 2026 ("yes live default", TS-232); Held kept to compare until Checkpoint E.
+  let closeWing = 'live';
+  const CLOSE_WING_HINT = 'Live (the default): the close-in wingman flies #2 off what he sees of Lead, 0.3 s late, in echelon, route, line astern and the corner, their turns and the changes between them. Held: the old planned poses and tracker, to compare. Takes effect at once when nothing is being flown, otherwise at the next press.';
   const closeWingButtons = [
     { value: 'held', label: 'Held' },
     { value: 'live', label: 'Live' },

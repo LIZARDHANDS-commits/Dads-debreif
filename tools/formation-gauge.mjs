@@ -252,7 +252,8 @@ function closeTally() {
 }
 
 function runScenario(sc) {
-  const f = createFormation({ ships: 2, ...(sc.options ?? {}) });
+  // Held unless the scenario says Live: the baseline's runs were flown Held, and Live is the app's default since TS-232 (14 Oct 2026).
+  const f = createFormation({ ships: 2, closeWing: 'held', ...(sc.options ?? {}) });
   sc.setup(f);
   const results = [];
   const trace = { name: sc.name, stepSec: STEP_SEC, presses: [], aircraft: {} };

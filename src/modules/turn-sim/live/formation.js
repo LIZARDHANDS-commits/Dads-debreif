@@ -50,7 +50,7 @@ export const LIVE_DEFAULTS = Object.freeze({
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
-  closeWing: /** @type {'held' | 'live'} */ ('held'), // #2 in close formation: held (today's planned poses) or live (the close-in wingman, TS-226, B1: the idle echelon hold); read at each press
+  closeWing: /** @type {'held' | 'live'} */ ('live'), // #2 in close formation: live (the close-in wingman, TS-226; the default since Patrick 14 Oct 2026, "yes live default", TS-232) or held (the planned poses and the tracker); read at each press
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
