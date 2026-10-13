@@ -555,5 +555,927 @@
     }
    }
   }
+ ],
+ "echelon-turns-60": [
+  {
+   "label": "Close turn 60° into #2",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 0.42,
+     "gReversals": 1,
+     "rollMax": 12,
+     "rollAccMax": 8,
+     "rollReversals": 1,
+     "drawnMax": 14,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.8,
+      2.17
+     ],
+     "gRateMax": 1.38,
+     "gReversals": 5,
+     "rollMax": 13,
+     "rollAccMax": 22,
+     "rollReversals": 1,
+     "drawnMax": 19,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.09,
+       "line": 0.19,
+       "along": 0.06
+      },
+      "rmsFt": {
+       "plane": 0.05,
+       "line": 0.08,
+       "along": 0.03
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 6.46,
+      "gOffMax": 0.2,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.45
+     }
+    }
+   }
+  },
+  {
+   "label": "Steady after it, 10 s",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0.06,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.03,
+       "line": 0.11,
+       "along": 0.08
+      },
+      "rmsFt": {
+       "plane": 0.01,
+       "line": 0.07,
+       "along": 0.06
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 0.01,
+      "gOffMax": 0.01,
+      "torquePct": [
+       56,
+       56.8
+      ],
+      "torqueReversals": 0,
+      "rollLagSec": null
+     }
+    }
+   }
+  },
+  {
+   "label": "Close turn 60° away from #2",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2
+     ],
+     "gRateMax": 0.42,
+     "gReversals": 1,
+     "rollMax": 12,
+     "rollAccMax": 8,
+     "rollReversals": 1,
+     "drawnMax": 14,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      2.01
+     ],
+     "gRateMax": 1.33,
+     "gReversals": 9,
+     "rollMax": 14,
+     "rollAccMax": 16,
+     "rollReversals": 1,
+     "drawnMax": 33,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.09,
+       "line": 0.15,
+       "along": 0.07
+      },
+      "rmsFt": {
+       "plane": 0.04,
+       "line": 0.07,
+       "along": 0.04
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 6.45,
+      "gOffMax": 0.2,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.25
+     }
+    }
+   }
+  },
+  {
+   "label": "Steady after it, 10 s",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0.05,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.03,
+       "line": 0.11,
+       "along": 0.08
+      },
+      "rmsFt": {
+       "plane": 0.01,
+       "line": 0.08,
+       "along": 0.06
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 0,
+      "gOffMax": 0.01,
+      "torquePct": [
+       56,
+       56.7
+      ],
+      "torqueReversals": 0,
+      "rollLagSec": null
+     }
+    }
+   }
+  },
+  {
+   "label": "Close turn into #2, 8 s of it",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.97
+     ],
+     "gRateMax": 0.42,
+     "gReversals": 0,
+     "rollMax": 12,
+     "rollAccMax": 8,
+     "rollReversals": 0,
+     "drawnMax": 14,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.8,
+      2.11
+     ],
+     "gRateMax": 1.38,
+     "gReversals": 2,
+     "rollMax": 13,
+     "rollAccMax": 22,
+     "rollReversals": 0,
+     "drawnMax": 19,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.09,
+       "line": 0.19,
+       "along": 0.05
+      },
+      "rmsFt": {
+       "plane": 0.05,
+       "line": 0.1,
+       "along": 0.02
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 6.46,
+      "gOffMax": 0.2,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.45
+     }
+    }
+   }
+  },
+  {
+   "label": "Reversal mid-turn",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1.01,
+      2
+     ],
+     "gRateMax": 0.42,
+     "gReversals": 2,
+     "rollMax": 12,
+     "rollAccMax": 8,
+     "rollReversals": 1,
+     "drawnMax": 14,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      2.17
+     ],
+     "gRateMax": 1.38,
+     "gReversals": 9,
+     "rollMax": 14,
+     "rollAccMax": 16,
+     "rollReversals": 1,
+     "drawnMax": 33,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.08,
+       "line": 0.15,
+       "along": 0.11
+      },
+      "rmsFt": {
+       "plane": 0.04,
+       "line": 0.05,
+       "along": 0.04
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 6.45,
+      "gOffMax": 0.2,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.2
+     }
+    }
+   }
+  },
+  {
+   "label": "Close turn away, 8 s of it",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.97
+     ],
+     "gRateMax": 0.42,
+     "gReversals": 0,
+     "rollMax": 12,
+     "rollAccMax": 8,
+     "rollReversals": 0,
+     "drawnMax": 14,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1.02,
+      1.98
+     ],
+     "gRateMax": 1.32,
+     "gReversals": 4,
+     "rollMax": 12,
+     "rollAccMax": 13,
+     "rollReversals": 0,
+     "drawnMax": 33,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.07,
+       "line": 0.12,
+       "along": 0.07
+      },
+      "rmsFt": {
+       "plane": 0.04,
+       "line": 0.06,
+       "along": 0.05
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 2.46,
+      "gOffMax": 0.2,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.25
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level mid-turn",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1.01,
+      1.99
+     ],
+     "gRateMax": 0.4,
+     "gReversals": 0,
+     "rollMax": 12,
+     "rollAccMax": 8,
+     "rollReversals": 0,
+     "drawnMax": 13,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.93
+     ],
+     "gRateMax": 1.33,
+     "gReversals": 4,
+     "rollMax": 14,
+     "rollAccMax": 16,
+     "rollReversals": 0,
+     "drawnMax": 28,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.07,
+       "line": 0.11,
+       "along": 0.04
+      },
+      "rmsFt": {
+       "plane": 0.04,
+       "line": 0.06,
+       "along": 0.03
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 6.46,
+      "gOffMax": 0.2,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.25
+     }
+    }
+   }
+  },
+  {
+   "label": "Steady after it, 10 s",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.02
+     ],
+     "gRateMax": 0.19,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.08,
+       "line": 0.12,
+       "along": 0.09
+      },
+      "rmsFt": {
+       "plane": 0.02,
+       "line": 0.09,
+       "along": 0.06
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 0,
+      "gOffMax": 0.01,
+      "torquePct": [
+       56,
+       56.9
+      ],
+      "torqueReversals": 2,
+      "rollLagSec": null
+     }
+    }
+   }
+  }
+ ],
+ "echelon-turns-45": [
+  {
+   "label": "Close turn 45° into #2",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.42
+     ],
+     "gRateMax": 0.16,
+     "gReversals": 0,
+     "rollMax": 9,
+     "rollAccMax": 6,
+     "rollReversals": 0,
+     "drawnMax": 10,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.85,
+      1.55
+     ],
+     "gRateMax": 0.99,
+     "gReversals": 5,
+     "rollMax": 10,
+     "rollAccMax": 13,
+     "rollReversals": 0,
+     "drawnMax": 21,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.07,
+       "line": 0.11,
+       "along": 0.03
+      },
+      "rmsFt": {
+       "plane": 0.03,
+       "line": 0.04,
+       "along": 0.02
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 4.78,
+      "gOffMax": 0.15,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.4
+     }
+    }
+   }
+  },
+  {
+   "label": "Steady after it, 10 s",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0.1,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.05,
+       "line": 0.07,
+       "along": 0.05
+      },
+      "rmsFt": {
+       "plane": 0.01,
+       "line": 0.05,
+       "along": 0.04
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 0,
+      "gOffMax": 0.01,
+      "torquePct": [
+       56.3,
+       56.8
+      ],
+      "torqueReversals": 1,
+      "rollLagSec": null
+     }
+    }
+   }
+  },
+  {
+   "label": "Close turn 45° away from #2",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.42
+     ],
+     "gRateMax": 0.16,
+     "gReversals": 0,
+     "rollMax": 9,
+     "rollAccMax": 6,
+     "rollReversals": 0,
+     "drawnMax": 10,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.42
+     ],
+     "gRateMax": 1,
+     "gReversals": 5,
+     "rollMax": 10,
+     "rollAccMax": 13,
+     "rollReversals": 0,
+     "drawnMax": 28,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.07,
+       "line": 0.07,
+       "along": 0.04
+      },
+      "rmsFt": {
+       "plane": 0.03,
+       "line": 0.03,
+       "along": 0.02
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 4.8,
+      "gOffMax": 0.15,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.25
+     }
+    }
+   }
+  },
+  {
+   "label": "Steady after it, 10 s",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0.1,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.05,
+       "line": 0.07,
+       "along": 0.05
+      },
+      "rmsFt": {
+       "plane": 0.01,
+       "line": 0.05,
+       "along": 0.04
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 0,
+      "gOffMax": 0.01,
+      "torquePct": [
+       56.2,
+       56.8
+      ],
+      "torqueReversals": 1,
+      "rollLagSec": null
+     }
+    }
+   }
+  },
+  {
+   "label": "Close turn into #2, 8 s of it",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.4
+     ],
+     "gRateMax": 0.16,
+     "gReversals": 0,
+     "rollMax": 9,
+     "rollAccMax": 6,
+     "rollReversals": 0,
+     "drawnMax": 10,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.85,
+      1.52
+     ],
+     "gRateMax": 0.9,
+     "gReversals": 2,
+     "rollMax": 10,
+     "rollAccMax": 13,
+     "rollReversals": 0,
+     "drawnMax": 21,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.07,
+       "line": 0.1,
+       "along": 0.03
+      },
+      "rmsFt": {
+       "plane": 0.04,
+       "line": 0.05,
+       "along": 0.02
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 4.78,
+      "gOffMax": 0.15,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.4
+     }
+    }
+   }
+  },
+  {
+   "label": "Reversal mid-turn",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.42
+     ],
+     "gRateMax": 0.2,
+     "gReversals": 0,
+     "rollMax": 9,
+     "rollAccMax": 6,
+     "rollReversals": 0,
+     "drawnMax": 10,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.55
+     ],
+     "gRateMax": 1,
+     "gReversals": 5,
+     "rollMax": 10,
+     "rollAccMax": 13,
+     "rollReversals": 0,
+     "drawnMax": 28,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.06,
+       "line": 0.09,
+       "along": 0.05
+      },
+      "rmsFt": {
+       "plane": 0.02,
+       "line": 0.03,
+       "along": 0.02
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 4.8,
+      "gOffMax": 0.15,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.25
+     }
+    }
+   }
+  },
+  {
+   "label": "Close turn away, 8 s of it",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.4
+     ],
+     "gRateMax": 0.16,
+     "gReversals": 0,
+     "rollMax": 9,
+     "rollAccMax": 6,
+     "rollReversals": 0,
+     "drawnMax": 10,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1.01,
+      1.41
+     ],
+     "gRateMax": 1.12,
+     "gReversals": 2,
+     "rollMax": 9,
+     "rollAccMax": 9,
+     "rollReversals": 0,
+     "drawnMax": 28,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.05,
+       "line": 0.06,
+       "along": 0.04
+      },
+      "rmsFt": {
+       "plane": 0.03,
+       "line": 0.03,
+       "along": 0.03
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 2.22,
+      "gOffMax": 0.16,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.25
+     }
+    }
+   }
+  },
+  {
+   "label": "Wings level mid-turn",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1.41
+     ],
+     "gRateMax": 0.2,
+     "gReversals": 0,
+     "rollMax": 9,
+     "rollAccMax": 6,
+     "rollReversals": 0,
+     "drawnMax": 10,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.37
+     ],
+     "gRateMax": 1,
+     "gReversals": 2,
+     "rollMax": 10,
+     "rollAccMax": 13,
+     "rollReversals": 0,
+     "drawnMax": 26,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.09,
+       "line": 0.04,
+       "along": 0.03
+      },
+      "rmsFt": {
+       "plane": 0.05,
+       "line": 0.03,
+       "along": 0.02
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 4.79,
+      "gOffMax": 0.15,
+      "torquePct": null,
+      "torqueReversals": 0,
+      "rollLagSec": 0.3
+     }
+    }
+   }
+  },
+  {
+   "label": "Steady after it, 10 s",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.01
+     ],
+     "gRateMax": 0.13,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 0.05,
+       "line": 0.08,
+       "along": 0.06
+      },
+      "rmsFt": {
+       "plane": 0.01,
+       "line": 0.06,
+       "along": 0.04
+      },
+      "settleSec": 0,
+      "bankOffMaxDeg": 0,
+      "gOffMax": 0.01,
+      "torquePct": [
+       56.2,
+       56.8
+      ],
+      "torqueReversals": 1,
+      "rollLagSec": null
+     }
+    }
+   }
+  }
  ]
 }

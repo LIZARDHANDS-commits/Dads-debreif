@@ -29,6 +29,7 @@ import { leadStateOf } from '../src/modules/turn-sim/live/fluid-lead.js';
 import { pairSlot } from '../src/modules/turn-sim/live/slots.js';
 import { seenOf, placeDeviation } from '../src/modules/turn-sim/live/wingman/perception.js';
 import { torqueFromThrottle } from '../src/modules/turn-sim/live/wingman/close-formation.js';
+import { setCloseBank, DEFAULT_CLOSE_BANK_DEG } from '../src/modules/turn-sim/live/tuning.js';
 
 const ROLL_REVERSAL_DPS = 10; // a roll counts once it is faster than this either way (estimate)
 const G_REVERSAL_GPS = 0.3; // a G change counts once it is faster than this either way (estimate)
@@ -51,6 +52,47 @@ const steps = (sec) => Math.round(sec / STEP_SEC);
 /** Flies until the change or move in hand is finished (or capSec). */
 function settle(f, capSec = 300) {
   for (let i = 0; i < steps(capSec) && f.state.current; i++) f.step();
+}
+
+/**
+ * The known-bad case (--nudge): #2 put NUDGE_FT above his place at the end of a set-up, and what flies him next with him:
+ * what is left of his planned poses, or the live wingman's own aircraft (B1, B2).
+ */
+function nudgeTwo(f) {
+  const w = f.state.aircraft[1];
+  w.altAboveFt += NUDGE_FT;
+  for (const seg of f.state.plans[w.id]?.segments ?? []) for (const pose of seg.poses ?? []) pose.alt += NUDGE_FT;
+  const lw = f.state.liveWing;
+  if (lw) f.state.liveWing = { ...lw, st: { ...lw.st, pm: { ...lw.st.pm, z: lw.st.pm.z + NUDGE_FT } } };
+}
+
+/**
+ * B2 (plan 12.4, T9; spec 7b): the close turns in echelon with "#2 in close formation: Live", at a close-turn bank (the
+ * default 60°, then 45°): the telegraphed turn into #2 and away (#2 is on Lead's right, so a right turn, dir -1, is into
+ * him), then a Reversal and a Wings level pressed part way through a turn. Until B2's T11 the close turns still fly #2's
+ * held poses (the live wingman holds only between presses).
+ */
+function echelonTurns(bankDeg) {
+  const setup = (f) => {
+    setCloseBank(bankDeg);
+    f.change('echelon');
+    settle(f);
+    if (nudge) nudgeTwo(f);
+  };
+  return {
+    name: `echelon-turns-${bankDeg}`, close: 'echelon', options: { closeWing: 'live' }, setup, after: () => setCloseBank(DEFAULT_CLOSE_BANK_DEG),
+    presses: [
+      { label: `Close turn ${bankDeg}° into #2${nudge ? ` (#2 nudged ${NUDGE_FT} ft up)` : ''}`, press: (f) => f.press('delayed90', -1), sec: 'done' },
+      { label: 'Steady after it, 10 s', press: () => 'held', sec: 10 },
+      { label: `Close turn ${bankDeg}° away from #2`, press: (f) => f.press('delayed90', 1), sec: 'done' },
+      { label: 'Steady after it, 10 s', press: () => 'held', sec: 10 },
+      { label: 'Close turn into #2, 8 s of it', press: (f) => f.press('delayed90', -1), sec: 8 },
+      { label: 'Reversal mid-turn', press: (f) => f.pressClose('closeReversal'), sec: 'done' },
+      { label: 'Close turn away, 8 s of it', press: (f) => f.press('delayed90', 1), sec: 8 },
+      { label: 'Wings level mid-turn', press: (f) => f.pressClose('closeWingsLevel'), sec: 'done' },
+      { label: 'Steady after it, 10 s', press: () => 'held', sec: 10 },
+    ],
+  };
 }
 
 /**
@@ -81,14 +123,12 @@ const SCENARIOS = [
       settle(f);
       // The nudge moves #2 and what is left of his planned poses (the change ends in band about 2 s before its held poses
       // run out, and those would put him back), so it holds whatever flies him next.
-      if (nudge) {
-        const w = f.state.aircraft[1];
-        w.altAboveFt += NUDGE_FT;
-        for (const seg of f.state.plans[w.id]?.segments ?? []) for (const pose of seg.poses ?? []) pose.alt += NUDGE_FT;
-      }
+      if (nudge) nudgeTwo(f);
     },
     presses: [{ label: `Echelon hold, 60 s straight and level${nudge ? ` (#2 nudged ${NUDGE_FT} ft up)` : ''}`, press: () => 'held', sec: 60 }],
   },
+  echelonTurns(60),
+  echelonTurns(45),
   {
     name: 'fluid-loop', setup: (f) => { f.change('fw'); settle(f); },
     presses: [
@@ -142,7 +182,7 @@ function closeTally() {
 }
 
 function runScenario(sc) {
-  const f = createFormation({ ships: 2 });
+  const f = createFormation({ ships: 2, ...(sc.options ?? {}) });
   sc.setup(f);
   const results = [];
   const trace = { name: sc.name, stepSec: STEP_SEC, presses: [], aircraft: {} };
@@ -284,6 +324,7 @@ const index = [];
 for (const sc of SCENARIOS) {
   if (only && !sc.name.includes(only)) continue;
   const { results, trace } = runScenario(sc);
+  sc.after?.();
   out[sc.name] = results;
   writeFileSync(`${TRACES}/${sc.name}.json`, JSON.stringify(trace));
   index.push({ name: sc.name, file: `${sc.name}.json`, presses: trace.presses });
