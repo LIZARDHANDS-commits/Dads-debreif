@@ -209,10 +209,6 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   );
   // Settings: how things are flown, and the fixed numbers.
   const settingsBody = h('section', { class: 'ts-settings', 'aria-label': 'Settings' },
-    h('div', { class: 'ts-field' }, layoutControls.select('trackSec', { label: 'Track length', options: [
-      { value: 0, label: 'Whole flight' }, { value: 30, label: '30 s' }, { value: 60, label: '1 min' }, { value: 120, label: '2 min' },
-      { value: 300, label: '5 min' }, { value: 600, label: '10 min' },
-    ] })),
     ...(changeUi?.rejoinSettings ? [changeUi.rejoinSettings] : []),
     ...(changeUi?.leadSettings ? [changeUi.leadSettings] : []),
     ...(changeUi?.fluidSettings ? [changeUi.fluidSettings] : []),
@@ -294,6 +290,11 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   }
   const layersMenu = menu('Layers', 'ts-layers', [
     lc.checkbox('tracks', { label: 'Ground tracks' }),
+    // Track length beside the tracks it shortens (it was in Settings until the menu of 14 Oct 2026: it is display).
+    lc.select('trackSec', { label: 'Track length', options: [
+      { value: 0, label: 'Whole flight' }, { value: 30, label: '30 s' }, { value: 60, label: '1 min' }, { value: 120, label: '2 min' },
+      { value: 300, label: '5 min' }, { value: 600, label: '10 min' },
+    ] }),
     lc.checkbox('planned', { label: 'Planned path' }),
     lc.checkbox('turnCircles', { label: 'Turn circles' }),
     layerWithShips('lead39', 'l39', '3/9 line'),
