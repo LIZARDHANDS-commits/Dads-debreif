@@ -102,7 +102,35 @@ export function stepFwWingman(w, refSt) {
   let range = seen.slant;
   let closing = seen.closure;
   let arcFt = null;
-  if (W.followCircle && seen.turn.centre && job.turning) {
+  let dFt = null; // his offset inside Lead's circle (ft; + toward the centre), Fable F10
+  if (W.arcFrame && job.turning) {
+    // (s, d) in Lead's turn-centre frame (Fable F10, second review): x along Lead's path, y toward his turn's centre, R his
+    // radius; s = R atan2(-x, R - y) the arc behind him round his circle, d = R - sqrt((R - y)^2 + x^2) the offset inside it.
+    // As R grows they tend to -x and y, so through wings level the same pair is used (below turnFrameDeg of Lead's bank, the
+    // limits). The closure comes from the velocities, not from differencing s (s jumps when Lead's bank changes): +
+    // closing, R v2t / r - V_L, with v2t his speed along Lead's way round at his radius r.
+    const nL = unit3(leadV);
+    const inward = seen.turn.centre && Math.abs(seen.leadBankDeg) >= W.turnFrameDeg ? unit3(seen.turn.aPerp) : scale3(cone.left, job.dir || 1);
+    const rel = sub3(ownP, leadNow);
+    const x = dot3(rel, nL);
+    const y = dot3(rel, inward);
+    if (seen.turn.centre && Math.abs(seen.leadBankDeg) >= W.turnFrameDeg) {
+      const R = seen.turn.radiusFt;
+      const r = Math.hypot(R - y, x);
+      arcFt = R * Math.atan2(-x, R - y);
+      dFt = R - r;
+      // his speed round Lead's centre at his place: the tangent there, Lead's way round
+      const radialIn = scale3(add3(scale3(inward, y - R), scale3(nL, x)), 1 / Math.max(r, 1)); // from the centre to him
+      const axis = unit3(cross3(nL, inward)); // Lead's turn's axis (his way round, right-handed: at Lead, axis x radial = his path)
+      const tangent = unit3(cross3(axis, radialIn));
+      closing = (R * dot3(ownV, tangent)) / Math.max(r, 1) - len3(leadV);
+    } else {
+      arcFt = -x;
+      dFt = y;
+      closing = dot3(ownV, nL) - len3(leadV);
+    }
+    range = arcFt;
+  } else if (W.followCircle && seen.turn.centre && job.turning) {
     const c = seen.turn.centre;
     const axis = unit3(seen.turn.omega);
     const rL = perp3(sub3(W.deadReckon ? leadNow : seen.lead.p, c), axis);
@@ -195,7 +223,10 @@ export function stepFwWingman(w, refSt) {
   const aP = scale3(n, G_FTPS2 * W.gPerDeg * angleDeg);
   // ---- the vertical, square to the turn plane: one pitch owner (F7), the guard's miss, else the jobs' height target (the
   // quick fix's or his stack 50 ft below), PD (spec 7e.7) ----
-  const dz = (W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on) ? guard.vert * guard.missFt : job.heightFt;
+  const passClearOwns = W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on;
+  const dz = passClearOwns ? guard.vert * guard.missFt : job.heightFt;
+  // who has pitch this step, for the trace (Fable Q7's working answer: log it)
+  const pitchOwner = passClearOwns ? 'passClear' : job.low ? 'lowInside' : job.quick ? 'quickFix' : 'stack';
   const errFt = dot3(sub3(add3(leadNow, scale3(Z, dz)), st.pm), out); // + he has to go toward the normal (up)
   const errRate = -dot3(sub3(st.vel, leadV), out);
   const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
@@ -324,7 +355,7 @@ export function stepFwWingman(w, refSt) {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
       heightTargetFt: Math.round(dz), wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
-      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low,
+      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null,
     },
   };
 }

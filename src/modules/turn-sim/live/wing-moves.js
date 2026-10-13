@@ -386,6 +386,8 @@ export const FW_WING = Object.freeze({
   // "So can lead and 2 follows").
   gPerDeg: 0.05, // about 0.05 G per degree, 1 G per 20° (spec 7e.7)
   // ---- the cone in Lead's turns, rebuilt on Fable's second review (14 Oct 2026, fable-cone-turn-report-14oct.md) ----
+  arcFrame: true, // the turn's range as (s, d) in Lead's turn-centre frame, continuous through wings level, closure from velocities (Fable F10)
+  turnFrameDeg: 5, // below 5° of Lead's bank the frame's straight-line limits are used (Fable F10, estimate)
   deadReckon: true, // Lead carried across the 0.4 s delay round his turn before anything uses him (Fable F5)
   aimTurnSec: 0.5, // the aim line's turn read over about 0.5 s (as the line of sight)
   overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate) ...

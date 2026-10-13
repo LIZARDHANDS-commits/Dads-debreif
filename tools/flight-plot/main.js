@@ -26,6 +26,8 @@ const CHARTS = [
   { keys: [['cWantFtps', 'wanted'], ['cActualFtps', 'actual']], title: 'Fighting wing: wanted against actual closure (the aim loop; along his place in straight flight)', unit: 'ft/s', lines: [0] },
   { keys: [['losDps', 'line of sight rate']], title: 'Fighting wing: line of sight rate', unit: '°/s' },
   { keys: [['aspectDeg', 'aspect (0 at Lead\'s tail)'], ['hcaDeg', 'HCA']], title: 'Fighting wing: aspect and heading crossing angle', unit: '°', lines: [90] },
+  { keys: [['sFt', 'arc behind Lead, s'], ['dFt', 'offset inside his circle, d']], title: "Fighting wing: (s, d) in Lead's turn-centre frame (Fable F10)", unit: 'ft', lines: [0, 650] },
+  { steps: 'pitchOwner', title: 'Fighting wing: who has pitch (0 stack, 1 quick fix, 2 low inside, 3 high yo-yo, 4 pass clear)', unit: 'level' },
   { keys: [['offFt', 'offset d (+ inside: lead)']], title: "Fighting wing: the aim's offset from Lead's circle", unit: 'ft', lines: [-120, 0, 120] },
   { keys: [['heightFt', 'height'], ['heightTargetFt', 'target']], title: 'Fighting wing: height against Lead', unit: 'ft', lines: [-200, 0, 200] },
   { keys: [['fwTorquePct', 'torque']], title: 'Fighting wing: torque', unit: '%' },
@@ -34,6 +36,7 @@ const CHARTS = [
 ];
 const JOB_LEVEL = (job, low) => (job == null ? null : job.startsWith('guard-miss') ? 5 : job.startsWith('guard-reverse') ? 4 : job.startsWith('turn') ? (low ? 3 : 2) : job === 'sTurn' ? 1 : 0);
 const AIM_LEVEL = { wasLead: -2, lag: -1, pure: 0, lead: 1, swept: 2, sTurn: 3 };
+const OWNER_LEVEL = { stack: 0, quickFix: 1, lowInside: 2, yoyo: 3, passClear: 4 };
 const COLOURS = ['#4fc3f7', '#ffb74d', '#81c784', '#e57373'];
 
 const runSelect = document.getElementById('run');
@@ -101,7 +104,9 @@ function show(trace) {
       if (!who) continue;
       const a = trace.aircraft[who];
       if (c.steps) {
-        const vals = c.steps === 'job' ? a.job.map((j, i) => JOB_LEVEL(j, a.fwLow?.[i])) : a.aim.map((x) => (x == null ? null : AIM_LEVEL[x] ?? null));
+        const vals = c.steps === 'job' ? a.job.map((j, i) => JOB_LEVEL(j, a.fwLow?.[i]))
+          : c.steps === 'pitchOwner' ? a.pitchOwner.map((x) => (x == null ? null : OWNER_LEVEL[x] ?? null))
+            : a.aim.map((x) => (x == null ? null : AIM_LEVEL[x] ?? null));
         data = [t, vals];
         series = [{ label: 's' }, { label: `${who} ${c.steps}`, stroke: COLOURS[0], width: 1.5, paths: uPlot.paths.stepped({ align: 1 }) }];
       } else {
