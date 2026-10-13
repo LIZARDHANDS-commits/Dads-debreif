@@ -124,24 +124,31 @@ const STATIONS = [
 // the origin (was 3.45 ft, 0.51 ft aft of it), and falling from there about 1 ft further forward than before, through
 // 2.45 ft at the rear bow's crest and 1.3 ft where the dorsal fin leaves it, into the fuselage's top 10.3 ft aft of the
 // origin (was 11.3 ft); the half-widths moved with it, the rear bow's 2.55 ft across kept at its crest.
+// Chunk 2 of the CT-156 rebuild (3d-work ct156/sources.md, "The canopy"; fix rows B2, C3, C4, C7; Patrick, 12 and 13 Oct 2026): the crests
+// lowered to 2.53 ft (forward bow), 3.24 ft (centre bow) and 2.38 ft (rear end) above the spinner's axis (was 2.75, 3.34, 2.45), the
+// drops straight-line between the crests (nothing at the windscreen's foot, nothing where the dorsal fin leaves the fairing: an
+// estimate), from the master's own table (ct156/build/canopy_shape.py, Canopy()); a row added at each crest, the forward bow's crest
+// 0.145 ft further aft (4.392 ft ahead of the origin) so its feet stay where they were (C3).
 const CANOPY = [
   [0.292, 0.01, 0.0601],
-  [0.278, 0.034, 0.0715],
-  [0.269, 0.0425, 0.0766],
-  [0.26, 0.0495, 0.0817],
-  [0.2415, 0.054, 0.0924],
-  [0.232, 0.0554, 0.0979],
-  [0.214, 0.0572, 0.1083],
-  [0.196, 0.059, 0.1188],
-  [0.14, 0.0605, 0.1249],
-  [0.059, 0.0605, 0.1413],
-  [0.018, 0.0605, 0.1443],
-  [-0.03, 0.0605, 0.1426],
-  [-0.075, 0.0605, 0.137],
-  [-0.12, 0.06, 0.1266],
-  [-0.174, 0.055, 0.1058],
-  [-0.195, 0.055, 0.096],
-  [-0.23, 0.05, 0.0795],
+  [0.278, 0.034, 0.07011],
+  [0.269, 0.0425, 0.07431],
+  [0.26, 0.0495, 0.07851],
+  [0.2415, 0.054, 0.08737],
+  [0.232, 0.0554, 0.09192],
+  [0.214, 0.0572, 0.10053],
+  [0.196, 0.059, 0.10924],
+  [0.18973, 0.05917, 0.1093],
+  [0.14, 0.0605, 0.11641],
+  [0.059, 0.0605, 0.13557],
+  [0.018, 0.0605, 0.13997],
+  [0.0177, 0.0605, 0.13997],
+  [-0.03, 0.0605, 0.13861],
+  [-0.075, 0.0605, 0.13333],
+  [-0.12, 0.06, 0.12324],
+  [-0.174, 0.055, 0.10282],
+  [-0.195, 0.055, 0.09363],
+  [-0.23, 0.05, 0.07815],
   [-0.276, 0.042, 0.0579],
   [-0.322, 0.033, 0.0415],
   [-0.368, 0.024, 0.0315],
@@ -162,7 +169,8 @@ const CANOPY = [
 // Then the helmets moved off their seats' stations (Patrick, 12 Oct 2026, "With the seat"): each helmet's centre 0.3 ft
 // aft of its station (CT156_HELMET_X), the front one 0.16 ft lower (to 1.83 ft up) and the rear one 0.27 ft lower (to
 // 2.02 ft up), so each sits back against its headbox with its eye at the front of the helmet (ct156-cockpit.js).
-export const CT156_FRAME_X = Object.freeze([0.196, 0.0177, -0.174]);
+// The forward bow's crest 0.18973 (was 0.196): C3 keeps its feet where they were and the bow now leans 12 degrees (3d-work chunk 2).
+export const CT156_FRAME_X = Object.freeze([0.18973, 0.0177, -0.174]);
 export const CT156_SEAT_X = Object.freeze([0.1257, -0.092]);
 export const CT156_HELMET_X = Object.freeze([0.1127, -0.105]);
 export const CT156_HELMET_Z = Object.freeze([0.0791, 0.0872]);
@@ -307,14 +315,15 @@ const DORSAL = [
   [-0.53, 0.0035, 0.0684],
 ];
 // The forward bow leans aft from its crest 9° to the sill, as the side view shows it (was upright).
-export const CT156_BOW_LEAN = rad(14.5); // the side view's band, 11 Oct 2026 (was 9°, read off the photo; Patrick's 156102 photo reads about 13°)
+export const CT156_BOW_LEAN = rad(12); // C3 (Patrick, 12 Oct 2026; provisional until M22), each photo read against its own canopy rail with the rail's rise taken off (was 14.5°, the side view's band, 11 Oct 2026)
 /**
  * Each frame hoop's lean from its crest to the sills (CT156_FRAME_X's order), radians: + the feet aft of the crest, -
  * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 26° with its top aft (Patrick, 12 Oct 2026; 22° from
  * 11 Oct 2026, "the wrong angles in the canopy bow", when it was upright). The centre bow 21° the same way, the
  * same view's, with the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leaning with it (was upright).
  */
-export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, rad(-21), rad(-26)]);
+// C7: the centre bow 17.5° (was 21°) and C4: the rear end 14° (was 26°), both top aft (3d-work chunk 2, provisional until M22).
+export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, rad(-17.5), rad(-14)]);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
 const thick = (xc, t) => 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -1660,6 +1669,9 @@ function hoopGeometry(THREE, x, lean = 0, half = 0.0045) {
   }
   return meshOf(THREE, pos, idx);
 }
+/** The canopy bows' widths seen from the side, inches, in CT156_FRAME_X's order: forward 3.6 and centre 3.4 (C2), the rear end's band 1.5 (C4) (3d-work chunk 2). Was 2.5 for all. */
+export const CT156_FRAME_WIDTH_IN = Object.freeze([3.6, 3.4, 1.5]);
+const frameHalf = (i) => (CT156_FRAME_WIDTH_IN[i] / 2 / 12) * GFT; // a bow's half-width, model units
 /** Where the canopy's sill rails start at the front, model units (under the front coaming's sides; ct156-cockpit.js). */
 export const CT156_RAIL_FORE_X = 0.25;
 /**
@@ -2138,11 +2150,11 @@ function buildKit(THREE) {
   geo.canopy = canopyGeometry(THREE);
   geo.frames = joinGeometries(THREE, [
     // The centre and rear hoops; the forward one is apart (bowFront), since from the seat ct156-cockpit.js draws it.
-    ...CT156_FRAME_X.slice(1).map((x, i) => ({ geometry: hoopGeometry(THREE, x, CT156_FRAME_LEAN[i + 1]), materials: [0] })),
+    ...CT156_FRAME_X.slice(1).map((x, i) => ({ geometry: hoopGeometry(THREE, x, CT156_FRAME_LEAN[i + 1], frameHalf(i + 1)), materials: [0] })),
     { geometry: railGeometry(THREE, 1), materials: [0] },
     { geometry: railGeometry(THREE, -1), materials: [0] },
   ]);
-  geo.bowFront = hoopGeometry(THREE, CT156_FRAME_X[0], CT156_FRAME_LEAN[0]);
+  geo.bowFront = hoopGeometry(THREE, CT156_FRAME_X[0], CT156_FRAME_LEAN[0], frameHalf(0));
   const floor = new THREE.CircleGeometry(1, 24);
   floor.scale(0.2, 0.05, 1);
   floor.translate(-0.035, 0, 0.046);

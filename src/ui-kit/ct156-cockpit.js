@@ -106,8 +106,8 @@ const REAR_DX = (CT156_SEAT_X[1] - SEAT_DRAWN_X) * F;
 
 /**
  * The forward canopy bow (the windscreen's frame), feet: the model's front frame hoop station (CT156_FRAME_X[0], about
- * 4.0 ft) and its crest, the canopy's top there (about 2.75 ft) (model tables; the side view's, ALL-31),
- * leaning aft 9° from the crest to the sills (CT156_BOW_LEAN, the same view's), so its feet stand about 0.3 ft behind
+ * 4.39 ft) and its crest, the canopy's top there (about 2.53 ft) (model tables; the side view's at its true scale, 3d-work chunk 2),
+ * leaning aft 12° from the crest to the sills (CT156_BOW_LEAN), so its feet stand about 0.5 ft behind
  * the crest's station, beside the coaming rather than on it. Seen from the seat it is a wide light
  * band lining the glass, with a ring of round dark holes and a dark tube along its inner edge (AETCMAN 11-248 Fig 2.7,
  * p.42, and Fig 5.3, para 5.13; TS-156): its aft face 0.05 ft behind the hoop station, 0.15 ft deep from the glass
