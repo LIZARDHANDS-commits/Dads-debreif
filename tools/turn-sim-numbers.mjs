@@ -1,15 +1,20 @@
-// Makes docs/modules/turn-sim/numbers.md, the Formation Sim's numbers register (refactor PR 4, TS-95): every number in
-// src/modules/turn-sim/live/rates.js, bands.js and moves.js with the source written beside it. Run from the repo root:
+// Makes docs/modules/turn-sim/numbers.md, the Formation Sim's numbers register (refactor PR 4, TS-95) and its tuning sheet
+// (TS-214): every number in the sheet's files with the source written beside it, the aircraft's own limits (core
+// t6-performance.js) first. Run from the repo root:
 //   node tools/turn-sim-numbers.mjs
 // It reads the files as text (no import), so it lists exactly what is written there, comments included.
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const FILES = [
-  ['rates.js', 'Rates: the G rule, the rate sets, the Rates setting, roll, banks'],
-  ['bands.js', 'Bands: in position and done'],
-  ['moves.js', 'Moves: each move\'s numbers'],
-];
 const dir = 'src/modules/turn-sim/live/';
+const FILES = [
+  ['../../../core/t6-performance.js', 'The aircraft: the T-6A\'s own limits (core, shared with every module)'],
+  ['handling.js', 'Handling: how the steppers fly the aircraft on top of its limits'],
+  ['rates.js', 'Rates: the G rule, the rate sets, the Rates setting, roll, banks'],
+  ['lead-moves.js', 'Lead: the moves Lead flies, in the programme and in fluid'],
+  ['wing-moves.js', 'Wingmen: the live laws, the close turns\' held poses, the fluid exercise, the rolling rejoin'],
+  ['moves.js', 'Moves: the tracker\'s numbers and each tracker move\'s'],
+  ['bands.js', 'Bands: in position and done'],
+];
 const cell = (s) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim(); // backslashes first, then the table's pipes
 
 function rows(text) {
@@ -52,10 +57,12 @@ function rows(text) {
 }
 
 let md = `# Formation Sim numbers register\n\nEvery number the Formation Sim's planners use, with the source written beside it in the code (refactor PR 4, TS-95). `
-  + `Made by \`node tools/turn-sim-numbers.mjs\` from \`src/modules/turn-sim/live/\` rates.js, bands.js and moves.js; do not edit by hand. `
-  + `"Estimate" means no manual page or ruling backs it yet. The formations' own places and bands are in \`slots.js\` and \`judge.js\`.\n`;
+  + `It is the tuning sheet's one page (TS-214): the aircraft's limits from core, then the Formation's handling, Lead's and the wingmen's technique and hands. `
+  + `Made by \`node tools/turn-sim-numbers.mjs\` from core \`t6-performance.js\` and \`src/modules/turn-sim/live/\` handling.js, rates.js, lead-moves.js, wing-moves.js, moves.js and bands.js (\`tuning.js\` re-exports them); do not edit by hand. `
+  + `"Estimate" means no manual page or ruling backs it yet. The formations' own places and bands are in \`slots.js\` and \`judge.js\`. `
+  + `Not in the sheet yet: the 4-ship's numbers (four-*.js, joining at plan Step 12.8), the training errors (errors.js), the optimiser's scoring (optimise/) and the planners' search effort.\n`;
 for (const [file, title] of FILES) {
-  md += `\n## ${title} (\`${file}\`)\n\n| Number | Value | Source and note |\n|---|---|---|\n`;
+  md += `\n## ${title} (\`${file.replace('../../../', 'src/')}\`)\n\n| Number | Value | Source and note |\n|---|---|---|\n`;
   for (const [name, value, note] of rows(readFileSync(dir + file, 'utf8'))) md += `| ${name} | ${value ? `\`${value}\`` : ''} | ${note} |\n`;
 }
 writeFileSync('docs/modules/turn-sim/numbers.md', md);
