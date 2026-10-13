@@ -61,11 +61,12 @@ export { G_ONSET_CEILING };
  *   - stall: never steeper than the bank whose G the speed can give (core stallLimitG; 86 KIAS 1 G stall, Patrick's).
  * A planner may ask for anything; the aircraft flies only this. tasFtps and kias are the aircraft's now. accelDps2: the
  * roll acceleration the aircraft carries (carriedRollAccel), built over the T-6A's onset (core T6A_ROLL.onsetSec,
- * Patrick's 0.2 s, TS-196); undefined rolls without it (every aircraft but the wingmen the pilot flies). Returns easeRoll's
- * { bankDeg, rollRateDps, rollAccelDps2 }.
+ * Patrick's 0.2 s, TS-196); undefined rolls without it (every aircraft but Lead and the wingmen the pilot flies). plannedStop:
+ * the roll-out planned so it never rolls past (core easeRoll; Lead's, a.plannedRoll). Returns easeRoll's { bankDeg,
+ * rollRateDps, rollAccelDps2 }.
  */
-export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, accelDps2 = undefined) {
-  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2 };
+export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, accelDps2 = undefined, plannedStop = false) {
+  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2, plannedStop };
   // A rate handed in faster than the aircraft rolls (a replayed pose's own) is taken at the aircraft's.
   const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps ?? 0));
   let target = targetDeg;
@@ -267,10 +268,10 @@ function stepTurnRad(tasFtps, fromDeg, toDeg) {
 /**
  * How much the heading still changes (radians, signed) if the wings are rolled level from here, at the roll limits `roll`
  * (under the T-6A's, rollLimitAt). accelDps2: the roll acceleration carried (carriedRollAccel), so the roll-out is the one
- * the gate flies, built over the same onset; undefined for a roll without it.
+ * the gate flies, built over the same onset; undefined for a roll without it. plannedStop: as gateRoll's.
  */
-export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL, accelDps2 = undefined) {
-  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec };
+export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL, accelDps2 = undefined, plannedStop = false) {
+  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, plannedStop };
   let bank = bankDeg;
   let rate = rollRateDps;
   let acc = accelDps2 ?? 0;
@@ -526,7 +527,7 @@ export function stepAircraft(a, plan, t) {
         }
       } else {
         // Roll out early enough that the wings come level on the target heading.
-        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll ?? plan.roll ?? a.techRoll, carriedRollAccel(a)));
+        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll ?? plan.roll ?? a.techRoll, carriedRollAccel(a), a.plannedRoll));
         const thisStep = Math.abs(turnRateFromBankRadPerSec(a.tasFtps, a.bankDeg)) * dt;
         if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
       }
@@ -600,7 +601,7 @@ export function stepAircraft(a, plan, t) {
   // A turn segment may roll gentler (a close formation Lead); never past the envelope gate (gateRoll: the T-6A's roll at
   // this speed, TS-85; G onset and stall, TS-93).
   const accel0 = carriedRollAccel(a);
-  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || plan.roll || a.techRoll || ROLL, tasBefore, a.kias, accel0);
+  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || plan.roll || a.techRoll || ROLL, tasBefore, a.kias, accel0, a.plannedRoll);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   if (accel0 !== undefined) keepRollAccel(a, rolled.rollAccelDps2);

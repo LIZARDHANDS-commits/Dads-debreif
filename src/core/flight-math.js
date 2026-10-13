@@ -158,11 +158,15 @@ export function rollToward(bank, target, maxDeltaRad, prefer = 1) {
  * With an onset (onsetSec, seconds) the roll's acceleration is built too: it
  * changes by at most maxAccelDps2 per onsetSec, so full acceleration takes one
  * onset to build and one to die away (the stick pushed, not slammed); accelDps2
- * is the acceleration it already has. Onset 0 is the law without it, exactly.
+ * is the acceleration it already has. That chase of a wanted rate rings past
+ * the target (about 15° from 30° of bank at 90°/s, 0.2 s onset); plannedStop
+ * plans the roll-out instead, so it never rolls past (plannedStopStep). Lead
+ * flies it now; the wingmen keep the chase, which their tracker was tuned on,
+ * until phase B (Patrick, 12 Oct 2026). Onset 0 is the law without it, exactly.
  * Degrees, degrees per second and per second²; returns { bankDeg, rollRateDps,
  * rollAccelDps2 } for the next step. With no time step nothing moves.
  */
-export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxAccelDps2, onsetSec = 0, accelDps2 = 0 }) {
+export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxAccelDps2, onsetSec = 0, accelDps2 = 0, plannedStop = false }) {
   const onset = onsetSec > 0 ? onsetSec : 0;
   if (!(dt > 0)) return { bankDeg, rollRateDps, rollAccelDps2: onset > 0 ? accelDps2 : 0 };
   const err = targetDeg - bankDeg;
@@ -176,6 +180,7 @@ export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxA
     const rate = rollRateDps + Math.max(-step, Math.min(step, wanted - rollRateDps));
     return { bankDeg: bankDeg + rate * dt, rollRateDps: rate, rollAccelDps2: (rate - rollRateDps) / dt };
   }
+  if (plannedStop) return plannedStopStep(bankDeg, rollRateDps, accelDps2, targetDeg, dt, maxRateDps, maxAccelDps2, maxAccelDps2 / onset);
   // The acceleration that reaches the rate wanted over half an onset, never past maxAccelDps2 or the rate limit, moved
   // toward at most maxAccelDps2 / onset per second.
   let accWanted = Math.max(-maxAccelDps2, Math.min(maxAccelDps2, ((wanted - rollRateDps) * 2) / onset));
@@ -188,6 +193,58 @@ export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxA
   // all but gone, the wings are on it.
   if (Math.abs(targetDeg - bank) < 1e-3 && Math.abs(rate) < 1e-2 && Math.abs(accel) < 1) return { bankDeg: targetDeg, rollRateDps: 0, rollAccelDps2: 0 };
   return { bankDeg: bank, rollRateDps: rate, rollAccelDps2: accel };
+}
+
+/** One step at a steady change of acceleration (jerk j) for t seconds, exactly: [value, rate, acceleration]. */
+function jerkStep(x, v, a, j, t) {
+  return [x + v * t + (a * t * t) / 2 + (j * t * t * t) / 6, v + a * t + (j * t * t) / 2, a + j * t];
+}
+
+/**
+ * Where a motion comes to rest (rate and acceleration both gone) if it brakes as hard as it may from now: the
+ * acceleration swung to the brake at the jerk limit J, held at no more than A, then eased off at J.
+ */
+function restAfterBrake(x, v, a, J, A) {
+  const left = v + (a * Math.abs(a)) / (2 * J); // the rate left once the acceleration is simply taken out
+  if (Math.abs(left) < 1e-12) return jerkStep(x, v, a, -Math.sign(a) * J, Math.abs(a) / J)[0];
+  const s = Math.sign(left); // brake against the way it is still going
+  let X = s * x, V = s * v, Acc = s * a;
+  const peak = Math.min(A, Math.sqrt(J * V + (Acc * Acc) / 2));
+  const hold = Math.max(0, (V + (Acc * Acc) / (2 * J) - (peak * peak) / J) / peak);
+  [X, V, Acc] = jerkStep(X, V, Acc, -J, (Acc + peak) / J);
+  [X, V, Acc] = jerkStep(X, V, -peak, 0, hold);
+  [X] = jerkStep(X, V, -peak, J, peak / J);
+  return s * X;
+}
+
+/**
+ * easeRoll's planned stop (plannedStop), as a pilot leads the roll-out (Patrick, 12 Oct 2026: the old chase of a wanted rate
+ * rang about 15° past wings level from 30° of bank at 90°/s with a 0.2 s onset). Each step it takes the strongest change
+ * of acceleration, within the jerk limit J, that still lets the motion stop on the target with full braking and level
+ * off at the rate limit; it finds it by halving. The stop is checked in closed form, so nothing overshoots by more than
+ * a step's rounding.
+ */
+function plannedStopStep(x, v, a, target, dt, R, A, J) {
+  const s = target !== x ? Math.sign(target - x) : (v !== 0 ? -Math.sign(v) : 1); // toward the target is positive
+  const E = s * target, X = s * x, V = s * v, Acc = s * a;
+  const fits = (j) => {
+    const [x1, v1, a1] = jerkStep(X, V, Acc, j, dt);
+    if (v1 + Math.max(a1, 0) ** 2 / (2 * J) > R + 1e-9) return false; // would run past the rate limit
+    return restAfterBrake(x1, v1, a1, J, A) <= E + 1e-9; // would stop past the target
+  };
+  const jLo = Math.max(-J, (-A - Acc) / dt), jHi = Math.min(J, (A - Acc) / dt);
+  let j;
+  if (fits(jHi)) j = jHi;
+  else if (!fits(jLo)) j = jLo;
+  else {
+    let lo = jLo, hi = jHi;
+    for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; }
+    j = lo;
+  }
+  const [x1, v1, a1] = jerkStep(X, V, Acc, j, dt);
+  // Within a thousandth of a degree, with the rate and the acceleration all but gone, the wings are on it.
+  if (Math.abs(E - x1) < 1e-3 && Math.abs(v1) < 1e-2 && Math.abs(a1) < 1) return { bankDeg: target, rollRateDps: 0, rollAccelDps2: 0 };
+  return { bankDeg: s * x1, rollRateDps: s * v1, rollAccelDps2: s * a1 };
 }
 
 /** easeRoll under a general name: it limits any value's rate and the rate's change (a G onset, a roll), not only bank. */

@@ -23,6 +23,14 @@ import { MIN_POSITIVE_G } from './handling.js';
  */
 export const LEAD_ROLL = Object.freeze({ maxRateDps: 90, maxAccelDps2: 90 / T6A_ROLL.fullRateSec });
 
+/**
+ * Lead's roll is planned, not chased: built over the T-6A's 0.2 s onset, the roll-out started where the wings will stop on
+ * the bank wanted, so he never rolls past it (core easeRoll plannedStop; Patrick 12 Oct 2026: "can we just make this
+ * simple?", against a PID). The chase had him ring about 15° past wings level from 30° of bank. The programme Lead carries
+ * these (formation.js, four-ship.js); fluid Lead's step (stepLead) flies the same when asked LEAD_ROLL.
+ */
+export const LEAD_ROLL_STATE = Object.freeze({ plannedRoll: true, rollAccelDps2: 0, rollAccelForRateDps: 0 });
+
 // ---- Lead's power in formation (TS-216) -----------------------------------------------------------------------------
 
 /**

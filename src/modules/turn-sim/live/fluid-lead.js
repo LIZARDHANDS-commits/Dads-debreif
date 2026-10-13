@@ -51,11 +51,11 @@
 //    position (the distance setting, 15° off Lead's tail) during it; then each manoeuvre's own speed set-up leads on.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
-import { excessFnFor, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { excessFnFor, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET, T6A_ROLL } from '../../../core/t6-performance.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
-import { ROLL, WING, LEAD } from './tuning.js';
+import { ROLL, WING, LEAD, LEAD_ROLL } from './tuning.js';
 import { engineFrom, engineStep, throttleAtTorque } from './power.js';
 
 export { LEAD }; // its home is lead-moves.js (the tuning sheet, TS-214); read from here by older imports
@@ -184,11 +184,14 @@ export function stepLead(st, ask) {
     const g = easeValue(s.g, s.gRate, Math.min(askG, shakerG(s.kias)), half, LEAD.gOnset);
     const target = s.bank + wrapPi((askBank - s.bank) * DEG) / DEG; // the near way round
     // The roll: ask.roll's rate (Lead's technique, LEAD_ROLL, TS-222) or the aircraft's, never faster than the T-6A at this
-    // speed (TS-85). The 0.2 s roll onset waits for the roll smoother's fix (core easeRoll overshoots with an onset, TS-222).
-    const r = easeValue(s.bank, s.rollRate, target, half, rollLimitAt(s.V, ask.roll ?? ROLL));
+    // speed (TS-85). Lead's is built over the T-6A's 0.2 s onset with the roll-out planned (LEAD_ROLL_STATE, core easeRoll
+    // plannedStop); #2's live step keeps the roll without an onset until phase B.
+    const planned = ask.roll === LEAD_ROLL;
+    const limits = planned ? { ...rollLimitAt(s.V, LEAD_ROLL), onsetSec: T6A_ROLL.onsetSec, accelDps2: s.rollAcc ?? 0, plannedStop: true } : rollLimitAt(s.V, ask.roll ?? ROLL);
+    const r = easeValue(s.bank, s.rollRate, target, half, limits);
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
     const prev = s;
-    s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt, eng });
+    s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, rollAcc: planned ? r.rollAccelDps2 : 0, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt, eng });
     if (want) s = carryBank(prev, s);
   }
   return s;
@@ -332,7 +335,7 @@ export function levelTurn(dir, bankDeg, { turnDeg = null, label = null } = {}) {
       mem.t += STEP_SEC;
       let bank = -dir * bankDeg;
       if (turnDeg != null) {
-        const rollOut = Math.abs(headingChangeRollingOut(-st.bank, -st.rollRate, st.V));
+        const rollOut = Math.abs(headingChangeRollingOut(-st.bank, -st.rollRate, st.V, LEAD_ROLL, -(st.rollAcc ?? 0), true));
         if (mem.rollingOut || mem.turned >= turnDeg * DEG - rollOut) mem.rollingOut = true;
         if (mem.rollingOut) bank = 0;
       }
@@ -696,7 +699,7 @@ export function terminate(dir) {
       mem.turned += wrapPi(h - mem.hPrev) * dir;
       mem.hPrev = h;
       const backSec = ctx?.blendOutSec ?? WING.blendOutSec;
-      const rollOut = Math.abs(headingChangeRollingOut(-st.bank, -st.rollRate, st.V));
+      const rollOut = Math.abs(headingChangeRollingOut(-st.bank, -st.rollRate, st.V, LEAD_ROLL, -(st.rollAcc ?? 0), true));
       if (mem.t >= backSec || mem.turned >= LEAD.terminateTurnDeg * DEG - rollOut) mem.rollingOut = true;
       const bank = mem.rollingOut ? 0 : -dir * LEAD.terminateBankDeg;
       const steady = mem.rollingOut && level(st) && Math.abs(st.kias - LEAD.fwKias) < 0.5;

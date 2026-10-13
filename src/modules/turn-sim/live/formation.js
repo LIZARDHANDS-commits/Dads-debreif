@@ -20,7 +20,7 @@ import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge, judgeFluid4 } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
-import { LEAD_ROLL } from './lead-moves.js';
+import { LEAD_ROLL, LEAD_ROLL_STATE } from './lead-moves.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn } from './formation-turns.js';
@@ -121,7 +121,7 @@ export function createFormation(options = {}) {
     const h = headingRadFromCompass(opts.headingDeg);
     const side = opts.wingSide === 'left' ? 1 : -1; // +1 left of Lead
     const left = { x: Math.cos(h + Math.PI / 2), y: Math.sin(h + Math.PI / 2) };
-    const lead = { ...makeAircraft({ id: 1, xFt: 0, yFt: 0, headingRad: h, kias: opts.kias, tasFtps: tas }), ref: null, name: 'Lead', techRoll: LEAD_ROLL }; // Lead rolls at his 90°/s in every programme move that names no roll (TS-222)
+    const lead = { ...makeAircraft({ id: 1, xFt: 0, yFt: 0, headingRad: h, kias: opts.kias, tasFtps: tas }), ref: null, name: 'Lead', techRoll: LEAD_ROLL, ...LEAD_ROLL_STATE }; // Lead rolls at his 90°/s in every programme move that names no roll (TS-222)
     const wing = {
       ...makeAircraft({ id: 2, xFt: side * left.x * opts.spacingFt, yFt: side * left.y * opts.spacingFt, headingRad: h, kias: opts.kias, tasFtps: tas }),
       ref: 1,
