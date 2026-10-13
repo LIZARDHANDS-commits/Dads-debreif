@@ -33,6 +33,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | ZOOM_GAIN_TABLE.heavy | `Object.freeze([Object.freeze([738, 757, 768, 883]), Object.freeze([1299, 1347, 1410, 1552])])` |  |
 | T6A_MANOEUVRE |  | How the model flies a manoeuvre (Patrick, 2026-09-30 09:27Z; SMM 14.16). - shakerMarginKt: pulls fly in the stick shaker, not on the stall line. The shaker comes on about 5 to 10 kt above the stall (reference); 7 kt here. - splitSMaxG: the most G the split S pulls; Patrick: "Split S goes up to 5 G" (AIF 2410's maximum; SMM Table 14.1 gives about 4 G). - rollRateDegPerSec: the roll inverted, at SPE |
 | T6A_MANOEUVRE.shakerMarginKt | `7, splitSMaxG: 5, rollRateDegPerSec: 90, splitSNoseUpDeg: 20, splitSRollG: 0.5` |  |
+| T6A_AOA | `Object.freeze({ shakerUnits: 15, stallUnits: 18 })` | The angle of attack indexer, in units (Patrick 12 Oct 2026: the stick shaker comes on at 15 units, and a pilot may ease on to 17; SMM 14.14 para 33: 17 units is just under the 18-unit stall). |
 
 ## Handling: how the steppers fly the aircraft on top of its limits (`handling.js`)
 
@@ -146,24 +147,31 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LEAD.pitchCueDps | `0.5` | #2 reads Lead's nose as rising or falling past 0.5°/s of pitch rate (an estimate) |
 | LEAD.climbPitchDps | `3` | how fast Lead raises or lowers the nose into and out of the climb or descent (an estimate) |
 | LEAD.minPushG | `MIN_POSITIVE_G` | Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a); 0.5 G at the push over is an estimate (handling.js) |
-| LEAD.loopEntryKias | `230` | SMM Table 7.1, 7.5 para 11, Fig 7.2 (entry and exit) |
-| LEAD.loopEntryBandKias | `15` | the aerobatics start within 15 KIAS of the entry speed (Patrick 5 Oct 04:59Z: "Fluid maneouvering aerobatics can happen as long as the aircraft are within 15 knots of the starting parameters"; 5 kt, an estimate, until V2.59; SMM 7.12 para 28b allows 200-250 for the loop) |
-| LEAD.loopG | `3.5` | EFIG p.171 "3 1/2 G", inside SMM 7.5 para 11 and Table 7.1's 3-4 G |
-| LEAD.loopDownMaxG | `4` | coming down Lead may pull up to 4 G, the top of the SMM's 3-4 G (Table 7.1), to "adjust back pressure to achieve 230 KIAS" (SMM 7.5 para 12); at the Orders' 4 G, not over it |
-| LEAD.loopTopMinG | `0.5` | "slight positive G" over the top (SMM 7.5 para 11): 0.5 is an estimate |
-| LEAD.loopVerticalDeg | `80` | "until the aircraft approaches the vertical" (SMM 7.5 para 11): 80° is an estimate |
-| LEAD.loopPullOutDeg | `330` | where Lead stops holding the pitch rate and pulls out to level (an estimate) |
-| LEAD.setupMaxPitchDeg | `10` | the speed set-up's nose down or up before the loop (an estimate) |
+| LEAD.loopMinKias | `200` | below it Lead refuses the loop (TS-221, Patrick 12 Oct 2026: "Min speed for loop is 200, refuse") |
+| LEAD.loopExitTolKt | `15` | the exit within 15 kt of the entry (TS-221); the law aims at the entry speed itself, 15 kt is the check |
+| LEAD.loopG | `3.5` | the pull to the vertical, EFIG p.171 "3 1/2 G", inside SMM 7.5 para 11 and Table 7.1's 3-4 G (TS-213) |
+| LEAD.loopAoaUnits | `17` | ... but no more than 17 units AOA: past the shaker (15 units) and just under the 18-unit stall (Patrick 12 Oct 2026: "shaker starts at 15 AOA. he can ease up to 17 AOA"; SMM 14.14 para 33). From 230-240 KIAS 3.5 G holds to about 80° nose up, then he rides 17 units to the vertical |
+| LEAD.loopDownMaxG | `4` | Lead pulls no more than 4 G anywhere in the loop (Gen Book p.11: Lead +4 G in fluid manoeuvring; TS-213), flagged on the card if the exit needs more |
+| LEAD.loopTopMinG | `0.5` | "slight positive G" over the top (SMM 7.5 para 11): 0.5 is an estimate, never reached in the design runs (0.85-1.04 G) |
+| LEAD.loopVerticalDeg | `90` | the pull hands over to the nose rate held at the vertical, smoothly (TS-221, Patrick 12 Oct 2026: "The pull hands over to the rate hold at 90 deg (straight vertical), but make it smooth"; 80°, an estimate, until V2.424) |
+| LEAD.loopPullOutDeg | `330` | #2's cue only (loopMode): PURE in trail for the pull-out from here (an estimate) |
 | LEAD.loopWaitSec | `5` | in the standard sequence Lead holds wings level for 5 s after the 360 before the loop's pull, so #2 has rolled out and is set for the pull (Patrick 12 Oct 2026 01:50Z, "1 just waits for 2 to roll out of the turn before he begins his loop"; 04:14Z after flying V2.371, "lead can just wait another 2 seconds to pull in to the loop": 3 s became 5 s, his option A). An estimate from his words; #2 levels about 1.5 s after Lead |
-| LEAD.setupLimitSec | `60` | a guard only: after a minute of set-up the loop starts at whatever speed (an estimate) |
-| LEAD.wingoverKias | `230` | "approximately 230 KIAS" (SMM 16.17 para 47) |
+| LEAD.loopWaitLimitSec | `60` | a guard only: in the sequence, wings level at MAX for at most a minute to reach loopMinKias, else the loop is skipped (an estimate) |
+| LEAD.noseRateAccelDps2 | `4` | the most he changes a held nose rate, 4°/s² |
+| LEAD.noseRateJerkDps3 | `6` | and how fast that change builds, 6°/s³, so the G rate never steps |
+| LEAD.exitReplanSec | `0.25` | how often the exit speed is predicted again |
+| LEAD.exitFreezeDeg | `30` | the last 30° before the exit the rate is held (nothing left to steer with) |
+| LEAD.endJerkDps3 | `2` | a stand-alone exit eases the nose rate to zero on the horizon at 2°/s³ (4 G onto 1 G over about 2.7 s) |
+| LEAD.endKneeDps | `1.5` | where the held rate meets that easing (°/s), so the G rate does not step |
+| LEAD.limitKneeG | `0.15` | a G limit (4 G, 17 units, the shaker share) is met through a 0.15 G knee, never a corner (core softMin) |
+| LEAD.joinBlendSec | `2` | a flowing join (loop to wingovers, wingovers to barrel roll): the next pull eases from the G handed in onto its own over 2 s |
+| LEAD.gOnsetSec | `0.2` | Lead's G onset is built over 0.2 s, as the roll's (T6A_ROLL.onsetSec, TS-196), with the stop planned (TS-223); Lead only until Patrick moves it to core |
 | LEAD.wingoverG | `3` | "approximately 3 G" (SMM 16.17 para 47); the cloverleaf's pull, 2.5-3.5 G (SMM Table 7.1; EFIG p.137 about 3 G) |
 | LEAD.wingoverPitchDeg | `45` | "approximately 45 degrees of pitch (above and below the horizon)" (SMM 16.17 para 47) |
-| LEAD.noseAccelDps2 | `8` | how fast Lead changes the nose's rate along a planned nose path, 8°/s² (an estimate) |
+| LEAD.noseAccelDps2 | `8` | how fast the nose's rate changes along a planned nose path, 8°/s² (an estimate): #2's lag roll and rolling rejoin (followNose); Lead's own paths use noseRateAccelDps2 |
 | LEAD.noseEndDps2 | `3` | and how gently he slows it onto the end of the path, 3°/s² (an estimate): the pull-out to level |
 | LEAD.noseSteerPerSec | `1.2` | how fast he steers back onto the planned nose path, per second (an estimate) |
-| LEAD.shakerShare | `0.9` | he pulls no more than 90% of the stick shaker's G on a planned nose path (an estimate) |
-| LEAD.barrelKias | `230` | SMM Table 14.1, 14.8 para 19 (entry and exit) |
+| LEAD.shakerShare | `0.9` | he pulls no more than 90% of the stick shaker's G on a planned nose path, the wingovers and barrel roll (an estimate) |
 | LEAD.barrelG | `3` | entry load (SMM Table 14.1; Fig 14.1 "3G, wings level pull and begin roll") |
 | LEAD.barrelTopG | `2.25` | the back pressure reduced over the top (SMM 14.8 para 19): 2.25 G is an estimate (230 KIAS out) |
 | LEAD.barrelPitchDeg | `45` | SMM 14.8 para 19 (45° pitch up and down at the quarter points); Patrick's pick row 6 |
@@ -171,7 +179,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LEAD.cueOffTailDeg | `WING.latDeg` | the cue Lead's moves give #2: hold 15° off Lead's current tail (Patrick 5 Oct 22:28Z; moves.js WING) |
 | LEAD.overTopCue | `Object.freeze({ pureFromU: 0.4, leadFromU: 0.6, pureAgainFromU: 0.9 })` | #2's cue through a wingover or barrel roll by how far through it Lead is: LAG up, PURE over the top, LEAD down, PURE for the pull-out (Patrick 17:12Z, card 19:21Z); the breaks are estimates |
 | LEAD.loopCueDeg | `Object.freeze({ pureFrom: 155, leadFrom: 205 })` | the loop's cue by Lead's loop angle: LAG, PURE over the top from 155°, LEAD from 205°, PURE again from loopPullOutDeg (estimates) |
-| LEAD.climbDamp | `Object.freeze({ holdPerSec: 0.5, pitchPerSec: 0.4, loopDownPerSec: 1.2, exitPerSec: 0.6 })` | how firmly Lead's pull brings the flight path onto the one wanted (core dampedClimbG's omega, per second; estimates): holding a level path or a climb's angle; raising or lowering the nose into a climb and before the loop; the loop's pull-out; the wingover's and barrel roll's exit |
+| LEAD.climbDamp | `Object.freeze({ holdPerSec: 0.5, pitchPerSec: 0.4, exitPerSec: 0.6 })` | how firmly Lead's pull brings the flight path onto the one wanted (core dampedClimbG's omega, per second; estimates): holding a level path or a climb's angle; raising or lowering the nose into a climb; levelling after a stand-alone loop, wingovers or barrel roll |
 | LEAD.climbNearFt | `20` | a climb or descent counts as arrived within 20 ft of the new height (an estimate) |
 | LEAD.speedHold | `Object.freeze({ perSec: 0.2, maxKtps: 3 })` | holding a speed (the entry, Terminate): 0.2 kt/s per knot off it, never more than 3 kt/s (estimates) |
 | FW_MOVE | `Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: LEAD_POWER.maxTorquePct, descentTorquePct: LEAD_POWER.minTorquePct })` | climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentTorquePct: his descent power, 20% torque (TS-216; until V2.424 the descent was 80% of the model's idle descent, an estimate) |

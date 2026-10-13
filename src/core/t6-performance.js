@@ -419,6 +419,23 @@ const SPLIT_S_STEP_SEC = 0.02;
 const SPLIT_S_MAX_SEC = 120;    // a guard: the slowest entry takes about 30 s (at 30,000 ft)
 
 /**
+ * The angle of attack indexer, in units (Patrick 12 Oct 2026: the stick shaker comes on at 15 units, and a pilot may
+ * ease on to 17; SMM 14.14 para 33: 17 units is just under the 18-unit stall).
+ */
+export const T6A_AOA = Object.freeze({ shakerUnits: 15, stallUnits: 18 });
+
+/**
+ * The G a pull at an AOA indexer reading (units) gives at this speed. The lift is taken as rising evenly with the units
+ * from the shaker's (15 units: shakerG, 1 G at the shaker speed) to the stall line's (18 units); an estimate, as is the
+ * shaker's margin. 17 units is about 95% of the stall line's G, 11% above the shaker's. At most maxG.
+ */
+export function gAtAoaUnits(kias, units, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A_MANOEUVRE.shakerMarginKt, maxG = T6A_LIMITS.maxG } = {}) {
+  const atShaker = (stallKias / (stallKias + marginKt)) ** 2; // the shaker's share of the stall line's lift
+  const share = atShaker + ((units - T6A_AOA.shakerUnits) / (T6A_AOA.stallUnits - T6A_AOA.shakerUnits)) * (1 - atShaker);
+  return Math.min(share * (kias / stallKias) ** 2, maxG);
+}
+
+/**
  * The G a pull in the stick shaker gives at this speed: 1 G at the shaker
  * speed (stall + margin, 93 KIAS), growing with KIAS², at most maxG (the
  * envelope's 7 G unless told). With no margin it is the stall line.

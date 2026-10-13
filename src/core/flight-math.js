@@ -251,6 +251,15 @@ function plannedStopStep(x, v, a, target, dt, R, A, J) {
 export const easeValue = easeRoll;
 
 /**
+ * A soft lower-of-two: like Math.min(a, b) but with no corner, so a value that meets a limit (a G cap, the stall line)
+ * rounds onto it over about knee instead of stopping dead, and its rate does not step. Within about a knee of each other
+ * it reads a little under both; far apart it is the lower. softMax is the same for the higher.
+ */
+export const softMin = (a, b, knee) => 0.5 * (a + b - Math.sqrt((a - b) ** 2 + knee * knee));
+/** The higher of two with no corner (softMin's twin). */
+export const softMax = (a, b, knee) => 0.5 * (a + b + Math.sqrt((a - b) ** 2 + knee * knee));
+
+/**
  * G required for first-order damped flight path angle convergence toward targetClimbRad:
  * n = cos(climb) + (V / g) * omega * (targetClimb - climb).
  * omega defaults to 1.0 rad/s (standard T-6 roundout).

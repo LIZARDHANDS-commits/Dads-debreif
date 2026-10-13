@@ -108,9 +108,10 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const blend = blendSecs();
     const r = e.ctl.step(e.st, mem, { wingSide: wingSide(), blendInSec: blend.inSec, blendOutSec: blend.outSec });
     // Lead holding a speed (Terminate, fighting wing after it) keeps 20-80% torque (TS-216); the manoeuvres stay MAX.
-    // Lead rolls at his technique rate (TS-222) except in the nose-path manoeuvres, which roll as their path asks.
+    // Lead rolls at his technique rate (TS-222) except in the nose-path manoeuvres, which roll as their path asks; his
+    // roll and G are built over their onsets with the stop planned (lead: true, TS-223).
     const roll = e.ctl.key === 'wingover' || e.ctl.key === 'barrelRoll' ? null : LEAD_ROLL;
-    const st = stepLead(e.st, { ...r, ...(roll ? { roll } : {}), ...(r.holdKias ? { torqueBand: LEAD_POWER } : {}) });
+    const st = stepLead(e.st, { ...r, lead: true, ...(roll ? { roll } : {}), ...(r.holdKias ? { torqueBand: LEAD_POWER } : {}) });
     let ctl = e.ctl;
     let next = mem;
     let queue = e.queue;
@@ -130,11 +131,14 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         ctl = hold();
         man = { id: manId++, key: 'hold', label: 'Straight and level' };
       }
-      next = ctl.init(st, { wingSide: wingSide() });
+      // A flowing join (the sequence's loop into the wingovers, the wingovers into the barrel roll) hands the next part
+      // its nose rate and G (TS-215).
+      next = ctl.init(st, { wingSide: wingSide(), handIn: r.handover ?? null });
     }
     // Entry and exit speeds of a manoeuvre that has them (the loop): the step and KIAS where it starts and ends.
     if (r.entryKias !== undefined && e.man.entryK === undefined) Object.assign(e.man, { entryKias: r.entryKias, entryK: kMax + 1 });
     if (r.exitKias !== undefined && e.man.exitK === undefined) Object.assign(e.man, { exitKias: r.exitKias, exitK: kMax + 1 });
+    if (r.note && e.man.note === undefined) Object.assign(e.man, { note: r.note, noteK: kMax + 1 }); // an exit off its entry speed, a skipped loop
     const lastMan = r.done ? e.man : e.lastMan;
     kMax += 1;
     entries.set(kMax, toEntry(kMax, st, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end, askBank: r.bank, lastMan, holdKias: r.holdKias ?? null }));
@@ -174,7 +178,10 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       // A pitch change only: the bank Lead is asking for now is kept (point-mass convention).
       case 'climb': return [climbOrDescend(1, at.askBank ?? st.bank)];
       case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
-      case 'loop': return [loop()];
+      // Under 200 KIAS Lead refuses the loop (TS-221); full power, so he pulls at whatever speed he has above it.
+      case 'loop':
+        if (st.kias < LEAD.loopMinKias) return { reason: `Loop: Lead has ${Math.round(st.kias)} KIAS, under the ${LEAD.loopMinKias} KIAS minimum (TS-221).` };
+        return [loop()];
       // The roll's way is kept on the controller for the live wingman (fluid-wing-live.js), who keeps to its outside.
       case 'wingover': return [{ ...wingovers(dir), dir }];
       case 'barrelRoll': return [{ ...barrelRoll(dir), dir }];
@@ -261,7 +268,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     /**
      * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'swap' | 'entry' | 'back to fighting wing'),
      * behindSec (always null: the live #2 is not on a line), speeds }. speeds: for the loop being flown, or the last one while Lead flies straight on after it,
-     * { label, entryKias, exitKias (null until flown), book: { entryKias, exitKias, source } }; else null.
+     * { label, entryKias, exitKias (null until flown), note (an exit off its entry speed, or null), book: { minKias, exitTolKt,
+     * source } }; else null.
      */
     now() {
       const e = E(kNow);
@@ -271,6 +279,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         label: m.label,
         entryKias: m.entryK !== undefined && kNow >= m.entryK ? m.entryKias : null,
         exitKias: m.exitK !== undefined && kNow >= m.exitK ? m.exitKias : null,
+        note: m.noteK !== undefined && kNow >= m.noteK ? m.note : null,
         book,
       } : null;
       return {

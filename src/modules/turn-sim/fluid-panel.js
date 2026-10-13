@@ -36,16 +36,16 @@ export function pursuitWord(wingCue) {
 }
 
 /**
- * The entry and exit speeds of the loop on the card, against the SMM's (spec section 10.3): "Loop: entry 230 KIAS, exit
- * 238 KIAS (SMM 230 and 230, Table 7.1, 7.5 paras 11-12, Fig 7.2)". Before the pull it says the entry speed Lead is
- * setting up for.
+ * The entry and exit speeds of an aerobatic manoeuvre on the card, against its rule (TS-215, TS-221): "Loop: entry
+ * 232 KIAS, exit 231 KIAS (at least 200 in, out within 15 kt: TS-221; SMM 7.5 para 12)". At full power there is no speed
+ * set-up, so before the pull it says the entry is still to come; an exit off its entry speed adds the card's note.
  */
 export function speedsLine(sp) {
   const kt = (n) => `${Math.round(n)} KIAS`;
-  const src = sp.book.source.replace(/^SMM /, '');
-  const book = sp.book.exitKias == null ? `SMM ${src}` : `SMM ${sp.book.entryKias} in, ${sp.book.exitKias} out: ${src}`;
-  if (sp.entryKias === null) return `${sp.label}: setting up ${kt(sp.book.entryKias)} for the entry (${book})`;
-  return `${sp.label}: entry ${kt(sp.entryKias)}, exit ${sp.exitKias === null ? 'still to come' : kt(sp.exitKias)} (${book})`;
+  const rule = sp.book.minKias != null ? `at least ${sp.book.minKias} in, out within ${sp.book.exitTolKt} kt: ${sp.book.source}` : sp.book.source;
+  if (sp.entryKias === null) return `${sp.label}: entry still to come (${rule})`;
+  const line = `${sp.label}: entry ${kt(sp.entryKias)}, exit ${sp.exitKias === null ? 'still to come' : kt(sp.exitKias)} (${rule})`;
+  return sp.note ? `${line}. ${sp.note}` : line;
 }
 
 /**
