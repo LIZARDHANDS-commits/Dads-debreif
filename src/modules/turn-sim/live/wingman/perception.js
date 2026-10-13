@@ -137,21 +137,11 @@ function rawRead(mem) {
 }
 
 /**
- * One step of what he sees: the memory with this step's moment added (ref, own: seenOf's), and what he saw LATE steps ago.
- * Returns { mem, seen }, seen = { dev, rate (ft/s), bankDeg, rollDps, rollAccDps2, bankAheadDeg, g, ffUpG, ffLeftG, under,
- * frame, rel }. ffUpG and ffLeftG: his place's acceleration from the roll, along the lift line and the wing line (left +), in G.
+ * What he sees from a memory: the moment LATE steps ago and the smoothed readings. seen = { dev, rate (ft/s), bankDeg,
+ * rollDps, rollAccDps2, bankAheadDeg, g, climbFtps (the other aircraft's), ffUpG, ffLeftG, under, frame, rel }. ffUpG and
+ * ffLeftG: his place's acceleration from the roll, along the lift line and the wing line (left +), in G.
  */
-export function perceive(mem, ref, own) {
-  const buf = [...mem.buf.slice(1 - KEEP), { ref, own }];
-  const next = { ...mem, buf };
-  const { now, raw } = rawRead(next);
-  const f0 = mem.filt;
-  const filt = {
-    rate: Object.fromEntries(AXES.map((ax) => [ax, smooth(f0.rate[ax], raw.rate[ax])])),
-    roll: smooth(f0.roll, raw.roll),
-    rollAcc: smooth(f0.rollAcc, raw.rollAcc),
-    g: smooth(f0.g, raw.g),
-  };
+function seeWith(mem, now, filt) {
   const T = CLOSE_SEE.aheadSec;
   // His place swung by the roll (rigid-body kinematics about the nose; p, ṗ in rad/s and rad/s², left wing down positive):
   // along the lift line -ṗ·left - p²·up, along the wing line ṗ·up - p²·left (the place's left and up offsets).
@@ -160,7 +150,7 @@ export function perceive(mem, ref, own) {
   const L = mem.place.left;
   const U = mem.place.alt;
   const rel = relIn(now.f, now.s.ref, now.s.own);
-  const seen = {
+  return {
     dev: now.dev,
     rate: filt.rate,
     bankDeg: now.bank,
@@ -168,11 +158,34 @@ export function perceive(mem, ref, own) {
     rollAccDps2: filt.rollAcc,
     bankAheadDeg: now.bank + filt.roll * T + 0.5 * filt.rollAcc * T * T,
     g: filt.g,
+    climbFtps: now.s.ref.v.z,
     ffUpG: (-pd * L - p * p * U) / G_FTPS2,
     ffLeftG: (pd * U - p * p * L) / G_FTPS2,
     under: rel.up < 0 && Math.abs(rel.left) < WINGSPAN_FT / 2,
     frame: now.f,
     rel,
   };
-  return { mem: { ...next, filt }, seen };
+}
+
+/** What he sees from the memory as it stands (the start's first look), adding nothing. */
+export function look(mem) {
+  return seeWith(mem, rawRead(mem).now, mem.filt);
+}
+
+/**
+ * One step of what he sees: the memory with this step's moment added (ref, own: seenOf's, at the same time), and what he
+ * saw LATE steps ago (seeWith). Returns { mem, seen }.
+ */
+export function perceive(mem, ref, own) {
+  const buf = [...mem.buf.slice(1 - KEEP), { ref, own }];
+  const { now, raw } = rawRead({ ...mem, buf });
+  const f0 = mem.filt;
+  const filt = {
+    rate: Object.fromEntries(AXES.map((ax) => [ax, smooth(f0.rate[ax], raw.rate[ax])])),
+    roll: smooth(f0.roll, raw.roll),
+    rollAcc: smooth(f0.rollAcc, raw.rollAcc),
+    g: smooth(f0.g, raw.g),
+  };
+  const next = { ...mem, buf, filt };
+  return { mem: next, seen: seeWith(next, now, filt) };
 }

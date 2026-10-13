@@ -28,7 +28,7 @@ import { drawnAttitudeOf, drawnTurnDeg } from '../src/modules/turn-sim/live/atti
 import { leadStateOf } from '../src/modules/turn-sim/live/fluid-lead.js';
 import { pairSlot } from '../src/modules/turn-sim/live/slots.js';
 import { seenOf, placeDeviation } from '../src/modules/turn-sim/live/wingman/perception.js';
-import { throttleAtTorque } from '../src/modules/turn-sim/live/power.js';
+import { torqueFromThrottle } from '../src/modules/turn-sim/live/wingman/close-formation.js';
 
 const ROLL_REVERSAL_DPS = 10; // a roll counts once it is faster than this either way (estimate)
 const G_REVERSAL_GPS = 0.3; // a G change counts once it is faster than this either way (estimate)
@@ -124,12 +124,12 @@ function closeDeviation(lead, wing, key, side, blockFt) {
   return placeDeviation(seenOf(leadStateOf(lead, blockFt)), seenOf(leadStateOf(wing, blockFt)), pairSlot(key, side), side);
 }
 
-/** An aircraft's torque (%) from its power (power.js; throttleAtTorque is linear in the torque), or null with none set. */
+/** An aircraft's torque (%) from its power (power.js, through the wingman's own conversion), or null with none set. */
 function torqueOf(a) {
   const p = a.power;
   if (!p) return null;
   if (p.stage === 'idle' || p.stage === 'idleBoards') return 0;
-  return Math.min(100, p.throttle / throttleAtTorque(1, p.kias, p.altFt ?? 8000));
+  return Math.min(100, torqueFromThrottle(p.throttle, p.kias, p.altFt ?? 8000));
 }
 
 /** A close wingman's running numbers (the B1 measures above). */

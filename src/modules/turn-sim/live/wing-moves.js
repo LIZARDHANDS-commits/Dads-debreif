@@ -257,6 +257,80 @@ export const CLOSE_SEE = Object.freeze({
   aheadSec: 0.3, // he dead-reckons Lead's bank across his own delay: seen bank + rate x 0.3 + half the build-up x 0.3² (spec 7b.6d item 5)
 });
 
+/**
+ * How the close-formation wingman holds his place (live/wingman/close-formation.js, supervisor.js, shaper.js; spec 7b.4,
+ * 7b.6, 7b.6c, 7b.6d). Three loops, one per control, each P and D on what he sees and a weak trim (core pilotAxis): pitch
+ * (G) on up and down, roll (bank off Lead's) on in and out, power (torque) on forward and back. Estimates unless a source
+ * is given; to be tuned by eye on the plot page and then flown by Patrick (spec 7b.6c).
+ */
+export const CLOSE_WING = Object.freeze({
+  // Pitch, on the plane axis: G per foot and per ft/s (spec 7b.6c's starting gains; with the 0.3 s reaction about 2 rad/s
+  // and 37° of phase margin, the Fable audit; fallback 0.03 and 0.06). The trim starts at zero (spec 7b.6c, "added only if
+  // an offset remains"): the T2 probe showed a trim of 0.004 G per ft·s overshooting by 1 ft.
+  plane: Object.freeze({ kp: 0.04, kd: 0.06, ki: 0, iMax: 0 }),
+  // In Lead's wing plane both loops are a cascade (spec 7b.6c "Power is a cascade"): the distance to his place picks one pace
+  // straight at it, and roll and power each close the pace he wants on the closure he sees, so on a move along the line bank
+  // and power go together and he stays on it ("power and bank together", 7b.3). Near the spot the pace is 0.4 ft/s per foot
+  // to go (estimate, for spec 7b.6b's settle of about 4 s: at 0.26-0.3, the audit's gains, a 3 ft correction took 6 s to come
+  // within 1 ft with P reading 0.5 ft less, T4 probe).
+  kPosPerSec: 0.4,
+  // Roll, in and out: degrees of bank off Lead's per ft/s of pace error (spec 7b.6d item 7: 1.7 to 2.1° per ft/s, crossover
+  // 1.0 to 1.2 rad/s; estimate), so 0.76° per foot near the spot (the audit's "about 0.5°/ft"). Trim from zero as above.
+  side: Object.freeze({ kdDegPerFtps: 1.9, ki: 0, iMax: 0 }),
+  // Power, forward and back: about 12% torque per ft/s of pace error (spec 7b.6d item 7: 10 to 13%, estimate), so 4.8% per
+  // foot near the spot. Trim from zero as above.
+  fore: Object.freeze({ kdPctPerFtps: 12, ki: 0, iMax: 0 }),
+  // The soft threshold: P reads the deviation less 0.5 ft, smoothly (spec 7b.6d item 11; 7b.6b: the smallest error he can
+  // see, about 0.5 ft, an estimate), so he rests within about half a foot of his place. The spec also has D ignore drift
+  // under about 0.5 ft/s (deadFtps 0.5); it is OFF here (0) until Patrick rules, because measured on the T4 probe (3 ft off,
+  // straight and level) it breaks the 0.5 ft overshoot target on the in-plane axes: the last foot of every correction is
+  // flown under 0.5 ft/s, so D is gone there and he coasts past, 0.83-0.86 ft (only once settled on station: 0.68 ft,
+  // drifting across unseen); with it off, no overshoot, within 1 ft in 3.9 s. Set 0.5 to fly the spec as written.
+  deadFt: 0.5,
+  deadFtps: 0,
+  // The pace: at most jogging, 8 ft/s, in B1 (Patrick 13 Oct 2026: "yes 8 ft/s and 13 ft/s works"; "start with slower rates
+  // until we figure out how to tune the PID"), tapering as sqrt(2 x braking x distance) so he can always stop on the spot,
+  // the braking what the power floor gives (spec 7b.6d item 13: at 20% torque about 1.3 kt/s at 200 KIAS and 8,000 ft), for
+  // the part of the move the power must stop (the rest the bank stops), after his reaction and the torque's walk down to
+  // the floor at the job's rate (all from the numbers here: standard kinematics, d = v t + v² / 2b).
+  paceFtps: 8,
+  brakeTorquePct: 20,
+  // Below 10% torque he would use the boards before idle (Patrick 13 Oct 2026, "sure 10% tq for boards"; TS-61's order).
+  // The live step has no boards' drag, so B1 flags it and holds 10%: never needed in a straight-and-level hold.
+  boardsBelowPct: 10,
+  // The pilot's hand (spec 7b.4 and 7b.6d item 6; estimates), by job: the most G off what Lead's motion needs, the most bank
+  // off Lead's, the most torque off the holding setting (100: the floor to MAX), and how fast his torque may move (about
+  // 10%/s on station; a move's set and catch quicker, 20%/s, the top of 7b.6d's 15-20%/s). On station and small moves the
+  // pressures of 7b.4 (about 0.3 G, 5°, 5-10% torque); large moves and out-before-up the old hold's sizes (wing-moves.js
+  // CLOSE_TURN followG 0.5 G and sideBankDeg 15°). His bank is never smoothed (Patrick 13 Oct 2026: a wingman's bank may be
+  // "very un-smooth ... very quick/small as required"): it moves as fast as the aircraft rolls.
+  jobs: Object.freeze({
+    onStation: Object.freeze({ gCap: 0.3, bankCapDeg: 5, torqueCapPct: 10, torquePctps: 10 }),
+    smallMove: Object.freeze({ gCap: 0.3, bankCapDeg: 5, torqueCapPct: 10, torquePctps: 10 }),
+    largeMove: Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 }),
+    outBeforeUp: Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 }),
+  }),
+  capsPerSec: Object.freeze({ g: 0.5, bankDeg: 10, torquePct: 30 }), // a new job's pressure sizes are eased in, never stepped (bumpless; estimates)
+  // The supervisor's jobs, each with a dead band so it never flickers (spec 7b.6d item 12; estimates): a small move from
+  // 1.5 ft off (the 0.5 ft he can see and a margin) back to on station under 1 ft; a large move past 10 ft (Patrick's small
+  // move is "up to about 10 ft", spec 7b.6) back to small under 8 ft; under Lead (below his wing plane, inside his wingtip)
+  // out before up, until 2 ft outside the wingtip or above the plane.
+  smallFromFt: 1.5,
+  stationFromFt: 1,
+  largeFromFt: 10,
+  smallBackFt: 8,
+  // ... and a large move too while he is moving faster than a gentle drift (spec 7b.6: "a gentle drift for a few feet, up to
+  // a jogging pace"), 2 ft/s, back under 1.5 ft/s (estimates): a hand-over still closing brakes with a large move's pressures.
+  driftFtps: 2,
+  driftBackFtps: 1.5,
+  underClearFt: 2,
+  // Plane, line, hinge (Patrick 13 Oct 2026): in a large move the line's error is shown to the loops once he is within 2 ft
+  // of the plane, and the error along the line once also within 2 ft of the line, each eased in at half its share a second
+  // (estimates), so the loops see one or two dimensions at a time and the target never jumps. On station all at once.
+  plhBandFt: 2,
+  plhPerSec: 0.5,
+});
+
 // ---- the rolling rejoin (from rolling-rejoin.js) -------------------------------------------------------------------
 
 /** The rolling rejoin's search and pursuit (moved from rolling-rejoin.js, 12.2b). Estimates unless a page or ruling is named. */
