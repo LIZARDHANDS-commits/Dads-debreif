@@ -439,6 +439,14 @@ export const FW_WING = Object.freeze({
   quickReleaseFt: 75, // ... held until the range error is under 75 ft and the closure under 10 ft/s (estimates, spec 7e.7)
   quickReleaseFtps: 10,
   quickSec: 2, // the height target moves to the quick fix's over about 2 s (estimate)
+  // Drop low inside at MAX (Patrick 14 Oct 2026, card "Drop low inside, MAX"; TS-233 addendum, spec 7e.7): in Lead's turn,
+  // short of energy, he drops a few hundred feet below Lead at MAX and climbs back to his stack on the roll-out.
+  lowFt: 300, // "a few hundred feet" (estimate)
+  lowStartKt: 5, // short of energy: more than 5 KIAS slower than Lead (estimate) ...
+  lowEndKt: 1, // ... until back within 1 KIAS of him (estimate)
+  // Unload, roll, pull: with his wings more than pullWithinDeg off where the lift is wanted he pulls only its share along
+  // them (estimate; fw-live.js does the same: "while he rolls he pulls only the G that keeps the height he wants").
+  pullWithinDeg: 20,
   stackReturnSec: 15, // then the target comes back to the stack over about 15 s (spec 7e.7: 15-20 s)
   heightBandFt: 200, // within 200 ft of Lead's height (TS-80; a reference he is held inside, not a wall: the guard may pass it)
   // ---- power (slowest, under 0.07 rad/s; spec 7e.7): Lead's speed, plus the closure the aim can't give, PI, slow ----

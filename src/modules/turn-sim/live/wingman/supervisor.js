@@ -214,7 +214,7 @@ export function startFwJob(seen) {
   const turning = Math.abs(seen.leadBankDeg) > FJ.turnStartDeg;
   return {
     turning, dir: turning ? Math.sign(seen.leadBankDeg) : 0, hold: 0, entry: turning ? entryOf(seen, Math.sign(seen.leadBankDeg)) : null,
-    side: seen.levelSide, sTurn: false, quick: 0, heightFt: Math.max(-FJ.heightBandFt, Math.min(FJ.heightBandFt, seen.heightFt)),
+    side: seen.levelSide, sTurn: false, quick: 0, low: false, heightFt: Math.max(-FJ.heightBandFt, Math.min(FJ.heightBandFt, seen.heightFt)),
   };
 }
 
@@ -229,9 +229,9 @@ function entryOf(seen, dir) {
  * left). Returns { turning, dir (+1 Lead turning left), hold, entry, side (the swept side), sTurn, quick (the quick fix:
  * +1 up, -1 down, 0 off), heightFt (the height target against Lead's, eased) }.
  */
-export function fwJob(j, seen) {
+export function fwJob(j, seen, { shortKt = 0 } = {}) {
   const b = seen.leadBankDeg;
-  let { turning, dir, hold, entry, side, sTurn, quick } = j;
+  let { turning, dir, hold, entry, side, sTurn, quick, low } = j;
   if (!turning) {
     hold = Math.abs(b) > FJ.turnStartDeg ? hold + STEP_SEC : 0;
     if (hold >= FJ.turnHoldSec) {
@@ -275,14 +275,25 @@ export function fwJob(j, seen) {
   // The quick fix (F7): engaged past its thresholds, released inside its smaller ones; the height target follows it, or
   // comes back to the stack over about 15 s.
   const e = seen.slant - happyMid;
-  // Only when the spacing is going the wrong way: stretched and not closing (down, to gain speed), or closing fast and not
-  // stretched (up, to bleed it); a closure the aim is already making is left to it.
-  if (!quick && e > FJ.quickFixFt && seen.closure < FJ.quickReleaseFtps) quick = -1;
-  else if (!quick && seen.closure > FJ.quickFixFtps && e < FJ.quickReleaseFt) quick = 1;
-  else if (quick && Math.abs(e) < FJ.quickReleaseFt && Math.abs(seen.closure) < FJ.quickReleaseFtps) quick = 0;
-  const target = quick ? quick * FJ.quickFixHeightFt : FJ.stackFt;
-  const heightFt = j.heightFt + (target - j.heightFt) * Math.min(1, STEP_SEC / (quick ? FJ.quickSec : FJ.stackReturnSec));
-  return { turning, dir, hold, entry, side: side || seen.levelSide, sTurn, quick, heightFt };
+  if (turning) {
+    // T29a: no quick fix in a turn (one owner for closure: the aim loop). The vertical's one job in a turn is the ruling's
+    // (Patrick 14 Oct 2026, "Drop low inside, MAX"): short of energy (slower than Lead by shortKt past lowStartKt), he drops
+    // low inside, a few hundred feet, at MAX, and climbs back to his stack on the roll-out; released once back within
+    // lowEndKt of Lead's speed.
+    quick = 0;
+    if (!low && shortKt > FJ.lowStartKt) low = true;
+    else if (low && shortKt < FJ.lowEndKt) low = false;
+  } else {
+    low = false;
+    // Only when the spacing is going the wrong way: stretched and not closing (down, to gain speed), or closing fast and not
+    // stretched (up, to bleed it); a closure the aim is already making is left to it.
+    if (!quick && e > FJ.quickFixFt && seen.closure < FJ.quickReleaseFtps) quick = -1;
+    else if (!quick && seen.closure > FJ.quickFixFtps && e < FJ.quickReleaseFt) quick = 1;
+    else if (quick && Math.abs(e) < FJ.quickReleaseFt && Math.abs(seen.closure) < FJ.quickReleaseFtps) quick = 0;
+  }
+  const target = low ? -FJ.lowFt : quick ? quick * FJ.quickFixHeightFt : FJ.stackFt;
+  const heightFt = j.heightFt + (target - j.heightFt) * Math.min(1, STEP_SEC / (quick || low ? FJ.quickSec : FJ.stackReturnSec));
+  return { turning, dir, hold, entry, side: side || seen.levelSide, sTurn, quick, low: Boolean(low), heightFt };
 }
 
 

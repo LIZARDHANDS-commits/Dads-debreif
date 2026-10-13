@@ -79,7 +79,10 @@ export function stepFwWingman(w, refSt) {
   const out = turning ? scale3(unit3(omegaL), Math.sign(dot3(omegaL, Z)) || 1) : Z; // the turn plane's normal, upward
   const flat = (x) => perp3(x, out);
 
-  const job = fwJob(w.job, seen);
+  // Short of energy (T29a, the ruling "Drop low inside, MAX"): how much slower than Lead he is, indicated, Lead's from
+  // what he sees of his true speed (his own he feels).
+  const leadKias = tasToIasKt(len3(seen.lead.v) / KT_TO_FTPS, seen.lead.p.z);
+  const job = fwJob(w.job, seen, { shortKt: leadKias - st.kias });
   const leadNow = add3(seen.lead.p, scale3(seen.lead.v, FW_SEE.delaySec));
   const cone = coneFrame(seen.lead.v);
   const vL = len3(seen.lead.v);
@@ -175,6 +178,11 @@ export function stepFwWingman(w, refSt) {
     turn = scale3(turn, Math.min(1, s));
     lift = add3(hold, turn);
   }
+  // Unload, roll, pull (T29a): while his wings are still rolling to where the lift is wanted he pulls only the lift's share
+  // along where they are now; a pilot never pulls hard with his wings the wrong way (fw-live.js does the same). In T29's
+  // first attempt he rolled 160° at 60°/s pulling 3.5 G all the way, so the pull went up: 650 ft above Lead, 33 KIAS lost.
+  const along = dot3(lift, st.bodyUp);
+  if (len3(lift) > 1e-9 && along < len3(lift) * Math.cos(W.pullWithinDeg * DEG)) lift = scale3(unit3(lift), Math.max(W.minG, along));
   if (len3(lift) < W.minG) lift = len3(lift) > 1e-9 ? scale3(unit3(lift), W.minG) : scale3(unit3(hold), W.minG);
 
   // ---- power (slowest; spec 7e.7): off in the guard's miss, else Lead's speed plus the closure the aim can't give, PI,
@@ -184,11 +192,13 @@ export function stepFwWingman(w, refSt) {
   const P = guard.on ? 0 : residual;
   // I on the closure he wants against the closure he has, slow (15 s), so a steady shortfall (the outside of a turn, a
   // climb) is trimmed out, and none builds while it is met
-  const iRaw = w.powerI + (guard.on ? 0 : ((cTarget - cActual) * STEP_SEC) / W.powerSec);
+  // In a turn power serves only what the aim can't give (one owner for closure, T29a): no integral there, it is held.
+  const iRaw = w.powerI + (guard.on || job.turning ? 0 : ((cTarget - cActual) * STEP_SEC) / W.powerSec);
   const powerI = Math.max(-band, Math.min(band, iRaw)); // held at its limits
   const wantTas = vL + Math.max(-band, Math.min(band, P + powerI)); // ft/s
   const wantKias = tasToIasKt(wantTas / KT_TO_FTPS, seen.lead.p.z);
-  const power = missPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : { holdKias: wantKias };
+  // Low inside, at MAX (the ruling): short of energy in the turn, power is MAX, not the slow PI.
+  const power = missPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : !guard.on && job.low ? { throttle: 1 } : { holdKias: wantKias };
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...power });
   const gAsk = len3(lift);
   const jobName = guard.on ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
@@ -198,6 +208,7 @@ export function stepFwWingman(w, refSt) {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
       heightTargetFt: Math.round(dz), wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
+      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low,
     },
   };
 }
