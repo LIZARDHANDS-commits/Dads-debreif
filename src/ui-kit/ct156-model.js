@@ -483,14 +483,17 @@ const SPEED_BRAKE = Object.freeze({ x0: 0.66 - 16.0 / 23.148, length: 2.3 / 23.1
 // each is a D, its aft outboard corner rounded (aftCornerFt) round the folded wheel; the main legs are beefier; the
 // nose leg has more to it, so it carries a steering collar, a torque link ahead of it, a drag brace up and aft into
 // the bay and a mudguard over the tyre's aft top. Their sizes are read off those photos and the side view (estimates).
-const GEAR_SIT_DEG = 2.5;
+// A2 (3d-work chunk 3; Patrick, 13 Oct 2026: "Measure, then decide", "spinner axis level"): the gear now holds the spinner's axis level on level ground
+// (was 2.5 deg nose up), all three tyres' bottoms 5.42 ft under the axis (the official side view's ground line; was 5.35 for the mains), the tyres
+// the measured sizes (an estimate until M4): main 1.65 ft across (was 1.64), nose 1.29 ft (was 1.34).
+const GEAR_SIT_DEG = 0;
 const GEAR = Object.freeze({
-  groundFt: -5.35, // the main wheels' ground, feet under the spinner's axis
-  main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.82, tyreWFt: 0.45, legRFt: 0.2, pistonRFt: 0.13 }),
+  groundFt: -5.42, // the main wheels' ground, feet under the spinner's axis (A2; was -5.35)
+  main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.825, tyreWFt: 0.45, legRFt: 0.2, pistonRFt: 0.13 }),
   legDoor: Object.freeze({ x0Ft: 13.45, x1Ft: 14.55, y0Ft: 2.3, y1Ft: 4.25 }),
   inboardDoor: Object.freeze({ x0Ft: 12.9, x1Ft: 15.1, y0Ft: 0.45, y1Ft: 2.35, aftCornerFt: 1.0, foreCornerFt: 0.2 }),
   legDoorSplayDeg: 12,
-  nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.67, tyreWFt: 0.5, legRFt: 0.12, pistonRFt: 0.085, collarRFt: 0.2, forkYFt: 0.31, linkFt: 0.45, guardFt: 0.08 }),
+  nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.645, tyreWFt: 0.5, legRFt: 0.12, pistonRFt: 0.085, collarRFt: 0.2, forkYFt: 0.31, linkFt: 0.45, guardFt: 0.08 }),
   noseDoor: Object.freeze({ x0Ft: 6.1, x1Ft: 10.0, halfFt: 0.36, openDeg: 85 }),
   doorThickFt: 0.03,
 });
@@ -1230,6 +1233,8 @@ function gearGeometries(THREE) {
   const ld = GEAR.legDoor, ib = GEAR.inboardDoor, nd = GEAR.noseDoor;
   // On the skin itself (wingSurfZ sits 0.0015 out for decals) and bent with the outer panel, just proud of it.
   const under = (x, y) => wingBend([x, y, wingSurfZ(x, y, -1) + 0.001]);
+  // F25 (3d-work chunk 3): the inboard doors' outer faces 0.0005 units under the surface line (was 0.001), so the well's ribs lie inside a shut door.
+  const underInboard = (x, y) => wingBend([x, y, wingSurfZ(x, y, -1) + 0.0005]);
   const [px, py, pz] = L.pivot, hd = L.legDoorHinge;
   // Folded, the leg lies turned -90° about x from down; into the leg's frame is +90° about x, (y, z) -> (-z, y).
   const intoLeg = ([x, y, z]) => {
@@ -1243,7 +1248,7 @@ function gearGeometries(THREE) {
   const ih = L.inboardHinge;
   geo.gearInboardDoor = gearDoor(THREE, (u, v) => {
     const xFt = ib.x0Ft + (ib.x1Ft - ib.x0Ft) * Math.sin((Math.PI / 2) * u); // closer together aft, round the D
-    return under(gearX(xFt), (ib.y0Ft + (inboardDoorFarFt(xFt) - ib.y0Ft) * v) * GFT);
+    return underInboard(gearX(xFt), (ib.y0Ft + (inboardDoorFarFt(xFt) - ib.y0Ft) * v) * GFT);
   }, [0, 0, 1], t, ([x, y, z]) => [x, y - ih[1], z - ih[2]], 20, 6);
   // The nose leg, raked along its pivot-to-axle line: strut, piston, fork crown, two fork blades, axle, torque link.
   const A = L.noseAxle, at = (f, dx = 0, dy = 0) => [A[0] * f + dx, dy, A[2] * f];
