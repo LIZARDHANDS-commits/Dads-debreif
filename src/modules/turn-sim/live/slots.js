@@ -235,15 +235,15 @@ function link(key, s, spacingFt) {
     // on the spinner-to-wingtip line, three wingspans further out along it than echelon (SMM 12.6 para 15, Fig 12.7;
     // ROUTE_SPANS, TS-181; it was 5, TS-103): about 124 ft out and 77 ft back, level or slightly low (TS-182)
     case 'route': return downTheLine(link('echelon', s, spacingFt), s, ROUTE_SPANS.slot * WINGSPAN_FT);
-    // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash, 11 ft
+    // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash, 17 ft
     // (an estimate of 8 ft until Patrick 14 Oct 2026, flying the corner: "this corner position is definitely too high ... our
-    // LAS is too high too. the straight back is good, but both have to go deep enough to get the references ... start by
-    // moving it (and LAS) down three feet")
-    case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -11 };
+    // LAS is too high too ... start by moving it (and LAS) down three feet", 11 ft; then with the Corner buttons: "set corner
+    // and LAB [line astern] to -6 feet for now and note to polish once the model is done", 17 ft; future.md)
+    case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -17 };
     // the corner (SMM 12.20 para 45, Figs 12.12-12.13; TS-231, Patrick 14 Oct 2026: "The corner should be if you move straight
     // right from Line Astern, and down and back from echelon"): line astern's fore and aft and height (his nose about 10 ft
-    // behind Lead's tail, below the prop wash) at echelon's own lateral, about 43 back, 40 out, 11 down (8 until Patrick's
-    // "down three feet", 14 Oct 2026), plus the Corner setting (CORNER_SHIFT); it moves with the echelon setting (TS-230).
+    // behind Lead's tail, below the prop wash) at echelon's own lateral, about 43 back, 40 out, 17 down (8, then 11, then
+    // 17 with Patrick's -6 on the Corner buttons, 14 Oct 2026; to polish with the redone model, future.md), plus the Corner setting (CORNER_SHIFT); it moves with the echelon setting (TS-230).
     // The station change flows through it (recipes.js cornerBehind, the same place).
     case 'corner': {
       const e = link('echelon', s, spacingFt);

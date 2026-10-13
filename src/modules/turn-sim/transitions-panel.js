@@ -271,7 +271,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   // Forward / Back and Up / Down, 1 ft a step, from line astern's fore and aft and height (slots.js CORNER_SHIFT). A live #2
   // moves there at once; held flying at the next press. The station change's corner moves with it. 2-ship, in the corner.
   let corner = { fwd: 0, up: 0 };
-  const CORNER_HINT = "Moves #2's corner place 1 ft a step (0 is line astern's fore and aft and height: 43.4 ft back, 11 ft down, at echelon's 40.2 ft out; 10 ft each way). Live: he moves there now. Held: from the next press. The station change's corner moves with it.";
+  const CORNER_HINT = "Moves #2's corner place 1 ft a step (0 is line astern's fore and aft and height: 43.4 ft back, 17 ft down, at echelon's 40.2 ft out; 10 ft each way). Live: he moves there now. Held: from the next press. The station change's corner moves with it.";
   const signed = (n) => `${n > 0 ? '+' : n < 0 ? '−' : '+'}${Math.abs(n)}`;
   const fwdValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
   const upValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
