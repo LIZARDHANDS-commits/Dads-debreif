@@ -97,6 +97,7 @@ export function applyLook(THREE, renderer, scene, { sun, hemisphere, up = 'z', e
     skies.set(renderer, held);
   }
   const sky = held.target.texture;
+  sky.userData.ct156Env = true; // a CT-156 kept from another view (its materials are shared) is swapped to this renderer's sky, not left on a dead one
   const before = { toneMapping: renderer.toneMapping, exposure: renderer.toneMappingExposure, hemisphere: hemisphere?.intensity };
 
   renderer.toneMapping = THREE.NeutralToneMapping;
@@ -108,11 +109,12 @@ export function applyLook(THREE, renderer, scene, { sun, hemisphere, up = 'z', e
   }
   if (hemisphere) orientHemisphere(hemisphere, up, hemisphereIntensity);
   setCt156Sky(sky);
-  // Models made before the sky (a view's first frame makes them first) swap their small sky picture for this one.
+  // Models made before the sky (a view's first frame makes them first) swap their small sky picture for this one; so does a model
+  // kept from a view that has closed (EP Tabletop keeps its ship), whose sky went with that view's renderer.
   scene.traverse((o) => {
     if (!o.isMesh) return;
     for (const m of [].concat(o.material)) {
-      if (m?.envMap?.userData?.ct156Env) {
+      if (m?.envMap?.userData?.ct156Env && m.envMap !== sky) {
         m.envMap = sky;
         if (up === 'y') m.envMapRotation.set(-Math.PI / 2, 0, 0);
         m.needsUpdate = true;
