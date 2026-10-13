@@ -464,6 +464,7 @@ export const FW_WING = Object.freeze({
     filterSteps: 20, // the turns tried each way, from none to his most (then refined; estimate)
     filterRefine: 6,
     filterHoldSec: 1, // power off and the miss's height held a second after the filter last changed his turn (estimate)
+    shakerBound: true, // the filter's candidate turns stop at the stick-shaker's G at his speed (Fable F2, second review; a physical limit)
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
     engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)

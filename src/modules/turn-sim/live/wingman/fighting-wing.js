@@ -227,7 +227,11 @@ export function stepFwWingman(w, refSt) {
     };
     if (passFor(omegaNom) < W.guard.engageFt) {
       filterOn = true;
-      const gMost = Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
+      // The candidates stop at the stick-shaker's G at his speed now, a physical limit (Fable F2, second review; Q5's working
+      // answer: stop at the shaker and use height and power). Before, Lead + 1.5 G could pass it when he was slow.
+      const gMost = W.guard.shakerBound
+        ? Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)))
+        : Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
       const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - 1))) / V;
       const N = W.guard.filterSteps;
       let best = null;
