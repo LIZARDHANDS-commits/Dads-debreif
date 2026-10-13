@@ -32,12 +32,23 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `liftTowardAim(vHat, toAim, vFtps, gain)` | point-mass.js | The lift a pursuit asks for: carry the weight and turn toward any aim point (pure, lead, lag, a slot) | kinematics; the gain is the module's |
 | `turnPlaneNormal(vel, up, turning)` | point-mass.js | The unit normal of a turn's plane | geometry |
 
+## Aircraft performance sets
+
+The T-6A rows below are one aircraft's numbers put through one set of formulas. Since Traffic plan Step 5c Phase 1 the formulas live in `aircraft-performance.js`; `t6-performance.js` keeps every name it always exported, each now the T-6A set's function, with the same value and behaviour.
+
+| Function | File | What it gives | Source |
+|---|---|---|---|
+| `makePerformance({ name, fit, limits, roll, gOnset, pitch, glide, manoeuvre, sources })` | aircraft-performance.js | One aircraft's performance set from its numbers: `stallLimitG`, `availableG`, `rollLimitsAtKtas`, `rollWithin`, `maxKias`, `modelMaxIas`, `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight`, `excessFn`, `excessFnFor`, `pitchDegFromClimb`, `attitudeDegFromClimb`, `glideRatio`, `glideSinkFpm`, `glideDragPerWeight`, `shakerG`, each the T-6A function of the same job closed over that aircraft's numbers. A set with no glide data (or no shaker margin) throws rather than borrow another aircraft's | the formulas of the T-6A rows below |
+| `estimatesIn(perf)` | aircraft-performance.js | The names of a set's numbers still marked "estimate", for the screen's flags | none (a list) |
+| `T6A_PERFORMANCE` | t6-performance.js | The T-6A's set, built from `T6A_FIT`, `T6A_LIMITS`, `T6A_ROLL`, `T6A_G_ONSET`, `T6A_PITCH`, `T6A_GLIDE` and `T6A_MANOEUVRE`; what Traffic's envelope gate uses unless told otherwise | as the T-6A rows |
+| `CT102B_PERFORMANCE`, `CT102B_AIRFRAME`, `CT102B_FIT`, `CT102B_LIMITS`, `CT102B_PITCH`, `CT102B_SOURCES` | ct102b-performance.js | The CT-102B Astra II's set (Traffic spec 4.19): stall 68 KIAS, +6/−4 G, 240 KIAS top speed, thrust and drag worked from the 456 shp engine, wing area, span, weight, climb rate and estimated drag and propeller numbers; the T-6A's roll and G onset; no glide data. Each number's source status in `CT102B_SOURCES` | type certificate sheet and public figures (unchecked) and ESTIMATES, each named in the file; no manual |
+
 ## Speed, height and energy
 
 | Function | File | What it gives | Source |
 |---|---|---|---|
-| `iasToTasKt(kias, alt, sigma)`, `tasToIasKt` | t6-performance.js | Indicated to true airspeed and back, no compressibility: the standard day's density unless the caller passes the day's own (`sigma`) | aero |
-| `machToKiasKt` | t6-performance.js | KIAS for a Mach number, with compressibility | aero |
+| `iasToTasKt(kias, alt, sigma)`, `tasToIasKt` | aircraft-performance.js (also exported from t6-performance.js) | Indicated to true airspeed and back, no compressibility: the standard day's density unless the caller passes the day's own (`sigma`) | aero |
+| `machToKiasKt` | aircraft-performance.js (also exported from t6-performance.js) | KIAS for a Mach number, with compressibility | aero |
 | `isaTempK(alt, dev)`, `isaPressureRatio(alt)`, `isaDensityRatio(alt)`, `speedOfSoundKt(alt, dev)` | atmosphere.js | The standard day once: temperature, pressure and density as a fraction of sea level, and the speed of sound; `dev` is today's temperature deviation, °C (0 by default). `isaDensityRatio` is also exported from flight-math.js and `speedOfSoundKt` from t6-performance.js, under the same names | standard atmosphere |
 | `densityRatio(alt, dev)` | atmosphere.js | Air density at a pressure height on a day `dev` °C off standard: the standard ratio times T ÷ (T + dev). Traffic's airspeed pair in `weather.js` uses it with the day's deviation (TR-77) | standard atmosphere |
 | `energyHeightFt(alt, ktas)` | t6-performance.js | Height plus the height the speed is worth | aero |
@@ -83,7 +94,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `lonLatToTile`, `tileBounds`, `pickTileZoom`, `mercatorY`, `invMercatorY`, `lonLatToWorldPixel` | geo.js | Web Mercator map tiles and pixels | the tile scheme's published formulas |
 | `decodeTerrarium`, `tilesCovering`, `createHeightStore`, `TERRAIN_URL`, `TERRAIN_CREDIT`, `TILE_PX`, `PLAUSIBLE_M` | terrain-tiles.js | Ground height from the public elevation tiles (SOF terrain, Traffic 3D ground TR-117) | the tiles' published encoding |
 | `createGrid`, `fillGrid`, `stitchInner`, `sampleGrid`, `hillshade`, `zoomForTiles`, `holeFor`, `SHADE_GAIN`, `SHADE_LIMITS` | terrain-grid.js | The two-tier height grids a 3D view's real ground is drawn from, read from that store (SOF terrain, Debrief Terrain and satellite; SOF-65, DB-27). A picture only | standard bilinear sampling; hill shade sun NW 45° and `SHADE_GAIN` 4 are estimates for the look |
-| `FT_PER_NM`, `KT_TO_FTPS`, `FTPS_TO_KT`, `FT_PER_M`, `M_PER_FT`, `G_FTPS2`, `EARTH_RADIUS_M`, `ktToFtps`, `ftpsToKt`, `formatNm` | units.js | Unit constants and conversions, once. `FTPS_TO_KT` is rounded on its own (0.592484, not 1 ÷ 1.68781); a question for Patrick | standard values |
+| `FT_PER_NM`, `KT_TO_FTPS`, `FTPS_TO_KT`, `FT_PER_M`, `M_PER_FT`, `G_FTPS2`, `SEA_LEVEL_DENSITY_SLUG_FT3`, `EARTH_RADIUS_M`, `ktToFtps`, `ftpsToKt`, `formatNm` | units.js | Unit constants and conversions, once. `SEA_LEVEL_DENSITY_SLUG_FT3` is the standard day's sea-level air density (0.0023769 slug/ft³); Traffic's `path-follower.js` still types the same number for its wing-down slip. `FTPS_TO_KT` is rounded on its own (0.592484, not 1 ÷ 1.68781); a question for Patrick | standard values |
 
 ## Formation, gunnery and time
 
