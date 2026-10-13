@@ -5,7 +5,53 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (12 Oct 2026, night): the fix list under way
+## Latest (13 Oct 2026): every agent finding verified and ruled
+
+- **Read `3d-work` `ct156/plan.md` first**, then `ct156/fix-list.md` (114 rows; the fix-it plan has, for each approved
+  row, today's values with code lines, the targets, the checks and a labelled picture in `refs/review/`).
+- **Verified and ruled with Patrick, area by area:** B4 (the sill band's shelf, trim flush) and C1 (folded into C2);
+  D, E, F, H and G. Patrick changed three of his 12 Oct settings: the grab rail's lower end to about 0.3 (D6), the rear
+  crest to about 1.77 ft (E3), the cockpit greys lighter (G15). The fin goes navy (G14), so the app needs another way
+  to tell ships apart in a debrief.
+- **New rule (Patrick):** references must be CT-156; other T-6 variants back only shared shapes (D8 is provisional).
+- **Patrick's asks added:** the exhausts with textured insides (F42), the tie-downs (F43, the tail point missing), the
+  belly antennas' shape, size and place (F44).
+- **Waiting on Patrick:** CT-156 photos (156102 from below, 156115, an exhaust, a tie-down, a wingtip light, 123 from
+  below) and M1 to M40 at work.
+- **Next:** the fixes in order (plan step 7), each shown before and after; first the paint-over-photo check (G7,
+  G10, G12, G13).
+- **Merged:** `3d-work` #16 to #22; app #1023.
+
+## Earlier (13 Oct 2026, about 04:20Z): first batch approved and verified
+
+- **Read `3d-work` `ct156/plan.md` first** (the plan was split into `plan.md`, `measurements.md` and `fix-list.md` on 13 Oct):
+  its "Resume here" block and decisions log; then in `fix-list.md` the **fix-it plan** (how to
+  fix each approved row: targets, code lines, master parts, checks), the verified rows and M1 to M40.
+- **Rule (Patrick):** an agent's finding is verified by the thread itself before it goes on the fix list; unverified
+  ones wait in `ct156/agent-findings.md` (85 rows, areas B to H). Verifying changed several: two approved rows did not
+  hold on the drawing and went back to Patrick.
+- **Approved:** A2, A3, B2, B3, C2, C3 (12 deg), C4 (1.5 in at 14 deg), C7 (17.5 deg), F26 (stopped prop feathered), F36
+  (grooves in High only); C3, C4, C7 provisional until M22.
+- **Shown in Blender:** `3d-work` `ct156/build/review_drawing.py` puts the official side view behind the model, never
+  saved; Patrick wants each question drawn that way, centred on it.
+- **New pictures:** `A19` (profile art, low), `A20` and `B03` (near-abeam canopy photos), `C04`, `C05`, `F05`.
+- **Merged:** `3d-work` #10, #11; app #1021. Patrick has authorized merging this work's pull requests.
+- **Next:** verify B4, C1, then D and E, putting each verified row to Patrick in Blender; then the fixes.
+
+## Earlier (12 Oct 2026, about 21:30): all but two areas analysed
+
+- **Read `3d-work` `ct156/fix-list.md` first:** its "Resume here" block, the step table, the decisions log, every
+  row (candidates unless marked), and the measurements M1 to M25 for Patrick's next day at work.
+- **Analysed:** A by overlays (levelling approved, A1; the height check with the spinner axis level: 11 ft 0.8 in,
+  rows A2 wheels and A3 fin; the fin offset on the ramp photo was perspective). B and C, D, F, G by Sonnet agents in
+  parallel (Patrick: several at once is fine), each checked by the thread before filing.
+- **Fixed:** F8, the right aileron and flaps at the model's origin (a seeding bug), with a mirror check in
+  `check_master.py`. Merged: `3d-work` #7, #8 and the save; app #1019 (ALL-34 reworded).
+- **Next:** agents for E (rear cockpit) and H (pilots); put the rows to Patrick an area at a time, A with B and C
+  first, each with options and a recommendation, the canopy height (B2) among the first.
+- **Usage:** two agents hit the session limit (reset 20:50) and were resumed where they stopped.
+
+## Earlier (12 Oct 2026, night): the fix list under way
 
 - **The working plan for item 4 is `3d-work` `ct156/fix-list.md`:** steps and state, Patrick's decisions, the M list
   of measurements for work, every fix row. Read it first.
