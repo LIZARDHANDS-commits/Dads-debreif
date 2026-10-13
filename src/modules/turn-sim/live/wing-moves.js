@@ -385,6 +385,8 @@ export const FW_WING = Object.freeze({
   // between his flight path and the line to his aim point; works in 3D, in whatever plane the aim is (Patrick 14 Oct 2026,
   // "So can lead and 2 follows").
   gPerDeg: 0.05, // about 0.05 G per degree, 1 G per 20° (spec 7e.7)
+  // ---- the cone in Lead's turns, rebuilt on Fable's second review (14 Oct 2026, fable-cone-turn-report-14oct.md) ----
+  deadReckon: true, // Lead carried across the 0.4 s delay round his turn before anything uses him (Fable F5)
   aimTurnSec: 0.5, // the aim line's turn read over about 0.5 s (as the line of sight)
   overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate) ...
   minG: 0.5, // ... and never under 0.5 G, so his lift always has a direction (estimate)

@@ -279,6 +279,26 @@ export function turnOf(s, g) {
   return { aPerp, omega, rateDps: len3(omega) / DEG, radiusFt, centre: a > 1e-6 ? add3(s.p, scale3(unit3(aPerp), radiusFt)) : null };
 }
 
+/** A vector turned about a unit axis by an angle (rad), right-handed (Rodrigues' rotation; standard kinematics). */
+export function rotate3(v, axis, ang) {
+  const c = Math.cos(ang);
+  const s = Math.sin(ang);
+  return add3(add3(scale3(v, c), scale3(cross3(axis, v), s)), scale3(axis, dot3(axis, v) * (1 - c)));
+}
+
+/**
+ * An aircraft seen at a moment (s: seenOf's) carried sec ahead round the turn it is making (turn: turnOf's), its position
+ * and velocity both, as a wingman's eye carries Lead across his own delay (Fable F5, the second review: it recovers about
+ * 7° of phase at the steering's 0.3 rad/s). Straight on when it is not turning. Returns { p, v }.
+ */
+export function aheadOnTurn(s, turn, sec) {
+  const w = len3(turn.omega);
+  if (!turn.centre || w < 1e-6) return { p: add3(s.p, scale3(s.v, sec)), v: s.v };
+  const axis = scale3(turn.omega, 1 / w);
+  const ang = w * sec;
+  return { p: add3(turn.centre, rotate3(sub3(s.p, turn.centre), axis, ang)), v: rotate3(s.v, axis, ang) };
+}
+
 /** The picture at a seen moment: own (him) and ref (Lead), seenOf's. */
 function fwRaw(ref, own) {
   const r = sub3(own.p, ref.p);

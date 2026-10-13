@@ -23,7 +23,7 @@ import { throttleAtTorque } from '../power.js';
 import { ROLL } from '../rates.js';
 import { FW_SEE, FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
-import { seenOf, startFwSight, seeFw } from './perception.js';
+import { seenOf, startFwSight, seeFw, aheadOnTurn } from './perception.js';
 import { startFwGuard, fwGuard, startFwJob, fwJob, leastPass } from './supervisor.js';
 
 const W = FW_WING;
@@ -83,7 +83,13 @@ export function stepFwWingman(w, refSt) {
   // what he sees of his true speed (his own he feels).
   const leadKias = tasToIasKt(len3(seen.lead.v) / KT_TO_FTPS, seen.lead.p.z);
   const job = fwJob(w.job, seen, { shortKt: leadKias - st.kias });
-  const leadNow = add3(seen.lead.p, scale3(seen.lead.v, FW_SEE.delaySec));
+  // Lead carried across the 0.4 s he sees late, round the turn he is making (Fable F5, second review), so the steering, the
+  // range and the filter all work on Lead now; his own place and path he knows now.
+  const leadDR = aheadOnTurn(seen.lead, seen.turn, W.deadReckon ? FW_SEE.delaySec : 0);
+  const leadNow = W.deadReckon ? leadDR.p : add3(seen.lead.p, scale3(seen.lead.v, FW_SEE.delaySec));
+  const leadV = W.deadReckon ? leadDR.v : seen.lead.v;
+  const ownP = W.deadReckon ? st.pm : seen.own.p;
+  const ownV = W.deadReckon ? st.vel : seen.own.v;
   const cone = coneFrame(seen.lead.v);
   const vL = len3(seen.lead.v);
 
@@ -99,8 +105,8 @@ export function stepFwWingman(w, refSt) {
   if (W.followCircle && seen.turn.centre && job.turning) {
     const c = seen.turn.centre;
     const axis = unit3(seen.turn.omega);
-    const rL = perp3(sub3(seen.lead.p, c), axis);
-    const rMe = perp3(sub3(seen.own.p, c), axis);
+    const rL = perp3(sub3(W.deadReckon ? leadNow : seen.lead.p, c), axis);
+    const rMe = perp3(sub3(ownP, c), axis);
     const ang = Math.atan2(dot3(cross3(rMe, rL), axis), dot3(rMe, rL)); // + Lead ahead of him round the circle
     arcFt = ang * seen.turn.radiusFt;
     range = arcFt;
@@ -191,7 +197,7 @@ export function stepFwWingman(w, refSt) {
   // quick fix's or his stack 50 ft below), PD (spec 7e.7) ----
   const dz = (W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on) ? guard.vert * guard.missFt : job.heightFt;
   const errFt = dot3(sub3(add3(leadNow, scale3(Z, dz)), st.pm), out); // + he has to go toward the normal (up)
-  const errRate = -dot3(sub3(st.vel, seen.lead.v), out);
+  const errRate = -dot3(sub3(st.vel, leadV), out);
   const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
   const aV = scale3(out, vertG * G_FTPS2);
   // His lift (G, a vector): what holds his path against his weight, the vertical, then the turn; within his G. One pitch
@@ -211,11 +217,12 @@ export function stepFwWingman(w, refSt) {
   if (W.guard.filter) {
     const side = unit3(cross3(out, u)); // his left in the turn plane
     const omegaNom = dot3(aTurn, side) / V; // rad/s, + turning left
-    const horizon = W.guard.lookSec + FW_SEE.delaySec;
-    const leadAsIs = { p: seen.lead.p, v: seen.lead.v, omega: seen.turn.omega };
-    const leadTighter = { p: seen.lead.p, v: seen.lead.v, omega: scale3(seen.turn.omega, W.guard.tighter) };
+    const horizon = W.guard.lookSec + (W.deadReckon ? 0 : FW_SEE.delaySec);
+    const lp0 = W.deadReckon ? leadNow : seen.lead.p;
+    const leadAsIs = { p: lp0, v: leadV, omega: seen.turn.omega };
+    const leadTighter = { p: lp0, v: leadV, omega: scale3(seen.turn.omega, W.guard.tighter) };
     const passFor = (om) => {
-      const me = { p: seen.own.p, v: seen.own.v, omega: scale3(out, om) };
+      const me = { p: ownP, v: ownV, omega: scale3(out, om) };
       return Math.min(leastPass(leadAsIs, me, horizon).leastFt, leastPass(leadTighter, me, horizon).leastFt);
     };
     if (passFor(omegaNom) < W.guard.engageFt) {
