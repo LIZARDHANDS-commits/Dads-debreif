@@ -13,7 +13,9 @@ export const WORKER_FILE = 'sw.js';
 // flight's files (examples/) and the debrief's VNC charts (media/debrief/) are
 // kept only once someone opens them (src/shell/sw.js), so they don't add
 // 0.7 MB and 5.4 MB to every first visit either.
-const SKIP = [/^\.vite\//, /^sw\.js$/, /\.map$/, /\.(webm|mp4)$/, /^examples\//, /^media\/debrief\//];
+// The CT-156's Performance model files (models/ct156/performance/, plan Step 3b item 3.4) aren't loaded until the
+// Graphics switch picks them (item 8), so they stay out of the offline set until then (Patrick, 13 Oct 2026).
+const SKIP = [/^\.vite\//, /^sw\.js$/, /\.map$/, /\.(webm|mp4)$/, /^examples\//, /^media\/debrief\//, /^models\/ct156\/performance\//];
 
 export function precacheList(files) {
   return files

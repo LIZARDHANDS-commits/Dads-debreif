@@ -25,7 +25,7 @@ Debrief, EP Tabletop, SOF, Traffic, Turn Fight and Formation.
 | Paint schemes, ship numbers and serials | Stays code |
 | Lights, canopy glass | Stays code |
 | Pilots | Blender (in the master since 12 Oct 2026, collection Pilots) |
-| Fingerprints | Replaced by a version and delivery check |
+| Fingerprints | Replaced by the delivery check (plan 3.4, 13 Oct 2026): the app loads a model file only when every part carries the name of the delivery in `public/models/ct156/delivery.json`, written by `npm run models:import` (`tools/blender/README.md`) |
 | The light Harvard for distant aircraft | Unchanged |
 
 In the master file (plan Step 3b item 3.3, done 12 Oct 2026): the outside's 17 parts and the mirrored right aileron and
@@ -35,6 +35,10 @@ and coamings seen from outside, the tub seen from the seats, and the two pilots.
 says: the canopy glass, lights, cheat line, decals and ship numbers, and the prop's blur disc.
 
 ## 1. How the model is made
+
+**Since plan 3.4 (13 Oct 2026)** the files are made from the `3d-work` master by its delivery command and taken in by
+`npm run models:import`; the code-table pipeline below is the record of how they were made before ALL-38, and the
+fingerprint check it describes is gone (section 0).
 
 **Changed by ALL-38 (12 Oct 2026):** Blender now owns the shape, in master files in the private repo `3d-work`, and
 the app takes finished, checked files. This section describes the model as built up to V2.418, from the code tables;

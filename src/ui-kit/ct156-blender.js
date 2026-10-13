@@ -33,6 +33,46 @@ export function loadParts(file) {
     }));
 }
 
+/**
+ * Where the CT-156's delivered files sit (plan Step 3b item 3.4): public/models/ct156/, written only by
+ * `npm run models:import` from a checked delivery of the 3d-work repo (ALL-38: Blender owns the shape). High and
+ * Performance each have their own folder; the app loads High until the Graphics switch picks the level (item 8).
+ */
+export const CT156_FILES = 'ct156/high/';
+
+let delivery = null;
+let told = false;
+/** The delivery the files came from (public/models/ct156/delivery.json): Promise of its name, or null without one. */
+function ct156Delivery() {
+  if (!delivery) {
+    delivery = fetch(modelsUrl('ct156/delivery.json'))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((sheet) => sheet?.name ?? null, () => null);
+  }
+  return delivery;
+}
+
+/**
+ * A delivered file's parts (loadParts), used only when every part carries the name of the delivery the import wrote
+ * beside them, so a mixed or half-copied set never shows. This replaced the code's fingerprints (plan 3.4, Patrick
+ * 13 Oct 2026): the file is now the shape's one source and differs from the code's shape on purpose once a fix is made.
+ * Rejects otherwise, and the code's own parts stay.
+ */
+export function loadDelivered(file) {
+  return Promise.all([ct156Delivery(), loadParts(CT156_FILES + file)]).then(([name, list]) => {
+    const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
+    if (!name || foreign.length) {
+      console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);
+      throw new Error('not delivered');
+    }
+    if (!told) {
+      told = true;
+      console.info(`CT-156 models: delivery ${name}`);
+    }
+    return list;
+  });
+}
+
 /** A baked soft-shadow picture beside the files, laid on its part's own UV map; loaded once a page. */
 const aoTextures = new Map();
 export function loadAo(THREE, file) {

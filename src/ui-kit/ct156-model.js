@@ -27,7 +27,7 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, loadAo, loadParts, paintGrain } from './ct156-blender.js';
+import { aoShaded, CT156_FILES, loadAo, loadDelivered, paintGrain } from './ct156-blender.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
 /** The paint setting every module offers: Paint: Harvard / Ship colours, Harvard the default. */
@@ -619,13 +619,14 @@ export function ct156PiecesHash(pieces) {
   return h.toString(16);
 }
 
-// The outside from Blender (ALL-33, Patrick 11 Oct 2026): public/models/ct156-exterior.glb, built by
-// tools/blender/build_ct156_exterior.py from these very shapes (ct156ExteriorPieces), smooth-shaded, with the soft
-// shadows and panel lines baked into one picture (ct156-exterior-ao.jpg) on its own UV map. Once it is in, each of these
-// kit shapes takes the file's in place, so every ship (and every ship made later) draws it; the decals, cheat line,
-// glass, lights, pilots and prop stay the code's, and so do the exhaust stacks since 12 Oct 2026 (Blender's shading put
-// grey spikes round their lips; Patrick, 12 Oct 2026, "exhaust doesnt look right here"). Only all of it or none: if the file is missing, or any part was built
-// from other shapes than the code draws now, every ship stays as the code draws it.
+// The outside from Blender (ALL-33, ALL-38): public/models/ct156/high/ct156-exterior.glb, delivered from the 3d-work
+// master by its delivery command and taken in by `npm run models:import` (plan Step 3b item 3.4), smooth-shaded, with
+// the soft shadows and panel lines baked into one picture (ct156-exterior-ao.jpg) on its own UV map. Once it is in,
+// each of these kit shapes takes the file's in place, so every ship (and every ship made later) draws it; the decals,
+// cheat line, glass, lights, pilots and prop stay the code's, and so do the exhaust stacks since 12 Oct 2026 (Blender's
+// shading put grey spikes round their lips; Patrick, 12 Oct 2026, "exhaust doesnt look right here"). Only all of it or
+// none: if the file is missing, not from the imported delivery, or lacks a part, every ship stays as the code draws it.
+// The code's shapes here are that fallback (ALL-38 (5)); since 3.4 the file's shape may differ from them on purpose.
 const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
@@ -695,35 +696,35 @@ function takeShape(THREE, into, meshes) {
 }
 
 function attachExterior(kit) {
-  loadParts(EXTERIOR_FILE).then((list) => {
+  loadDelivered(EXTERIOR_FILE).then((list) => {
     if (kit.disposed) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
-    const stale = EXTERIOR_PARTS.filter((name) => byName.get(name)?.extras.ct156_hash !== kit.hashes[name] || !usable(byName.get(name)));
-    if (stale.length) {
-      console.warn(`${EXTERIOR_FILE}: ${stale.join(', ')} out of date with the code; the code model shows (rebuild: tools/blender/README.md)`);
+    const missing = EXTERIOR_PARTS.filter((name) => !usable(byName.get(name)));
+    if (missing.length) {
+      console.warn(`${EXTERIOR_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code model shows`);
       return;
     }
     for (const name of EXTERIOR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-    kit.ao = loadAo(kit.THREE, EXTERIOR_AO);
-    kit.skin = { bump: loadAo(kit.THREE, EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, EXTERIOR_DIRT) };
+    kit.ao = loadAo(kit.THREE, CT156_FILES + EXTERIOR_AO);
+    kit.skin = { bump: loadAo(kit.THREE, CT156_FILES + EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, CT156_FILES + EXTERIOR_DIRT) };
     for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
   }, () => {}); // no file: the code model shows
 }
 
 /** The gear's Blender file (ALL-34), as attachExterior: all its parts or none; without it the code's gear shows. */
 function attachGear(kit) {
-  loadParts(GEAR_FILE).then((list) => {
+  loadDelivered(GEAR_FILE).then((list) => {
     if (kit.disposed) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
-    const stale = GEAR_PARTS.filter((name) => byName.get(name)?.extras.ct156_hash !== kit.gearHashes[name] || !usable(byName.get(name)));
-    if (stale.length) {
-      console.warn(`${GEAR_FILE}: ${stale.join(', ')} out of date with the code; the code's gear shows (rebuild: tools/blender/README.md)`);
+    const missing = GEAR_PARTS.filter((name) => !usable(byName.get(name)));
+    if (missing.length) {
+      console.warn(`${GEAR_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code's gear shows`);
       return;
     }
     for (const name of GEAR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-    kit.gearAo = loadAo(kit.THREE, GEAR_AO);
+    kit.gearAo = loadAo(kit.THREE, CT156_FILES + GEAR_AO);
     for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
   }, () => {});
 }
@@ -2374,13 +2375,14 @@ function buildKit(THREE) {
     dot: decalMat(tex.dot),
   };
   const kit = { THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, dispose: () => ((kit.disposed = true), own.forEach((o) => o.dispose())) };
-  // The outside from the Blender file (ALL-33): each part's fingerprint now, before the file's shapes take its place.
+  // Each outside part's fingerprint of the code's own shape, before the file's shape takes its place: read by the
+  // export scripts in tools/blender/ (ct156ExteriorPieces); since plan 3.4 the app no longer compares it with the file.
   kit.hashes = Object.fromEntries(EXTERIOR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
   kit.exteriorGeos = new Set(EXTERIOR_PARTS.map((name) => geo[name]));
   kit.exteriorMeshes = new Set();
   kit.shaded = new WeakMap();
   kit.ao = null;
-  // The gear from its own Blender file (ALL-34), the same way: its parts' fingerprints, swapped in only all together.
+  // The gear from its own Blender file (ALL-34), the same way, swapped in only all together.
   kit.gearHashes = Object.fromEntries(GEAR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
   kit.gearGeos = new Set(GEAR_PARTS.map((name) => geo[name]));
   kit.gearMeshes = new Set();
