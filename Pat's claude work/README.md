@@ -267,3 +267,9 @@ Formation screenshots at V2.90.
 - [design.md](turn-sim-review/transitions/design.md): Changing formation design.
 - [spec-draft.md](turn-sim-review/transitions/spec-draft.md): Draft spec wording for changing formation (2-ship).
 - Other files (pictures, diagram sources, scripts, data): [formation-positions.png](turn-sim-review/transitions/formation-positions.png), [formation-positions.svg](turn-sim-review/transitions/formation-positions.svg), [make-pictures.mjs](turn-sim-review/transitions/make-pictures.mjs), [rejoin-from-lab-turn-away.svg](turn-sim-review/transitions/rejoin-from-lab-turn-away.svg), [rejoin-from-lab-turn-into.svg](turn-sim-review/transitions/rejoin-from-lab-turn-into.svg), [screen-change-formation.png](turn-sim-review/transitions/screen-change-formation.png), [screen-change-formation.svg](turn-sim-review/transitions/screen-change-formation.svg)
+
+### formation-track-logs/
+
+- [README.md](formation-track-logs/README.md): Patrick's four-ship track logs (23 Sep 2026 as #2, 14 Aug 2026 as #4), what one ship's track can and can't say, and the example four-ship measured as pairs (13 Oct 2026).
+- [pair-geometry.mjs](formation-track-logs/pair-geometry.mjs): a wingman's range, angle off the tail, height and closure off the ship he flies off, from two tracks of one sortie (the example four-ship by default).
+- Track files: [2026-09-23-four-ship-as-no2.kml](formation-track-logs/2026-09-23-four-ship-as-no2.kml), [2026-08-14-four-ship-as-no4.kml](formation-track-logs/2026-08-14-four-ship-as-no4.kml)
