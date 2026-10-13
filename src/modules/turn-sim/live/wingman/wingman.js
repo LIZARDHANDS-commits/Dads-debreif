@@ -86,6 +86,11 @@ export function settledOn(w, refSt) {
   return Math.max(Math.abs(d.plane), Math.abs(d.line), Math.abs(d.along)) <= 1 && Math.max(Math.abs(r.plane), Math.abs(r.line), Math.abs(r.along)) <= 1;
 }
 
+/** The live wingman flying to a new place (the echelon setting moved, TS-230): his state with it, nothing else changed. */
+export function withPlace(w, place) {
+  return { ...w, place, per: { ...w.per, place } };
+}
+
 /** The inputs he holds now (for the next technique to start from, B5): { upCorrG, leftCorrG, torquePct }. */
 export function inputsOf(w) {
   const { upCorrG, leftCorrG, torquePct } = w.hand;

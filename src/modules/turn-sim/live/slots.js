@@ -75,6 +75,26 @@ export const ROUTE_SPANS = Object.freeze({ slot: 3, min: 1, max: 3 });
  */
 export const LINE_BACK_PER_OUT = 12.3 / 16.7;
 
+/** TS-230: echelon sits this far along the line from TS-182's place (negative: up the line, toward Lead). */
+const ECHELON_UP_LINE_FT = -2.5;
+/**
+ * "Echelon on the line" (Patrick 14 Oct 2026: "a little toggle that moves us up and down the line 1 foot at a time? so i can
+ * play with it"): feet down the line (+, away from Lead) or up it (-) from TS-230's place, 1 ft a step, from 5 ft up (his
+ * wingtip about 3.5 ft outside Lead's) to 10 ft down (estimates). 0 by default; the session's own, not remembered.
+ */
+export const ECHELON_SHIFT = Object.freeze({ stepFt: 1, upMostFt: -5, downMostFt: 10 });
+let echelonShift = 0;
+/** Sets the echelon setting (feet along the line, + down it), clamped to ECHELON_SHIFT's range and whole feet. */
+export function setEchelonShift(ft) {
+  const n = Math.round(Number(ft) || 0);
+  echelonShift = Math.max(ECHELON_SHIFT.upMostFt, Math.min(ECHELON_SHIFT.downMostFt, n));
+  return echelonShift;
+}
+/** The echelon setting now, feet along the line (+ down it, away from Lead). */
+export function echelonShiftNow() {
+  return echelonShift;
+}
+
 /** The place alongFt further out along the spinner-to-wingtip line from `from` (a place on it), on side s. */
 function downTheLine(from, s, alongFt) {
   const out = alongFt / Math.hypot(1, LINE_BACK_PER_OUT);
@@ -187,7 +207,9 @@ function link(key, s, spacingFt) {
     // back, 43 ft out, 3 ft down, origin to origin (TS-182; Patrick 11 Oct 03:38Z "make the numbers work for that"; 05:31Z
     // "echelon is sitting slightly too low": 4 ft down until V2.255). It was 25 back, 45 out, 5 down, an estimate that put
     // Lead's wingtip ahead of the spinner.
-    case 'echelon': return { fwd: -18, left: s * 43, alt: -3 };
+    // TS-230 (Patrick 14 Oct 2026, "a hair further up the line ... maybe 2-3 feet"): 2.5 ft further up the line than TS-182's
+    // place, about 16.5 back and 41 out, plus the setting that moves it along the line a foot at a time (echelonShiftFt).
+    case 'echelon': return downTheLine({ fwd: -18, left: s * 43, alt: -3 }, s, ECHELON_UP_LINE_FT + echelonShift);
     // on the spinner-to-wingtip line, three wingspans further out along it than echelon (SMM 12.6 para 15, Fig 12.7;
     // ROUTE_SPANS, TS-181; it was 5, TS-103): about 124 ft out and 77 ft back, level or slightly low (TS-182)
     case 'route': return downTheLine(link('echelon', s, spacingFt), s, ROUTE_SPANS.slot * WINGSPAN_FT);

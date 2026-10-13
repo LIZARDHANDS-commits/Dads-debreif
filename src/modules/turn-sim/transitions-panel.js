@@ -110,7 +110,7 @@ function placeWords(key, p) {
  * shown under this one for the 2-ship, or null. Returns
  * { element, cardElement, setShips(n), update(state, where), renderCard(state, where), values() }.
  */
-export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null }) {
+export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, onEchelonShift = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let turn = 'into'; // TRJ Into or Away (TS-174): which way Lead turns, toward #2's side or away from it
@@ -253,6 +253,26 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null })
   }, o.label));
   const closeWingRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': '#2 in close formation: Held or Live', title: CLOSE_WING_HINT },
     h('span', { class: 'ts-hint' }, '#2 in close formation'), closeWingButtons);
+
+  // Echelon on the line (TS-230; Patrick 14 Oct 2026: "a little toggle that moves us up and down the line 1 foot at a time? so
+  // i can play with it"): Up 1 ft toward Lead, Down 1 ft away, along the spinner-to-wingtip line; the value is from TS-230's
+  // place. A live #2 slides there at once; held flying takes it at the next press. 2-ship only.
+  let shiftFt = 0;
+  const ECHELON_SHIFT_HINT = "Moves #2's echelon place along the spinner-to-wingtip line, 1 ft a step: Up toward Lead, Down away from him (0 is 16.5 ft back, 41 ft out, 3 ft down; 5 ft up to 10 ft down). Live: he slides there now. Held: from the next press. Route moves with it.";
+  const shiftValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
+  const showShift = () => { shiftValue.textContent = `${shiftFt > 0 ? '+' : shiftFt < 0 ? '−' : '+'}${Math.abs(shiftFt)} ft`; };
+  const shiftButton = (label, delta, title) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    title,
+    onclick: () => {
+      shiftFt = onEchelonShift ? onEchelonShift(shiftFt + delta) : shiftFt + delta;
+      showShift();
+    },
+  }, label);
+  const echelonShiftRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Echelon on the line, 1 ft a step', title: ECHELON_SHIFT_HINT },
+    h('span', { class: 'ts-hint' }, 'Echelon line'),
+    shiftButton('Up', -1, 'Move #2 1 ft up the line, toward Lead'), shiftValue, shiftButton('Down', 1, 'Move #2 1 ft down the line, away from Lead'));
 
   const handlers = {};
 
@@ -460,6 +480,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null })
     turnRow,
     bankRow,
     closeWingRow,
+    echelonShiftRow,
     positionGroup,
     refusal,
     floatHeight,
@@ -539,6 +560,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null })
       }
       fourGrid.hidden = !four;
       closeWingRow.hidden = four; // the pair's only in B1
+      echelonShiftRow.hidden = four; // the pair's only (TS-230)
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
       if (fluidUi) fluidUi.lagElement.hidden = true; // the pair's lag roll group is shown by update

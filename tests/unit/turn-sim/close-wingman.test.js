@@ -12,7 +12,8 @@
 //    about 70 s from line abreast);
 //  - then for 60 s straight and level (long enough to show any hunting; the SMM's picture is a steady one):
 //    - he never leaves 5 ft of his place and closes under 5 kt (in position: Patrick, TS-80);
-//    - his place is the SMM's echelon, about 18 ft back, 43 ft out and 3 ft down off Lead (SMM 12.6 para 15, Fig 12.3; TS-182),
+//    - his place is the SMM's echelon on the spinner-to-wingtip line, about 16.5 ft back, 41 ft out and 3 ft down off Lead
+//      (SMM 12.6 para 15, Fig 12.3; TS-182, moved 2.5 ft up the line by Patrick 14 Oct 2026, TS-230),
 //      so 5 ft of it is checked against those numbers;
 //    - he is never within a wingspan of Lead (the T-6A's 33.4 ft, the existing always-true check);
 //    - his bank stays within 5° and his G within 0.5 G of Lead's (the shared table, tests/helpers/tolerances.js).
@@ -29,7 +30,7 @@ const IN_POSITION_FT = 5; // Patrick, TS-80
 const CLOSURE_KT = 5; // Patrick, TS-80
 const KT_TO_FTPS = 1.6878;
 const WINGSPAN_FT = 33.4; // the T-6A's wingspan
-const ECHELON = { back: 18, out: 43, down: 3 }; // SMM 12.6 para 15, Fig 12.3; TS-182
+const ECHELON = { back: 16.5, out: 41, down: 3 }; // SMM 12.6 para 15, Fig 12.3; TS-182 moved 2.5 ft up the line, TS-230
 
 test('the live close-in wingman holds echelon straight and level for 60 s', () => {
   const f = createFormation({ ships: 2, closeWing: 'live' });

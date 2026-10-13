@@ -7,28 +7,28 @@
     "Lead": {
      "g": [
       1,
-      1.16
+      1.15
      ],
-     "gRateMax": 0.59,
+     "gRateMax": 0.66,
      "gReversals": 0,
-     "rollMax": 100,
-     "rollAccMax": 372,
+     "rollMax": 69,
+     "rollAccMax": 293,
      "rollReversals": 1,
-     "drawnMax": 100,
+     "drawnMax": 69,
      "rangeMin": null
     },
     "#2": {
      "g": [
-      0.85,
-      4.64
+      0.86,
+      4.68
      ],
-     "gRateMax": 4.34,
+     "gRateMax": 4.5,
      "gReversals": 5,
-     "rollMax": 93,
-     "rollAccMax": 220,
+     "rollMax": 106,
+     "rollAccMax": 283,
      "rollReversals": 3,
-     "drawnMax": 102,
-     "rangeMin": 821
+     "drawnMax": 116,
+     "rangeMin": 779
     }
    }
   }
@@ -43,26 +43,26 @@
       1,
       2
      ],
-     "gRateMax": 2.67,
+     "gRateMax": 2.22,
      "gReversals": 0,
-     "rollMax": 102,
-     "rollAccMax": 338,
+     "rollMax": 90,
+     "rollAccMax": 300,
      "rollReversals": 0,
-     "drawnMax": 102,
+     "drawnMax": 90,
      "rangeMin": null
     },
     "#2": {
      "g": [
-      0.52,
+      0.51,
       3.5
      ],
      "gRateMax": 4,
-     "gReversals": 19,
-     "rollMax": 53,
-     "rollAccMax": 341,
-     "rollReversals": 10,
-     "drawnMax": 56,
-     "rangeMin": 548
+     "gReversals": 15,
+     "rollMax": 59,
+     "rollAccMax": 437,
+     "rollReversals": 11,
+     "drawnMax": 62,
+     "rangeMin": 533
     }
    }
   },
@@ -72,29 +72,29 @@
    "aircraft": {
     "Lead": {
      "g": [
-      1,
-      2.01
+      0.98,
+      2
      ],
-     "gRateMax": 2.68,
+     "gRateMax": 2.35,
      "gReversals": 1,
-     "rollMax": 102,
-     "rollAccMax": 338,
+     "rollMax": 90,
+     "rollAccMax": 300,
      "rollReversals": 0,
-     "drawnMax": 102,
+     "drawnMax": 90,
      "rangeMin": null
     },
     "#2": {
      "g": [
-      0.98,
-      2.46
+      0.76,
+      2.16
      ],
-     "gRateMax": 2.85,
-     "gReversals": 9,
-     "rollMax": 53,
-     "rollAccMax": 340,
-     "rollReversals": 6,
-     "drawnMax": 56,
-     "rangeMin": 599
+     "gRateMax": 2.14,
+     "gReversals": 7,
+     "rollMax": 59,
+     "rollAccMax": 434,
+     "rollReversals": 9,
+     "drawnMax": 62,
+     "rangeMin": 605
     }
    }
   },
@@ -104,28 +104,28 @@
    "aircraft": {
     "Lead": {
      "g": [
-      1,
-      1.95
+      0.98,
+      2
      ],
-     "gRateMax": 2.66,
+     "gRateMax": 2.35,
      "gReversals": 0,
-     "rollMax": 102,
-     "rollAccMax": 338,
+     "rollMax": 90,
+     "rollAccMax": 300,
      "rollReversals": 0,
-     "drawnMax": 102,
+     "drawnMax": 90,
      "rangeMin": null
     },
     "#2": {
      "g": [
-      0.98,
-      2
+      0.93,
+      2.01
      ],
-     "gRateMax": 2.3,
+     "gRateMax": 2.14,
      "gReversals": 2,
-     "rollMax": 51,
-     "rollAccMax": 339,
-     "rollReversals": 3,
-     "drawnMax": 55,
+     "rollMax": 58,
+     "rollAccMax": 439,
+     "rollReversals": 5,
+     "drawnMax": 62,
      "rangeMin": 650
     }
    }
@@ -139,28 +139,28 @@
     "Lead": {
      "g": [
       1,
-      1.16
+      1.15
      ],
-     "gRateMax": 0.56,
+     "gRateMax": 0.66,
      "gReversals": 0,
-     "rollMax": 100,
-     "rollAccMax": 338,
+     "rollMax": 69,
+     "rollAccMax": 293,
      "rollReversals": 1,
-     "drawnMax": 100,
+     "drawnMax": 69,
      "rangeMin": null
     },
     "#2": {
      "g": [
-      0.75,
-      2.13
+      0.74,
+      2.12
      ],
-     "gRateMax": 3.59,
-     "gReversals": 11,
-     "rollMax": 34,
-     "rollAccMax": 165,
+     "gRateMax": 3.61,
+     "gReversals": 5,
+     "rollMax": 31,
+     "rollAccMax": 152,
      "rollReversals": 2,
      "drawnMax": 156,
-     "rangeMin": 47
+     "rangeMin": 44
     }
    }
   }
@@ -175,7 +175,7 @@
       1,
       1
      ],
-     "gRateMax": 0,
+     "gRateMax": 0.05,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
@@ -186,15 +186,15 @@
     "#2": {
      "g": [
       0.97,
-      4.58
+      4.57
      ],
-     "gRateMax": 4.38,
-     "gReversals": 2,
-     "rollMax": 88,
-     "rollAccMax": 250,
-     "rollReversals": 2,
-     "drawnMax": 88,
-     "rangeMin": 47
+     "gRateMax": 4.56,
+     "gReversals": 3,
+     "rollMax": 101,
+     "rollAccMax": 473,
+     "rollReversals": 4,
+     "drawnMax": 101,
+     "rangeMin": 44
     }
    }
   }
@@ -220,15 +220,15 @@
     "#2": {
      "g": [
       0.92,
-      2.49
+      2.51
      ],
-     "gRateMax": 3.13,
+     "gRateMax": 2.66,
      "gReversals": 15,
-     "rollMax": 83,
-     "rollAccMax": 380,
+     "rollMax": 100,
+     "rollAccMax": 488,
      "rollReversals": 17,
-     "drawnMax": 82,
-     "rangeMin": 50
+     "drawnMax": 93,
+     "rangeMin": 48
     }
    }
   }
@@ -241,28 +241,28 @@
     "Lead": {
      "g": [
       1,
-      1.16
+      1.15
      ],
-     "gRateMax": 0.59,
+     "gRateMax": 0.66,
      "gReversals": 0,
-     "rollMax": 100,
-     "rollAccMax": 372,
+     "rollMax": 69,
+     "rollAccMax": 293,
      "rollReversals": 1,
-     "drawnMax": 100,
+     "drawnMax": 69,
      "rangeMin": null
     },
     "#2": {
      "g": [
-      0.86,
-      4.55
+      0.87,
+      4.54
      ],
-     "gRateMax": 6.12,
+     "gRateMax": 6.26,
      "gReversals": 3,
-     "rollMax": 81,
-     "rollAccMax": 169,
+     "rollMax": 84,
+     "rollAccMax": 188,
      "rollReversals": 2,
-     "drawnMax": 88,
-     "rangeMin": 47
+     "drawnMax": 91,
+     "rangeMin": 44
     }
    }
   }
@@ -277,7 +277,7 @@
       1,
       2
      ],
-     "gRateMax": 0.41,
+     "gRateMax": 0.42,
      "gReversals": 1,
      "rollMax": 12,
      "rollAccMax": 8,
@@ -287,216 +287,16 @@
     },
     "#2": {
      "g": [
-      0.98,
-      2.03
+      1,
+      2.01
      ],
-     "gRateMax": 5.72,
+     "gRateMax": 1.84,
      "gReversals": 9,
      "rollMax": 14,
-     "rollAccMax": 23,
+     "rollAccMax": 16,
      "rollReversals": 1,
-     "drawnMax": 96,
-     "rangeMin": 47
-    }
-   }
-  }
- ],
- "fluid-loop": [
-  {
-   "label": "Fluid entry",
-   "how": "started",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      1,
-      1
-     ],
-     "gRateMax": 0,
-     "gReversals": 0,
-     "rollMax": 0,
-     "rollAccMax": 0,
-     "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      0.97,
-      1.25
-     ],
-     "gRateMax": 0.4,
-     "gReversals": 0,
-     "rollMax": 51,
-     "rollAccMax": 344,
-     "rollReversals": 1,
-     "drawnMax": 54,
-     "rangeMin": 712
-    }
-   }
-  },
-  {
-   "label": "Loop",
-   "how": "started",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      1,
-      4
-     ],
-     "gRateMax": 4,
-     "gReversals": 3,
-     "rollMax": 0,
-     "rollAccMax": 0,
-     "rollReversals": 0,
-     "drawnMax": 20,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      0.82,
-      4.33
-     ],
-     "gRateMax": 1.57,
-     "gReversals": 5,
-     "rollMax": 13,
-     "rollAccMax": 271,
-     "rollReversals": 0,
-     "drawnMax": 21,
-     "rangeMin": 561
-    }
-   }
-  }
- ],
- "fluid-sequence-L": [
-  {
-   "label": "Standard sequence L",
-   "how": "started",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      0.97,
-      4
-     ],
-     "gRateMax": 4,
-     "gReversals": 11,
-     "rollMax": 120,
-     "rollAccMax": 500,
-     "rollReversals": 4,
-     "drawnMax": 120,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      0.62,
-      4.27
-     ],
-     "gRateMax": 1.7,
-     "gReversals": 27,
-     "rollMax": 107,
-     "rollAccMax": 400,
-     "rollReversals": 10,
-     "drawnMax": 109,
-     "rangeMin": 532
-    }
-   }
-  }
- ],
- "fluid-sequence-R": [
-  {
-   "label": "Standard sequence R",
-   "how": "started",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      0.97,
-      4
-     ],
-     "gRateMax": 4,
-     "gReversals": 11,
-     "rollMax": 120,
-     "rollAccMax": 500,
-     "rollReversals": 4,
-     "drawnMax": 120,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      0.62,
-      4.34
-     ],
-     "gRateMax": 1.81,
-     "gReversals": 29,
-     "rollMax": 72,
-     "rollAccMax": 400,
-     "rollReversals": 6,
-     "drawnMax": 67,
-     "rangeMin": 536
-    }
-   }
-  }
- ],
- "fluid-terminate": [
-  {
-   "label": "Level turn left",
-   "how": "started",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      1,
-      2.05
-     ],
-     "gRateMax": 2.61,
-     "gReversals": 0,
-     "rollMax": 120,
-     "rollAccMax": 500,
-     "rollReversals": 0,
-     "drawnMax": 120,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      1,
-      2.24
-     ],
-     "gRateMax": 1.14,
-     "gReversals": 1,
-     "rollMax": 107,
-     "rollAccMax": 400,
-     "rollReversals": 2,
-     "drawnMax": 109,
-     "rangeMin": 734
-    }
-   }
-  },
-  {
-   "label": "Terminate",
-   "how": "started",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      1,
-      2
-     ],
-     "gRateMax": 2.55,
-     "gReversals": 0,
-     "rollMax": 99,
-     "rollAccMax": 500,
-     "rollReversals": 0,
-     "drawnMax": 104,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      0.9,
-      1.99
-     ],
-     "gRateMax": 1.43,
-     "gReversals": 1,
-     "rollMax": 22,
-     "rollAccMax": 399,
-     "rollReversals": 2,
-     "drawnMax": 27,
-     "rangeMin": 733
+     "drawnMax": 32,
+     "rangeMin": 44
     }
    }
   }
@@ -524,27 +324,27 @@
       0.94,
       1
      ],
-     "gRateMax": 0.1,
+     "gRateMax": 0.09,
      "gReversals": 0,
      "rollMax": 1,
-     "rollAccMax": 8,
+     "rollAccMax": 6,
      "rollReversals": 0,
      "drawnMax": 1,
-     "rangeMin": 47,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 1.23,
+       "plane": 1.22,
        "line": 0.29,
-       "along": 0.22
+       "along": 0.21
       },
       "rmsFt": {
-       "plane": 1.1,
-       "line": 0.16,
+       "plane": 1.09,
+       "line": 0.15,
        "along": 0.11
       },
       "settleSec": null,
-      "bankOffMaxDeg": 0.12,
-      "gOffMax": 0.07,
+      "bankOffMaxDeg": 0.09,
+      "gOffMax": 0.06,
       "torquePct": [
        56.6,
        56.6
@@ -576,33 +376,36 @@
     },
     "#2": {
      "g": [
-      0.8,
-      2.17
+      0.65,
+      2.31
      ],
-     "gRateMax": 1.38,
-     "gReversals": 5,
-     "rollMax": 13,
-     "rollAccMax": 22,
+     "gRateMax": 1.37,
+     "gReversals": 10,
+     "rollMax": 18,
+     "rollAccMax": 173,
      "rollReversals": 1,
-     "drawnMax": 19,
-     "rangeMin": 47,
+     "drawnMax": 24,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.09,
-       "line": 0.19,
-       "along": 0.06
+       "plane": 2.56,
+       "line": 1.04,
+       "along": 1.48
       },
       "rmsFt": {
-       "plane": 0.05,
-       "line": 0.08,
-       "along": 0.03
+       "plane": 1.07,
+       "line": 0.42,
+       "along": 0.48
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 6.46,
-      "gOffMax": 0.2,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.45
+      "settleSec": null,
+      "bankOffMaxDeg": 6.7,
+      "gOffMax": 0.39,
+      "torquePct": [
+       29,
+       93.8
+      ],
+      "torqueReversals": 11,
+      "rollLagSec": 0.9
      }
     }
    }
@@ -626,35 +429,35 @@
     },
     "#2": {
      "g": [
-      1,
-      1.01
+      0.9,
+      1.18
      ],
-     "gRateMax": 0.06,
+     "gRateMax": 0.45,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
      "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": 47,
+     "drawnMax": 1,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.03,
-       "line": 0.11,
-       "along": 0.08
+       "plane": 1.46,
+       "line": 0.21,
+       "along": 0.57
       },
       "rmsFt": {
-       "plane": 0.01,
-       "line": 0.07,
-       "along": 0.06
+       "plane": 0.27,
+       "line": 0.14,
+       "along": 0.25
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 0.01,
-      "gOffMax": 0.01,
+      "settleSec": 0.35,
+      "bankOffMaxDeg": 0.58,
+      "gOffMax": 0.18,
       "torquePct": [
-       56,
-       56.8
+       50,
+       56.9
       ],
-      "torqueReversals": 0,
+      "torqueReversals": 2,
       "rollLagSec": null
      }
     }
@@ -679,33 +482,36 @@
     },
     "#2": {
      "g": [
-      1,
-      2.01
+      0.77,
+      2.17
      ],
-     "gRateMax": 1.33,
-     "gReversals": 9,
-     "rollMax": 14,
-     "rollAccMax": 16,
+     "gRateMax": 1.17,
+     "gReversals": 10,
+     "rollMax": 18,
+     "rollAccMax": 235,
      "rollReversals": 1,
-     "drawnMax": 33,
-     "rangeMin": 47,
+     "drawnMax": 23,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.09,
-       "line": 0.15,
-       "along": 0.07
+       "plane": 2.15,
+       "line": 1.66,
+       "along": 1.7
       },
       "rmsFt": {
-       "plane": 0.04,
-       "line": 0.07,
-       "along": 0.04
+       "plane": 0.83,
+       "line": 0.59,
+       "along": 0.65
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 6.45,
-      "gOffMax": 0.2,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.25
+      "settleSec": null,
+      "bankOffMaxDeg": 6.48,
+      "gOffMax": 0.35,
+      "torquePct": [
+       26.4,
+       93.1
+      ],
+      "torqueReversals": 17,
+      "rollLagSec": 0.65
      }
     }
    }
@@ -729,33 +535,33 @@
     },
     "#2": {
      "g": [
-      1,
-      1.01
+      0.83,
+      1.11
      ],
-     "gRateMax": 0.05,
+     "gRateMax": 0.44,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
      "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": 47,
+     "drawnMax": 1,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.03,
-       "line": 0.11,
-       "along": 0.08
+       "plane": 1.53,
+       "line": 0.86,
+       "along": 0.14
       },
       "rmsFt": {
-       "plane": 0.01,
-       "line": 0.08,
-       "along": 0.06
+       "plane": 0.28,
+       "line": 0.29,
+       "along": 0.07
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0.01,
+      "settleSec": 0.4,
+      "bankOffMaxDeg": 0.18,
+      "gOffMax": 0.17,
       "torquePct": [
-       56,
-       56.7
+       54.8,
+       65.8
       ],
       "torqueReversals": 0,
       "rollLagSec": null
@@ -782,33 +588,36 @@
     },
     "#2": {
      "g": [
-      0.8,
-      2.11
+      0.65,
+      2.31
      ],
-     "gRateMax": 1.38,
-     "gReversals": 2,
-     "rollMax": 13,
-     "rollAccMax": 22,
+     "gRateMax": 1.33,
+     "gReversals": 5,
+     "rollMax": 11,
+     "rollAccMax": 124,
      "rollReversals": 0,
-     "drawnMax": 19,
-     "rangeMin": 47,
+     "drawnMax": 17,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.09,
-       "line": 0.19,
-       "along": 0.05
+       "plane": 2.56,
+       "line": 1.07,
+       "along": 0.43
       },
       "rmsFt": {
-       "plane": 0.05,
-       "line": 0.1,
-       "along": 0.02
+       "plane": 1.29,
+       "line": 0.58,
+       "along": 0.21
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 6.46,
-      "gOffMax": 0.2,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.45
+      "settleSec": null,
+      "bankOffMaxDeg": 5.44,
+      "gOffMax": 0.38,
+      "torquePct": [
+       28.9,
+       93.8
+      ],
+      "torqueReversals": 2,
+      "rollLagSec": 0.9
      }
     }
    }
@@ -832,33 +641,36 @@
     },
     "#2": {
      "g": [
-      1,
-      2.17
+      0.77,
+      2.34
      ],
-     "gRateMax": 1.38,
-     "gReversals": 9,
-     "rollMax": 14,
-     "rollAccMax": 16,
+     "gRateMax": 1.37,
+     "gReversals": 12,
+     "rollMax": 21,
+     "rollAccMax": 105,
      "rollReversals": 1,
-     "drawnMax": 33,
-     "rangeMin": 47,
+     "drawnMax": 26,
+     "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 0.08,
-       "line": 0.15,
-       "along": 0.11
+       "plane": 2.46,
+       "line": 1.44,
+       "along": 1.06
       },
       "rmsFt": {
-       "plane": 0.04,
-       "line": 0.05,
-       "along": 0.04
+       "plane": 0.82,
+       "line": 0.53,
+       "along": 0.39
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 6.45,
-      "gOffMax": 0.2,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.2
+      "settleSec": null,
+      "bankOffMaxDeg": 7.67,
+      "gOffMax": 0.52,
+      "torquePct": [
+       25.7,
+       88.7
+      ],
+      "torqueReversals": 14,
+      "rollLagSec": 0.7
      }
     }
    }
@@ -882,33 +694,36 @@
     },
     "#2": {
      "g": [
-      1.02,
-      1.98
+      0.82,
+      2.17
      ],
-     "gRateMax": 1.32,
-     "gReversals": 4,
-     "rollMax": 12,
-     "rollAccMax": 13,
+     "gRateMax": 1.3,
+     "gReversals": 5,
+     "rollMax": 19,
+     "rollAccMax": 241,
      "rollReversals": 0,
-     "drawnMax": 33,
-     "rangeMin": 47,
+     "drawnMax": 25,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.07,
-       "line": 0.12,
-       "along": 0.07
+       "plane": 1.77,
+       "line": 0.83,
+       "along": 1.67
       },
       "rmsFt": {
-       "plane": 0.04,
-       "line": 0.06,
-       "along": 0.05
+       "plane": 0.9,
+       "line": 0.5,
+       "along": 0.78
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 2.46,
-      "gOffMax": 0.2,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.25
+      "settleSec": null,
+      "bankOffMaxDeg": 7.05,
+      "gOffMax": 0.45,
+      "torquePct": [
+       60.7,
+       91.1
+      ],
+      "torqueReversals": 11,
+      "rollLagSec": 0.7
      }
     }
    }
@@ -932,33 +747,36 @@
     },
     "#2": {
      "g": [
-      1,
-      1.93
+      0.77,
+      2.07
      ],
      "gRateMax": 1.33,
-     "gReversals": 4,
-     "rollMax": 14,
-     "rollAccMax": 16,
+     "gReversals": 5,
+     "rollMax": 12,
+     "rollAccMax": 130,
      "rollReversals": 0,
-     "drawnMax": 28,
-     "rangeMin": 47,
+     "drawnMax": 16,
+     "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 0.07,
-       "line": 0.11,
-       "along": 0.04
+       "plane": 2.23,
+       "line": 2.27,
+       "along": 1.49
       },
       "rmsFt": {
-       "plane": 0.04,
-       "line": 0.06,
-       "along": 0.03
+       "plane": 1.04,
+       "line": 1.24,
+       "along": 0.9
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 6.46,
-      "gOffMax": 0.2,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.25
+      "settleSec": null,
+      "bankOffMaxDeg": 5.3,
+      "gOffMax": 0.38,
+      "torquePct": [
+       22.5,
+       83.5
+      ],
+      "torqueReversals": 2,
+      "rollLagSec": 0.75
      }
     }
    }
@@ -982,35 +800,35 @@
     },
     "#2": {
      "g": [
-      1,
-      1.02
+      0.83,
+      1.11
      ],
-     "gRateMax": 0.19,
+     "gRateMax": 0.44,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
      "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": 47,
+     "drawnMax": 1,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.08,
-       "line": 0.12,
-       "along": 0.09
+       "plane": 1.53,
+       "line": 0.83,
+       "along": 0.12
       },
       "rmsFt": {
-       "plane": 0.02,
-       "line": 0.09,
-       "along": 0.06
+       "plane": 0.28,
+       "line": 0.29,
+       "along": 0.07
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0.01,
+      "settleSec": 0.4,
+      "bankOffMaxDeg": 0.19,
+      "gOffMax": 0.17,
       "torquePct": [
-       56,
-       56.9
+       54.9,
+       67.4
       ],
-      "torqueReversals": 2,
+      "torqueReversals": 0,
       "rollLagSec": null
      }
     }
@@ -1037,33 +855,36 @@
     },
     "#2": {
      "g": [
-      0.85,
-      1.55
+      0.74,
+      1.64
      ],
-     "gRateMax": 0.99,
+     "gRateMax": 0.95,
      "gReversals": 5,
      "rollMax": 10,
-     "rollAccMax": 13,
+     "rollAccMax": 67,
      "rollReversals": 0,
-     "drawnMax": 21,
-     "rangeMin": 47,
+     "drawnMax": 16,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.07,
-       "line": 0.11,
-       "along": 0.03
+       "plane": 1.42,
+       "line": 0.65,
+       "along": 0.94
       },
       "rmsFt": {
-       "plane": 0.03,
-       "line": 0.04,
-       "along": 0.02
+       "plane": 0.6,
+       "line": 0.2,
+       "along": 0.26
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 4.78,
-      "gOffMax": 0.15,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.4
+      "settleSec": null,
+      "bankOffMaxDeg": 3.73,
+      "gOffMax": 0.27,
+      "torquePct": [
+       35.3,
+       77.2
+      ],
+      "torqueReversals": 7,
+      "rollLagSec": 1.15
      }
     }
    }
@@ -1087,33 +908,33 @@
     },
     "#2": {
      "g": [
-      1,
-      1.01
+      0.93,
+      1.16
      ],
-     "gRateMax": 0.1,
+     "gRateMax": 0.33,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
      "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": 47,
+     "drawnMax": 1,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.05,
-       "line": 0.07,
-       "along": 0.05
+       "plane": 1.12,
+       "line": 0.22,
+       "along": 0.36
       },
       "rmsFt": {
-       "plane": 0.01,
-       "line": 0.05,
-       "along": 0.04
+       "plane": 0.22,
+       "line": 0.11,
+       "along": 0.16
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0.01,
+      "settleSec": 0.25,
+      "bankOffMaxDeg": 0.44,
+      "gOffMax": 0.15,
       "torquePct": [
-       56.3,
-       56.8
+       51.9,
+       57
       ],
       "torqueReversals": 1,
       "rollLagSec": null
@@ -1140,33 +961,36 @@
     },
     "#2": {
      "g": [
-      1,
-      1.42
+      0.83,
+      1.57
      ],
-     "gRateMax": 1,
-     "gReversals": 5,
+     "gRateMax": 0.84,
+     "gReversals": 9,
      "rollMax": 10,
-     "rollAccMax": 13,
+     "rollAccMax": 74,
      "rollReversals": 0,
-     "drawnMax": 28,
-     "rangeMin": 47,
+     "drawnMax": 15,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.07,
-       "line": 0.07,
-       "along": 0.04
+       "plane": 1.32,
+       "line": 0.56,
+       "along": 0.96
       },
       "rmsFt": {
-       "plane": 0.03,
-       "line": 0.03,
-       "along": 0.02
+       "plane": 0.52,
+       "line": 0.22,
+       "along": 0.28
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 4.8,
-      "gOffMax": 0.15,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.25
+      "settleSec": null,
+      "bankOffMaxDeg": 3.54,
+      "gOffMax": 0.26,
+      "torquePct": [
+       40.6,
+       81.6
+      ],
+      "torqueReversals": 9,
+      "rollLagSec": 0.85
      }
     }
    }
@@ -1190,33 +1014,33 @@
     },
     "#2": {
      "g": [
-      1,
-      1.01
+      0.85,
+      1.08
      ],
-     "gRateMax": 0.1,
+     "gRateMax": 0.32,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
      "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": 47,
+     "drawnMax": 1,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.05,
-       "line": 0.07,
-       "along": 0.05
+       "plane": 1.17,
+       "line": 0.54,
+       "along": 0.07
       },
       "rmsFt": {
-       "plane": 0.01,
-       "line": 0.05,
+       "plane": 0.23,
+       "line": 0.17,
        "along": 0.04
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0.01,
+      "settleSec": 0.3,
+      "bankOffMaxDeg": 0.14,
+      "gOffMax": 0.15,
       "torquePct": [
-       56.2,
-       56.8
+       55.4,
+       61.4
       ],
       "torqueReversals": 1,
       "rollLagSec": null
@@ -1243,33 +1067,36 @@
     },
     "#2": {
      "g": [
-      0.85,
-      1.52
+      0.74,
+      1.64
      ],
      "gRateMax": 0.9,
-     "gReversals": 2,
-     "rollMax": 10,
-     "rollAccMax": 13,
+     "gReversals": 3,
+     "rollMax": 7,
+     "rollAccMax": 68,
      "rollReversals": 0,
-     "drawnMax": 21,
-     "rangeMin": 47,
+     "drawnMax": 12,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.07,
-       "line": 0.1,
-       "along": 0.03
+       "plane": 1.42,
+       "line": 0.66,
+       "along": 0.17
       },
       "rmsFt": {
-       "plane": 0.04,
-       "line": 0.05,
-       "along": 0.02
+       "plane": 0.81,
+       "line": 0.33,
+       "along": 0.09
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 4.78,
-      "gOffMax": 0.15,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.4
+      "settleSec": 7.95,
+      "bankOffMaxDeg": 3.25,
+      "gOffMax": 0.26,
+      "torquePct": [
+       35.3,
+       70
+      ],
+      "torqueReversals": 2,
+      "rollLagSec": 1.15
      }
     }
    }
@@ -1293,33 +1120,36 @@
     },
     "#2": {
      "g": [
-      1,
-      1.55
+      0.83,
+      1.68
      ],
-     "gRateMax": 1,
-     "gReversals": 5,
-     "rollMax": 10,
-     "rollAccMax": 13,
+     "gRateMax": 0.94,
+     "gReversals": 7,
+     "rollMax": 11,
+     "rollAccMax": 68,
      "rollReversals": 0,
-     "drawnMax": 28,
-     "rangeMin": 47,
+     "drawnMax": 17,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.06,
-       "line": 0.09,
-       "along": 0.05
+       "plane": 1.47,
+       "line": 0.55,
+       "along": 0.95
       },
       "rmsFt": {
-       "plane": 0.02,
-       "line": 0.03,
-       "along": 0.02
+       "plane": 0.49,
+       "line": 0.23,
+       "along": 0.26
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 4.8,
-      "gOffMax": 0.15,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.25
+      "settleSec": null,
+      "bankOffMaxDeg": 3.95,
+      "gOffMax": 0.34,
+      "torquePct": [
+       40.6,
+       77.3
+      ],
+      "torqueReversals": 14,
+      "rollLagSec": 0.9
      }
     }
    }
@@ -1343,33 +1173,36 @@
     },
     "#2": {
      "g": [
-      1.01,
-      1.41
+      0.85,
+      1.57
      ],
-     "gRateMax": 1.12,
-     "gReversals": 2,
-     "rollMax": 9,
-     "rollAccMax": 9,
+     "gRateMax": 1.03,
+     "gReversals": 4,
+     "rollMax": 11,
+     "rollAccMax": 30,
      "rollReversals": 0,
-     "drawnMax": 28,
-     "rangeMin": 47,
+     "drawnMax": 16,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.05,
-       "line": 0.06,
-       "along": 0.04
+       "plane": 1.28,
+       "line": 0.53,
+       "along": 0.99
       },
       "rmsFt": {
-       "plane": 0.03,
-       "line": 0.03,
-       "along": 0.03
+       "plane": 0.71,
+       "line": 0.33,
+       "along": 0.48
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 2.22,
-      "gOffMax": 0.16,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.25
+      "settleSec": 8,
+      "bankOffMaxDeg": 3.81,
+      "gOffMax": 0.34,
+      "torquePct": [
+       57.2,
+       81.4
+      ],
+      "torqueReversals": 5,
+      "rollLagSec": 0.9
      }
     }
    }
@@ -1393,33 +1226,36 @@
     },
     "#2": {
      "g": [
-      1,
-      1.37
+      0.83,
+      1.47
      ],
-     "gRateMax": 1,
-     "gReversals": 2,
-     "rollMax": 10,
-     "rollAccMax": 13,
+     "gRateMax": 0.97,
+     "gReversals": 4,
+     "rollMax": 8,
+     "rollAccMax": 96,
      "rollReversals": 0,
-     "drawnMax": 26,
-     "rangeMin": 47,
+     "drawnMax": 11,
+     "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 0.09,
-       "line": 0.04,
-       "along": 0.03
+       "plane": 1.43,
+       "line": 0.64,
+       "along": 0.36
       },
       "rmsFt": {
-       "plane": 0.05,
-       "line": 0.03,
-       "along": 0.02
+       "plane": 0.72,
+       "line": 0.4,
+       "along": 0.25
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 4.79,
-      "gOffMax": 0.15,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.3
+      "settleSec": null,
+      "bankOffMaxDeg": 3.16,
+      "gOffMax": 0.3,
+      "torquePct": [
+       40.7,
+       65.4
+      ],
+      "torqueReversals": 5,
+      "rollLagSec": 0.95
      }
     }
    }
@@ -1443,37 +1279,237 @@
     },
     "#2": {
      "g": [
-      1,
-      1.01
+      0.85,
+      1.08
      ],
-     "gRateMax": 0.13,
+     "gRateMax": 0.33,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 1,
+     "rangeMin": 44,
+     "close": {
+      "maxFt": {
+       "plane": 1.17,
+       "line": 0.55,
+       "along": 0.06
+      },
+      "rmsFt": {
+       "plane": 0.23,
+       "line": 0.17,
+       "along": 0.04
+      },
+      "settleSec": 0.3,
+      "bankOffMaxDeg": 0.15,
+      "gOffMax": 0.15,
+      "torquePct": [
+       55.4,
+       61.5
+      ],
+      "torqueReversals": 1,
+      "rollLagSec": null
+     }
+    }
+   }
+  }
+ ],
+ "fluid-loop": [
+  {
+   "label": "Fluid entry",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0.04,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
      "rollReversals": 0,
      "drawnMax": 0,
-     "rangeMin": 47,
-     "close": {
-      "maxFt": {
-       "plane": 0.05,
-       "line": 0.08,
-       "along": 0.06
-      },
-      "rmsFt": {
-       "plane": 0.01,
-       "line": 0.06,
-       "along": 0.04
-      },
-      "settleSec": 0,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0.01,
-      "torquePct": [
-       56.2,
-       56.8
-      ],
-      "torqueReversals": 1,
-      "rollLagSec": null
-     }
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.97,
+      1.26
+     ],
+     "gRateMax": 0.44,
+     "gReversals": 0,
+     "rollMax": 52,
+     "rollAccMax": 437,
+     "rollReversals": 1,
+     "drawnMax": 55,
+     "rangeMin": 668
+    }
+   }
+  },
+  {
+   "label": "Loop",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      4
+     ],
+     "gRateMax": 4,
+     "gReversals": 3,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 22,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.83,
+      4.36
+     ],
+     "gRateMax": 1.32,
+     "gReversals": 5,
+     "rollMax": 5,
+     "rollAccMax": 97,
+     "rollReversals": 0,
+     "drawnMax": 22,
+     "rangeMin": 557
+    }
+   }
+  }
+ ],
+ "fluid-sequence-L": [
+  {
+   "label": "Standard sequence L",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.93,
+      4
+     ],
+     "gRateMax": 4,
+     "gReversals": 11,
+     "rollMax": 90,
+     "rollAccMax": 297,
+     "rollReversals": 4,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.5,
+      4.26
+     ],
+     "gRateMax": 2.14,
+     "gReversals": 28,
+     "rollMax": 157,
+     "rollAccMax": 530,
+     "rollReversals": 8,
+     "drawnMax": 157,
+     "rangeMin": 537
+    }
+   }
+  }
+ ],
+ "fluid-sequence-R": [
+  {
+   "label": "Standard sequence R",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.93,
+      4
+     ],
+     "gRateMax": 4,
+     "gReversals": 11,
+     "rollMax": 90,
+     "rollAccMax": 297,
+     "rollReversals": 4,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.5,
+      4.25
+     ],
+     "gRateMax": 2.23,
+     "gReversals": 26,
+     "rollMax": 156,
+     "rollAccMax": 522,
+     "rollReversals": 6,
+     "drawnMax": 156,
+     "rangeMin": 549
+    }
+   }
+  }
+ ],
+ "fluid-terminate": [
+  {
+   "label": "Level turn left",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      2.1
+     ],
+     "gRateMax": 2.1,
+     "gReversals": 0,
+     "rollMax": 90,
+     "rollAccMax": 297,
+     "rollReversals": 0,
+     "drawnMax": 90,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      2.09
+     ],
+     "gRateMax": 1.03,
+     "gReversals": 1,
+     "rollMax": 104,
+     "rollAccMax": 521,
+     "rollReversals": 0,
+     "drawnMax": 102,
+     "rangeMin": 696
+    }
+   }
+  },
+  {
+   "label": "Terminate",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      0.99,
+      2
+     ],
+     "gRateMax": 1.9,
+     "gReversals": 0,
+     "rollMax": 69,
+     "rollAccMax": 277,
+     "rollReversals": 0,
+     "drawnMax": 69,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      1,
+      1.98
+     ],
+     "gRateMax": 1.29,
+     "gReversals": 1,
+     "rollMax": 22,
+     "rollAccMax": 435,
+     "rollReversals": 2,
+     "drawnMax": 24,
+     "rangeMin": 711
     }
    }
   }

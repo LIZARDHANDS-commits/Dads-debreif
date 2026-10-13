@@ -19,10 +19,10 @@ import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge, judgeFluid4 } from './judge.js';
-import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
+import { FORMATIONS, FOUR_FORMATIONS, pairSlot, setEchelonShift } from './slots.js';
 import { LEAD_ROLL, LEAD_ROLL_STATE } from './lead-moves.js';
 import { leadPointMassOf } from './lead-pilot.js'; // also registers Lead's point-mass pilot step with flight.js (TS-225) for the pointMassLead below
-import { startFrom, stepWingman, applyTo, settledOn } from './wingman/wingman.js';
+import { startFrom, stepWingman, applyTo, settledOn, withPlace } from './wingman/wingman.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn } from './formation-turns.js';
@@ -577,6 +577,16 @@ export function createFormation(options = {}) {
     reset(next = {}) {
       opts = { ...opts, ...next };
       build();
+    },
+    /**
+     * The echelon setting (TS-230; slots.js): feet along the spinner-to-wingtip line from echelon's place, + down it. A live
+     * close-in wingman flies to the new place at once; planned flying takes it at the next press. Returns the setting.
+     */
+    setEchelonShift(ft) {
+      const v = setEchelonShift(ft);
+      const w = state.liveWing;
+      if (w) state.liveWing = withPlace(w, pairSlot('echelon', w.side));
+      return v;
     },
     /** Changes options read only when a manoeuvre is planned (the 4-ship check turn), without starting again. */
     setOptions(next = {}) {
