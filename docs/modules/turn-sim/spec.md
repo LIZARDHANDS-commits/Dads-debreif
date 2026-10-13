@@ -114,7 +114,7 @@ One slot table (`live/slots.js`), one classifier and one judge (`live/judge.js`)
 | Line abreast | anywhere in the SMM's band: 4,000-6,000 ft abeam, 0-10° sweep, up to 2,000 ft above or below Lead; the spacing setting is the aim, a setting outside the band is judged within 100 ft of itself | SMM 16.18 para 49; Patrick 5 Oct 21:38Z; TS-80 |
 | Fighting wing | anywhere in the cone: 500-1,000 ft, 30-60° sweep measured back from Lead's wing line (0° abeam), up to 200 ft above or below Lead, judged only with Lead straight and level (within 5° of bank and 300 ft/min, estimate); default place 750 ft and 45° (estimate; a setting, section 8) | SMM 12.29 para 69, Fig 12.19; Patrick 5 Oct 21:26Z; TS-80 |
 | Route | On the spinner-to-wingtip line, the slot 3 wingspans down it from echelon (about 116 ft out, 96 ft back, 5 ft low; judged from 1 to 3 wingspans; TS-181, Patrick 11 Oct 2026 00:03Z, 00:15Z: the SMM reference, Fig 12.7; 5 wingspans from TS-103 until V2.232, 25 ft back until V2.107). Within 5 ft of the place and 5 kt | SMM 12.6 para 15, Fig 12.7; Patrick 5 Oct 06:11Z, 21:26Z, 6 Oct 02:11Z, 11 Oct 00:15Z; TS-65, TS-80, TS-103, TS-181 |
-| Echelon | about 45 ft out, 25 ft back, 5 ft down (estimate; the manual gives sight references, not feet). Within 5 ft of the place and 5 kt (±15 ft until V2.80) | SMM 12.4 paras 11-12; Patrick 21:26Z; TS-80 |
+| Echelon | about 18 ft back, 43 ft out, 3 ft down, origin to origin: the SMM's sight references worked through the CT-156 model's geometry (TS-182, `live/slots.js`; 45 out, 25 back, 5 down was the older estimate, corrected here 13 Oct 2026). Within 5 ft of the place and 5 kt (±15 ft until V2.80) | SMM 12.4 paras 11-12; Patrick 21:26Z; TS-80; TS-182 |
 | Line astern | directly behind and below, about 10 ft nose to tail (43 ft centre to centre, 8 ft low; estimates). Within 5 ft of the place and 5 kt | SMM 12.5 para 13; Patrick 21:26Z; TS-80 |
 
 - **Judged at roll-out only** after a manoeuvre, in words with the numbers: on spacing, wide, tight, fore, aft; an in-place turn is judged in trail (TS-R23). A change of formation is judged against the table above. A Spacing outside the SMM band ends "TOO FAR" or the like.
@@ -208,6 +208,175 @@ Lead flies the button's turn and each wingman keeps his place in Lead's wing pla
 - **Station keeping in close formation turns.** Each wingman holds his slot in Lead's wing plane with pitch (G), bank and power. He rolls with Lead and corrects gently, with no bank limit beyond physics. Lead rolls no faster than his farthest wingman can follow while rolling with him (SMM 16.36 paras 98 and 101): about 6 s to 45° in finger, 6 s to 30° in a 4-ship echelon, and 6 s to 60° in a 2-ship echelon. A wingman still settling when the turn is pressed carries on into his slot. As Lead rolls, a wingman may be slightly off his slot (SMM 12.19 para 41) and is back in it within a few seconds. (Patrick's wording, approved 11 Oct 2026 00:15Z; TS-180.) Checked V2.230 on the delayed 90 and the hook: finger, echelon, box and line astern stay within 8 ft of their slots; in finger #4 had slid 170 ft wide in a 90° turn before.
 - **Not changed:** the moves into a close place while Lead is banked (a rejoin's capture, the station changes, the hand-over's run-in) still follow Lead's wing plane 3 s late (`KINEMATIC.planeLagSec`; `future.md`).
 - **A turn into a 4-ship echelon** is flown and flagged: the Orders and SMM 16.36 para 101 normally turn echelon away only.
+
+## 7b. The close-formation wingman (approved 13 Oct 2026, TS-226; being built: phase B rungs B1 and B2)
+
+Patrick approved this spec and TS-226's wording on 13 Oct 2026 ("approved as written"). Plan: `plan.md` step 12.4, rungs B1 (echelon, straight and level) and B2 (Lead's telegraphed turns in echelon). Not built yet: until it is, section 7 describes what flies. It replaces the held poses only once Patrick has flown it.
+
+#### 1. Objective
+
+#2 holds echelon the way a pilot does: eyes on Lead, fingertip pressures, a small correction as soon as he moves off his references, and power added before it is needed when he sees Lead start to turn.
+
+Patrick, 13 Oct 2026:
+- "As soon as we move off the references we make small corrections."
+- "When we see lead starts to turn, we anticipate what is happening based on what we see and add power BEFORE its needed, ideally only moving 2-3 feet out of position, depending on what happens."
+- "A good pilot can stay in almost perfect echelon up to 45 degrees, with small deviations up to 60 or more."
+- "In close form the control movements are pressures. you fly with your fingertips almost."
+
+Done means Patrick flies it from the default start and it looks and feels like close formation (AGENTS.md lesson 2).
+
+#### 2. The loop, every step
+
+Lead flies (one Lead, TS-225) → **perception**: what #2 sees and feels, about 0.3 s late → **supervisor**: picks the job (B1 and B2: on station, a small move or a large move back to it, and one safety rule: under Lead he moves out before he comes up) → **close-formation technique**: the correction on each axis → **command shaper**: pressure-sized, smooth inputs → **#2's aircraft**: the same point mass as Lead → his new position goes back into what he sees.
+
+#### 3. Sensors: what #2 knows
+
+| Sense | What he takes from it | Source |
+|---|---|---|
+| Eyes: his references | The echelon picture: Lead's wingtip leading edge on Lead's spinner (lateral, and vertical), and abeam Lead's rudder hinge line (longitudinal). Read as three deviations, in the SMM's words for them: up or down, in or out, forward or back | SMM 12.4 paras 11-12, Figs 12.3-12.4; 12.18 para 39; the place those references give through the CT-156 model's geometry, about 18 ft back, 43 ft out, 3 ft down (TS-182, `live/slots.js`; section 4's table, corrected 13 Oct 2026 from the older estimate of 45 out, 25 back, 5 down) |
+| Eyes: the picture moving | How fast each deviation is growing | Patrick 13 Oct 2026 |
+| Memory | How long a deviation has been there, and which way | Patrick 13 Oct 2026 |
+| Eyes: Lead's attitude | Lead's bank and nose, and a roll starting: the wing moving against his references | TS-211 |
+| Eyes: Lead's telegraph | How fast Lead's roll is building. Lead's close-formation roll builds over 1.5 s to a rate set by the bank he is going to (TS-209: 30° at 6°/s, 45° at 9°/s, 60° at 12°/s), so the build-up tells #2 how fast Lead will roll and roughly how far | Patrick 13 Oct 2026 ("we also know about how fast lead will roll based on the acceleration of his 'telegraph'"); TS-209 |
+| Body and hands | The G he feels, where his throttle sits, the pressure in his hand | Patrick 13 Oct 2026 |
+| Not used | His own instruments: no look inside at all; Lead's plan, Lead's speed or power | Patrick 13 Oct 2026 ("we dont look inside at all"); TS-211 |
+
+Everything he sees reaches his hands about 0.3 s late (TS-211, estimate; the same 0.3 s that Tohidi and Yildiz (2020) measured as a pilot's total delay, decision plus neuromuscular).
+
+**The crosscheck: plane, then line, then hinge** (Patrick, 13 Oct 2026: "In close formation, we correct PLANE-LINE-HINGE"; "you get on plane first, then you move forward to the line (or back), then power and bank moves you up and down the line. it helps make the corrections more 1/2 dimensional, and its safer"). The words are not in the SMM text, which gives the references themselves (12.4 para 11).
+1. **Plane:** up or down into Lead's wing plane, with pitch.
+2. **Line:** forward or back onto the spinner-to-wingtip line, with power.
+3. **Hinge:** along the line, in toward Lead or out away from him, with power and bank together, until abeam the rudder hinge line. Route sits on the same line further out (section 4's table, TS-181).
+
+So #2 reads his deviation in the line's own frame (off the plane, off the line, along the line), not as Lead's fore, aft and side. **Plane, line, hinge is the order for correcting an error**, a move back onto his place, one or two at a time. **Staying in position is different:** all the controls together, coordinated, all the time (Patrick, 13 Oct 2026: "PLH is the order we correct errors. you stay in position by using coordination of all of the controls at once"). **Exception (Patrick):** "if you are underneath lead, you wouldn't correct plane first": under Lead, coming up into his plane is the collision risk, so the supervisor moves #2 out first (7b.2). Fighting wing and rejoins use a different crosscheck; those come at rungs B4 and B5.
+
+#### 4. Inputs: his controls
+
+| Control | What it does | Close-formation size (estimates; today's values in `wing-moves.js` in brackets) |
+|---|---|---|
+| Pitch pressure | G a little more or less than he sees Lead pulling: up or down | about ±0.3 G, eased in (followG 0.5 G, onset 4 G/s) |
+| Roll pressure | Bank a few degrees off Lead's: slides in or out | about ±5° off Lead's (sideBankDeg 15°) |
+| Power | Torque a few percent: closes or opens fore and aft | about ±5-10% torque (powerG 0.1, about 2 kt/s) |
+| Rudder | Not modelled: the point mass flies balanced | - |
+| Speed brakes and idle | Only for too much closure, and very rarely needed in close formation or on moves to and from route: the boards are a large step in drag, so not ideal. They belong to rejoins, fighting wing and tactical moves | Patrick 13 Oct 2026 ("if i have too much closure I'll use boards, but very rarely would that be required in movements to and from route or in close formation ... same with idle"; "it's a very large step change in drag so its not ideal"); TS-218 (idle's spool-up lag) |
+
+Pressures are small, continuous and smooth, never the full-stick moves of tactical flying (the technique share, C1). Patrick, 13 Oct 2026: "When station keeping in S+L or once steady in a turn, the roll pressure and power are extremely small. tenths of a degree to start, but as required." So on station a correction starts at tenths of a degree of bank off Lead's, and grows only as the deviation needs it. The throttle above 5% torque answers in about 0.25 s (TS-218).
+
+#### 5. Outputs: what the aircraft does
+
+#2's point mass (Lead's, TS-225: thrust, drag, G, roll, G onset, engine) gives his speed, height, heading, bank and G, and from them his position and how fast it is changing against his place in Lead's wing plane. That is what his eyes read next step. For us it is measured and drawn: the error in feet on each axis, his G, bank and torque against Lead's (the gauge and the plot page).
+
+#### 6. How he moves the controls
+
+Patrick, 13 Oct 2026: "My input size would be driven based on how big the error is, how quickly its propogating, and how long its been there (to a lesser degree ... most of the time its mainly how big and how fast its changing). it's not an error, par say, because like i said before, formation is all about seeing lead do something, reacting to it smoothly, and staying 'in position', whatever that position is."
+
+So each input has two parts:
+1. **Reacting to Lead (the main part):** what he sees Lead do, matched smoothly: Lead's bank, Lead's pull, and a roll starting, met with power before it is needed. In control terms this is feed-forward: acting on the cause before the deviation appears.
+2. **Staying in position:** all the controls together, coordinated, on the deviation from his place, sized mainly by how big it is and how fast it is growing, and to a lesser degree by how long it has been there. In control terms this is feedback, mostly proportional and rate (PD), with a weak integral.
+
+| Axis | Corrected with | What he sees Lead do first |
+|---|---|---|
+| Up and down | Pitch pressure: G | Lead's wing rising or falling against his references: he starts pitching then catches up (TS-211) |
+| In and out | Roll pressure: bank off Lead's | Lead's bank: he matches it |
+| Fore and aft | Power | Lead's roll starting: power before it is needed, on when he will be on the outside of the turn, off on the inside |
+
+On each axis the staying-in-position part weighs the deviation (how far off), how fast it is growing, and, less, how long it has been there (a slow trim, held still while a control is at its limit so it doesn't build up and overshoot).
+
+```js
+// close-formation.js, each step (a sketch, not final code); seen = what he saw 0.3 s ago
+g      = seen.leadG    + kUp.p * dev.up  + kUp.d * rate.up  + trim.up;      // pitch pressure
+bank   = seen.leadBank + kIn.p * dev.in  + kIn.d * rate.in;                 // roll pressure
+torque = holding(seen.leadBank, seen.telegraph)                            // the setting for what Lead is doing, ahead of need
+       + kPace * (paceWanted(dist) - seen.closure);                         // a little on or off to move, walked back as he arrives
+```
+
+The gains come from two pilot numbers per axis: how firm a pressure a 1 ft deviation gets, and how fast he settles back without overshooting. The 0.3 s reaction limits how firm he can be before he starts to chase (7b.6b).
+
+**The SMM agrees** (12.18 para 40; 12.19 paras 42-43): adjustments are made as soon as the need is seen, so they stay small; with experience they become pressures; the PCL's lag is anticipated; on the outside of a turn torque goes up on the roll-in and down on the roll-out, and the opposite on the inside, small changes whose rate and amount a proficient wingman anticipates; the commonest fault is lagging Lead's roll rate, which slides him wide stepped up and toward Lead stepped down.
+
+**How big the first inputs are** (Patrick, 13 Oct 2026: "my initial pitch/roll/power addition is based on the telegraph I see. if I can see a rapid acceleration or I know we're doing something dynamic, I will increase my inputs accordingly"). The reacting-to-Lead part is sized by what the telegraph shows: a faster build-up means a faster, bigger roll is coming, so bigger first inputs. "Something dynamic" he knows is coming (a briefed or called manoeuvre) raises them the same way.
+
+**Power: one law, re-evaluated all the time** (Patrick, 13 Oct 2026: "We are almost constantly readjusting power based on what we see, so for either the small moves or large moves technique, i will constantly re-evaluate my closure/position and make corrections to rates and inputs, as required"):
+- **The holding setting** is the base: the power that keeps him in place for what the formation is doing now (below).
+- **To move:** he sets a little power off the holding setting and watches the closure. For a small move (up to about 10 ft) he leaves that little bit in until he gets where he wants, then walks the power back until he stops ("you don't really need a set and a catch for both start and stop"). For a large move it is a set and a catch at both ends (Patrick, 13 Oct 2026: "for LARGE moves you do a set and a catch for both starting and stopping, walking it up until you see what you need"): he walks the power on until he sees the pace he wants and catches it there; as the spot comes up he walks it back until he sees the closure dying as he needs, catches that, and ends on the holding setting. When he knows he needs a lot more energy he may give it a few seconds of MAX (Patrick, 13 Oct 2026: "If I know I need a lot more energy I might give it a few seconds of MAX power").
+- **The pace** is picked from how far he has to go: a gentle drift for a few feet, up to a jogging pace, about 8 ft/s (about 5 kt), or a running pace, about 13 ft/s (about 8 kt), relative to Lead (Patrick, 13 Oct 2026: "yes 8 ft/s and 13 ft/s works"), and it tapers to zero at the spot.
+
+In code that is a single continuous law, not phases: each step the distance picks the pace he wants, and the power is the holding setting plus a share of the difference between the pace he wants and the closure he sees. The walk up, the catch, the walk back and the stop all come out of it, and it re-evaluates every step as he does. On a large move the power may go as far as MAX for a few seconds when the pace he wants is far above the closure he sees; on station and on small moves it stays a pressure.
+
+**Rates to start** (Patrick, 13 Oct 2026: "Instructors will 'run' from route to echelon. but I think we should start with slower rates until we figure out how to tune the PID"): B1 starts at the jogging pace, 8 ft/s, as its most. The running pace comes once the tuning holds. The Rates setting's route-to-echelon times (10, 5 and 2.5 s, TS-65) average about 6, 12 and 24 kt over about 100 ft, faster than running for the instructor and AI; they are reconciled at B3 (route and station changes).
+
+**The holding setting moves with the turn** (Patrick, 13 Oct 2026: "The holding setting will change depending on what's happening ... as soon as I see that lead is turning, i will pitch back to stay on plane with him, roll my wings to match his bank, and walk power up to stay in position. Once established in the 30 degree turn, our bank angle is matched, and I need more power (due to larger turn circle, and maybe some other aerodynamics) ... its proportionally more the more the formation is turning. Less power than lead when stepped down (lead turning in to you)."). So the holding setting is worked out, not just remembered:
+- **The straight-and-level setting** for the speed, as he knows the aircraft;
+- **plus the turn's share:** the G of the turn (both aircraft pay it), and his bigger or smaller circle. In echelon, about 43 ft out along Lead's wing, he flies the same turn rate on a circle wider or tighter by 43 ft × cos(bank), so he needs g × 43 ft × sin(bank) ÷ speed more or less: at 200 KIAS and 8,000 ft about 1.1 kt at 30°, 1.5 kt at 45°, 1.9 kt at 60° (back of the envelope). Proportional to sin(bank), so more the steeper the turn, and on the inside the same amount less. A percent or two of torque: "quite small" (SMM 12.19 para 42);
+- **plus the roll-in's share, while it lasts** (Patrick, 13 Oct 2026: "You usually need more power while pitching up than you do once established in the new turn ... at least you need more initially to catch up to lead and establish your movement. your aircraft also has to travel thru the air (climb)"). Stepped up, his place rises about 43 ft × sin(bank) during the roll-in: about 22 ft to 30°, 30 ft to 45°, 37 ft to 60°. Climbing 30 ft over a roll-in of about 6.5 s (TS-209) peaks near 7 ft/s, which for a 5,168 lb aircraft is about 66 hp, about 6% of the engine's 1,100 shp, on top of the speed he has to gain. So the roll-in takes several times the steady turn's extra power, as Patrick thought; stepped down it is the reverse (he descends into the plane, less power). Back of the envelope;
+- **plus the remembered trim** on top, updated when he is steady.
+
+When he sees Lead's telegraph, he walks the power toward the holding setting for the roll-in and the bank Lead is going to, before it is needed. The aircraft's power required comes from the code's existing maths (`powerFor` in `live/power.js`: the power for an acceleration, a speed, a G and a climb), not a new formula; his estimate need not be perfect, as the trim and the staying-in-position part take up the rest. "Other aerodynamics": a little more G on the wider circle is in the point mass; Lead's wingtip vortex (the lateral trim change in echelon, SMM 12.18 para 40) is not modelled.
+
+**How it is tuned** (the thread's proposal): one axis at a time in the order he corrects them, plane, then line, then hinge. For each, start #2 a few feet off his place, straight and level, and watch him settle on the plot page: no overshoot, no hunting, settled in the time in 7b.6b. Then Lead's telegraphed 30°, 45° and 60° turns, both ways. The gauge measures each run; Patrick flies the result.
+
+#### 6b. The pilot model behind the numbers
+
+Sources (Patrick found them, 13 Oct 2026): MIT OpenCourseWare 16.400 Human Factors Engineering, Fall 2011, lecture 10 "Manual Control II"; McRuer and Krendel, *Mathematical Models of Human Pilot Behavior*, AGARDograph 188 (1974), as described by MathWorks' Crossover Pilot Model block; Tohidi and Yildiz, "A Control Theoretical Adaptive Human Pilot Model", arXiv 2007.10216 (2020). Ideas and published formulas only; no code copied, no new library.
+
+- **The crossover model.** A trained pilot shapes himself so that he and the aircraft together act like a gain, a delay and an integrator near the crossover frequency: Yp·Yc = ωc·e^(−τs)/s. Typical crossover 1 to 10 rad/s (MathWorks' default 3); delay 0.1 to 0.25 s (MIT), 0.3 s with decision time included (Tohidi and Yildiz).
+- **Why rate matters.** Height and fore-and-aft position answer the controls through two integrations (G or thrust gives acceleration, then speed, then position). On that kind of aircraft response the pilot must supply lead: he acts on how fast the deviation is changing, not just on its size (MIT; McRuer). That is Patrick's "how big and how fast it's changing". Pilots rate this as work, which is why seeing Lead's roll and acting first (feed-forward) matters so much.
+- **How firm he can be.** With 0.3 s of delay, the delay costs about 43° of phase at 2.5 rad/s and about 52° at 3 rad/s. A crossover of about 2 to 2.5 rad/s keeps a healthy margin, so the pitch and roll axes settle in about 2 s. The power axis adds the engine's 0.25 s, so about 1 rad/s and about 4 s. Above that he chases (a pilot-induced oscillation). These are the starting values, estimates to be tuned by eye.
+- **Prediction.** The optimal-control pilot model adds a predictor and trades control effort against precision (MIT: minimise effort squared plus error squared). For #2 the predictor is Lead's telegraph (7b.3); the trade is the "pressures, not movements" of close formation.
+- **What the sources don't cover.** None of them models formation flying: they are single-axis tracking tasks. The structure and the ranges carry over; the numbers for echelon are ours, tuned against Patrick's flying. He corrects from the smallest error he can see (about 0.5 ft, estimate). Each axis settles without overshoot; settle times are estimates to be tuned (up and down, in and out about 2 s; fore and aft about 4 s).
+
+#### 7. Success criteria: what Patrick checks, from the default start
+
+1. Straight and level: on his references, within about 1 ft (estimate), with no visible hunting.
+2. Lead's telegraphed turns (TS-209) up to 45° of bank, both ways, into and away from #2: almost perfect, 2 to 3 ft out at worst, then back on his references.
+3. To 60° and beyond: small deviations, a few feet, back on his references after the roll.
+4. Always within TS-80's close-formation band (5 ft and 5 kt).
+5. The controls look like pressures: G within a few tenths of Lead's, bank within a few degrees of Lead's, torque moving a few percent.
+
+**Feasibility (back of the envelope, estimates):**
+- From the echelon place, about 43 ft out, Lead's 9°/s roll at 45° moves #2's place up or down at about 7 ft/s. Seeing it 0.3 s late costs about 2 ft. At 60° (12°/s) it moves at about 9 ft/s, about 3 ft.
+- In the turn, at 200 KIAS and 8,000 ft, he needs about 1.5 kt more on the outside (45°) or about 1.9 kt (60°), or as much less on the inside: a percent or two of torque once established, more during the roll-in (7b.6).
+- So 2 to 3 ft is reachable and tight, and it needs the 0.3 s reaction and the power anticipation both.
+
+#### 8. Code structure
+
+`src/modules/turn-sim/live/wingman/`:
+
+| File | Job |
+|---|---|
+| `wingman.js` | Runs the loop each step |
+| `perception.js` | What he sees and feels, delayed |
+| `supervisor.js` | Picks the job; on station only in B1 and B2 |
+| `close-formation.js` | The correction on each axis |
+| `shaper.js` | Pressure-sized, smooth inputs |
+
+`fighting-wing.js` joins at B5, from `fw-live.js`. The aircraft is Lead's point mass (`fluid-lead.js` stepLead, TS-225). Numbers go in the tuning sheet (`wing-moves.js`), each with its source or marked as an estimate. Existing maths is used first: `holdInPlane` (`formation-turns.js`) already holds this place with error and rate on Lead's plan; `easeValue`, `softMin` and `softMax` (`src/core/flight-math.js`). Plain JavaScript, a header on each file in the repo's style. Behind a setting: the held poses stay until Patrick has flown the new wingman.
+
+#### 9. Commands
+
+- Build check: `npm run build`
+- Measure: `node tools/formation-gauge.mjs --only "<press>"`. Never `--save` without restoring the baseline afterwards.
+- Plot: the dev page `/tools/flight-plot/`
+- Tests: CI on the pull request only (AGENTS.md).
+
+#### 10. Testing
+
+One test for the rung (AGENTS.md): echelon straight and level, then one telegraphed 45° turn and roll-out. #2 stays within TS-80's 5 ft of his place and never closer than the collision minimum. It checks what a pilot would recognise, with no tight time gate.
+
+#### 11. Boundaries
+
+- **Always:** keep the old pilot behind a setting until Patrick flies the new one; source every number or mark it an estimate; run the gauge before and after.
+- **Ask Patrick first:** any change to the aircraft's physics, the echelon place, TS-80's band, or Lead's roll.
+- **Never:** feed #2 Lead's plan (TS-211); change the physics to make a test pass; delete the held poses before listing what they do.
+
+#### 12. Open questions for Patrick (all answered at approval but the pressure sizes, which are tuned)
+
+1. ~~The sensors in 7b.3~~: answered (no look inside; the telegraph's build-up is read; plane, then line, then hinge, with the exception under Lead).
+1b. ~~The jogging and running pace~~: answered, 8 and 13 ft/s; B1 starts at 8.
+2. The size of the pressures (7b.4): on station answered (tenths of a degree, as required); the larger sizes are estimates to tune.
+3. ~~How much power he leads with~~: answered (the holding setting for what Lead is doing, walked toward from the telegraph, bigger for a faster build-up).
+4. ~~The speed brakes~~: answered (very rarely, for too much closure; not ideal).
+5. ~~The echelon place~~: settled by TS-182 (18 back, 43 out, 3 down from the SMM references); section 4's table corrected.
 
 ## 8. Fighting wing
 
