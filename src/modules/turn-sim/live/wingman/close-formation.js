@@ -38,7 +38,8 @@ import { STEP_SEC } from '../flight.js';
 import { powerFor, throttleAtTorque, ktpsAtThrottle } from '../power.js';
 import { LINE_BACK_PER_OUT, FOUR_FORMATIONS } from '../slots.js';
 import { CLOSE_WING, CLOSE_SEE } from '../wing-moves.js';
-import { add3, scale3, perp3 } from '../attitude.js';
+import { add3, scale3, perp3, unit3, cross3, len3 } from '../attitude.js';
+import { bankOf } from './perception.js';
 
 const C = CLOSE_WING;
 
@@ -174,6 +175,16 @@ export function liftFor(seen, st, hand) {
   const d = (seen.bankAheadDeg - seen.bankDeg) * DEG; // the roll still to come across his delay (left wing down +)
   const up = add3(scale3(f.up, Math.cos(d)), scale3(f.left, Math.sin(d)));
   const left = add3(scale3(f.left, Math.cos(d)), scale3(f.up, -Math.sin(d)));
-  const lift = add3(scale3(up, seen.gAhead + seen.ffUpG + hand.upCorrG), scale3(left, seen.ffLeftG + hand.leftCorrG));
-  return perp3(lift, st.nose);
+  const lift = perp3(add3(scale3(up, seen.gAhead + seen.ffUpG + hand.upCorrG), scale3(left, seen.ffLeftG + hand.leftCorrG)), st.nose);
+  // While his own bank is behind the bank that lift asks for, he rolls a little past it, so he rolls a bit faster than Lead
+  // until he has caught up and then at Lead's rate (Patrick 13 Oct 2026: "you usually have to roll a bit faster than lead to
+  // catch up to his bank then stabilize at his roll rate as you come on to plane with pitch"). Left wing down +; a turn of
+  // the lift about his nose by -x banks him x further left wing down.
+  const n = unit3(st.vel);
+  if (!(len3(lift) > 1e-9) || !(C.rollCatchUp > 0)) return lift;
+  const want = bankOf(n, unit3(lift));
+  const own = bankOf(n, st.bodyUp);
+  const err = ((want - own + 540) % 360) - 180;
+  const a = -C.rollCatchUp * err * DEG;
+  return add3(scale3(lift, Math.cos(a)), scale3(cross3(n, lift), Math.sin(a)));
 }
