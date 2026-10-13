@@ -61,17 +61,14 @@ export const stopAt = (slot, over = {}) => slide(slot, {
   ...over,
 });
 /**
- * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13): back until #2's nose is at least 10 ft behind Lead's
- * tail (line astern's own spacing, plus 12 ft so it does not fall short: an estimate), at the slot's own lateral, and low
- * enough for the tail to pass below the prop wash (line astern's height: an estimate).
+ * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13; Patrick 14 Oct 2026: "The corner should be if you move
+ * straight right from Line Astern, and down and back from echelon"): line astern's own fore and aft and height (his nose about
+ * 10 ft behind Lead's tail, below the prop wash) at the slot's own lateral. Until 14 Oct 2026 it sat 12 ft further back and 5 ft
+ * lower (CLOSE_SHAPING wake clearances, estimates). Fine tuning, and the references worked through the model, later (future.md).
  */
 export const cornerBehind = (slot, spacingFt) => {
   const astern = pairSlot('astern', 0, spacingFt);
-  return {
-    fwd: astern.fwd - CLOSE_SHAPING.wakeClearanceAftFt,
-    left: slot.left,
-    alt: astern.alt - (CLOSE_SHAPING.wakeClearanceDownFt - 10),
-  };
+  return { fwd: astern.fwd, left: slot.left, alt: astern.alt };
 };
 /** Drop back slowly (SMM 16.32 para 92): subtle power trim (2-3 kt slower than Lead), gentle bank. */
 export const dropBack = (slot, over = {}) => phase(slot, {

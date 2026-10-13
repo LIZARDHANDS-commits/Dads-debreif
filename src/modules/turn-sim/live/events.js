@@ -135,6 +135,8 @@ export function createEvents({ state, startChange, labelFor }) {
     const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, upFt) / dtSec;
     if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
     if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
+    // The judge's band is sideless for the pair: a change of side is done only on the new side (as below), live or not.
+    if (c.change.liveHand && c.change.side && Math.sign(rel.left) !== c.change.side) return false;
     if (c.change.liveHand) return liveHandOver(c, rel, closureFtps);
     const targetKias = c.change.to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
     if (Math.abs(wing.kias - targetKias) > 0.5) return false;
