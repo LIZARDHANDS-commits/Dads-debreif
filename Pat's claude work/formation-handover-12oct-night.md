@@ -2,6 +2,16 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
+## 13 Oct 2026, later (after the third compaction)
+
+- **One Lead is in #1018.** The agent's three commits were cherry-picked onto `roll-rate-raise` (822f383d, a5a23502, 0649c2c3); the agent's worktree branch `worktree-agent-a06d78348763c6746` still exists (ask Patrick before deleting it). Audit: "merge after fixes"; its fixes are made: the roll bugs fixed in core (f62e9480, TS-223), the climbs and descents to Patrick's ruling (022b5cd2). The 80% torque top-speed question is closed (Patrick: "He just stays at 80 tq and climbs at his airspeed, whatever that gives him").
+- **Core roll fix (TS-223, f62e9480):** `plannedStopStep` counts within 0.01° and 0.1°/s as on the bank (it stalled about 0.005° short, so turns never ended and look-aheads hit the 600 s cap); a stronger carried roll acceleration is shed over its own onset; a gentle roll-out firms up toward the T-6A's roll rather than pass the bank (`brakeAccelDps2`); `flight.js` outRoll waits for the acceleration too. Probe: normal rolls the same to within 0.05°; gauge: the old Lead flies fighting wing to echelon's whole 110° turn.
+- **Phase B planned as a ladder** (plan 12.4, B1 to B6, close formation first) and **the wingman spec approved** (TS-226, spec section 7b): Patrick's technique (react to Lead, stay in position with all controls, correct plane then line then hinge, out before up under Lead, power from a holding setting that moves with the turn, small and large moves, jogging 8 and running 13 ft/s), the SMM's paragraphs and Figure 12.3, the pilot model (crossover model, 0.3 s), how PID is used (6c), the code map and inputs and outputs (section 8), `fluid-wing-live.js` as the pattern.
+- **Working doc:** "Close-In Wingman Spec" (Claude Docs, https://claude.ai/code/artifact/be129268-83f2-4a84-b01c-a7d81e643f47): Patrick refines it there; changes go back into spec 7b, the master.
+- **Rule change ALL-41:** manuals may go in the repo with their page; only the CFAFM stays out (AGENTS.md and five docs updated). Pilot-model and PID sources in `formation-review-12oct/research/pilot-model-sources/` (two unlicensed PDFs on this computer only, git-ignored).
+- **Running:** a one-off Fable audit (high) of the wingman design with a gaps analysis. Check its findings against the decisions before they reach Patrick; bring spec changes one at a time; then build B1 (Patrick has not yet said who builds: the thread was recommended).
+- **Looked at, not used:** the mcpmarket PID tuning skill (no licence, Python libraries, process-control fit); Nirnay (safe browser toy, no time delay).
+
 ## 13 Oct 2026, early (second compaction)
 
 - #1018 (V2.424, branch `roll-rate-raise`) stays open until Lead flies right; Patrick: "leave this on a worktree until we get it working", and "Don't worry about the failed tests for now - we will fix that as we develop". Seven Formation tests are red (plan.md lists them: 3 phase B, 4 phase C). The thread's admin merge with red tests was refused by the permission check; nothing to merge now anyway.
