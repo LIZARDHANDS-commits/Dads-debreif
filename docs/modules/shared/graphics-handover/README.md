@@ -24,14 +24,15 @@ Debrief, EP Tabletop, SOF, Traffic, Turn Fight and Formation.
 | Gear sequence (6 s), aileron, elevator, rudder, flap and speed-brake travel (ALL-34, ALL-35), prop spin | Stays code; the hinges come from the file |
 | Paint schemes, ship numbers and serials | Stays code |
 | Lights, canopy glass | Stays code |
-| Pilots | Move to Blender (an open item) |
+| Pilots | Blender (in the master since 12 Oct 2026, collection Pilots) |
 | Fingerprints | Replaced by a version and delivery check |
 | The light Harvard for distant aircraft | Unchanged |
 
-Brought into the master file so far (plan Step 3b item 3.3): the outside's 17 parts and the mirrored right aileron and
-flaps, the gear (down), the cockpit, 14 named points, 18 hinges and the 10 instrument faces. Still drawn only by the
-code and not yet in the master file: the speed brake panel, the gear and flap wells, the prop blades
-and the pilots (the canopy glass and lights stay code, as the table says).
+In the master file (plan Step 3b item 3.3, done 12 Oct 2026): the outside's 17 parts and the mirrored right aileron and
+flaps, the gear (down), the cockpit, 14 named points, 19 hinges and the 10 instrument faces; and the parts the code drew
+itself: the speed brake and its well, the gear and flap wells, the prop blades, the exhaust stacks, the cockpit floor
+and coamings seen from outside, the tub seen from the seats, and the two pilots. Still drawn by the code, as the table
+says: the canopy glass, lights, cheat line, decals and ship numbers, and the prop's blur disc.
 
 ## 1. How the model is made
 
