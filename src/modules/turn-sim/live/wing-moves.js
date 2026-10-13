@@ -280,13 +280,12 @@ export const CLOSE_WING = Object.freeze({
   // Power, forward and back: about 12% torque per ft/s of pace error (spec 7b.6d item 7: 10 to 13%, estimate), so 4.8% per
   // foot near the spot. Trim from zero as above.
   fore: Object.freeze({ kdPctPerFtps: 12, ki: 0, iMax: 0 }),
-  // The soft threshold: P reads the deviation less 0.5 ft, smoothly (spec 7b.6d item 11; 7b.6b: the smallest error he can
-  // see, about 0.5 ft, an estimate), so he rests within about half a foot of his place. The spec also has D ignore drift
-  // under about 0.5 ft/s (deadFtps 0.5); it is OFF here (0) until Patrick rules, because measured on the T4 probe (3 ft off,
-  // straight and level) it breaks the 0.5 ft overshoot target on the in-plane axes: the last foot of every correction is
-  // flown under 0.5 ft/s, so D is gone there and he coasts past, 0.83-0.86 ft (only once settled on station: 0.68 ft,
-  // drifting across unseen); with it off, no overshoot, within 1 ft in 3.9 s. Set 0.5 to fly the spec as written.
-  deadFt: 0.5,
+  // No threshold (Patrick 13 Oct 2026: "we notice ANY drift from the ideal references. if we're not exactly on plane or
+  // exactly on the line we will correct, until we stabilize at the 'golden power setting' and control pressures to freeze
+  // us in place (which is rare)"). Replaces the audit's soft threshold (spec 7b.6d item 11: P less 0.5 ft, D ignoring drift
+  // under 0.5 ft/s), which left him coasting 0.85 ft past his place. T4 probe, 3 ft off: within 0.5 ft in 1.55 s (plane)
+  // and 3.65-3.95 s (in the plane), overshoot 0.05 and 0.26-0.33 ft. Kept as numbers so a threshold can come back.
+  deadFt: 0,
   deadFtps: 0,
   // The pace: at most jogging, 8 ft/s, in B1 (Patrick 13 Oct 2026: "yes 8 ft/s and 13 ft/s works"; "start with slower rates
   // until we figure out how to tune the PID"), tapering as sqrt(2 x braking x distance) so he can always stop on the spot,
