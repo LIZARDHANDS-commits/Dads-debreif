@@ -467,9 +467,15 @@ const PITOT = Object.freeze({ s: 0.5669, reach: 0.45 / 23.148, drop: 0.12 / 23.1
 // s: the marks stay at station 0.5, where they sat beside the pitot before F06 moved it 1.5 ft further out (Patrick's call: leave them).
 const UNDERWING_MARKS = Object.freeze({ s: 0.5, x: 0.06, size: 0.7 / 23.148 }); // x: the patch's middle aft of the leading edge, chord fraction
 // The roundel under the right wing and the ship's number on top of it, as on Patrick's photos of 156102 (the roundel
-// under the right wing) and 156115 (the number on the right wing's top, along the chord, the digits' tops inboard), at
-// the upper roundel's place (was the number under the right wing). [x middle, station], units.
+// under the right wing) and 156115 (the number on the right wing's top), at the upper roundel's place (was the number
+// under the right wing); since G4 and G20 (13 Oct 2026) the number runs along the span, and the same number sits under
+// the left wing at this place. [x middle, station], units.
 const WING_MARK = Object.freeze([0.068, 0.42]);
+// The wing numbers' patch (G4, G20): 0.19 units (4.4 ft) along the span by 0.11 (2.5 ft, the digits' height) along the chord.
+const WING_NUMBER = Object.freeze({ span: 0.19, chord: 0.11 });
+// The two small marks on top of each wing (G5, G01): their middle about 1 ft aft of the leading edge (aft, units), at
+// station s, just outboard of the roundel (to 0.49) and the number (to 0.515); the station an estimate off G01.
+const UPPER_MARKS = Object.freeze({ s: 0.55, aft: 1 / 23.148 });
 // The tie-down rings (one under each wing; a formation reference, SMM Fig 12.12
 // and Patrick, 11 Oct 2026 20:12Z): a dark ring hanging from a small block, 12.8 ft behind the spinner's tip and 8.3 ft
 // out (SMM Fig 12.13's near wing, a camera fitted to the picture and the ring's ray met with the wing's underside; the
@@ -618,7 +624,27 @@ function outlinedText(ctx, text, cx, cy, px, outline = px * 0.07) {
 }
 
 /**
- * The ship's number on the nose and under the wing: 122 for #1, 123 for #2 and so on (Patrick, 11 Oct 2026, of his photo
+ * Plain white digits with no outline, centred in a w by h canvas: as tall as `tall` of its height, narrowed (never
+ * widened) to fit `wide` of its width, as the CT-156's own stencilled numbers (G4, G10, G20).
+ */
+function plainDigits(ctx, text, w, h, tall = 0.9, wide = 0.96) {
+  ctx.font = '700 100px Arial, Helvetica, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const m = ctx.measureText(text);
+  const gw = m.actualBoundingBoxLeft + m.actualBoundingBoxRight, gh = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+  if (!(gw > 0 && gh > 0)) return;
+  const k = (tall * h) / gh, sx = Math.min(1, (wide * w) / (gw * k));
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.scale(k * sx, k);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, -(m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2, (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2);
+  ctx.restore();
+}
+
+/**
+ * The ship's number on the nose and the wings: 122 for #1, 123 for #2 and so on (Patrick, 11 Oct 2026, of his photo
  * of 156102's paint: "Make it 122 all else the same"). A label that is not a ship number (Turn Fight's letters) shows
  * as it is; none gives 122.
  */
@@ -2386,8 +2412,18 @@ function buildKit(THREE) {
     roundelWing: wingPatch(THREE, WING_MARK[0], WING_MARK[1], 0.14, 0.14, [0, -1], [1, 0], 1),
     // Under the right wing (WING_MARK): seen from below with the nose up, right = +Y.
     roundelUnder: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], 0.14, 0.14, [0, 1], [1, 0], -1),
-    // On top of the right wing (WING_MARK): along the chord, reading trailing edge to leading edge, the digits' tops inboard.
-    wingNum: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], 0.24, 0.08, [1, 0], [0, 1], 1),
+    // On top of the right wing (WING_MARK): along the span, reading root to tip, the digits' tops toward the leading edge,
+    // about 2.5 ft tall (G4, Patrick 13 Oct 2026; Moose Jaw frames and G01; was along the chord with an outline).
+    wingNum: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], WING_NUMBER.span, WING_NUMBER.chord, [0, -1], [1, 0], 1),
+    // Under the left wing at the same place, the same digits the same way (G20, Patrick 13 Oct 2026; F06's 110, G02's 102):
+    // seen from below with the nose up, root to tip runs to +Y.
+    wingNumUnder: wingPatch(THREE, WING_MARK[0], WING_MARK[1], WING_NUMBER.span, WING_NUMBER.chord, [0, 1], [1, 0], -1),
+    // On top of each wing outboard of the roundel or number, about 1 ft aft of the leading edge, the same two marks as
+    // underneath (G5, Patrick 13 Oct 2026, G01): along the chord, the white disc forward.
+    marksTop: both((side) => {
+      const sec = sectionOf(WING, UPPER_MARKS.s);
+      return wingPatch(THREE, sec.le - UPPER_MARKS.aft, side * UPPER_MARKS.s, UNDERWING_MARKS.size, UNDERWING_MARKS.size, [1, 0], [0, 1], 1);
+    }),
     // Under each wing beside the pitot (UNDERWING_MARKS): along the chord, the white disc forward.
     marks: both((side) => {
       const sec = sectionOf(WING, UNDERWING_MARKS.s);
@@ -2749,7 +2785,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     disc = add(geo.disc, mats.disc);
   } else {
     const tailNumber = ct156TailNumber(number);
-    const wingTex = own(canvasTexture(THREE, 384, 128, (ctx, w, h) => outlinedText(ctx, tailNumber, w / 2, h / 2, h * 0.86, 5), 2));
+    // The wing numbers plain white, no outline, their digits about 2.5 ft tall in their 2.55 ft patch (G4, G20).
+    const wingTex = own(canvasTexture(THREE, 380, 220, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.97), 2));
     const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => outlinedText(ctx, tailNumber, w / 2, h / 2, h * 1.0, 3), 2));
     const decal = (tx) => own(new THREE.MeshStandardMaterial({
       map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: tx, emissiveIntensity: 0.6, fog: false,
@@ -2769,7 +2806,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
     add(decalGeo.roundelWing, mats.roundel, detail);
     add(decalGeo.roundelUnder, mats.roundel, detail);
-    add(decalGeo.wingNum, decal(wingTex), detail);
+    const wingNumMat = decal(wingTex);
+    add(decalGeo.wingNum, wingNumMat, detail);
+    add(decalGeo.wingNumUnder, wingNumMat, detail);
     const tailMats = Object.fromEntries(['1', '-1'].map((s) => [s, decal(own(canvasTexture(THREE, 512, 512, tailCanvas(number, Number(s)))))]));
     const noseMat = decal(noseTex);
     for (const s of ['1', '-1']) {
@@ -2781,6 +2820,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(decalGeo.triB[s], mats.tri, detail);
       add(decalGeo.triC[s], mats.tri, detail);
       add(decalGeo.marks[s], mats.marks, detail);
+      add(decalGeo.marksTop[s], mats.marks, detail);
       add(decalGeo.stencil[s], mats.stencil, detail);
       add(decalGeo.dotAft[s], mats.dot, detail);
       add(decalGeo.dotRoot[s], mats.dot, detail);
