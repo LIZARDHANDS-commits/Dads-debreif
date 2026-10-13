@@ -441,7 +441,9 @@ const TAS = Object.freeze({ x: 0.66 - 5.77 / 23.148, length: 0.42 / 23.148, heig
 // SMM Fig 12.12), the white the bottom 0.15 ft (estimate). The forward one the same shape, its root from 15.0 ft (the
 // photo, about +-0.3 ft; its root is hidden by the wing). [root front, root back, foot front, foot back, depth, white],
 // feet; about 0.05 ft thick (estimate).
-const BELLY_PADDLES = Object.freeze([[21.99, 22.57, 22.32, 22.88, 0.89, 0.15], [15.0, 15.58, 15.33, 15.89, 0.89, 0]]);
+// Patrick's readings pass (13 Oct 2026, photos 37 and 38, his ruler; 3d-work #60 F44, imported with delivery ct156-2026-10-13-17f0c75): the aft one's root
+// 21.99 to 22.66 ft (20.4 cm along the flight line, was 22.57) and its foot 22.39 to 23.04 ft, 1.08 ft deep (33 cm, was 0.89); sweep, thickness and white kept.
+const BELLY_PADDLES = Object.freeze([[21.99, 22.66, 22.39, 23.04, 1.08, 0.15], [15.0, 15.58, 15.33, 15.89, 0.89, 0]]);
 const PADDLE_THICK = 0.05 / 23.148;
 // The smaller ones the side view draws further aft: a blade 23.1 to 23.4 ft behind the tip about 0.25 ft down, and a
 // flat plate 24.3 to 25.6 ft about 0.1 ft down (the marker beacon antenna, by the page's list; which is which an
@@ -499,7 +501,10 @@ const UPPER_MARKS = Object.freeze({ s: 0.55, aft: 1 / 23.148 });
 // 5 px; about +-0.5 ft). Ring 0.3 ft across, its bar 0.04 ft (estimates). [x, station], units.
 // F06 (3d-work chunk 3; Patrick, 13 Oct 2026: "Move to F06's spot"): 13.03 ft behind the tip (was 12.8) and 7.90 ft from the centreline (was 8.35), an
 // estimate off F06, about +-0.3 ft; the station 0.3403 follows the old 0.36 for 8.352 ft (ct156/build/refs_f06.py).
-const TIE_DOWN = Object.freeze({ x: 0.66 - 13.03 / 23.148, s: 0.3403, r: 0.15 / 23.148, bar: 0.02 / 23.148, block: 0.1 / 23.148 });
+// F43 (3d-work #60, readings pass; Patrick's AR line, photo 28, 13 Oct 2026): the wing lugs at 8.85 ft out (was 7.90 ft) and 13.09 ft behind the tip (was 13.03), so
+// the station is 0.3811 (was 0.3403; the ring centre measured at 8.850 ft out on the bent wing). The master's lug is a flat plate with a round hole
+// (photos 20, 21); the code's ring and block stay as the fallback.
+const TIE_DOWN = Object.freeze({ x: 0.66 - 13.09 / 23.148, s: 0.3811, r: 0.15 / 23.148, bar: 0.02 / 23.148, block: 0.1 / 23.148 });
 // The speed brake: one plate under the fuselage between the flaps, hinged at its front, opening to 70°,
 // perforated with round holes, three across and four along. Its size and place are
 // estimates (no page gives them): hinged 16.0 ft behind the spinner's tip, where the flaps start, 2.3 ft long and 1.8
@@ -526,11 +531,12 @@ const SPEED_BRAKE = Object.freeze({ x0: 0.66 - 16.0 / 23.148, length: 2.3 / 23.1
 const GEAR_SIT_DEG = 0;
 const GEAR = Object.freeze({
   groundFt: -5.42, // the main wheels' ground, feet under the spinner's axis (A2; was -5.35)
-  main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.825, tyreWFt: 0.45, legRFt: 0.2, pistonRFt: 0.13 }),
+  main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.8333, tyreWFt: 0.3667, legRFt: 0.2, pistonRFt: 0.13 }), // M4 (3d-work #60, Patrick 13 Oct 2026, photos 30 and 31): 20 x 4.4 in tyres, r 10 in and 4.4 in wide (were 0.825 and 0.45)
   legDoor: Object.freeze({ x0Ft: 13.45, x1Ft: 14.55, y0Ft: 2.3, y1Ft: 4.25 }),
   inboardDoor: Object.freeze({ x0Ft: 12.9, x1Ft: 15.1, y0Ft: 0.45, y1Ft: 2.35, aftCornerFt: 1.0, foreCornerFt: 0.2 }),
   legDoorSplayDeg: 12,
-  nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.645, tyreWFt: 0.5, legRFt: 0.12, pistonRFt: 0.085, collarRFt: 0.2, forkYFt: 0.31, linkFt: 0.45, guardFt: 0.08 }),
+  nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.6667, tyreWFt: 0.3667, // M4: 16 x 4.4 in, r 8 in and 4.4 in wide (were 0.645 and 0.5)
+    legRFt: 0.12, pistonRFt: 0.085, collarRFt: 0.2, forkYFt: 0.31, linkFt: 0.45, guardFt: 0.08 }),
   noseDoor: Object.freeze({ x0Ft: 6.1, x1Ft: 10.0, halfFt: 0.36, openDeg: 85 }),
   doorThickFt: 0.03,
 });
@@ -1493,9 +1499,11 @@ function gearPoses(THREE) {
  * over the middle three fifths (easing in and out) with the leg doors and nose doors going with them, and the inboard
  * doors close over the last fifth. Gear up runs the same way backwards. { doors, legs }, each 0 to 1.
  */
-export function ct156GearPhase(t) {
+export function ct156GearPhase(t, parked = false) {
   const v = clamp01(Number(t) || 0);
-  const doors = v < 0.2 ? v / 0.2 : v > 0.8 ? (1 - v) / 0.2 : 1;
+  // F25 (Patrick, 13 Oct 2026: "Open when parked"; his photos 13, 15 and 17): once the gear is down the inboard doors close in flight, but parked they hang open, so a parked ship
+  // (the gear down, the doors not told to close) keeps them open through the last fifth of the travel and after it.
+  const doors = v < 0.2 ? v / 0.2 : v > 0.8 && !parked ? (1 - v) / 0.2 : 1;
   const u = clamp01((v - 0.2) / 0.6);
   return { doors, legs: u * u * (3 - 2 * u) };
 }
@@ -1712,7 +1720,7 @@ export function ct156CanopyHalfWidth(x, z) {
  */
 export const CT156_COAMING_CROWNS_FT = Object.freeze({
   front: Object.freeze([[4.69, 1.634], [5.0, 1.595], [5.3, 1.545], [5.6, 1.48], [5.8, 1.37], [6.0, 1.25], [6.3, 1.07]].map(Object.freeze)),
-  rear: Object.freeze([[0, 1.85], [0.15, 1.82], [0.3, 1.77], [0.47, 1.675], [1.1, 1.645]].map(Object.freeze)),
+  rear: Object.freeze([[0, 1.77], [0.15, 1.767], [0.3, 1.744], [0.47, 1.675], [1.1, 1.645]].map(Object.freeze)), // E3 (3d-work #66, Patrick 13 Oct 2026): the crest 1 in lower at the aft edge, 1.85 to 1.77 ft, easing to nothing at the panel's face (sources.md, The rear cockpit); was [0, 1.85], [0.15, 1.82], [0.3, 1.77]
 });
 /** A crown's height (feet) at station x (feet), straight-line between its points; level past either end. */
 export function ct156CrownZ(crown, x) {
@@ -2181,10 +2189,20 @@ function pilotGeometry(THREE, x, z) {
   return joinGeometries(THREE, ct156PilotParts(THREE, x, z));
 }
 
-/** The canopy breakers on top of each ejection seat's headbox, units: their base radius, height and how far each is out
- * from the middle (Patrick, 12 Oct 2026, "there are spikes for the ejection seats"; about 0.9 in across, 3.5 in tall and
- * 5 in apart, estimates; they were 0.1 in across and 1.7 in tall). The flat-topped headbox sits under them. */
-const SEAT_SPIKES = Object.freeze({ r: 0.0016, h: 0.0125, apart: 0.009 });
+/**
+ * The canopy breakers' latch posts on each ejection seat, feet (E6, 3d-work #66, Patrick 13 Oct 2026: `E01`, `E02`, SMM p198, the CFAFM seat figure; sizes
+ * estimates; imported with delivery ct156-2026-10-13-17f0c75). They replace the two cones on stems (0.9 in across, 3.5 in tall, 5 in apart; Patrick, 12 Oct 2026,
+ * "there are spikes for the ejection seats") and the bar between them: a post `deep` by `wide` each side, `out` from the middle, standing on the seat back's side
+ * frames from `base` up and raked with the back. The left (+y) post's top is `leftOver` over the headbox's top, with a block `blockIn` turned inboard (the block
+ * `blockH` tall); the right (-y) post goes up to `rightOver` over the headbox or `glassClear` under the glass, whichever is lower, with a pointed metal tip
+ * `tip` long, and the left's top is kept `leftUnder` under the right's tip where the glass is low (the rear seat). A rod `rod` across joins the left post's top
+ * to the right post `rodUnder` under its tip. Posts' depth and place along the seat are read off the delivered `seats` (the front seat's right tip 2.855 ft,
+ * the rear's 2.459 ft; the rear's left top 2.36 ft).
+ */
+const SEAT_SPIKES = Object.freeze({
+  wide: 0.05, deep: 0.04, fore: 0.22, out: 0.55, base: 2.014, leftOver: 0.15, rightOver: 1.0, glassClear: 0.08, leftUnder: 0.1, tip: 0.07, tipR: 0.025,
+  blockIn: 0.045, blockH: 0.055, rod: 0.02, rodUnder: 0.15,
+});
 /**
  * The ejection seats' backs, feet (Patrick, 12 Oct 2026: back raked aft, headbox lower and closer to the head; sizes
  * estimates): each back's aft face `aft` from its seat's station (CT156_SEAT_X), its cushion `cushion` thick, the
@@ -2207,22 +2225,50 @@ export const ct156SeatRaiseFt = (i) => (CT156_HELMET_Z[i] - CT156_HELMET_Z[0]) /
  * outside it shows between the pilot's head and the canopy bow behind. Sizes estimates.
  */
 function headboxGeometry(THREE, i) {
-  const B = CT156_SEAT_BACK_FT, up = ct156SeatRaiseFt(i), x0 = CT156_SEAT_X[i] / FT + B.aft, wide = 0.8, foot = 1.04;
-  // A box from x0 + a to x0 + b (feet), za to zb up (the front seat's), leant aft and raised, in units.
-  const box = (a, b, za, zb) => {
-    const g = new THREE.BoxGeometry(b - a, wide, zb - za).translate(x0 + (a + b) / 2, 0, (za + zb) / 2);
+  const B = CT156_SEAT_BACK_FT, up = ct156SeatRaiseFt(i), x0 = CT156_SEAT_X[i] / FT + B.aft, foot = 1.04;
+  // Every piece is built in the seat's own frame (feet: x forward of the headbox's aft face, y across, z up as the front seat's), then leant aft with the back and raised, in units.
+  const lean = (g) => {
     const pos = g.attributes.position;
     for (let k = 0; k < pos.count; k++) pos.setXYZ(k, (pos.getX(k) - ct156SeatRakeFt(pos.getZ(k))) * FT, pos.getY(k) * FT, (pos.getZ(k) + up) * FT);
     g.computeVertexNormals();
     return g;
   };
-  const { r, h, apart } = SEAT_SPIKES, bx = (x0 + 0.3 - ct156SeatRakeFt(B.z1)) * FT, top = (B.z1 + up) * FT;
-  return joinGeometries(THREE, [
-    { geometry: box(0, B.cushion, foot, B.z0), materials: [0] },
-    { geometry: box(0, B.deep, B.z0, B.z1), materials: [0] },
-    // The canopy breakers, leaning a little forward.
-    ...[1, -1].map((s) => ({ geometry: new THREE.ConeGeometry(r, h, 8).rotateX(Math.PI / 2).rotateY(rad(15)).translate(bx, s * apart, top + h / 2 - 0.001), materials: [0] })),
-  ]);
+  // A prism from the outline [[y, z]] (feet) between x0 + a and x0 + b.
+  const prism = (outline, a, b) => {
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(outline.map(([y, z]) => new THREE.Vector2(y, z))), { depth: b - a, bevelEnabled: false });
+    const pos = g.attributes.position;
+    for (let k = 0; k < pos.count; k++) pos.setXYZ(k, x0 + a + pos.getZ(k), pos.getX(k), pos.getY(k)); // (x, y, z) to (z, x, y): a turn, so the faces keep their way round
+    return lean(g);
+  };
+  const box = (a, b, ya, yb, za, zb) => lean(new THREE.BoxGeometry(b - a, yb - ya, zb - za).translate(x0 + (a + b) / 2, (ya + yb) / 2, (za + zb) / 2));
+  // E5 (3d-work #66): the headbox tapered toward the top, 0.85 ft wide from the foot to 0.366 of the way up the headbox (z 1.8 on the front seat), narrowing to 0.35 ft at
+  // the top, a six-sided section the back's depth (the cushion's, as the delivered `seats`) and rake; the headbox's height and place are kept (was a box 0.8 ft wide, 0.52 ft deep).
+  const half = 0.425, topHalf = 0.175, kneeZ = B.z0 + 0.366 * (B.z1 - B.z0);
+  const parts = [{ geometry: prism([[-half, foot], [half, foot], [half, kneeZ], [topHalf, B.z1], [-topHalf, B.z1], [-half, kneeZ]], 0, B.cushion), materials: [0] }];
+  // E6: the latch posts, the right one's tip under the glass (the lower of 1.0 ft over the headbox and 0.08 ft under the glass), the left's top 0.15 ft over the headbox
+  // (and 0.1 ft under the right's tip where the glass is low).
+  const S = SEAT_SPIKES, yPost = S.out, fore = S.fore, aft = S.fore + S.deep;
+  const glassAt = (xFt, yFt) => { // the glass's inside height over (x, y) in feet, in the front seat's z
+    const x = xFt * FT, y = yFt * FT;
+    let lo = canopyAt(x).base, hi = canopyAt(x).top;
+    for (let k = 0; k < 24; k++) { const mid = (lo + hi) / 2; if (ct156CanopyHalfWidth(x, mid) >= y) lo = mid; else hi = mid; }
+    return lo / FT - up;
+  };
+  const postX = x0 + fore - ct156SeatRakeFt(B.z1 + 0.4); // roughly where the right post stands
+  const headTop = B.z1, rightTop = Math.min(headTop + S.rightOver, glassAt(postX, yPost) - S.glassClear) - S.tip;
+  const leftTop = Math.min(headTop + S.leftOver, rightTop + S.tip - S.leftUnder);
+  parts.push({ geometry: box(fore, aft, yPost - S.wide / 2, yPost + S.wide / 2, S.base, leftTop), materials: [0] });
+  parts.push({ geometry: box(fore, aft, -yPost - S.wide / 2, -yPost + S.wide / 2, S.base, rightTop), materials: [0] });
+  parts.push({ geometry: box(fore, aft, yPost - S.wide / 2 - S.blockIn, yPost + S.wide / 2, leftTop - S.blockH, leftTop), materials: [0] }); // the block turned inboard
+  const tip = new THREE.ConeGeometry(S.tipR, S.tip, 16).rotateX(Math.PI / 2).translate(x0 + (fore + aft) / 2, -yPost, rightTop + S.tip / 2); // the metal tip, pointing up
+  parts.push({ geometry: lean(tip), materials: [0] });
+  const rodZ0 = leftTop - S.blockH / 2, rodZ1 = rightTop - S.rodUnder, rodLen = Math.hypot(2 * yPost, rodZ1 - rodZ0);
+  // The rod runs along y, climbing from the left post to the right.
+  const rodDir = new THREE.Vector3(0, -2 * yPost, rodZ1 - rodZ0).normalize();
+  const rodG = new THREE.CylinderGeometry(S.rod / 2, S.rod / 2, rodLen, 8).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), rodDir))
+    .translate(x0 + (fore + aft) / 2, 0, (rodZ0 + rodZ1) / 2);
+  parts.push({ geometry: lean(rodG), materials: [0] });
+  return joinGeometries(THREE, parts);
 }
 
 /** The cowl's top line at x (the fuselage's top, STATIONS). */
@@ -3011,16 +3057,17 @@ export function setControls(root, { roll = 0, pitch = 0, yaw = 0, flaps = 'UP' }
 
 /**
  * Lowers or raises a ship's landing gear (ALL-34): t from 0 (up) to 1 (down), through the real sequence
- * (ct156GearPhase): the inboard doors open, the legs travel, the inboard doors close; a module that animates it takes
+ * (ct156GearPhase): the inboard doors open, the legs travel, the inboard doors close (unless parked, F25); a module that animates it takes
  * about CT156_GEAR_TRAVEL_S each way. A new ship is gear up, the gear hidden, until a module lowers it.
  * @param {any} root a ship from createCt156Model
  * @param {number} t
+ * @param {boolean} [parked] true for a ship standing on the ground (F25): the inboard doors then stay open with the gear down, as the real ones hang when parked; false (the default, in flight) closes them
  */
-export function setGear(root, t) {
+export function setGear(root, t, parked = false) {
   const d = root?.userData?.ct156?.gear;
   if (!d) return;
   d.t = clamp01(Number(t) || 0);
-  const { doors, legs } = ct156GearPhase(d.t);
+  const { doors, legs } = ct156GearPhase(d.t, parked);
   d.group.visible = d.t > 0;
   for (const s of d.sides) {
     s.leg.rotation.x = -(Math.PI / 2) * (1 - legs);
