@@ -24,7 +24,7 @@ import { ROLL } from '../rates.js';
 import { FW_SEE, FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
 import { seenOf, startFwSight, seeFw } from './perception.js';
-import { startFwGuard, fwGuard, startFwJob, fwJob } from './supervisor.js';
+import { startFwGuard, fwGuard, startFwJob, fwJob, leastPass } from './supervisor.js';
 
 const W = FW_WING;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
@@ -89,8 +89,26 @@ export function stepFwWingman(w, refSt) {
 
   // ---- the aim loop (T29; spec 7e.7, Fable F3): a wanted closure from the range error, soft inside the happy band ----
   const happyMid = (W.happyFt[0] + W.happyFt[1]) / 2;
-  const e = seen.slant - happyMid; // + too far
-  const soft = seen.slant > W.happyFt[0] && seen.slant < W.happyFt[1] ? W.happyGain : 1;
+  // In Lead's turn the range he keeps is his arc behind Lead round Lead's circle, signed (thread, 14 Oct 2026): slant range
+  // can't tell behind from ahead, so on a circle inside Lead's (closing at omega x d) the slant loop kept him inside, past
+  // Lead's 3/9 line (aspect 127°), the slant growing again as he drew ahead. Its closure is the arc's rate, eased as the
+  // slant's is (FW_SEE.closureSec). Otherwise, slant range.
+  let range = seen.slant;
+  let closing = seen.closure;
+  let arcFt = null;
+  if (W.followCircle && seen.turn.centre && job.turning) {
+    const c = seen.turn.centre;
+    const axis = unit3(seen.turn.omega);
+    const rL = perp3(sub3(seen.lead.p, c), axis);
+    const rMe = perp3(sub3(seen.own.p, c), axis);
+    const ang = Math.atan2(dot3(cross3(rMe, rL), axis), dot3(rMe, rL)); // + Lead ahead of him round the circle
+    arcFt = ang * seen.turn.radiusFt;
+    range = arcFt;
+    const raw = w.arcFt == null ? 0 : (w.arcFt - arcFt) / STEP_SEC;
+    closing = w.arcClosure == null ? raw : w.arcClosure + (raw - w.arcClosure) * Math.min(1, STEP_SEC / FW_SEE.closureSec);
+  }
+  const e = range - happyMid; // + too far behind
+  const soft = range > W.happyFt[0] && range < W.happyFt[1] ? W.happyGain : 1;
   const cWant = Math.max(-W.aimMaxFtps, Math.min(W.aimMaxFtps, (soft * e) / W.aimSec)); // + closing wanted
 
   // ---- where he aims, by job; and the closure the aim can't give, for power ----
@@ -98,13 +116,15 @@ export function stepFwWingman(w, refSt) {
   let target;
   let residual = 0; // ft/s of closure (or of catching up along Lead's path) the aim can't give: the power loop's P
   let cTarget = 0; // the closure he wants and cActual the closure he has: the power loop's I closes the difference
-  let cActual = seen.closure;
+  let cActual = closing;
   let offFt = w.offFt;
-  const missing = guard.on && guard.phase === 'miss';
+  // The guard moves his aim only without the separation filter (W.guard.filter, below): with it the guard's miss is the least
+  // change to his turn, not an aim point (thread, 14 Oct 2026: the aim at where Lead was turned him 80° across at the turn's start).
+  const missing = !W.guard.filter && guard.on && guard.phase === 'miss';
   if (missing) {
     aimKind = 'wasLead'; // the guard's miss: where Lead was (SMM Fig 12.20; EFIG p.391)
     target = seen.wasAt(W.guard.lagSec);
-  } else if (guard.on) {
+  } else if (!W.guard.filter && guard.on) {
     aimKind = 'lead'; // the guard's reversal onto Lead's circle: pure
     target = leadNow;
   } else if (job.turning) {
@@ -115,12 +135,27 @@ export function stepFwWingman(w, refSt) {
     const omega = Math.max(len3(omegaL), W.minTurnRadps);
     // PD: the wanted closure (P on the range error), and the closure he has against it (D), so closing faster than he
     // wants already eases the lead toward pure or lag
-    const want = Math.max(-W.offsetMaxFt, Math.min(W.offsetMaxFt, (cWant + W.aimClosureGain * (cWant - seen.closure)) / omega));
+    const want = Math.max(-W.offsetMaxFt, Math.min(W.offsetMaxFt, (cWant + W.aimClosureGain * (cWant - closing)) / omega));
     offFt = w.offFt + Math.max(-W.aimSlewFtps * STEP_SEC, Math.min(W.aimSlewFtps * STEP_SEC, want - w.offFt));
     residual = cWant - len3(omegaL) * offFt;
     cTarget = cWant;
     const inward = seen.turn.centre ? unit3(seen.turn.aPerp) : scale3(cone.left, job.dir || 1);
     target = add3(leadNow, scale3(inward, offFt));
+    if (W.followCircle && seen.turn.centre) {
+      // On or around Lead's circle (thread, 14 Oct 2026; SMM 12.30 para 74 "on, or around, the preceding aircraft's turn
+      // circle"; Fable F3, F11): he follows the circle offFt inside Lead's (outside when negative), aiming at the point on it
+      // circleLookSec of his flight ahead of where he is on it. From inside Lead's circle (a turn into him) that is the
+      // manual's slight turn out toward Lead's track and then matching his turn (SMM 12.29 Fig 12.20); aiming at Lead himself
+      // from there cut across at 60-70° of HCA and opened to 1,500-2,200 ft (T29a).
+      const c = seen.turn.centre;
+      const axis = unit3(seen.turn.omega);
+      const rIn = perp3(sub3(st.pm, c), axis);
+      const radial = len3(rIn) > 1 ? unit3(rIn) : unit3(sub3(seen.lead.p, c));
+      const tangent = unit3(cross3(axis, radial)); // Lead's way round
+      const rT = Math.max(W.circleLeastFt, seen.turn.radiusFt - offFt);
+      const ang = Math.min(Math.PI / 2, (V * W.circleLookSec) / rT);
+      target = add3(c, add3(scale3(radial, rT * Math.cos(ang)), scale3(tangent, rT * Math.sin(ang))));
+    }
     aimKind = offFt > W.routeFt / 4 ? 'lead' : offFt < -W.routeFt / 4 ? 'lag' : 'pure';
   } else {
     // Swept (Lead wings level, straight, climbing or descending): 625 ft at 45°, on the side the jobs chose, his place carried
@@ -154,7 +189,7 @@ export function stepFwWingman(w, refSt) {
   const aP = scale3(n, G_FTPS2 * W.gPerDeg * angleDeg);
   // ---- the vertical, square to the turn plane: one pitch owner (F7), the guard's miss, else the jobs' height target (the
   // quick fix's or his stack 50 ft below), PD (spec 7e.7) ----
-  const dz = guard.on ? guard.vert * guard.missFt : job.heightFt;
+  const dz = (W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on) ? guard.vert * guard.missFt : job.heightFt;
   const errFt = dot3(sub3(add3(leadNow, scale3(Z, dz)), st.pm), out); // + he has to go toward the normal (up)
   const errRate = -dot3(sub3(st.vel, seen.lead.v), out);
   const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
@@ -162,11 +197,70 @@ export function stepFwWingman(w, refSt) {
   // His lift (G, a vector): what holds his path against his weight, the vertical, then the turn; within his G. One pitch
   // owner (F7): the vertical is given its share first, the steering the rest, so a hard turn never takes the height away.
   const hold = add3(perp3(Z, u), scale3(perp3(aV, u), 1 / G_FTPS2)); // 1 G's share square to his path, and the vertical
-  const aTurn = perp3(add3(aFf, aP), u);
+  let aTurn = perp3(add3(aFf, aP), u);
+  // ---- the separation filter (thread, 14 Oct 2026; spec 7e.7's guard as a predictor with priority, Fable F1, F16, F17): his
+  // aim's turn is flown unless the pass it predicts (him holding that turn, Lead holding his and one step tighter, over the
+  // guard's look) comes inside engageFt; then the turn nearest to it that keeps the pass outside engageFt. Lead turning into
+  // him from in position, that is a slight turn toward Lead's tail ("collapse to the 6 by turning slightly toward lead",
+  // SMM 12.29 Fig 12.20), and the reversal onto Lead's circle comes by itself as soon as his aim's turn keeps the pass clear
+  // (Fig 12.20 step 2): no aim point, no miss and reverse phases to cycle between. ----
+  let filterPull = false;
+  let filterOn = false;
+  let filterHold = Math.max(0, (w.filterHold ?? 0) - STEP_SEC);
+  let filterSide = w.filterSide ?? 0;
+  if (W.guard.filter) {
+    const side = unit3(cross3(out, u)); // his left in the turn plane
+    const omegaNom = dot3(aTurn, side) / V; // rad/s, + turning left
+    const horizon = W.guard.lookSec + FW_SEE.delaySec;
+    const leadAsIs = { p: seen.lead.p, v: seen.lead.v, omega: seen.turn.omega };
+    const leadTighter = { p: seen.lead.p, v: seen.lead.v, omega: scale3(seen.turn.omega, W.guard.tighter) };
+    const passFor = (om) => {
+      const me = { p: seen.own.p, v: seen.own.v, omega: scale3(out, om) };
+      return Math.min(leastPass(leadAsIs, me, horizon).leastFt, leastPass(leadTighter, me, horizon).leastFt);
+    };
+    if (passFor(omegaNom) < W.guard.engageFt) {
+      filterOn = true;
+      const gMost = Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
+      const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - 1))) / V;
+      const N = W.guard.filterSteps;
+      let best = null;
+      let bestPass = -Infinity;
+      let bestOm = omegaNom;
+      for (let k = -N; k <= N; k++) {
+        const om = (omMax * k) / N;
+        const pass = passFor(om);
+        if (pass > bestPass) {
+          bestPass = pass;
+          bestOm = om;
+        }
+        if (pass < W.guard.engageFt) continue;
+        // nearest to his aim's turn; on the side he chose last step unless only the other side clears (no flip-flop)
+        const sideK = Math.sign(om - omegaNom) || 1;
+        const cost = Math.abs(om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
+        if (!best || cost < best.cost) best = { om, cost, sideK };
+      }
+      let om = bestOm; // nothing clears: the turn that passes widest
+      if (best) {
+        // refine between the clearing turn and its neighbour toward his aim's turn
+        let lo = best.om;
+        let hi = best.om - best.sideK * (omMax / N);
+        for (let r = 0; r < W.guard.filterRefine; r++) {
+          const mid = (lo + hi) / 2;
+          if (passFor(mid) >= W.guard.engageFt) lo = mid;
+          else hi = mid;
+        }
+        om = lo;
+        filterSide = best.sideK;
+      }
+      aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
+      filterHold = W.guard.filterHoldSec;
+      filterPull = (Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG);
+    } else filterSide = 0;
+  }
   const capNormal = Math.min(seen.leadG + W.overLeadG, shakerG(st.kias));
   // The guard pulls past Lead + 1.5 G only while the pass it predicts is still inside 500 ft (flagged), up to what the
   // aircraft gives (Patrick 14 Oct 2026: references, not walls); otherwise it keeps the estimate as the rest of his flying.
-  const cap = guard.on && guard.predFt < W.guard.minFt ? Math.max(capNormal, Math.min(availableG(st.kias), shakerG(st.kias))) : capNormal;
+  const cap = (guard.on && guard.predFt < W.guard.minFt) || filterPull ? Math.max(capNormal, Math.min(availableG(st.kias), shakerG(st.kias))) : capNormal;
   let turn = scale3(aTurn, 1 / G_FTPS2);
   let lift = add3(hold, turn);
   if (len3(lift) > cap) {
@@ -188,8 +282,9 @@ export function stepFwWingman(w, refSt) {
   // ---- power (slowest; spec 7e.7): off in the guard's miss, else Lead's speed plus the closure the aim can't give, PI,
   // within 15 KIAS of Lead (power last, but as required) ----
   const band = W.powerBandKias * KT_TO_FTPS;
-  const missPower = guard.on && guard.phase === 'miss';
-  const P = guard.on ? 0 : residual;
+  // With the filter, power is off (and the miss's height flown) while it is changing his turn and filterHoldSec after.
+  const missPower = W.guard.filter ? filterHold > 0 : guard.on && guard.phase === 'miss';
+  const P = missPower ? 0 : residual;
   // I on the closure he wants against the closure he has, slow (15 s), so a steady shortfall (the outside of a turn, a
   // climb) is trimmed out, and none builds while it is met
   // In a turn power serves only what the aim can't give (one owner for closure, T29a): no integral there, it is held.
@@ -198,12 +293,12 @@ export function stepFwWingman(w, refSt) {
   const wantTas = vL + Math.max(-band, Math.min(band, P + powerI)); // ft/s
   const wantKias = tasToIasKt(wantTas / KT_TO_FTPS, seen.lead.p.z);
   // Low inside, at MAX (the ruling): short of energy in the turn, power is MAX, not the slow PI.
-  const power = missPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : !guard.on && job.low ? { throttle: 1 } : { holdKias: wantKias };
+  const power = missPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : !missPower && job.low ? { throttle: 1 } : { holdKias: wantKias };
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...power });
   const gAsk = len3(lift);
-  const jobName = guard.on ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
+  const jobName = filterOn ? 'guard-filter' : guard.on && !W.guard.filter ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
   return {
-    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI },
+    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing },
     trace: {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,

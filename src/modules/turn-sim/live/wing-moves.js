@@ -390,6 +390,9 @@ export const FW_WING = Object.freeze({
   minG: 0.5, // ... and never under 0.5 G, so his lift always has a direction (estimate)
   rollDps: 60, // roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required")
   stackFt: -50, // his height against Lead: 50 ft below (Patrick 14 Oct 2026, spec 7e.7 swept)
+  followCircle: true, // in Lead's turn he follows Lead's circle offFt inside or out (SMM 12.30 para 74; thread 14 Oct 2026), not Lead's place offFt in; false flies T29a's
+  circleLookSec: 3, // ... aiming at the point on it 3 s of his flight ahead (about 1,100 ft at 200 KIAS; estimate)
+  circleLeastFt: 500, // ... never a circle tighter than 500 ft (estimate, a catch)
   // The vertical loop (spec 7e.7): square to Lead's turn plane (up and down in a level turn), PD on his height against
   // Lead's from the stack or the guard's miss: 0.005 G per foot and 0.02 G per ft/s (spec 7e.7's starting gains, damping
   // about 0.8), at most 1 G either way (estimate). Steering works in Lead's turn plane once Lead turns faster than
@@ -455,6 +458,10 @@ export const FW_WING = Object.freeze({
   // The separation guard (spec 7e.7; a geometric predictor with priority and hysteresis, F1, F16). 500 ft is slant range
   // (Patrick 14 Oct 2026; TS-208's 500 ft minimum).
   guard: Object.freeze({
+    filter: true, // thread 14 Oct 2026: the guard's miss as the least change to his turn that keeps the pass outside engageFt (fighting-wing.js), not an aim at where Lead was; false flies T29a's miss and reverse
+    filterSteps: 20, // the turns tried each way, from none to his most (then refined; estimate)
+    filterRefine: 6,
+    filterHoldSec: 1, // power off and the miss's height held a second after the filter last changed his turn (estimate)
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
     engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)
