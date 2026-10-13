@@ -77,3 +77,9 @@ export const LEAD = Object.freeze({
   climbNearFt: 20, // a climb or descent counts as arrived within 20 ft of the new height (an estimate)
   speedHold: Object.freeze({ perSec: 0.2, maxKtps: 3 }), // holding a speed (the entry, Terminate): 0.2 kt/s per knot off it, never more than 3 kt/s (estimates)
 });
+
+// ---- Lead's fighting wing moves (from formation-turns.js) ------------------------------------------------------------
+
+/** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
+ * pair is; climbs and descents of 2,000 ft, at what the T-6 holds at Lead's speed (TS-203). */
+export const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: 80, descentShare: 0.8 }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentShare: 80% of the model's idle descent at Lead's speed (estimate)

@@ -13,10 +13,12 @@ import { aspectAngle3dDeg, headingCrossAngle3dDeg, DEG } from '../../../core/ang
 import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
-import { WING, HOLD, closureNow } from './tuning.js';
+import { WING, HOLD, closureNow, FLUID } from './tuning.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
 import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
 import { startLiveWing, stepLiveWing } from './fluid-wing-live.js';
+
+export { FLUID }; // its home is wing-moves.js (the tuning sheet, TS-214)
 
 const dt = STEP_SEC;
 /** Lead's path is kept planned this far ahead (it feeds the swap cue's look-back and the dashed preview). */
@@ -24,17 +26,6 @@ const AHEAD_STEPS = Math.round(20 / dt);
 /** A guard on how far ahead the planner looks for the end of a manoeuvre a press must wait for. */
 const WAIT_LIMIT_STEPS = Math.round(240 / dt);
 
-/** The fluid manoeuvring numbers (Patrick's picks of 19:20Z, fluid-conflicts.md, unless said). */
-export const FLUID = Object.freeze({
-  rangeFt: Object.freeze({ min: FW_BAND.rangeFt[0], max: FW_BAND.rangeFt[1], def: 600, goodMax: 750 }), // SMM 16.17 para 42; AFM7 p.17, AFM8 p.19; Patrick row 3 (min and max: slots.js FW_BAND)
-  coneHalfDeg: 30, // 60° in all, 30° either side of Lead's tail (Patrick row 2)
-  bubbleFt: FW_BAND.bubbleFt, // SMM 16.17 para 44c; Gen Book p.11 (slots.js FW_BAND)
-  wingGLimit: 5, // SMM 16.17 para 44a; Gen Book p.11 (flagged, never a wall)
-  leadGLimit: 4, // 2 CFFTS Orders B2 ch 8 para 1a; Gen Book p.11 (flagged)
-  hardDeckMslFt: 6000, // 3,000 ft AGL, about 6,000 ft MSL in the Moose Jaw areas (SMM 14.6 para 16); FM minimum (Orders B2 ch 8 para 1f; Gen Book p.11)
-  aspectHcaFlagDeg: 90, // SMM 16.17 para 44b
-  lowLosDps: 5, // "low line of sight": an estimate (design 5.5)
-});
 
 /** A typed distance: { ok, value, reason }. 500-1,000 ft (SMM 16.17 para 42); outside it is refused, the sim keeps the old one. */
 export function checkFluidRange(ft) {
