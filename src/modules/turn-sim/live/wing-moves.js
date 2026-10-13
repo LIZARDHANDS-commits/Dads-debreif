@@ -464,6 +464,8 @@ export const FW_WING = Object.freeze({
     filterSteps: 20, // the turns tried each way, from none to his most (then refined; estimate)
     filterRefine: 6,
     filterHoldSec: 1, // power off and the miss's height held a second after the filter last changed his turn (estimate)
+    passLine: true, // the filter's line: 500 ft + 1.4 s x the closure he sees, never under 600 ft (Fable F4, estimate) ...
+    passLineSec: 1.4, // ... the 0.4 s he sees late and the 1 s smoothing of closure (Fable F4)
     sharedLift: true, // the filter searches the turn with the vertical demand as a known term and counts its height in the slant (Fable F3, second review)
     shakerBound: true, // the filter's candidate turns stop at the stick-shaker's G at his speed (Fable F2, second review; a physical limit)
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)

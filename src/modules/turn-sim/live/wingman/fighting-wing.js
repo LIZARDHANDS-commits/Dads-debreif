@@ -227,7 +227,12 @@ export function stepFwWingman(w, refSt) {
       const extra = W.guard.sharedLift ? { acc: aV, maxFt: Math.abs(errFt) } : null;
       return Math.min(leastPass(leadAsIs, me, horizon, extra).leastFt, leastPass(leadTighter, me, horizon, extra).leastFt);
     };
-    if (passFor(omegaNom) < W.guard.engageFt) {
+    // The pass line (Fable F4, second review; Q2's working answer, read with Patrick's bubble ruling): 500 ft plus the range
+    // the closure he sees covers in the 1.4 s his picture is old (0.4 s late, 1 s smoothing), never under 600 ft.
+    const passLine = W.guard.passLine
+      ? Math.max(W.guard.engageFt, W.guard.minFt + W.guard.passLineSec * Math.max(0, seen.closure))
+      : W.guard.engageFt;
+    if (passFor(omegaNom) < passLine) {
       filterOn = true;
       // The candidates stop at the stick-shaker's G at his speed now, a physical limit (Fable F2, second review; Q5's working
       // answer: stop at the shaker and use height and power). Before, Lead + 1.5 G could pass it when he was slow.
@@ -249,7 +254,7 @@ export function stepFwWingman(w, refSt) {
           bestPass = pass;
           bestOm = om;
         }
-        if (pass < W.guard.engageFt) continue;
+        if (pass < passLine) continue;
         // nearest to his aim's turn; on the side he chose last step unless only the other side clears (no flip-flop)
         const sideK = Math.sign(om - omegaNom) || 1;
         const cost = Math.abs(om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
@@ -262,7 +267,7 @@ export function stepFwWingman(w, refSt) {
         let hi = best.om - best.sideK * (omMax / N);
         for (let r = 0; r < W.guard.filterRefine; r++) {
           const mid = (lo + hi) / 2;
-          if (passFor(mid) >= W.guard.engageFt) lo = mid;
+          if (passFor(mid) >= passLine) lo = mid;
           else hi = mid;
         }
         om = lo;
