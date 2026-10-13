@@ -38,7 +38,7 @@ export function createEvents({ state, startChange, labelFor }) {
    */
   function replanAtEvents() {
     const c = state.current;
-    if (!replans(c)) return;
+    if (!replans(c) || c.change.live) return; // a live change (B3) flies the law, not a plan: nothing to re-plan
     if (state.tSec < (c.pictureRetrySec ?? -Infinity)) return;
     if (state.aircraft.some((a) => offPlanFt(a) > PICTURE_BREAK_FT)) {
       if (!replanChange('the picture breaking')) c.pictureRetrySec = state.tSec + PICTURE_RETRY_SEC;
@@ -84,7 +84,7 @@ export function createEvents({ state, startChange, labelFor }) {
    */
   function turnMidChange(key, dir) {
     const c = state.current;
-    if (!replans(c)) return false;
+    if (!replans(c) || c.change.live) return false; // a live change (B3) is not planned again: the turn waits for it
     const leadPlan = leadTurnPlan(state.aircraft[0], c.change.to, key, dir);
     if (!leadPlan) return false;
     const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
@@ -120,6 +120,7 @@ export function createEvents({ state, startChange, labelFor }) {
   function inBandAndSteady() {
     const c = state.current;
     if (c?.change?.four) return fourInBandAndSteady(c);
+    if (c?.change?.live) return liveChangeDone(c);
     if (!replans(c)) return false;
     const [lead, wing] = state.aircraft;
     // Line abreast is a wide band: once #2 is in it and steady, Lead finishing his speed-up to 220 KIAS is ordinary formation
@@ -165,6 +166,29 @@ export function createEvents({ state, startChange, labelFor }) {
     const canStopFtps = b * (Math.sqrt(r * r + (2 * toGoFt) / b) - r); // v r + v^2 / 2b = the distance to go
     if (closureFtps > canStopFtps) return false;
     return judge(state.aircraft, { key, side }, { spacingFt: state.spacingFt }).inBand;
+  }
+
+  /**
+   * A change between the close formations flown by the live wingman (B3; spec 7c.5): done once he is flying to the last
+   * place of its list (or has settled on it), in its band, closing under 5 kt, his bank within 10 deg of Lead's, on the new
+   * side, and Lead's own plan done (as any change, TS-78).
+   */
+  function liveChangeDone(c) {
+    const [lead, wing] = state.aircraft;
+    const w = state.liveWing;
+    if (!w || (w.route && w.route.i < w.route.places.length - 1)) return false;
+    if (!planDone(lead, state.plans[lead.id])) return false;
+    const rel = relativeTo(lead, wing);
+    const prev = c.relPrev;
+    c.relPrev = { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - lead.altAboveFt, tSec: state.tSec };
+    if (!prev) return false;
+    const dtSec = Math.max(STEP_SEC, state.tSec - prev.tSec);
+    const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, c.relPrev.up - prev.up) / dtSec;
+    if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
+    if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
+    const side = c.change.side ?? 0;
+    if (side !== 0 && Math.sign(rel.left) !== side) return false;
+    return judge(state.aircraft, { key: c.change.to, side }, { spacingFt: state.spacingFt }).inBand;
   }
 
   /**

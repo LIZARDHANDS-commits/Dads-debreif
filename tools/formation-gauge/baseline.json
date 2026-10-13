@@ -1534,39 +1534,39 @@
     },
     "#2": {
      "g": [
-      0.96,
-      1
+      1,
+      1.01
      ],
-     "gRateMax": 0.05,
+     "gRateMax": 0.1,
      "gReversals": 0,
      "rollMax": 0,
-     "rollAccMax": 4,
+     "rollAccMax": 0,
      "rollReversals": 0,
-     "drawnMax": 1,
+     "drawnMax": 0,
      "rangeMin": 142,
      "close": {
       "maxFt": {
-       "plane": 1.14,
-       "line": 0.28,
-       "along": 0.21
+       "plane": 0.02,
+       "line": 0.02,
+       "along": 0.01
       },
       "rmsFt": {
-       "plane": 1.03,
-       "line": 0.15,
-       "along": 0.11
+       "plane": 0,
+       "line": 0.01,
+       "along": 0
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 0.1,
-      "gOffMax": 0.04,
+      "settleSec": 0,
+      "bankOffMaxDeg": 0,
+      "gOffMax": 0.01,
       "torquePct": [
-       56.6,
-       56.6
+       56.5,
+       56.8
       ],
-      "torqueReversals": 0,
+      "torqueReversals": 1,
       "rollLagSec": null,
-      "aheadMaxFt": -75.35,
+      "aheadMaxFt": -75.32,
       "aheadSec": 0,
-      "paceMaxFtps": 0.83
+      "paceMaxFtps": 0.1
      }
     }
    }
@@ -1592,36 +1592,39 @@
     },
     "#2": {
      "g": [
-      0.7,
-      2.21
+      0.52,
+      2.36
      ],
-     "gRateMax": 1.99,
-     "gReversals": 5,
-     "rollMax": 10,
-     "rollAccMax": 13,
+     "gRateMax": 1.52,
+     "gReversals": 8,
+     "rollMax": 12,
+     "rollAccMax": 171,
      "rollReversals": 0,
-     "drawnMax": 27,
+     "drawnMax": 17,
      "rangeMin": 142,
      "close": {
       "maxFt": {
-       "plane": 0.41,
-       "line": 0.41,
-       "along": 0.07
+       "plane": 2.82,
+       "line": 1.64,
+       "along": 1.35
       },
       "rmsFt": {
-       "plane": 0.13,
-       "line": 0.22,
-       "along": 0.04
+       "plane": 1.17,
+       "line": 0.62,
+       "along": 0.51
       },
-      "settleSec": 0,
-      "bankOffMaxDeg": 8.7,
-      "gOffMax": 0.3,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 1.25,
-      "aheadMaxFt": -74.99,
+      "settleSec": 24,
+      "bankOffMaxDeg": 8.84,
+      "gOffMax": 0.49,
+      "torquePct": [
+       10,
+       100
+      ],
+      "torqueReversals": 17,
+      "rollLagSec": 2.25,
+      "aheadMaxFt": -74.21,
       "aheadSec": 0,
-      "paceMaxFtps": 1
+      "paceMaxFtps": 3.62
      }
     }
    }
@@ -1645,10 +1648,10 @@
     },
     "#2": {
      "g": [
-      1,
-      1
+      0.95,
+      1.03
      ],
-     "gRateMax": 0,
+     "gRateMax": 0.16,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
@@ -1657,27 +1660,27 @@
      "rangeMin": 142,
      "close": {
       "maxFt": {
-       "plane": 2.49,
-       "line": 0.06,
-       "along": 0.05
+       "plane": 0.21,
+       "line": 0.43,
+       "along": 0.51
       },
       "rmsFt": {
-       "plane": 1.56,
-       "line": 0.03,
-       "along": 0.02
+       "plane": 0.06,
+       "line": 0.16,
+       "along": 0.16
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0,
+      "settleSec": 0,
+      "bankOffMaxDeg": 0.07,
+      "gOffMax": 0.05,
       "torquePct": [
-       56.6,
-       56.7
+       56.7,
+       57.6
       ],
-      "torqueReversals": 0,
+      "torqueReversals": 1,
       "rollLagSec": null,
-      "aheadMaxFt": -75.35,
+      "aheadMaxFt": -74.7,
       "aheadSec": 0,
-      "paceMaxFtps": 0.32
+      "paceMaxFtps": 0.51
      }
     }
    }
@@ -1701,36 +1704,39 @@
     },
     "#2": {
      "g": [
-      0.99,
-      2.03
+      0.79,
+      2.22
      ],
-     "gRateMax": 7.94,
-     "gReversals": 11,
-     "rollMax": 10,
-     "rollAccMax": 10,
-     "rollReversals": 0,
-     "drawnMax": 34,
+     "gRateMax": 1.28,
+     "gReversals": 10,
+     "rollMax": 12,
+     "rollAccMax": 234,
+     "rollReversals": 1,
+     "drawnMax": 17,
      "rangeMin": 142,
      "close": {
       "maxFt": {
-       "plane": 2.49,
-       "line": 0.44,
-       "along": 0.07
+       "plane": 2.25,
+       "line": 3.05,
+       "along": 2.47
       },
       "rmsFt": {
-       "plane": 0.34,
-       "line": 0.21,
-       "along": 0.04
+       "plane": 1,
+       "line": 1.39,
+       "along": 1.27
       },
-      "settleSec": 0.6,
-      "bankOffMaxDeg": 8.07,
-      "gOffMax": 0.5,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.25,
-      "aheadMaxFt": -75.04,
+      "settleSec": 24.05,
+      "bankOffMaxDeg": 6.95,
+      "gOffMax": 0.48,
+      "torquePct": [
+       15.1,
+       100
+      ],
+      "torqueReversals": 12,
+      "rollLagSec": 1.15,
+      "aheadMaxFt": -74.71,
       "aheadSec": 0,
-      "paceMaxFtps": 3.85
+      "paceMaxFtps": 3.28
      }
     }
    }
@@ -1754,10 +1760,10 @@
     },
     "#2": {
      "g": [
-      1,
-      1
+      0.97,
+      1.05
      ],
-     "gRateMax": 0,
+     "gRateMax": 0.17,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
@@ -1766,27 +1772,27 @@
      "rangeMin": 142,
      "close": {
       "maxFt": {
-       "plane": 2.49,
-       "line": 0.06,
-       "along": 0.05
+       "plane": 0.22,
+       "line": 0.54,
+       "along": 0.08
       },
       "rmsFt": {
-       "plane": 1.56,
-       "line": 0.03,
-       "along": 0.02
+       "plane": 0.06,
+       "line": 0.14,
+       "along": 0.05
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0,
+      "settleSec": 0,
+      "bankOffMaxDeg": 0.21,
+      "gOffMax": 0.05,
       "torquePct": [
-       56.6,
-       56.7
+       54.3,
+       56.8
       ],
       "torqueReversals": 0,
       "rollLagSec": null,
-      "aheadMaxFt": -75.35,
+      "aheadMaxFt": -75.23,
       "aheadSec": 0,
-      "paceMaxFtps": 0.32
+      "paceMaxFtps": 0.56
      }
     }
    }
@@ -1815,36 +1821,36 @@
       1,
       1.01
      ],
-     "gRateMax": 0.11,
+     "gRateMax": 0.09,
      "gReversals": 0,
-     "rollMax": 9,
-     "rollAccMax": 188,
-     "rollReversals": 0,
-     "drawnMax": 22,
+     "rollMax": 27,
+     "rollAccMax": 436,
+     "rollReversals": 1,
+     "drawnMax": 32,
      "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 1.1,
-       "line": 0.09,
-       "along": 0.08
+       "plane": 0.03,
+       "line": 0.03,
+       "along": 0.02
       },
       "rmsFt": {
-       "plane": 0.82,
-       "line": 0.04,
-       "along": 0.04
+       "plane": 0.01,
+       "line": 0.01,
+       "along": 0.01
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 1.97,
+      "settleSec": 0,
+      "bankOffMaxDeg": 1.23,
       "gOffMax": 0.01,
       "torquePct": [
-       56.6,
-       56.6
+       56.3,
+       56.7
       ],
-      "torqueReversals": 0,
+      "torqueReversals": 2,
       "rollLagSec": null,
-      "aheadMaxFt": -43.4,
+      "aheadMaxFt": -43.37,
       "aheadSec": 0,
-      "paceMaxFtps": 0.22
+      "paceMaxFtps": 0.09
      }
     }
    }
@@ -1868,36 +1874,39 @@
     },
     "#2": {
      "g": [
-      0.91,
+      1,
       2
      ],
-     "gRateMax": 7.44,
-     "gReversals": 3,
-     "rollMax": 11,
-     "rollAccMax": 11,
-     "rollReversals": 1,
-     "drawnMax": 19,
+     "gRateMax": 0.4,
+     "gReversals": 1,
+     "rollMax": 10,
+     "rollAccMax": 95,
+     "rollReversals": 0,
+     "drawnMax": 15,
      "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 1.08,
-       "line": 0.13,
-       "along": 0.17
+       "plane": 0.77,
+       "line": 0.24,
+       "along": 0.55
       },
       "rmsFt": {
-       "plane": 0.14,
-       "line": 0.07,
-       "along": 0.08
+       "plane": 0.32,
+       "line": 0.12,
+       "along": 0.27
       },
-      "settleSec": 0.15,
-      "bankOffMaxDeg": 4.86,
-      "gOffMax": 0.37,
-      "torquePct": null,
-      "torqueReversals": 0,
-      "rollLagSec": 0.65,
-      "aheadMaxFt": -43.37,
+      "settleSec": 0,
+      "bankOffMaxDeg": 2.59,
+      "gOffMax": 0.05,
+      "torquePct": [
+       55.7,
+       82.6
+      ],
+      "torqueReversals": 3,
+      "rollLagSec": 1.15,
+      "aheadMaxFt": -43.16,
       "aheadSec": 0,
-      "paceMaxFtps": 1.84
+      "paceMaxFtps": 0.63
      }
     }
    }
@@ -1922,7 +1931,7 @@
     "#2": {
      "g": [
       1,
-      1
+      1.01
      ],
      "gRateMax": 0,
      "gReversals": 0,
@@ -1933,27 +1942,27 @@
      "rangeMin": 44,
      "close": {
       "maxFt": {
-       "plane": 2.5,
-       "line": 0.06,
-       "along": 0.04
+       "plane": 0.03,
+       "line": 0.11,
+       "along": 0.1
       },
       "rmsFt": {
-       "plane": 1.52,
-       "line": 0.03,
-       "along": 0.02
+       "plane": 0.01,
+       "line": 0.07,
+       "along": 0.07
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 0,
+      "settleSec": 0,
+      "bankOffMaxDeg": 0.52,
       "gOffMax": 0,
       "torquePct": [
-       56.6,
-       56.7
+       55.6,
+       56.8
       ],
       "torqueReversals": 0,
       "rollLagSec": null,
-      "aheadMaxFt": -43.4,
+      "aheadMaxFt": -43.26,
       "aheadSec": 0,
-      "paceMaxFtps": 0.32
+      "paceMaxFtps": 0.26
      }
     }
    }
@@ -1980,38 +1989,38 @@
     "#2": {
      "g": [
       1,
-      1
+      1.02
      ],
-     "gRateMax": 0.02,
+     "gRateMax": 0.06,
      "gReversals": 0,
-     "rollMax": 8,
-     "rollAccMax": 18,
-     "rollReversals": 0,
-     "drawnMax": 8,
+     "rollMax": 58,
+     "rollAccMax": 436,
+     "rollReversals": 1,
+     "drawnMax": 56,
      "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 0.02,
-       "line": 0.29,
+       "plane": 0.01,
+       "line": 3.7,
        "along": 100.2
       },
       "rmsFt": {
-       "plane": 0.01,
-       "line": 0.12,
-       "along": 63.16
+       "plane": 0,
+       "line": 2.41,
+       "along": 63.25
       },
-      "settleSec": 13.15,
-      "bankOffMaxDeg": 4.35,
-      "gOffMax": 0,
+      "settleSec": null,
+      "bankOffMaxDeg": 11.05,
+      "gOffMax": 0.02,
       "torquePct": [
-       29.8,
-       73.2
+       18.1,
+       78.7
       ],
       "torqueReversals": 3,
       "rollLagSec": null,
       "aheadMaxFt": -15.93,
       "aheadSec": 0,
-      "paceMaxFtps": 14.54
+      "paceMaxFtps": 8
      }
     }
    }
@@ -2040,34 +2049,34 @@
      ],
      "gRateMax": 0,
      "gReversals": 0,
-     "rollMax": 1,
-     "rollAccMax": 6,
+     "rollMax": 0,
+     "rollAccMax": 0,
      "rollReversals": 0,
      "drawnMax": 1,
-     "rangeMin": 143,
+     "rangeMin": 136,
      "close": {
       "maxFt": {
        "plane": 0,
-       "line": 0.05,
-       "along": 2.19
+       "line": 0.37,
+       "along": 6.04
       },
       "rmsFt": {
        "plane": 0,
-       "line": 0.04,
-       "along": 1.61
+       "line": 0.21,
+       "along": 1.49
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 1.4,
+      "settleSec": 1.95,
+      "bankOffMaxDeg": 3.62,
       "gOffMax": 0,
       "torquePct": [
-       56.6,
-       65
+       56.3,
+       78.7
       ],
-      "torqueReversals": 33,
+      "torqueReversals": 0,
       "rollLagSec": null,
-      "aheadMaxFt": -75.66,
+      "aheadMaxFt": -71.48,
       "aheadSec": 0,
-      "paceMaxFtps": 1.58
+      "paceMaxFtps": 4.61
      }
     }
    }
@@ -2092,38 +2101,38 @@
     "#2": {
      "g": [
       1,
-      1.01
+      1.02
      ],
-     "gRateMax": 0.03,
+     "gRateMax": 0.09,
      "gReversals": 0,
-     "rollMax": 22,
-     "rollAccMax": 83,
+     "rollMax": 58,
+     "rollAccMax": 436,
      "rollReversals": 1,
-     "drawnMax": 22,
-     "rangeMin": 48,
+     "drawnMax": 56,
+     "rangeMin": 49,
      "close": {
       "maxFt": {
-       "plane": 0,
-       "line": 4.7,
-       "along": 101.6
+       "plane": 0.01,
+       "line": 3.98,
+       "along": 100.2
       },
       "rmsFt": {
-       "plane": 0,
-       "line": 2.7,
-       "along": 63.59
+       "plane": 0.01,
+       "line": 2.63,
+       "along": 63.33
       },
       "settleSec": null,
-      "bankOffMaxDeg": 7.55,
-      "gOffMax": 0.01,
+      "bankOffMaxDeg": 11.04,
+      "gOffMax": 0.02,
       "torquePct": [
-       38.4,
-       85.8
+       33.4,
+       95.5
       ],
-      "torqueReversals": 5,
+      "torqueReversals": 3,
       "rollLagSec": null,
-      "aheadMaxFt": -16.42,
+      "aheadMaxFt": -20.01,
       "aheadSec": 0,
-      "paceMaxFtps": 14.33
+      "paceMaxFtps": 7.99
      }
     }
    }
@@ -2150,36 +2159,36 @@
       1,
       1
      ],
-     "gRateMax": 0.02,
+     "gRateMax": 0,
      "gReversals": 0,
-     "rollMax": 22,
-     "rollAccMax": 438,
-     "rollReversals": 2,
-     "drawnMax": 19,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 1,
      "rangeMin": 43,
      "close": {
       "maxFt": {
        "plane": 0,
-       "line": 2.54,
-       "along": 4.18
+       "line": 0.46,
+       "along": 6.13
       },
       "rmsFt": {
        "plane": 0,
-       "line": 1.33,
-       "along": 1.87
+       "line": 0.25,
+       "along": 1.5
       },
-      "settleSec": 6.8,
-      "bankOffMaxDeg": 2.92,
+      "settleSec": 1.95,
+      "bankOffMaxDeg": 3.57,
       "gOffMax": 0,
       "torquePct": [
-       33.5,
-       66.6
+       33.4,
+       57.1
       ],
-      "torqueReversals": 2,
+      "torqueReversals": 0,
       "rollLagSec": null,
-      "aheadMaxFt": -15.59,
+      "aheadMaxFt": -15.6,
       "aheadSec": 0,
-      "paceMaxFtps": 2.31
+      "paceMaxFtps": 4.7
      }
     }
    }
@@ -2205,151 +2214,39 @@
     },
     "#2": {
      "g": [
-      0.98,
-      1.07
+      0.91,
+      1.05
      ],
-     "gRateMax": 0.22,
-     "gReversals": 0,
-     "rollMax": 63,
-     "rollAccMax": 329,
-     "rollReversals": 4,
-     "drawnMax": 62,
+     "gRateMax": 0.97,
+     "gReversals": 1,
+     "rollMax": 86,
+     "rollAccMax": 434,
+     "rollReversals": 1,
+     "drawnMax": 81,
      "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 5,
-       "line": 66.62,
-       "along": 52.93
+       "plane": 4.99,
+       "line": 45.95,
+       "along": 30.78
       },
       "rmsFt": {
-       "plane": 1.64,
-       "line": 43.2,
-       "along": 35.16
+       "plane": 1.93,
+       "line": 30.79,
+       "along": 21.17
       },
       "settleSec": null,
-      "bankOffMaxDeg": 18.75,
-      "gOffMax": 0.07,
+      "bankOffMaxDeg": 17.28,
+      "gOffMax": 0.09,
       "torquePct": [
-       0,
-       100
+       12.3,
+       94.2
       ],
-      "torqueReversals": 5,
+      "torqueReversals": 4,
       "rollLagSec": null,
       "aheadMaxFt": -15.93,
       "aheadSec": 0,
-      "paceMaxFtps": 24.67
-     }
-    }
-   }
-  },
-  {
-   "label": "Steady after it, 10 s",
-   "how": "held",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      1,
-      1
-     ],
-     "gRateMax": 0,
-     "gReversals": 0,
-     "rollMax": 0,
-     "rollAccMax": 0,
-     "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      1,
-      1
-     ],
-     "gRateMax": 0,
-     "gReversals": 0,
-     "rollMax": 0,
-     "rollAccMax": 0,
-     "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": 28,
-     "close": {
-      "maxFt": {
-       "plane": 0,
-       "line": 13.35,
-       "along": 9.81
-      },
-      "rmsFt": {
-       "plane": 0,
-       "line": 9.51,
-       "along": 6.99
-      },
-      "settleSec": null,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0,
-      "torquePct": [
-       56.6,
-       58
-      ],
-      "torqueReversals": 0,
-      "rollLagSec": null,
-      "aheadMaxFt": -26.84,
-      "aheadSec": 0,
-      "paceMaxFtps": 3.75
-     }
-    }
-   }
-  },
-  {
-   "label": "Line astern to echelon",
-   "how": "started",
-   "aircraft": {
-    "Lead": {
-     "g": [
-      1,
-      1
-     ],
-     "gRateMax": 0,
-     "gReversals": 0,
-     "rollMax": 0,
-     "rollAccMax": 0,
-     "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": null
-    },
-    "#2": {
-     "g": [
-      0.98,
-      1.06
-     ],
-     "gRateMax": 0.19,
-     "gReversals": 0,
-     "rollMax": 59,
-     "rollAccMax": 309,
-     "rollReversals": 4,
-     "drawnMax": 59,
-     "rangeMin": 28,
-     "close": {
-      "maxFt": {
-       "plane": 5,
-       "line": 86.99,
-       "along": 63.54
-      },
-      "rmsFt": {
-       "plane": 2.52,
-       "line": 57.45,
-       "along": 41.4
-      },
-      "settleSec": null,
-      "bankOffMaxDeg": 18.24,
-      "gOffMax": 0.06,
-      "torquePct": [
-       0,
-       100
-      ],
-      "torqueReversals": 3,
-      "rollLagSec": null,
-      "aheadMaxFt": -19.39,
-      "aheadSec": 0,
-      "paceMaxFtps": 19.65
+      "paceMaxFtps": 8.04
      }
     }
    }
@@ -2378,34 +2275,146 @@
      ],
      "gRateMax": 0.01,
      "gReversals": 0,
-     "rollMax": 22,
-     "rollAccMax": 441,
-     "rollReversals": 3,
-     "drawnMax": 21,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 2,
+     "rangeMin": 44,
+     "close": {
+      "maxFt": {
+       "plane": 0.08,
+       "line": 2.74,
+       "along": 3.75
+      },
+      "rmsFt": {
+       "plane": 0.02,
+       "line": 0.7,
+       "along": 0.95
+      },
+      "settleSec": 1.65,
+      "bankOffMaxDeg": 4.15,
+      "gOffMax": 0,
+      "torquePct": [
+       56,
+       56.7
+      ],
+      "torqueReversals": 0,
+      "rollLagSec": null,
+      "aheadMaxFt": -43.37,
+      "aheadSec": 0,
+      "paceMaxFtps": 3.5
+     }
+    }
+   }
+  },
+  {
+   "label": "Line astern to echelon",
+   "how": "started",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.98,
+      1.06
+     ],
+     "gRateMax": 0.6,
+     "gReversals": 0,
+     "rollMax": 58,
+     "rollAccMax": 436,
+     "rollReversals": 2,
+     "drawnMax": 56,
+     "rangeMin": 44,
+     "close": {
+      "maxFt": {
+       "plane": 5,
+       "line": 45.96,
+       "along": 16.05
+      },
+      "rmsFt": {
+       "plane": 4.06,
+       "line": 28.01,
+       "along": 10.53
+      },
+      "settleSec": null,
+      "bankOffMaxDeg": 12.7,
+      "gOffMax": 0.06,
+      "torquePct": [
+       36.3,
+       96.4
+      ],
+      "torqueReversals": 3,
+      "rollLagSec": null,
+      "aheadMaxFt": -20.77,
+      "aheadSec": 0,
+      "paceMaxFtps": 8.02
+     }
+    }
+   }
+  },
+  {
+   "label": "Steady after it, 10 s",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.99,
+      1
+     ],
+     "gRateMax": 0.1,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
      "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 0,
-       "line": 2.76,
-       "along": 2.03
+       "plane": 0.67,
+       "line": 3.91,
+       "along": 2.57
       },
       "rmsFt": {
-       "plane": 0,
-       "line": 1.8,
-       "along": 1.23
+       "plane": 0.21,
+       "line": 0.95,
+       "along": 0.62
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 1.88,
-      "gOffMax": 0,
+      "settleSec": 1.45,
+      "bankOffMaxDeg": 0.16,
+      "gOffMax": 0.01,
       "torquePct": [
-       19.4,
-       87
+       35.6,
+       57
       ],
-      "torqueReversals": 2,
+      "torqueReversals": 1,
       "rollLagSec": null,
-      "aheadMaxFt": -12.92,
+      "aheadMaxFt": -15.64,
       "aheadSec": 0,
-      "paceMaxFtps": 3.99
+      "paceMaxFtps": 3.51
      }
     }
    }
@@ -2431,39 +2440,39 @@
     },
     "#2": {
      "g": [
-      0.98,
-      1.07
+      0.91,
+      1.06
      ],
-     "gRateMax": 0.22,
-     "gReversals": 0,
-     "rollMax": 58,
-     "rollAccMax": 329,
-     "rollReversals": 4,
-     "drawnMax": 58,
+     "gRateMax": 0.97,
+     "gReversals": 1,
+     "rollMax": 86,
+     "rollAccMax": 436,
+     "rollReversals": 2,
+     "drawnMax": 81,
      "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 5,
-       "line": 94.44,
+       "plane": 4.97,
+       "line": 67.83,
        "along": 64.7
       },
       "rmsFt": {
-       "plane": 4.23,
-       "line": 64.75,
-       "along": 43.89
+       "plane": 3.89,
+       "line": 44.4,
+       "along": 36.13
       },
-      "settleSec": 25.25,
-      "bankOffMaxDeg": 18.75,
-      "gOffMax": 0.07,
+      "settleSec": null,
+      "bankOffMaxDeg": 17.28,
+      "gOffMax": 0.09,
       "torquePct": [
-       0,
-       100
+       12.3,
+       96.5
       ],
-      "torqueReversals": 7,
+      "torqueReversals": 8,
       "rollLagSec": null,
-      "aheadMaxFt": -15.47,
+      "aheadMaxFt": -15.93,
       "aheadSec": 0,
-      "paceMaxFtps": 29.93
+      "paceMaxFtps": 8.04
      }
     }
    }
@@ -2487,10 +2496,10 @@
     },
     "#2": {
      "g": [
-      1,
+      0.99,
       1
      ],
-     "gRateMax": 0,
+     "gRateMax": 0.1,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
@@ -2499,27 +2508,27 @@
      "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 0,
-       "line": 1.6,
-       "along": 1.18
+       "plane": 0.68,
+       "line": 4.03,
+       "along": 2.65
       },
       "rmsFt": {
-       "plane": 0,
-       "line": 0.85,
-       "along": 0.63
+       "plane": 0.22,
+       "line": 0.98,
+       "along": 0.64
       },
-      "settleSec": 3.9,
-      "bankOffMaxDeg": 0,
-      "gOffMax": 0,
+      "settleSec": 1.5,
+      "bankOffMaxDeg": 0.16,
+      "gOffMax": 0.01,
       "torquePct": [
-       46.6,
-       59.3
+       35.6,
+       57
       ],
       "torqueReversals": 1,
       "rollLagSec": null,
-      "aheadMaxFt": -13.94,
+      "aheadMaxFt": -15.64,
       "aheadSec": 0,
-      "paceMaxFtps": 1.17
+      "paceMaxFtps": 3.57
      }
     }
    }
@@ -2535,7 +2544,7 @@
       1,
       1
      ],
-     "gRateMax": 0.05,
+     "gRateMax": 0.04,
      "gReversals": 0,
      "rollMax": 0,
      "rollAccMax": 0,
@@ -2545,39 +2554,39 @@
     },
     "#2": {
      "g": [
-      0.96,
-      1.07
+      0.92,
+      1.06
      ],
-     "gRateMax": 0.23,
-     "gReversals": 0,
-     "rollMax": 48,
-     "rollAccMax": 324,
-     "rollReversals": 5,
-     "drawnMax": 47,
-     "rangeMin": 40,
+     "gRateMax": 0.91,
+     "gReversals": 1,
+     "rollMax": 86,
+     "rollAccMax": 440,
+     "rollReversals": 7,
+     "drawnMax": 81,
+     "rangeMin": 43,
      "close": {
       "maxFt": {
-       "plane": 5.07,
-       "line": 143.34,
-       "along": 207.99
+       "plane": 4.96,
+       "line": 143.35,
+       "along": 194.63
       },
       "rmsFt": {
-       "plane": 2.86,
-       "line": 71.91,
-       "along": 109.51
+       "plane": 2.61,
+       "line": 62.2,
+       "along": 130.49
       },
       "settleSec": null,
-      "bankOffMaxDeg": 17.82,
-      "gOffMax": 0.07,
+      "bankOffMaxDeg": 17.14,
+      "gOffMax": 0.08,
       "torquePct": [
-       0,
-       100
+       10,
+       99.6
       ],
-      "torqueReversals": 10,
+      "torqueReversals": 14,
       "rollLagSec": null,
-      "aheadMaxFt": -38.89,
+      "aheadMaxFt": -16.67,
       "aheadSec": 0,
-      "paceMaxFtps": 47.95
+      "paceMaxFtps": 8.51
      }
     }
    }
@@ -2609,31 +2618,31 @@
      "rollMax": 0,
      "rollAccMax": 0,
      "rollReversals": 0,
-     "drawnMax": 0,
-     "rangeMin": 127,
+     "drawnMax": 1,
+     "rangeMin": 136,
      "close": {
       "maxFt": {
-       "plane": 0.03,
-       "line": 30.62,
-       "along": 22.57
+       "plane": 0.04,
+       "line": 0.36,
+       "along": 6.08
       },
       "rmsFt": {
-       "plane": 0.03,
-       "line": 17.43,
-       "along": 12.85
+       "plane": 0.01,
+       "line": 0.2,
+       "along": 1.5
       },
-      "settleSec": null,
-      "bankOffMaxDeg": 0,
+      "settleSec": 2,
+      "bankOffMaxDeg": 3.67,
       "gOffMax": 0,
       "torquePct": [
-       58.1,
-       58.1
+       56.3,
+       78.1
       ],
       "torqueReversals": 0,
       "rollLagSec": null,
-      "aheadMaxFt": -37.31,
+      "aheadMaxFt": -71.52,
       "aheadSec": 0,
-      "paceMaxFtps": 3.95
+      "paceMaxFtps": 4.61
      }
     }
    }

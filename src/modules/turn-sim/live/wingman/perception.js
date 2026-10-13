@@ -199,6 +199,22 @@ function seeWith(mem, now, filt) {
   };
 }
 
+/**
+ * The memory aiming at another place (B3: the next place of a change, or a guarded one, supervisor.js), on the axes of
+ * `side`: every remembered moment is read against it, so the rates (the picture moving) carry on unchanged; a change of
+ * side turns the smoothed rates onto the new side's axes (line and along are the spinner-to-wingtip line's, mirrored).
+ */
+export function aimAt(mem, place, side) {
+  if (side === mem.side || !mem.filt) return { ...mem, place, side };
+  const k = LINE_BACK_PER_OUT;
+  const n = Math.hypot(1, k);
+  const r = mem.filt.rate;
+  const fwd = (r.line - k * r.along) / n;
+  const left = (mem.side * (k * r.line + r.along)) / n;
+  const rate = { plane: r.plane, line: (fwd + side * k * left) / n, along: (-k * fwd + side * left) / n };
+  return { ...mem, place, side, filt: { ...mem.filt, rate } };
+}
+
 /** What he sees from the memory as it stands (the start's first look), adding nothing. */
 export function look(mem) {
   return seeWith(mem, rawRead(mem).now, mem.filt);

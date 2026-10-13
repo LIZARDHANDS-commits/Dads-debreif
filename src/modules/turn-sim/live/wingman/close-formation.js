@@ -118,13 +118,21 @@ function brakingFtps2(seen, st, key) {
   return Math.max(0.1, -ktps) * KT_TO_FTPS * (iasToTasKt(kias, altFt) / kias);
 }
 
+/** The in-plane push forward he can count on to stop a move back (ft/s², true): at MAX (B3, a move back into the corner). */
+function pushFtps2(seen, st, key) {
+  const kias = briefedKias(key);
+  const altFt = st.pm.z;
+  const ktps = ktpsAtThrottle(throttleAtTorque(100, kias, altFt), kias, altFt, seen.g);
+  return Math.max(0.1, ktps) * KT_TO_FTPS * (iasToTasKt(kias, altFt) / kias);
+}
+
 /**
  * One step of the technique. mem: startLaw's; seen: perception.js; job: supervisor.js; ctx { st (his state), side (+1 left
  * of Lead), key (the formation), holdPct (holdingTorque), held { plane, side, fore } (each control at its limit last step:
  * the trims are held still, anti-windup) }. Returns { mem, want: { upCorrG, leftCorrG, torquePct, holdPct } }: the pitch
  * and roll corrections in G (along Lead's lift line, and along his wing line, left +) and the torque he wants.
  */
-export function closeLaw(mem, seen, job, { st, side, key, holdPct, held, place = null }) {
+export function closeLaw(mem, seen, job, { st, side, key, holdPct, held, place = null, paceFtps = null, torqueNow = null }) {
   const j = C.jobs[job.kind];
   const m = job.masks;
   const k = LINE_BACK_PER_OUT;
@@ -149,7 +157,35 @@ export function closeLaw(mem, seen, job, { st, side, key, holdPct, held, place =
   // on the spot: the braking along this way (the power's share stopped at the floor's braking, the bank's share at the
   // job's bank), after his reaction and the torque's walk down to the floor (half the walk, on average).
   const dist = Math.hypot(eFwd, eOut);
-  if (dist > 1e-9) {
+  if (job.kind === 'offStation') {
+    // B3, off station (spec 7c.3): one pace straight at the place in all three axes, so up and down goes with the rest
+    // (a straight line, "bank and power together") and the whole move is never over the leg's pace (jogging, 8 ft/s; into
+    // echelon from the corner 5 ft/s), tapering as near his place, and never faster than he can stop from in the plane.
+    const d3 = Math.hypot(dist, ePlane);
+    if (d3 > 1e-9) {
+      const inShare = dist / d3;
+      // Moving forward he stops by walking the power down to the floor; moving back, by walking it up to MAX (B3: until
+      // then the walk counted was always the hold's down to the floor, and going back into the corner he passed it by 9 ft).
+      // The walk is from the torque he has now: back across the holding setting first (no braking until he is past it),
+      // then half the walk on to the floor or MAX (braking as it builds).
+      const back = eFwd > 0; // the deviation is where he is against his place: ahead of it, he moves back
+      const stopTq = back ? 100 : C.brakeTorquePct;
+      const tqNow = torqueNow ?? holdPct;
+      const wrongSide = back ? Math.max(0, holdPct - tqNow) : Math.max(0, tqNow - holdPct);
+      const byPower = (back ? pushFtps2(seen, st, key) : brakingFtps2(seen, st, key)) / Math.max(Math.abs(eFwd) / d3, 1e-6);
+      const byBank = (G_FTPS2 * gRef * Math.sin(j.bankCapDeg * DEG)) / Math.max(Math.abs(eOut) / d3, 1e-6);
+      const byG = (G_FTPS2 * j.gCap) / Math.max(Math.abs(ePlane) / d3, 1e-6);
+      const b = Math.min(byPower, byBank, byG);
+      const lag = CLOSE_SEE.delaySec + wrongSide / j.torquePctps + Math.abs(stopTq - holdPct) / (2 * j.torquePctps);
+      const stopFtps = b * (Math.sqrt(lag * lag + (2 * d3) / b) - lag);
+      const pace = Math.min(paceFtps ?? C.paceFtps, stopFtps, kPos * d3);
+      if (inShare > 1e-9) {
+        eFwd *= pace / (kPos * d3);
+        eOut *= pace / (kPos * d3);
+      }
+      ePlane *= pace / ((C.plane.kp / C.plane.kd) * d3);
+    }
+  } else if (dist > 1e-9) {
     const byPower = brakingFtps2(seen, st, key) / Math.max(Math.abs(eFwd) / dist, 1e-6);
     const byBank = (G_FTPS2 * gRef * Math.sin(j.bankCapDeg * DEG)) / Math.max(Math.abs(eOut) / dist, 1e-6);
     const b = Math.min(byPower, byBank);
@@ -159,10 +195,10 @@ export function closeLaw(mem, seen, job, { st, side, key, holdPct, held, place =
     eFwd *= pace / (kPos * dist);
     eOut *= pace / (kPos * dist);
   }
-  // Up and down the same: never over the jogging pace, nor faster than the job's G stops him from.
+  // Up and down the same: never over the jogging pace, nor faster than the job's G stops him from (off station: above).
   const vPlane = (C.plane.kp / C.plane.kd) * Math.abs(ePlane);
   const pacePlane = Math.min(C.paceFtps, Math.sqrt(2 * j.gCap * G_FTPS2 * Math.abs(ePlane)));
-  if (vPlane > pacePlane && vPlane > 0) ePlane *= pacePlane / vPlane;
+  if (job.kind !== 'offStation' && vPlane > pacePlane && vPlane > 0) ePlane *= pacePlane / vPlane;
   // The soft threshold (7b.6d item 11; wing-moves.js CLOSE_WING deadFt and deadFtps, where D's is off for now, waiting on
   // Patrick: see the note there).
   const soft = { deadFt: C.deadFt, deadFtps: C.deadFtps };
