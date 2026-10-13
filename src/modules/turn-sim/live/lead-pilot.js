@@ -251,8 +251,13 @@ function flyLead(a, plan, t) {
     const catchFtps = Math.max(-LEAD_PILOT.heightCatchFtps, Math.min(LEAD_PILOT.heightCatchFtps, LEAD_PILOT.heightPerSec * (zT - z)));
     gamma = Math.asin(Math.max(-1, Math.min(1, (vT + catchFtps) / st.V)));
   }
-  const cb = Math.max(0.25, Math.cos(st.bank * DEG));
-  const g = Math.max(LEAD.minPushG, gForClimb(st, gamma) + nzLead / cb);
+  // He pulls as he rolls (Patrick 13 Oct 2026): the G for the bank he will have pullAheadSec ahead, never past the bank he
+  // is rolling to, so the G builds with the bank (and eases with it rolling out) instead of lagging it.
+  const toBank = -targetBank; // the point mass's bank convention
+  const ahead = st.bank + (st.rollRate ?? 0) * LEAD_PILOT.pullAheadSec;
+  const bankAhead = (toBank - st.bank) * (toBank - ahead) <= 0 ? toBank : ahead;
+  const cb = Math.max(0.25, Math.cos(bankAhead * DEG));
+  const g = Math.max(LEAD.minPushG, gForClimb({ ...st, bank: bankAhead }, gamma) + nzLead / cb);
 
   // Power: MAX in a full-power turn (TS-204); a planned climb at 80% torque and a descent at 20% (TS-203, TS-216); else the
   // speed wanted, held inside the band (20-80%, TS-216; line abreast's own changes inside its power).

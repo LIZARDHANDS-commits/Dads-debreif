@@ -51,7 +51,7 @@
 //    and on into the barrel roll, each starting at the speed the last one handed it and ending at it (TS-215).
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG, turnRateFromBankRadPerSec, softMin, softMax } from '../../../core/flight-math.js';
-import { excessFnFor, tasToIasKt, shakerG, gAtAoaUnits, t6aExcessFn, dragPerWeight, thrustPerWeight, T6A_G_ONSET, T6A_ROLL } from '../../../core/t6-performance.js';
+import { availableG, excessFnFor, tasToIasKt, shakerG, gAtAoaUnits, t6aExcessFn, dragPerWeight, thrustPerWeight, T6A_G_ONSET, T6A_ROLL } from '../../../core/t6-performance.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
@@ -183,12 +183,14 @@ export function stepLead(st, ask) {
     const want = ask.lift ? gAndBankForLift(ask.lift, s.nose, s.pm.up, s.bank * DEG) : null;
     const askG = want ? want.g : ask.g;
     const askBank = want ? want.bankRad / DEG : ask.bank;
-    // Lead (ask.lead, fluid.js) pulls up to 17 units AOA (Patrick 12 Oct 2026), his G built over gOnsetSec with the stop
-    // planned (TS-223); #2's live step keeps the shaker line and the G onset without a build until phase B.
-    const gCap = ask.lead ? gAtAoaUnits(s.kias, LEAD.loopAoaUnits) : shakerG(s.kias);
+    const target = s.bank + wrapPi((askBank - s.bank) * DEG) / DEG; // the near way round
+    // Lead (ask.lead, fluid.js) pulls up to 17 units AOA (Patrick 12 Oct 2026), and never past 4.7 G while he rolls (the
+    // T-6A's rolling limit, core availableG; Patrick 13 Oct 2026: "no rolling and pulling past 4.7 G"), his G built over
+    // gOnsetSec with the stop planned (TS-223); #2's live step keeps the shaker line and the G onset without a build until phase B.
+    const rolling = Math.abs(target - s.bank) > LEAD.rollingBandDeg || Math.abs(s.rollRate ?? 0) > LEAD.rollingRateDps;
+    const gCap = ask.lead ? Math.min(gAtAoaUnits(s.kias, LEAD.loopAoaUnits), availableG(s.kias, rolling)) : shakerG(s.kias);
     const gLim = ask.lead ? { ...LEAD.gOnset, onsetSec: LEAD.gOnsetSec, accelDps2: s.gAcc ?? 0, plannedStop: true } : LEAD.gOnset;
     const g = easeValue(s.g, s.gRate, Math.min(askG, gCap), half, gLim);
-    const target = s.bank + wrapPi((askBank - s.bank) * DEG) / DEG; // the near way round
     // The roll: ask.roll's rate (Lead's technique, LEAD_ROLL, TS-222) or the aircraft's, never faster than the T-6A at this
     // speed (TS-85). Lead's is built over the T-6A's 0.2 s onset with the roll-out planned (TS-223, core easeRoll
     // plannedStop); #2's live step keeps the roll without an onset until phase B.

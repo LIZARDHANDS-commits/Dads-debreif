@@ -165,6 +165,8 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LEAD.endKneeDps | `1.5` | where the held rate meets that easing (°/s), so the G rate does not step |
 | LEAD.limitKneeG | `0.15` | a G limit (4 G, 17 units, the shaker share) is met through a 0.15 G knee, never a corner (core softMin) |
 | LEAD.joinBlendSec | `2` | a flowing join (loop to wingovers, wingovers to barrel roll): the next pull eases from the G handed in onto its own over 2 s |
+| LEAD.rollingBandDeg | `0.5` | Lead counts as rolling (the T-6A's +4.7 G rolling limit, core availableG; NFM ch.5; Patrick 13 Oct 2026: "no rolling and pulling past 4.7 G") while his bank is more than 0.5° from the bank he is rolling to ... |
+| LEAD.rollingRateDps | `1` | ... or his roll rate is over 1°/s (both estimates: where a roll starts and ends) |
 | LEAD.gOnsetSec | `0.2` | Lead's G onset is built over 0.2 s, as the roll's (T6A_ROLL.onsetSec, TS-196), with the stop planned (TS-223); Lead only until Patrick moves it to core |
 | LEAD.wingoverG | `3` | "approximately 3 G" (SMM 16.17 para 47); the cloverleaf's pull, 2.5-3.5 G (SMM Table 7.1; EFIG p.137 about 3 G) |
 | LEAD.wingoverPitchDeg | `45` | "approximately 45 degrees of pitch (above and below the horizon)" (SMM 16.17 para 47) |
@@ -194,6 +196,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LEAD_PILOT.climbTorquePct | `FW_MOVE.climbTorquePct` | a planned climb at 80% torque (TS-203, TS-216) |
 | LEAD_PILOT.descentTorquePct | `FW_MOVE.descentTorquePct` | a planned descent at 20% torque (TS-216) |
 | LEAD_PILOT.speedByNosePerSec | `0.125` | in a planned climb or descent his nose holds his airspeed (TS-225, Patrick 13 Oct 2026): a speed error is taken out at this share per second, on top of the climb angle the power gives (an estimate, as slow as the height loop so the pitch never chases the speed) |
+| LEAD_PILOT.pullAheadSec | `0.25` | he pulls as he rolls (Patrick 13 Oct 2026: "pull as he rolls"): the G for the bank he will have this far ahead, so the G builds with the bank instead of lagging it (an estimate: his G onset, 0.2 s, plus a step; it was the bank he had, and a 70.5° roll-in at 90°/s overshot by 0.3 G and swung his height -11/+13 ft; now the G peaks at the bank's own at 45°, 60° and 70.5°, height within 1-3 ft at 45° and 60°, +10 ft at 70.5° where the G cannot come off as fast as a 90°/s roll-out takes the bank away) |
 | LEAD_PILOT.levelOffFt | `5` | a climb or descent is over once he is within 5 ft of the planned height and climbing or sinking under levelFtps (an estimate) |
 
 ## Wingmen: the live laws, the close turns' held poses, the fluid exercise, the rolling rejoin (`wing-moves.js`)
