@@ -29,7 +29,7 @@ import { G_FTPS2 } from '../../../../core/units.js';
 import { STEP_SEC } from '../flight.js';
 import { LINE_BACK_PER_OUT, WINGSPAN_FT } from '../slots.js';
 import { CLOSE_SEE } from '../wing-moves.js';
-import { sub3, dot3, cross3, unit3, perp3, scale3, add3 } from '../attitude.js';
+import { sub3, dot3, cross3, unit3, perp3, scale3, add3, len3 } from '../attitude.js';
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 const AXES = Object.freeze(['plane', 'line', 'along']);
@@ -113,7 +113,7 @@ export function startPerception(ref, own, { place, side, refAcc = null, ownAcc =
   const buf = [];
   for (let k = KEEP - 1; k >= 0; k--) buf.push({ ref: backOf(ref, k, refAcc), own: backOf(own, k, ownAcc) });
   const mem = { buf, place, side, filt: null };
-  return { ...mem, filt: rawRead(mem).raw };
+  return { ...mem, filt: { ...rawRead(mem).raw, gRate: 0 } };
 }
 
 /** The raw readings of the seen moment (LATE steps back) against the one and two before it. */
@@ -133,22 +133,42 @@ function rawRead(mem) {
   const acc = scale3(sub3(a0.s.ref.v, a1.s.ref.v), 1 / STEP_SEC);
   const g = dot3(add3(acc, scale3(Z, G_FTPS2)), a0.f.up) / G_FTPS2;
   const rate = Object.fromEntries(AXES.map((ax) => [ax, (a0.dev[ax] - a1.dev[ax]) / STEP_SEC]));
-  return { now: a0, raw: { rate, roll: roll0, rollAcc: (roll0 - roll1) / STEP_SEC, g } };
+  // Its turning as a whole (B2): the angular velocity of its frame, from how its nose, left and up moved over the step
+  // (omega = 1/2 sum e x de/dt, rad/s, world axes), and how that changed (rad/s²). Rolling, it is the roll about the nose;
+  // in a steady turn, the turn rate about the vertical; in the roll-in, both, with the turn rate building.
+  const w0 = spinOf(a1.f, a0.f);
+  const w1 = spinOf(a2.f, a1.f);
+  return { now: a0, raw: { rate, roll: roll0, rollAcc: (roll0 - roll1) / STEP_SEC, g, spin: w0, spinAcc: scale3(sub3(w0, w1), 1 / STEP_SEC) } };
 }
+
+/** The angular velocity (rad/s, world axes) that turns frame f1 into f2 over one step: 1/2 sum of e x de/dt. */
+function spinOf(f1, f2) {
+  let w = { x: 0, y: 0, z: 0 };
+  for (const k of ['nose', 'left', 'up']) w = add3(w, cross3(f1[k], scale3(sub3(f2[k], f1[k]), 1 / STEP_SEC)));
+  return scale3(w, 0.5);
+}
+
+/** A vector smoothed as smooth() smooths a number, axis by axis. */
+const smooth3 = (y, x) => ({ x: smooth(y.x, x.x), y: smooth(y.y, x.y), z: smooth(y.z, x.z) });
 
 /**
  * What he sees from a memory: the moment LATE steps ago and the smoothed readings. seen = { dev, rate (ft/s), bankDeg,
- * rollDps, rollAccDps2, bankAheadDeg, g, climbFtps (the other aircraft's), ffUpG, ffLeftG, under, frame, rel }. ffUpG and
- * ffLeftG: his place's acceleration from the roll, along the lift line and the wing line (left +), in G.
+ * rollDps, rollAccDps2, bankAheadDeg, g, climbFtps (the other aircraft's), ffUpG, ffLeftG, ffForeFtps2, placeFwdFtps,
+ * placeClimbFtps, under, frame, rel }. ffUpG and ffLeftG: his place's acceleration from the roll and the turn, along the
+ * lift line and the wing line (left +), in G; ffForeFtps2 along the nose; placeFwdFtps and placeClimbFtps: his place's
+ * speed beyond the aircraft's own, along its nose and upward.
  */
 function seeWith(mem, now, filt) {
   const T = CLOSE_SEE.aheadSec;
-  // His place swung by the roll (rigid-body kinematics about the nose; p, ṗ in rad/s and rad/s², left wing down positive):
-  // along the lift line -ṗ·left - p²·up, along the wing line ṗ·up - p²·left (the place's left and up offsets).
-  const p = filt.roll * DEG;
-  const pd = filt.rollAcc * DEG;
-  const L = mem.place.left;
-  const U = mem.place.alt;
+  // His place's motion as the other aircraft rolls and turns (rigid-body kinematics, B2): his place is fixed in its frame,
+  // so with the frame turning at omega and omega changing at alpha it moves at omega x r and accelerates at alpha x r +
+  // omega x (omega x r) beyond the aircraft's own motion (r: the place's offset). Rolling, that is the swing about the nose
+  // (B1); in the turn, the wider or tighter circle and the speed that goes with it; in the roll-in, the turn rate building.
+  const f = now.f;
+  const pl = mem.place;
+  const r = add3(add3(scale3(f.nose, pl.fwd), scale3(f.left, pl.left)), scale3(f.up, pl.alt));
+  const vPlace = cross3(filt.spin, r);
+  const aPlace = add3(cross3(filt.spinAcc, r), cross3(filt.spin, vPlace));
   const rel = relIn(now.f, now.s.ref, now.s.own);
   return {
     dev: now.dev,
@@ -158,9 +178,19 @@ function seeWith(mem, now, filt) {
     rollAccDps2: filt.rollAcc,
     bankAheadDeg: now.bank + filt.roll * T + 0.5 * filt.rollAcc * T * T,
     g: filt.g,
+    // Its G dead-reckoned across his delay, as its bank is (B2): pulling as it rolls (TS-227) its G builds about 0.25 G/s
+    // in a 60° roll-in, and read 0.3 s late that left him short by about 0.08 G for 2 s, 4 to 5 ft below the plane. (Read
+    // instead off the dead-reckoned bank as a level turn's 1/cos bank, the 60° turn away settled in 12 s, not 4: kept this.)
+    gAhead: filt.g + filt.gRate * T,
     climbFtps: now.s.ref.v.z,
-    ffUpG: (-pd * L - p * p * U) / G_FTPS2,
-    ffLeftG: (pd * U - p * p * L) / G_FTPS2,
+    ffUpG: dot3(aPlace, f.up) / G_FTPS2,
+    ffLeftG: dot3(aPlace, f.left) / G_FTPS2,
+    // The speed his place needs beyond the other aircraft's (the wider or tighter circle), and how fast that is changing:
+    // zero in a steady turn, building as the turn builds and easing as it eases (the power lead, spec 7b.5). Read as a
+    // speed, not as the acceleration along the other aircraft's nose, which a place behind it would see as a false speed-up.
+    ffForeFtps2: filt.placeAcc ?? 0,
+    placeFwdFtps: len3(add3(now.s.ref.v, vPlace)) - len3(now.s.ref.v),
+    placeClimbFtps: vPlace.z,
     under: rel.up < 0 && Math.abs(rel.left) < WINGSPAN_FT / 2,
     frame: now.f,
     rel,
@@ -185,7 +215,12 @@ export function perceive(mem, ref, own) {
     roll: smooth(f0.roll, raw.roll),
     rollAcc: smooth(f0.rollAcc, raw.rollAcc),
     g: smooth(f0.g, raw.g),
+    gRate: smooth(f0.gRate ?? 0, (smooth(f0.g, raw.g) - f0.g) / STEP_SEC),
+    spin: smooth3(f0.spin, raw.spin),
+    spinAcc: smooth3(f0.spinAcc, raw.spinAcc),
   };
-  const next = { ...mem, buf, filt };
-  return { mem: next, seen: seeWith(next, now, filt) };
+  const dv = seeWith({ ...mem, buf, filt }, now, filt).placeFwdFtps;
+  const filt2 = { ...filt, placeDv: dv, placeAcc: smooth(f0.placeAcc ?? 0, (dv - (f0.placeDv ?? dv)) / STEP_SEC) };
+  const next = { ...mem, buf, filt: filt2 };
+  return { mem: next, seen: seeWith(next, now, filt2) };
 }

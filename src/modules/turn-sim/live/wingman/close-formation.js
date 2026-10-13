@@ -65,21 +65,34 @@ export function holdingTorque(seen, st, place, key) {
   const kias = briefedKias(key);
   const altFt = st.pm.z;
   const tasRatio = iasToTasKt(kias, altFt) / kias;
-  // The turn's share: the same turn rate on a circle wider or tighter by his place's offset across Lead's wing line, so
-  // more speed outside the turn and less inside (spec 7b.6; zero straight and level). True airspeed, turned into indicated.
-  const bank = seen.bankDeg * DEG;
-  const dTasFtps = (-G_FTPS2 * place.left * Math.sin(bank)) / Math.max(st.V, 1);
-  const dKias = dTasFtps / KT_TO_FTPS / tasRatio;
-  // The roll-in's share: his place's vertical speed as Lead rolls (rigid-body: -p·left along the lift line, p·up along the
-  // wing line), on top of Lead's own climb, charged as climb; and his own climb or descent onto the plane and the G he
-  // feels, so power goes with pitch (Patrick 13 Oct 2026: "you stay in position by using coordination of all of the
-  // controls at once"; standard energy: a 3 ft descent onto the plane is about 0.25 ft/s of speed at 200 KIAS).
-  const p = seen.rollDps * DEG;
+  // The turn's share: his place's speed beyond Lead's as Lead turns (perception.js, rigid-body: the same turn rate on a
+  // circle wider or tighter by his place's offset), so more speed outside the turn and less inside (spec 7b.6; zero
+  // straight and level). True airspeed, turned into indicated.
+  const dKias = seen.placeFwdFtps / KT_TO_FTPS / tasRatio;
+  // The roll-in's share: his place's vertical speed as Lead rolls and turns, on top of Lead's own climb, charged as climb;
+  // and his own climb or descent onto the plane and the G he feels, so power goes with pitch (Patrick 13 Oct 2026: "you stay
+  // in position by using coordination of all of the controls at once"; standard energy: a 3 ft descent onto the plane is
+  // about 0.25 ft/s of speed at 200 KIAS).
   const f = seen.frame;
-  const placeClimb = -p * place.left * f.up.z + p * place.alt * f.left.z;
+  const placeClimb = seen.placeClimbFtps;
   const ownClimb = seen.rate.plane * f.up.z;
   const power = powerFor(0, kias + dKias, altFt, st.g, seen.climbFtps + placeClimb + ownClimb);
   return power ? torqueFromThrottle(power.throttle, kias + dKias, altFt) : 0;
+}
+
+/**
+ * The power lead, torque %: the torque that gives his place's acceleration along Lead's nose as Lead's turn builds or eases
+ * (perception.js ffForeFtps2; spec 7b.5 "power before it is needed", the roll-in's share). From the power model's speed
+ * change per percent of torque about the holding setting (about 0.036 kt/s per percent at 200 KIAS and 8,000 ft, 7b.6d).
+ */
+export function powerLeadPct(seen, st, key, holdPct) {
+  const kias = briefedKias(key);
+  const altFt = st.pm.z;
+  const at = (pct) => ktpsAtThrottle(throttleAtTorque(pct, kias, altFt), kias, altFt, seen.g);
+  const ktpsPerPct = at(holdPct + 1) - at(holdPct);
+  if (!(ktpsPerPct > 1e-6)) return 0;
+  const wantKtps = seen.ffForeFtps2 / KT_TO_FTPS / (iasToTasKt(kias, altFt) / kias);
+  return wantKtps / ktpsPerPct;
 }
 
 /** The in-plane braking he can count on to stop (ft/s², true): from the holding setting down to the power floor's torque. */
@@ -145,12 +158,12 @@ export function closeLaw(mem, seen, job, { st, side, key, holdPct, held }) {
   const upCorrG = job.upOk ? up.out : Math.min(0, up.out);
   return {
     mem: { plane: up.mem, side: out.mem, fore: pwr.mem },
-    want: { upCorrG, leftCorrG: side * out.out, torquePct: holdPct + pwr.out, holdPct },
+    want: { upCorrG, leftCorrG: side * out.out, torquePct: holdPct + powerLeadPct(seen, st, key, holdPct) + pwr.out, holdPct },
   };
 }
 
 /**
- * The one lift vector (in G) he asks his aircraft for: Lead's lift as he sees it, turned to Lead's bank 0.3 s ahead, plus
+ * The one lift vector (in G) he asks his aircraft for: Lead's lift as he sees it, at Lead's G and bank 0.3 s ahead, plus
  * his place's motion, plus the pitch and roll corrections (hand: the shaper's), square to his own nose (st: his state).
  */
 export function liftFor(seen, st, hand) {
@@ -158,6 +171,6 @@ export function liftFor(seen, st, hand) {
   const d = (seen.bankAheadDeg - seen.bankDeg) * DEG; // the roll still to come across his delay (left wing down +)
   const up = add3(scale3(f.up, Math.cos(d)), scale3(f.left, Math.sin(d)));
   const left = add3(scale3(f.left, Math.cos(d)), scale3(f.up, -Math.sin(d)));
-  const lift = add3(scale3(up, seen.g + seen.ffUpG + hand.upCorrG), scale3(left, seen.ffLeftG + hand.leftCorrG));
+  const lift = add3(scale3(up, seen.gAhead + seen.ffUpG + hand.upCorrG), scale3(left, seen.ffLeftG + hand.leftCorrG));
   return perp3(lift, st.nose);
 }

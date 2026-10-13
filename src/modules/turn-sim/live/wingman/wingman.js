@@ -70,7 +70,7 @@ export function stepWingman(w, refSt) {
     w: next,
     trace: {
       t: next.t, job: job.kind, dev: seen.dev, rate: seen.rate, under: seen.under,
-      gWant: seen.g + seen.ffUpG + hand.mem.upCorrG, leftG: seen.ffLeftG + hand.mem.leftCorrG,
+      gWant: seen.gAhead + seen.ffUpG + hand.mem.upCorrG, leftG: seen.ffLeftG + hand.mem.leftCorrG,
       torquePct: hand.mem.torquePct, holdPct, flags: hand.flags,
     },
   };
