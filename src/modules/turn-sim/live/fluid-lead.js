@@ -183,7 +183,9 @@ export function stepLead(st, ask) {
     const askBank = want ? want.bankRad / DEG : ask.bank;
     const g = easeValue(s.g, s.gRate, Math.min(askG, shakerG(s.kias)), half, LEAD.gOnset);
     const target = s.bank + wrapPi((askBank - s.bank) * DEG) / DEG; // the near way round
-    const r = easeValue(s.bank, s.rollRate, target, half, rollLimitAt(s.V, ROLL)); // never faster than the T-6A at this speed (TS-85)
+    // The roll: ask.roll's rate (Lead's technique, LEAD_ROLL, TS-222) or the aircraft's, never faster than the T-6A at this
+    // speed (TS-85). The 0.2 s roll onset waits for the roll smoother's fix (core easeRoll overshoots with an onset, TS-222).
+    const r = easeValue(s.bank, s.rollRate, target, half, rollLimitAt(s.V, ask.roll ?? ROLL));
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
     const prev = s;
     s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt, eng });

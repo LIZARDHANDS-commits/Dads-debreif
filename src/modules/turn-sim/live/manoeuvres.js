@@ -12,7 +12,7 @@ import { bankDegFromG } from '../../../core/flight-math.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 import { speedSeg } from './replay.js';
-import { TURN_G, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG, CROSS_FIRST_BANK_DEG, BREAK, BREAK_DELAY_CHOICES } from './tuning.js';
+import { TURN_G, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG, CROSS_FIRST_BANK_DEG, BREAK, BREAK_DELAY_CHOICES, LEAD_ROLL } from './tuning.js';
 
 // The line abreast numbers (TURN_G, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG, CROSS_FIRST_BANK_DEG) and the break's (BREAK,
 // BREAK_DELAY_CHOICES) live in lead-moves.js, the tuning sheet (TS-214); re-exported here for older imports.
@@ -75,7 +75,7 @@ export const turnSeg = (toRad, dir, bankDeg, rollOut = true) => ({ kind: 'turn',
  * "LAB tactical turns is full power", 09:51Z "LAB is flown by lead at 220 knots but 70/3 full power turns", "then reset to
  * 220"). Until V2.396 the speed was held through the turn, which needs more than full power in the model at 3 G.
  */
-export const tacticalSeg = (toRad, dir, bankDeg = TURN_BANK_DEG, rollOut = true) => ({ ...turnSeg(toRad, dir, bankDeg, rollOut), fullPower: true });
+export const tacticalSeg = (toRad, dir, bankDeg = TURN_BANK_DEG, rollOut = true) => ({ ...turnSeg(toRad, dir, bankDeg, rollOut), fullPower: true, roll: LEAD_ROLL }); // both aircraft roll at Lead's 90°/s (TS-222)
 
 /**
  * After a tactical turn, each aircraft sets power back for the formation's speed (220 KIAS in line abreast) the moment he

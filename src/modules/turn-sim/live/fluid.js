@@ -13,7 +13,7 @@ import { aspectAngle3dDeg, headingCrossAngle3dDeg, DEG } from '../../../core/ang
 import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
-import { WING, HOLD, closureNow, FLUID, LEAD_POWER } from './tuning.js';
+import { WING, HOLD, closureNow, FLUID, LEAD_POWER, LEAD_ROLL } from './tuning.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
 import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
 import { startLiveWing, stepLiveWing } from './fluid-wing-live.js';
@@ -108,7 +108,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const blend = blendSecs();
     const r = e.ctl.step(e.st, mem, { wingSide: wingSide(), blendInSec: blend.inSec, blendOutSec: blend.outSec });
     // Lead holding a speed (Terminate, fighting wing after it) keeps 20-80% torque (TS-216); the manoeuvres stay MAX.
-    const st = stepLead(e.st, r.holdKias ? { ...r, torqueBand: LEAD_POWER } : r);
+    // Lead rolls at his technique rate (TS-222) except in the nose-path manoeuvres, which roll as their path asks.
+    const roll = e.ctl.key === 'wingover' || e.ctl.key === 'barrelRoll' ? null : LEAD_ROLL;
+    const st = stepLead(e.st, { ...r, ...(roll ? { roll } : {}), ...(r.holdKias ? { torqueBand: LEAD_POWER } : {}) });
     let ctl = e.ctl;
     let next = mem;
     let queue = e.queue;

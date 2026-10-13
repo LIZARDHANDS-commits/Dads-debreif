@@ -6,6 +6,8 @@ This folder is the formation turn sim. From V2.6 it shows the first version of l
 
 ## Where it stands
 
+**12 Oct 2026, end of the night: V2.423 merged (#1017, the tuning sheet); V2.424 in #1018.** #1018 builds the aircraft-handling rulings: roll 0.58°/s per KTAS at most 200°/s (ALL-39), the 6 G/s ceiling (ALL-40), the engine's 3.5 s idle lag (TS-218), Lead 20-80% torque (TS-216), break 3 s (TS-217), Lead's 90°/s roll (TS-222), one 3 ft tracker tolerance (TS-220); fluid stays as it is apart from smoothing (TS-219). Found: the shared roll smoother overshoots with an onset (TS-222), the next fix. The loop design (TS-213, TS-215, TS-221) is with an agent. Untested: nothing flown by Patrick since V2.418.
+
 **12 Oct 2026, last thing: V2.423 in #1017 (green, waiting for Patrick's merge).** Phase A research under way, all read-only: the manuals, public flight-test and flying-qualities data, JSBSim's T-6, and the telemetry of Patrick's phase 2 GoPro flight (Aug 2022: accelerometer, gyro and GPS inside the video files). Next: check the findings, then the ratify page for the aircraft and Lead numbers.
 
 **12 Oct 2026, late: V2.423 in its pull request.** Patrick ruled the pilot review (12.2: Lead first, then the 2-ship wingman, then the 4-ship) and TS-214, one tuning sheet: every number that tunes how Lead and the 2-ship fly now sits in `live/handling.js`, `lead-moves.js`, `wing-moves.js`, `rates.js`, `bands.js` and `moves.js`, reached through `tuning.js`, and `numbers.md` lists them all with core's aircraft limits first. No flying changed (the gauge's traces are byte-identical). Next, phase A: ratify the aircraft and Lead numbers, then fix Lead (roll onset, the 8 G/s gate, one Lead aircraft or two, the TS-213 loop).

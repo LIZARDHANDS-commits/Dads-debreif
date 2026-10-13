@@ -361,7 +361,7 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
   const lp = fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt);
   if (!lp.ok) return lp;
   const L = copyAircraft(lead);
-  const plan = { segments: lp.segments.map((s) => ({ ...s })), profile: lp.profile };
+  const plan = { segments: lp.segments.map((s) => ({ ...s })), profile: lp.profile, roll: lp.roll };
   const carried = ws0 && ws0.length === wings.length && ws0[0]?.tr;
   let ws = carried ? ws0 : wings.map((w, i) => wingAtPress(aircraft[i], w, blockFt));
   // Lead's track: the one flown so far when a move is being flown, else seeded behind him at the press.
@@ -401,7 +401,7 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
     if (doneAt === null && planDone(L, plan) && t >= profileEnd) doneAt = t;
     if (doneAt !== null && t - doneAt >= FW_LIVE.settleSec) break;
   }
-  const plans = { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })), profile: lp.profile } };
+  const plans = { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })), profile: lp.profile, roll: lp.roll } };
   wings.forEach((w, i) => { plans[w.id] = { segments: [{ kind: 'poseTrack', poses: poses[i] }] }; });
   const who = wings.length > 1 ? 'Each wingman flies Lead\'s circle 650 ft behind the one ahead (#2 behind Lead, #3 behind #2, #4 behind #3), never inside 500 ft of him' : '#2 flies Lead\'s circle 650 ft behind him, never inside 500 ft';
   return {

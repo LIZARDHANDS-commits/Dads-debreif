@@ -26,6 +26,7 @@
 //  - Hook: all four turn 180 at 70/3 together (AFM8 brief p.18, SMM 16.45 para 121).
 import { DEG } from '../../../core/angles.js';
 import { makeAircraft } from './flight.js';
+import { LEAD_ROLL } from './lead-moves.js';
 import { STACK_FT } from './slots.js'; // the brief's stack (AFM8 brief p.14-15), held in the slot table
 import { planManoeuvre, relativeTo, dryRun, exactWaitSec, tacticalSeg, backToSpeed, wholeDegree, unit, dot, onStep, MANOEUVRES } from './manoeuvres.js';
 
@@ -69,6 +70,7 @@ export function fourShipStart({ spacingFt, wingSide, headingRad, kias, tasFtps }
     altAboveFt: STACK_FT[id],
     ref,
     name: NAMES[id],
+    ...(id === 1 ? { techRoll: LEAD_ROLL } : {}), // Lead rolls at his 90°/s (TS-222)
   }));
 }
 

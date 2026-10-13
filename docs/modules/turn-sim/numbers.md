@@ -121,6 +121,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 
 | Number | Value | Source and note |
 |---|---|---|
+| LEAD_ROLL | `Object.freeze({ maxRateDps: 90, maxAccelDps2: 90 / T6A_ROLL.fullRateSec })` | Lead's roll into and out of a turn: up to 90°/s, its rate built at the T-6A's (full rate in T6A_ROLL.fullRateSec) and the build itself over the T-6A's onset (T6A_ROLL.onsetSec, 0.2 s), never past the aircraft at this speed (Patrick 12 Oct 2026, TS-222: "90/S is good. it's smoothd, of course"). A technique share of the aircraft's full-stick roll (ALL-39), not a limit of the aircraft: fluid Lead's l |
 | LEAD_POWER | `Object.freeze({ minTorquePct: 20, maxTorquePct: 80 })` | Lead's torque stays between 20% and 80% in formation, every case except fluid manoeuvring (MAX) and line abreast (Patrick 12 Oct 2026, TS-216: "make the min tq for lead 20%, max 80% in call cases (except FM and LAB)"; the 20% from SMM 12.31 and EFIG p.395; the 80% his 12 Oct 08:39Z and 09:17Z rulings, TS-203 and TS-204). So Lead never goes idle in formation and never meets the engine's lag from id |
 | TURN_G | `3` | Line abreast turns: about 70° of bank at 3 G (SMM 16.18 para 50; Figs 16.15-16.21 "70/3"). |
 | TURN_BANK_DEG | `bankDegFromG(TURN_G)` |  |

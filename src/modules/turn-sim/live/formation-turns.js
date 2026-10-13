@@ -35,7 +35,7 @@ import { thrustPerWeight, dragPerWeight, iasToTasKt, T6A_LIMITS, T6A_MANOEUVRE }
 import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { throttleAtTorque } from './power.js';
 import { telegraphRoll } from './rates.js';
-import { CLOSE_TURN, CATCH_UP, ROLLED_CAUGHT_DEG, ROLLED_MAX_SEC, ROLLED_BLEND_SEC, SLOT_TOL_FT, ROLL_WITH_DEG, FW_MOVE } from './tuning.js';
+import { CLOSE_TURN, CATCH_UP, ROLLED_CAUGHT_DEG, ROLLED_MAX_SEC, ROLLED_BLEND_SEC, SLOT_TOL_FT, ROLL_WITH_DEG, FW_MOVE, LEAD_ROLL } from './tuning.js';
 
 export { CLOSE_TURN }; // its home is wing-moves.js (the tuning sheet, TS-214)
 
@@ -671,7 +671,7 @@ const ECHELON_REF_FT = (() => { const e = slotsFor('echelon', 1)[2]; return Math
 export function leadTurnPlan(lead, formation, key, dir) {
   if (!FW_TURN_KEYS.includes(key) || !TURN_FORMATIONS[2].includes(formation)) return null;
   const turnDeg = FW_TURN.turnDeg[key];
-  if (formation === 'fw') return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, WING_BANKS.fwTurnBankDeg, true) };
+  if (formation === 'fw') return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, WING_BANKS.fwTurnBankDeg, true).map((x) => ({ ...x, roll: LEAD_ROLL })) }; // Lead's 90°/s (TS-222)
   const closeBank = closeBankNow();
   const isClose = formation === 'echelon' || formation === 'route' || formation === 'astern';
   const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : isClose ? closeBank : CLOSE_TURN.bankDeg;
@@ -803,7 +803,7 @@ export function fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt = 8000) {
     // Wings level after a turn that bled him: back to fighting wing's 200 KIAS at no more than 80% torque (TS-204).
     segments = [speedSeg(lead.kias, KIAS_OUTSIDE_LAB, altFt)];
   } // wings level: no turn segments, so Lead rolls out (flight.js)
-  return { ok: true, segments, profile, turning, nowDir };
+  return { ok: true, segments, profile, turning, nowDir, roll: LEAD_ROLL }; // Lead rolls in and out at 90°/s (TS-222), the roll-out to wings level too
 }
 
 /** The words for a fighting wing move on #2's card. */

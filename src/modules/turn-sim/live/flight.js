@@ -526,7 +526,7 @@ export function stepAircraft(a, plan, t) {
         }
       } else {
         // Roll out early enough that the wings come level on the target heading.
-        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll, carriedRollAccel(a)));
+        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll ?? plan.roll ?? a.techRoll, carriedRollAccel(a)));
         const thisStep = Math.abs(turnRateFromBankRadPerSec(a.tasFtps, a.bankDeg)) * dt;
         if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
       }
@@ -600,7 +600,7 @@ export function stepAircraft(a, plan, t) {
   // A turn segment may roll gentler (a close formation Lead); never past the envelope gate (gateRoll: the T-6A's roll at
   // this speed, TS-85; G onset and stall, TS-93).
   const accel0 = carriedRollAccel(a);
-  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || ROLL, tasBefore, a.kias, accel0);
+  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || plan.roll || a.techRoll || ROLL, tasBefore, a.kias, accel0);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   if (accel0 !== undefined) keepRollAccel(a, rolled.rollAccelDps2);

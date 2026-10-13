@@ -12,6 +12,8 @@ For the next Formation session, and for this thread after compaction. Read `AGEN
 
 - Later still: #1017 (V2.423) merged and tagged `v2.423-tuning-sheet`. #1018 (V2.424) builds every ruling so far except the loop: roll 0.58°/s per knot at most 200°/s (ALL-39), the 6 G/s ceiling (ALL-40), the engine's 3.5 s idle lag (TS-218), Lead 20-80% torque (TS-216), break 3 s (TS-217), one 3 ft tracker tolerance (TS-219, TS-220). Patrick asked that each ruling be built as it is made. The thrust check found no gap (the GoPro speed-up was flown downwind in a 40 kt wind). The loop design (TS-213, TS-215) is next; its agent stopped at the session limit before writing anything.
 
+- End of the night: #1018 also builds TS-222 (Lead's roll 90°/s; every Lead roll in the gauge tops at 90). The 0.2 s roll onset for Lead is not built: core `easeRoll` with an onset overshoots about 15° (tested alone), so the smoother gets fixed first (TS-222 lists the two dropped tries). The loop design agent was resumed with TS-221 (entry from level at any speed, 90° hand-over, refuse under 200 KIAS, exit within 15 kt); its output lands in the thread's scratch folder `research/loop-design/` and must be copied into `Pat's claude work/formation-review-12oct/research/` once checked. Next after the loop: the smoother, then one Lead aircraft on the point mass (Patrick asked, recommended).
+
 ## Where it stands (earlier the same night)
 
 | What | Where |

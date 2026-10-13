@@ -6,9 +6,22 @@
 //
 // This file imports only core and the other number files, so any file can read it without an import loop.
 import { bankDegFromG } from '../../../core/flight-math.js';
-import { T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { T6A_G_ONSET, T6A_ROLL } from '../../../core/t6-performance.js';
 import { WING } from './moves.js';
 import { MIN_POSITIVE_G } from './handling.js';
+
+// ---- Lead's roll (TS-222) -------------------------------------------------------------------------------------------
+
+/**
+ * Lead's roll into and out of a turn: up to 90°/s, its rate built at the T-6A's (full rate in T6A_ROLL.fullRateSec) and
+ * the build itself over the T-6A's onset (T6A_ROLL.onsetSec, 0.2 s), never past the aircraft at this speed (Patrick 12 Oct
+ * 2026, TS-222: "90/S is good. it's smoothd, of course"). A technique share of the aircraft's full-stick roll (ALL-39),
+ * not a limit of the aircraft: fluid Lead's level turns, reversals, wings level, climbs and Terminate, and Lead's tactical
+ * turns outside fluid (line abreast's 70/3 turns, the fighting wing turns and moves). Not the nose-path manoeuvres (the
+ * wingover and the barrel roll roll as their path asks, up to the aircraft's limit), the telegraphed close formation turns
+ * (TELEGRAPH, rates.js) or the break (BREAK).
+ */
+export const LEAD_ROLL = Object.freeze({ maxRateDps: 90, maxAccelDps2: 90 / T6A_ROLL.fullRateSec });
 
 // ---- Lead's power in formation (TS-216) -----------------------------------------------------------------------------
 
