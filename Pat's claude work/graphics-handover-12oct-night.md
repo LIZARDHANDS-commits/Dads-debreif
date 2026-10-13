@@ -5,7 +5,33 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026, about 04:20Z): first batch approved and verified
+## Latest (13 Oct 2026, later): station-change references first; pictures wanted listed
+
+- **Station-change references (Patrick: "its vital that we get this right", his formation slide `F07`):** the tie-down
+  rings, the pitot and the aft belly paddle lead the fixes, checked from the slide's wingman positions. The hanging ring
+  stays (dark, about 0.4 ft, an "8"). "Ignore the tan dome." Open: G20, the number under the left wing.
+- **Pictures and measurements wanted:** `3d-work` `ct156/measurements.md` now lists P1 to P15 and M1 to M47; keep it
+  up to date whenever a row waits on one (Patrick).
+- **Next:** `3d-work` `ct156/plan.md`, "Resume here".
+
+## Earlier (13 Oct 2026): every agent finding verified and ruled
+
+- **Read `3d-work` `ct156/plan.md` first**, then `ct156/fix-list.md` (114 rows; the fix-it plan has, for each approved
+  row, today's values with code lines, the targets, the checks and a labelled picture in `refs/review/`).
+- **Verified and ruled with Patrick, area by area:** B4 (the sill band's shelf, trim flush) and C1 (folded into C2);
+  D, E, F, H and G. Patrick changed three of his 12 Oct settings: the grab rail's lower end to about 0.3 (D6), the rear
+  crest to about 1.77 ft (E3), the cockpit greys lighter (G15). The fin goes navy (G14), so the app needs another way
+  to tell ships apart in a debrief.
+- **New rule (Patrick):** references must be CT-156; other T-6 variants back only shared shapes (D8 is provisional).
+- **Patrick's asks added:** the exhausts with textured insides (F42), the tie-downs (F43, the tail point missing), the
+  belly antennas' shape, size and place (F44).
+- **Waiting on Patrick:** CT-156 photos (156102 from below, 156115, an exhaust, a tie-down, a wingtip light, 123 from
+  below) and M1 to M40 at work.
+- **Next:** the fixes in order (plan step 7), each shown before and after; first the paint-over-photo check (G7,
+  G10, G12, G13).
+- **Merged:** `3d-work` #16 to #22; app #1023.
+
+## Earlier (13 Oct 2026, about 04:20Z): first batch approved and verified
 
 - **Read `3d-work` `ct156/plan.md` first** (the plan was split into `plan.md`, `measurements.md` and `fix-list.md` on 13 Oct):
   its "Resume here" block and decisions log; then in `fix-list.md` the **fix-it plan** (how to
