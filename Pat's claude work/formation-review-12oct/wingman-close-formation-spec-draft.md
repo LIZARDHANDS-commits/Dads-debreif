@@ -22,7 +22,7 @@ Lead flies (one Lead, TS-225) → **perception**: what #2 sees and feels, about 
 
 | Sense | What he takes from it | Source |
 |---|---|---|
-| Eyes: his references | The echelon picture: Lead's wingtip leading edge on Lead's spinner (lateral, and vertical), and abeam Lead's rudder hinge line (longitudinal). Read as three deviations, in the SMM's words for them: up or down, in or out, forward or back | SMM 12.4 paras 11-12, Figs 12.3-12.4; 12.18 para 39; the place in feet, about 45 ft out, 25 ft back, 5 ft down (estimate, spec section 10) |
+| Eyes: his references | The echelon picture: Lead's wingtip leading edge on Lead's spinner (lateral, and vertical), and abeam Lead's rudder hinge line (longitudinal). Read as three deviations, in the SMM's words for them: up or down, in or out, forward or back | SMM 12.4 paras 11-12, Figs 12.3-12.4; 12.18 para 39; the place those references give through the CT-156 model's geometry, about 18 ft back, 43 ft out, 3 ft down (TS-182, `live/slots.js`; `spec.md` section 10's table still says 45 out, 25 back, 5 down, the older estimate, to be corrected with this spec) |
 | Eyes: the picture moving | How fast each deviation is growing | Patrick 12 Oct 2026 |
 | Memory | How long a deviation has been there, and which way | Patrick 12 Oct 2026 |
 | Eyes: Lead's attitude | Lead's bank and nose, and a roll starting: the wing moving against his references | TS-211 |
@@ -47,7 +47,7 @@ So #2 reads his deviation in the line's own frame (off the plane, off the line, 
 | Roll pressure | Bank a few degrees off Lead's: slides in or out | about ±5° off Lead's (sideBankDeg 15°) |
 | Power | Torque a few percent: closes or opens fore and aft | about ±5-10% torque (powerG 0.1, about 2 kt/s) |
 | Rudder | Not modelled: the point mass flies balanced | - |
-| Speed brakes | Not used in close formation (assumption) | - |
+| Speed brakes and idle | Only for too much closure, and very rarely needed in close formation or on moves to and from route: the boards are a large step in drag, so not ideal. They belong to rejoins, fighting wing and tactical moves | Patrick 12 Oct 2026 ("if i have too much closure I'll use boards, but very rarely would that be required in movements to and from route or in close formation ... same with idle"; "it's a very large step change in drag so its not ideal"); TS-218 (idle's spool-up lag) |
 
 Pressures are small, continuous and smooth, never the full-stick moves of tactical flying (the technique share, C1). Patrick, 12 Oct 2026: "When station keeping in S+L or once steady in a turn, the roll pressure and power are extremely small. tenths of a degree to start, but as required." So on station a correction starts at tenths of a degree of bank off Lead's, and grows only as the deviation needs it. The throttle above 5% torque answers in about 0.25 s (TS-218).
 
@@ -96,8 +96,8 @@ In code that is a single continuous law, not phases: each step the distance pick
 
 **The holding setting moves with the turn** (Patrick, 12 Oct 2026: "The holding setting will change depending on what's happening ... as soon as I see that lead is turning, i will pitch back to stay on plane with him, roll my wings to match his bank, and walk power up to stay in position. Once established in the 30 degree turn, our bank angle is matched, and I need more power (due to larger turn circle, and maybe some other aerodynamics) ... its proportionally more the more the formation is turning. Less power than lead when stepped down (lead turning in to you)."). So the holding setting is worked out, not just remembered:
 - **The straight-and-level setting** for the speed, as he knows the aircraft;
-- **plus the turn's share:** the G of the turn (both aircraft pay it), and his bigger or smaller circle. In echelon, about 45 ft out along Lead's wing, he flies the same turn rate on a circle wider or tighter by 45 ft × cos(bank), so he needs g × 45 ft × sin(bank) ÷ speed more or less: at 200 KIAS and 8,000 ft about 1.1 kt at 30°, 1.6 kt at 45°, 2.0 kt at 60° (back of the envelope). Proportional to sin(bank), so more the steeper the turn, and on the inside the same amount less. A percent or two of torque: "quite small" (SMM 12.19 para 42);
-- **plus the roll-in's share, while it lasts** (Patrick, 12 Oct 2026: "You usually need more power while pitching up than you do once established in the new turn ... at least you need more initially to catch up to lead and establish your movement. your aircraft also has to travel thru the air (climb)"). Stepped up, his place rises about 45 ft × sin(bank) during the roll-in: about 23 ft to 30°, 32 ft to 45°, 39 ft to 60°. Climbing 32 ft over a roll-in of about 6.5 s (TS-209) peaks near 7 ft/s, which for a 5,168 lb aircraft is about 66 hp, about 6% of the engine's 1,100 shp, on top of the speed he has to gain. So the roll-in takes several times the steady turn's extra power, as Patrick thought; stepped down it is the reverse (he descends into the plane, less power). Back of the envelope;
+- **plus the turn's share:** the G of the turn (both aircraft pay it), and his bigger or smaller circle. In echelon, about 43 ft out along Lead's wing, he flies the same turn rate on a circle wider or tighter by 43 ft × cos(bank), so he needs g × 43 ft × sin(bank) ÷ speed more or less: at 200 KIAS and 8,000 ft about 1.1 kt at 30°, 1.5 kt at 45°, 1.9 kt at 60° (back of the envelope). Proportional to sin(bank), so more the steeper the turn, and on the inside the same amount less. A percent or two of torque: "quite small" (SMM 12.19 para 42);
+- **plus the roll-in's share, while it lasts** (Patrick, 12 Oct 2026: "You usually need more power while pitching up than you do once established in the new turn ... at least you need more initially to catch up to lead and establish your movement. your aircraft also has to travel thru the air (climb)"). Stepped up, his place rises about 43 ft × sin(bank) during the roll-in: about 22 ft to 30°, 30 ft to 45°, 37 ft to 60°. Climbing 30 ft over a roll-in of about 6.5 s (TS-209) peaks near 7 ft/s, which for a 5,168 lb aircraft is about 66 hp, about 6% of the engine's 1,100 shp, on top of the speed he has to gain. So the roll-in takes several times the steady turn's extra power, as Patrick thought; stepped down it is the reverse (he descends into the plane, less power). Back of the envelope;
 - **plus the remembered trim** on top, updated when he is steady.
 
 When he sees Lead's telegraph, he walks the power toward the holding setting for the roll-in and the bank Lead is going to, before it is needed. The aircraft's power required comes from the code's existing maths (`powerFor` in `live/power.js`: the power for an acceleration, a speed, a G and a climb), not a new formula; his estimate need not be perfect, as the trim and the staying-in-position part take up the rest. "Other aerodynamics": a little more G on the wider circle is in the point mass; Lead's wingtip vortex (the lateral trim change in echelon, SMM 12.18 para 40) is not modelled.
@@ -123,8 +123,8 @@ Sources (Patrick found them, 12 Oct 2026): MIT OpenCourseWare 16.400 Human Facto
 5. The controls look like pressures: G within a few tenths of Lead's, bank within a few degrees of Lead's, torque moving a few percent.
 
 **Feasibility (back of the envelope, estimates):**
-- From the echelon place, about 45 ft out, Lead's 9°/s roll at 45° moves #2's place up or down at about 7 ft/s. Seeing it 0.3 s late costs about 2 ft. At 60° (12°/s) it moves at about 9 ft/s, about 3 ft.
-- In the turn, at 200 KIAS and 8,000 ft, he needs about 1.5 kt more on the outside (45°) or about 2 kt (60°), or as much less on the inside: a few percent of torque.
+- From the echelon place, about 43 ft out, Lead's 9°/s roll at 45° moves #2's place up or down at about 7 ft/s. Seeing it 0.3 s late costs about 2 ft. At 60° (12°/s) it moves at about 9 ft/s, about 3 ft.
+- In the turn, at 200 KIAS and 8,000 ft, he needs about 1.5 kt more on the outside (45°) or about 1.9 kt (60°), or as much less on the inside: a percent or two of torque once established, more during the roll-in (section 6).
 - So 2 to 3 ft is reachable and tight, and it needs the 0.3 s reaction and the power anticipation both.
 
 ## 8. Code structure
@@ -162,7 +162,7 @@ One test for the rung (AGENTS.md): echelon straight and level, then one telegrap
 
 1. ~~The sensors in section 3~~: answered (no look inside; the telegraph's build-up is read; plane, then line, then hinge, with the exception under Lead).
 1b. ~~The jogging and running pace~~: answered, 8 and 13 ft/s; B1 starts at 8.
-2. The size of the pressures (section 4).
-3. How much power he leads with, and when (section 6).
-4. The speed brakes in close formation.
-5. The echelon place in feet (45 out, 25 back, 5 down), against the sight picture you fly.
+2. The size of the pressures (section 4): on station answered (tenths of a degree, as required); the larger sizes are estimates to tune.
+3. ~~How much power he leads with~~: answered (the holding setting for what Lead is doing, walked toward from the telegraph, bigger for a faster build-up).
+4. ~~The speed brakes~~: answered (very rarely, for too much closure; not ideal).
+5. ~~The echelon place~~: settled by TS-182 (18 back, 43 out, 3 down from the SMM references); `spec.md` section 10's table is corrected with this spec.
