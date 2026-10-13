@@ -258,7 +258,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   // i can play with it"): Up 1 ft toward Lead, Down 1 ft away, along the spinner-to-wingtip line; the value is from TS-230's
   // place. A live #2 slides there at once; held flying takes it at the next press. 2-ship only.
   let shiftFt = 0;
-  const ECHELON_SHIFT_HINT = "Moves #2's echelon place along the spinner-to-wingtip line, 1 ft a step: Up toward Lead, Down away from him (0 is 16.5 ft back, 41 ft out, 3 ft down; 5 ft up to 10 ft down). Live: he slides there now. Held: from the next press (choose Live to watch it). Route moves with it.";
+  const ECHELON_SHIFT_HINT = "Moves #2's echelon place along the spinner-to-wingtip line, 1 ft a step: Up toward Lead, Down away from him (0 is 15.9 ft back, 40.2 ft out, 3 ft down; 5 ft up to 10 ft down). Live: he slides there now. Held: from the next press (choose Live to watch it). Route moves with it.";
   const shiftValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
   const showShift = () => { shiftValue.textContent = `${shiftFt > 0 ? '+' : shiftFt < 0 ? '−' : '+'}${Math.abs(shiftFt)} ft`; };
   const shiftButton = (label, delta, title) => h('button', {

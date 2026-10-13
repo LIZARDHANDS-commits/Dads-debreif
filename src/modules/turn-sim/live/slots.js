@@ -76,7 +76,7 @@ export const ROUTE_SPANS = Object.freeze({ slot: 3, min: 1, max: 3 });
 export const LINE_BACK_PER_OUT = 12.3 / 16.7;
 
 /** TS-230: echelon sits this far along the line from TS-182's place (negative: up the line, toward Lead). */
-const ECHELON_UP_LINE_FT = -2.5;
+const ECHELON_UP_LINE_FT = -3.5; // 2.5 ft (TS-230), then the control's -1 made the default (Patrick 14 Oct 2026: "lets make -1 the default")
 /**
  * "Echelon on the line" (Patrick 14 Oct 2026: "a little toggle that moves us up and down the line 1 foot at a time? so i can
  * play with it"): feet down the line (+, away from Lead) or up it (-) from TS-230's place, 1 ft a step, from 5 ft up (his
@@ -207,8 +207,8 @@ function link(key, s, spacingFt) {
     // back, 43 ft out, 3 ft down, origin to origin (TS-182; Patrick 11 Oct 03:38Z "make the numbers work for that"; 05:31Z
     // "echelon is sitting slightly too low": 4 ft down until V2.255). It was 25 back, 45 out, 5 down, an estimate that put
     // Lead's wingtip ahead of the spinner.
-    // TS-230 (Patrick 14 Oct 2026, "a hair further up the line ... maybe 2-3 feet"): 2.5 ft further up the line than TS-182's
-    // place, about 16.5 back and 41 out, plus the setting that moves it along the line a foot at a time (echelonShiftFt).
+    // TS-230 (Patrick 14 Oct 2026, "a hair further up the line ... maybe 2-3 feet", then "lets make -1 the default"): 3.5 ft
+    // further up the line than TS-182's place, about 15.9 back and 40.2 out, plus the setting that moves it along the line a foot at a time (echelonShiftFt).
     case 'echelon': return downTheLine({ fwd: -18, left: s * 43, alt: -3 }, s, ECHELON_UP_LINE_FT + echelonShift);
     // on the spinner-to-wingtip line, three wingspans further out along it than echelon (SMM 12.6 para 15, Fig 12.7;
     // ROUTE_SPANS, TS-181; it was 5, TS-103): about 124 ft out and 77 ft back, level or slightly low (TS-182)
