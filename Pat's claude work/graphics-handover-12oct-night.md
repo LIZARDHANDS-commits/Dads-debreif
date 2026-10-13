@@ -26,6 +26,12 @@ gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/
   "parelell with the fusilage, stramlined into wind"; the roundel's real maple leaf; the pitot (`F11`); the eye's
   height is a seat setting Patrick will choose in game; the enhancements EN1 to EN16 kept for consideration.
 - **Next:** chunk 2, the canopy (stacked on chunk 1's master).
+- **Found, not ours to fix:** EP Tabletop never disposes its CT-156 (`src/modules/ep-tabletop/world3d.js`, the
+  `ship` made around line 142; its `dispose()` frees the cockpit, airports, terrain, ground and sky but not the ship),
+  so the shared CT-156 material kit outlives the view. That file belongs to the EP Tabletop lane (#934, #946).
+- **Line ends:** the app's `.gitattributes` now stores every text file with LF (#1032's branch renormalised the 67
+  files stored with CRLF, line ends only). #1030 edits `src/modules/traffic/profile.js`, one of those files, so
+  whichever of #1030 and #1032 merges second should merge with `-X renormalize`.
 
 ## Earlier (13 Oct 2026, later): station-change references first; pictures wanted listed
 
