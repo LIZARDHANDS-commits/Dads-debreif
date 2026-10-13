@@ -304,7 +304,8 @@ export function startFwGuard() {
 
 /**
  * The least slant range over the next horizonSec between two aircraft each holding its turn: p, v (ft, ft/s) and omega
- * (rad/s, the turn's axis times its rate) for each. Integrated in lookStepSec steps (a turn held: the velocity turned by
+ * (rad/s, the turn's axis times its rate) for each; b.thenSec, when given: b holds its turn that long, then turns as a does
+ * (its capture of a's turn). Integrated in lookStepSec steps (a turn held: the velocity turned by
  * omega x v, standard kinematics). Returns { leastFt, horizFt (the horizontal range at that moment) }.
  */
 export function leastPass(a, b, horizonSec, extra = null) {
@@ -321,7 +322,9 @@ export function leastPass(a, b, horizonSec, extra = null) {
   for (let t = dt; t <= horizonSec + 1e-9; t += dt) {
     // half-step turns keep the speed while turning (midpoint)
     const va2 = add3(va, scale3(cross3(a.omega, va), dt));
-    const vb2 = add3(vb, scale3(cross3(b.omega, vb), dt));
+    // B5 round 4: b may hold its turn thenSec and then turn as a does (the capture: matching Lead's turn, SMM 12.29 Fig 12.20)
+    const omB = b.thenSec != null && t > b.thenSec + 1e-9 ? a.omega : b.omega;
+    const vb2 = add3(vb, scale3(cross3(omB, vb), dt));
     const ka = len3(va) / Math.max(len3(va2), 1e-9);
     const kb = len3(vb) / Math.max(len3(vb2), 1e-9);
     pa = add3(pa, scale3(add3(va, scale3(va2, ka)), dt / 2));

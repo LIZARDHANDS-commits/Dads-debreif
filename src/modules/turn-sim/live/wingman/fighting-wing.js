@@ -329,7 +329,9 @@ export function stepFwWingman(w, refSt) {
       // For a candidate turn: the least pass (slant) and the least distance behind Lead's wing line over the look, the worse of
       // Lead as he is and one step tighter.
       const predFor = (om) => {
-        const me = { p: ownP, v: ownV, omega: scale3(out, om) };
+        // Round 4: each turn held over the path law's look (circleLookSec), then Lead's turn (the capture of his circle, SMM 12.29
+        // Fig 12.20), when guard.capture; else held all the look.
+        const me = { p: ownP, v: ownV, omega: scale3(out, om), thenSec: W.guard.capture && job.turning ? W.circleLookSec : null };
         // One lift (Fable F3): the vertical he is asking for is a known term in the pass, its height counted in the slant.
         const extra = W.guard.sharedLift ? { acc: aV, maxFt: Math.abs(errFt) } : null;
         const a = leastPass(leadAsIs, me, horizon, extra);
