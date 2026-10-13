@@ -21,7 +21,8 @@ import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge, judgeFluid4 } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
 import { LEAD_ROLL, LEAD_ROLL_STATE } from './lead-moves.js';
-import './lead-pilot.js'; // registers Lead's point-mass pilot step with flight.js (TS-225) for the pointMassLead below
+import { leadPointMassOf } from './lead-pilot.js'; // also registers Lead's point-mass pilot step with flight.js (TS-225) for the pointMassLead below
+import { startFrom, stepWingman, applyTo } from './wingman/wingman.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn } from './formation-turns.js';
@@ -46,6 +47,7 @@ export const LIVE_DEFAULTS = Object.freeze({
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
+  closeWing: /** @type {'held' | 'live'} */ ('held'), // #2 in close formation: held (today's planned poses) or live (the close-in wingman, TS-226, B1: the idle echelon hold); read at each press
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -111,6 +113,9 @@ export function createFormation(options = {}) {
     spacingFt: opts.spacingFt,
     flown: 0, // manoeuvres finished since the start
     fluid: null, // fluid manoeuvring while it runs: { session, readouts, prev } (fluid.js, TS-57), else null
+    closeWing: opts.closeWing, // the close-formation wingman setting as read at the last press (Held or Live)
+    liveWing: null, // the live close-in wingman flying #2 while nothing is being flown (wingman.js state, B1), else null
+    liveTrace: null, // what he saw and did on the last step (wingman.js trace), for the gauge and the plot page
   };
   let record = [];
   // The events of a change in flight: the decision point, the picture breaking, a turn pressed mid-change, done (events.js).
@@ -149,6 +154,9 @@ export function createFormation(options = {}) {
     state.spacingFt = opts.spacingFt;
     state.flown = 0;
     state.fluid = null;
+    state.closeWing = opts.closeWing;
+    state.liveWing = null;
+    state.liveTrace = null;
     record = [];
     keepTrack(true);
     // Smart wingman, fix now (TS-96; Patrick 5 Oct 23:33Z): #2 flies back into line abreast from where the error put him at
@@ -303,7 +311,8 @@ export function createFormation(options = {}) {
     state.trailSide = null; // the wait in trail after a break ends with the rejoin (TS-175)
     state.current = {
       key: `change:${to}`,
-      change: { to: plan.to ?? to, side: plan.side, from: plan.from, holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
+      // liveHand: a 2-ship change into echelon with Live chosen ends on the live wingman's hand-over test (events.js inBandAndSteady).
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, liveHand: !four && (plan.to ?? to) === 'echelon' && state.closeWing === 'live', holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -457,6 +466,21 @@ export function createFormation(options = {}) {
         else start(next.key, next.dir);
       }
     }
+    startLiveWing();
+  }
+
+  /**
+   * With Live chosen at the last press (B1, TS-226), the pair idle in echelon: the close-in wingman flies #2 from here, from
+   * the motion the manoeuvre left him (wingman.js startFrom, bumpless: spec 7b.6d item 2). What is left of #2's plan (the
+   * held poses' tail) is dropped, so the next press plans him from where he is. The next press hands him back (step()).
+   */
+  function startLiveWing() {
+    if (state.closeWing !== 'live' || state.aircraft.length !== 2 || state.current || state.fluid || state.liveWing) return;
+    const where = whereNow();
+    if (where.key !== 'echelon') return;
+    const [lead, wing] = state.aircraft;
+    state.plans[wing.id] = { segments: [] };
+    state.liveWing = startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: 'echelon', side: where.side || sideOfTwo() });
   }
 
   /**
@@ -472,6 +496,7 @@ export function createFormation(options = {}) {
     // The heading trim runs through a reset to speed after a tactical turn too (TS-204); the speed trim waits for its end.
     if (lead.bankDeg !== 0 || !planDoneBut(lead, state.plans[lead.id])) return;
     for (const a of state.aircraft.slice(1)) {
+      if (state.liveWing && a.id === 2) continue; // the live close-in wingman holds his own place (B1)
       if (a.bankDeg !== 0 || !planDoneBut(a, state.plans[a.id])) continue;
       const off = Math.atan2(Math.sin(a.headingRad - lead.headingRad), Math.cos(a.headingRad - lead.headingRad));
       if (Math.abs(off) > IDLE_TRIM.offRad) continue;
@@ -525,6 +550,7 @@ export function createFormation(options = {}) {
      * current manoeuvre ends (a later press replaces the queued one). Returns 'started' or 'queued'.
      */
     press(key, dir = 1) {
+      state.closeWing = opts.closeWing;
       if (state.fluid) {
         state.refusal = 'In fluid manoeuvring Lead flies the fluid buttons; Terminate first.';
         return 'refused';
@@ -553,6 +579,7 @@ export function createFormation(options = {}) {
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
     change(to, options = {}) {
+      state.closeWing = opts.closeWing;
       if (state.fluid) return changeFromFluid(to, options);
       if (state.current) {
         const four = state.aircraft.length > 2;
@@ -711,7 +738,21 @@ export function createFormation(options = {}) {
       }
       // ctx: the live formation, so a line's tracker run-in is planned again at the hand-over (replay.js flyStep, step 2)
       const ctx = { live: true, aircraft: state.aircraft, plans: state.plans };
-      for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec, ctx);
+      // A press hands #2 back from the live close-in wingman: the planners start from where he is (B1).
+      if (state.liveWing && state.current) {
+        state.liveWing = null;
+        state.liveTrace = null;
+      }
+      if (state.liveWing) {
+        // The live close-in wingman (B1): Lead flies his step; #2 flies off what he saw of Lead before it (wingman.js).
+        const [lead, wing] = state.aircraft;
+        const refSt = leadPointMassOf(lead, opts.blockFt);
+        flyStep(lead, state.plans[lead.id] ?? (state.plans[lead.id] = { segments: [] }), state.tSec, ctx);
+        const r = stepWingman(state.liveWing, refSt);
+        state.liveWing = r.w;
+        state.liveTrace = r.trace;
+        applyTo(wing, r.w);
+      } else for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec, ctx);
       holdStationIdle();
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
       keepTrack();

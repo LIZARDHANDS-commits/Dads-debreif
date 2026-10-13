@@ -8,23 +8,42 @@
 //   node tools/formation-gauge.mjs            run, compare with tools/formation-gauge/baseline.json
 //   node tools/formation-gauge.mjs --save     run and store the results as the new baseline
 //   node tools/formation-gauge.mjs --only fluid-loop   one scenario (any part of its name)
+//   node tools/formation-gauge.mjs --only echelon-hold --nudge   the echelon hold with #2 put 3 ft above his place in the
+//                                                              set-up: the known-bad case that shows the comparison working
 //
 // Traces: tmp/gauge/<scenario>.json and tmp/gauge/index.json (tmp/ is not in git). The thresholds that count a reversal
 // are estimates, chosen to ignore numerical noise; they are not rules for the flight code.
+//
+// The close-formation wingman (B1, spec 7b.6d item 10): in a scenario marked `close`, each wingman flying off Lead also gets
+// his deviation from his place on the three axes he corrects on (spec 7b.3, Patrick's plane, line, hinge): off Lead's wing
+// plane (+ above), off the spinner-to-wingtip line in that plane (+ ahead of it) and along the line (+ out, away from Lead),
+// the largest and the typical (root mean square); the settle time (from the press until he stays within SETTLE_FT on every
+// axis); the most bank and G off Lead's; his torque's range and reversals; and the lag of his roll start behind Lead's.
+// Lead's frame is his velocity and body up (fluid-lead.js leadStateOf), his place the slot table's (slots.js pairSlot).
 import { performance } from 'node:perf_hooks';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createFormation } from '../src/modules/turn-sim/live/formation.js';
 import { STEP_SEC, liftBankDeg } from '../src/modules/turn-sim/live/flight.js';
 import { drawnAttitudeOf, drawnTurnDeg } from '../src/modules/turn-sim/live/attitude.js';
+import { leadStateOf } from '../src/modules/turn-sim/live/fluid-lead.js';
+import { pairSlot } from '../src/modules/turn-sim/live/slots.js';
+import { seenOf, placeDeviation } from '../src/modules/turn-sim/live/wingman/perception.js';
+import { torqueFromThrottle } from '../src/modules/turn-sim/live/wingman/close-formation.js';
 
 const ROLL_REVERSAL_DPS = 10; // a roll counts once it is faster than this either way (estimate)
 const G_REVERSAL_GPS = 0.3; // a G change counts once it is faster than this either way (estimate)
+const SETTLE_FT = 1; // settled: within about 1 ft of his place on every axis (spec 7b.7 item 1, "within about 1 ft", an estimate)
+const TORQUE_REVERSAL_PCTPS = 1; // a torque change counts once it is faster than 1 %/s either way (estimate, ignores noise)
+const ROLL_START_DPS = 1; // a roll has started once it is faster than 1°/s (estimate)
+const NUDGE_FT = 3; // --nudge: #2 put this far above his place at the end of the set-up (the T1 known-bad case)
 const BASELINE = 'tools/formation-gauge/baseline.json';
 const TRACES = 'tmp/gauge';
 
 const args = process.argv.slice(2);
 const save = args.includes('--save');
+const nudge = args.includes('--nudge');
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
+if (save && nudge) throw new Error('--nudge is a known-bad case for checking the comparison: never --save it');
 
 const wings = (a) => a.attitudeDeg ?? liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
 const steps = (sec) => Math.round(sec / STEP_SEC);
@@ -53,6 +72,23 @@ const SCENARIOS = [
   { name: 'sarj-echelon', setup: () => {}, presses: [{ label: 'Straight-ahead rejoin to echelon', press: (f) => f.change('echelon', { rejoin: 'straight' }), sec: 'done' }] },
   { name: 'trj-echelon', setup: () => {}, presses: [{ label: 'Turning rejoin to echelon', press: (f) => f.change('echelon'), sec: 'done' }] },
   { name: 'echelon-close-turn', setup: (f) => { f.change('echelon'); settle(f); }, presses: [{ label: 'Close turn in echelon (telegraphed)', press: (f) => f.press('delayed90', 1), sec: 'done' }] },
+  // B1 (plan 12.4, T1; spec 7b.10): from the default start change to echelon, then 60 s straight and level, long enough to
+  // show any hunting. No press: Lead flies straight on and #2 holds.
+  {
+    name: 'echelon-hold', close: 'echelon',
+    setup: (f) => {
+      f.change('echelon');
+      settle(f);
+      // The nudge moves #2 and what is left of his planned poses (the change ends in band about 2 s before its held poses
+      // run out, and those would put him back), so it holds whatever flies him next.
+      if (nudge) {
+        const w = f.state.aircraft[1];
+        w.altAboveFt += NUDGE_FT;
+        for (const seg of f.state.plans[w.id]?.segments ?? []) for (const pose of seg.poses ?? []) pose.alt += NUDGE_FT;
+      }
+    },
+    presses: [{ label: `Echelon hold, 60 s straight and level${nudge ? ` (#2 nudged ${NUDGE_FT} ft up)` : ''}`, press: () => 'held', sec: 60 }],
+  },
   {
     name: 'fluid-loop', setup: (f) => { f.change('fw'); settle(f); },
     presses: [
@@ -76,17 +112,50 @@ function tally() {
   return { gMin: Infinity, gMax: -Infinity, gRateMax: 0, gReversals: 0, rollMax: 0, rollAccMax: 0, rollReversals: 0, drawnMax: 0, rangeMin: Infinity, lastRoll: 0, lastGRate: 0 };
 }
 
+const AXES = ['plane', 'line', 'along'];
+
+/**
+ * A close wingman's deviation from his place (feet) on his three axes, in Lead's frame from Lead's velocity and body up
+ * (the wingman's own perception's geometry, live/wingman/perception.js, undelayed): plane (+ above Lead's wing plane), line
+ * (+ ahead of the spinner-to-wingtip line), along (+ out along it, away from Lead). key: the close formation (slots.js);
+ * side: #2's side (+1 left of Lead).
+ */
+function closeDeviation(lead, wing, key, side, blockFt) {
+  return placeDeviation(seenOf(leadStateOf(lead, blockFt)), seenOf(leadStateOf(wing, blockFt)), pairSlot(key, side), side);
+}
+
+/** An aircraft's torque (%) from its power (power.js, through the wingman's own conversion), or null with none set. */
+function torqueOf(a) {
+  const p = a.power;
+  if (!p) return null;
+  if (p.stage === 'idle' || p.stage === 'idleBoards') return 0;
+  return Math.min(100, torqueFromThrottle(p.throttle, p.kias, p.altFt ?? 8000));
+}
+
+/** A close wingman's running numbers (the B1 measures above). */
+function closeTally() {
+  return {
+    n: 0, max: { plane: 0, line: 0, along: 0 }, sq: { plane: 0, line: 0, along: 0 }, lastOut: null, outAtEnd: false,
+    bankOffMax: 0, gOffMax: 0, tqMin: Infinity, tqMax: -Infinity, lastTq: null, lastTqRate: 0, tqReversals: 0,
+    leadRollT: null, leadRollSign: 0, rollT: null,
+  };
+}
+
 function runScenario(sc) {
   const f = createFormation({ ships: 2 });
   sc.setup(f);
   const results = [];
   const trace = { name: sc.name, stepSec: STEP_SEC, presses: [], aircraft: {} };
+  const blockFt = f.options().blockFt;
   let t = 0;
   for (const p of sc.presses) {
     const t0 = performance.now();
     const how = p.press(f);
     const pressMs = performance.now() - t0;
     trace.presses.push({ t, label: p.label, how });
+    const tPress = t;
+    const closeSide = sc.close ? f.where().side : null;
+    const closePer = new Map();
     const per = new Map();
     let prev = new Map(f.state.aircraft.map((a) => [a.id, { ...a }]));
     let stepMsMax = 0;
@@ -132,6 +201,46 @@ function runScenario(sc) {
         tr.climbDeg.push(+((Math.asin(Math.max(-1, Math.min(1, (a.climbFtps ?? 0) / Math.max(a.tasFtps ?? 1, 1)))) * 180) / Math.PI).toFixed(1));
         tr.kias.push(+(a.kias ?? 0).toFixed(1));
         tr.rangeFt.push(range === null ? null : Math.round(range));
+        // The close wingman's measures (B1), each wingman flying off Lead.
+        if (sc.close && ref && ref !== a && ref.id === 1) {
+          if (!closePer.has(name)) closePer.set(name, closeTally());
+          const c = closePer.get(name);
+          const dev = closeDeviation(ref, a, sc.close, closeSide, blockFt);
+          const tRel = t - tPress;
+          c.n++;
+          let out = false;
+          for (const ax of AXES) {
+            c.max[ax] = Math.max(c.max[ax], Math.abs(dev[ax]));
+            c.sq[ax] += dev[ax] * dev[ax];
+            if (Math.abs(dev[ax]) > SETTLE_FT) out = true;
+          }
+          if (out) c.lastOut = tRel;
+          c.outAtEnd = out;
+          c.bankOffMax = Math.max(c.bankOffMax, Math.abs((a.bankDeg ?? 0) - (ref.bankDeg ?? 0)));
+          c.gOffMax = Math.max(c.gOffMax, Math.abs(a.g - ref.g));
+          const tq = torqueOf(a);
+          if (tq !== null) {
+            c.tqMin = Math.min(c.tqMin, tq);
+            c.tqMax = Math.max(c.tqMax, tq);
+            if (c.lastTq !== null) {
+              const rate = (tq - c.lastTq) / STEP_SEC;
+              if (Math.abs(rate) > TORQUE_REVERSAL_PCTPS) { if (c.lastTqRate && Math.sign(rate) !== Math.sign(c.lastTqRate)) c.tqReversals++; c.lastTqRate = rate; }
+            }
+            c.lastTq = tq;
+          }
+          // The roll-start lag (SMM 12.19 para 43's commonest error): Lead's roll start, then #2's first roll the same way.
+          const leadRoll = ref.rollRateDps ?? 0;
+          if (c.leadRollT === null && Math.abs(leadRoll) > ROLL_START_DPS) { c.leadRollT = tRel; c.leadRollSign = Math.sign(leadRoll); }
+          if (c.leadRollT !== null && c.rollT === null && (a.rollRateDps ?? 0) * c.leadRollSign > ROLL_START_DPS) c.rollT = tRel;
+          tr.planeFt ??= [];
+          tr.lineFt ??= [];
+          tr.alongFt ??= [];
+          tr.torquePct ??= [];
+          tr.planeFt.push(+dev.plane.toFixed(2));
+          tr.lineFt.push(+dev.line.toFixed(2));
+          tr.alongFt.push(+dev.along.toFixed(2));
+          tr.torquePct.push(tq === null ? null : +tq.toFixed(1));
+        }
       }
       prev = new Map(f.state.aircraft.map((a) => [a.id, { ...a }]));
     }
@@ -142,6 +251,18 @@ function runScenario(sc) {
         rollMax: Math.round(q.rollMax), rollAccMax: Math.round(q.rollAccMax), rollReversals: q.rollReversals,
         drawnMax: Math.round(q.drawnMax), rangeMin: Number.isFinite(q.rangeMin) ? Math.round(q.rangeMin) : null,
       };
+      const c = closePer.get(name);
+      if (c) {
+        const r2 = (x) => +x.toFixed(2);
+        aircraft[name].close = {
+          maxFt: Object.fromEntries(AXES.map((ax) => [ax, r2(c.max[ax])])),
+          rmsFt: Object.fromEntries(AXES.map((ax) => [ax, r2(Math.sqrt(c.sq[ax] / Math.max(c.n, 1)))])),
+          settleSec: c.outAtEnd ? null : c.lastOut === null ? 0 : r2(c.lastOut + STEP_SEC), // null: still outside SETTLE_FT at the end
+          bankOffMaxDeg: r2(c.bankOffMax), gOffMax: r2(c.gOffMax),
+          torquePct: Number.isFinite(c.tqMin) ? [+c.tqMin.toFixed(1), +c.tqMax.toFixed(1)] : null, torqueReversals: c.tqReversals,
+          rollLagSec: c.leadRollT === null || c.rollT === null ? null : r2(c.rollT - c.leadRollT), // null: Lead never rolled (or #2 didn't follow)
+        };
+      }
     }
     results.push({ label: p.label, how, pressMs: Math.round(pressMs), stepMsMax: +stepMsMax.toFixed(2), aircraft });
   }
@@ -173,6 +294,13 @@ for (const sc of SCENARIOS) {
     for (const [name, a] of Object.entries(r.aircraft)) {
       const ba = b?.aircraft?.[name] ?? {};
       console.log(`    ${name.padEnd(5)} G ${a.g[0]}..${a.g[1]} | G rate max ${fmt(a.gRateMax, ba.gRateMax)} G/s, G reversals ${fmt(a.gReversals, ba.gReversals)} | roll max ${fmt(a.rollMax, ba.rollMax)}°/s, roll acc max ${fmt(a.rollAccMax, ba.rollAccMax)}°/s², roll reversals ${fmt(a.rollReversals, ba.rollReversals)} | drawn max ${fmt(a.drawnMax, ba.drawnMax)}°/s | least range ${fmt(a.rangeMin, ba.rangeMin, false)} ft`);
+      if (a.close) {
+        const c = a.close;
+        const bc = ba.close ?? {};
+        const axes = AXES.map((ax) => `${ax} ${fmt(c.maxFt[ax], bc.maxFt?.[ax])} (rms ${fmt(c.rmsFt[ax], bc.rmsFt?.[ax])})`).join(', ');
+        console.log(`          off his place, largest: ${axes} ft | settled ${c.settleSec === null ? 'never (outside 1 ft at the end)' : `${fmt(c.settleSec, bc.settleSec)} s`}`);
+        console.log(`          bank off Lead max ${fmt(c.bankOffMaxDeg, bc.bankOffMaxDeg)}°, G off Lead max ${fmt(c.gOffMax, bc.gOffMax)} | torque ${c.torquePct ? `${c.torquePct[0]}..${c.torquePct[1]}%` : 'not set'}, reversals ${fmt(c.torqueReversals, bc.torqueReversals)} | roll-start lag ${c.rollLagSec === null ? 'none (Lead did not roll)' : `${fmt(c.rollLagSec, bc.rollLagSec)} s`}`);
+      }
     }
   });
 }
