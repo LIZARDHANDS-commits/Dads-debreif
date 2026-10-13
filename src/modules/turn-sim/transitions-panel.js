@@ -179,42 +179,39 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
     // The rolling rejoin (rolling-rejoin.js; Patrick 6 Oct 16:02Z, 16:22Z: its own button, a roll only when pressed).
     { value: 'roll', label: 'TRJ + roll', title: 'A turning rejoin that starts with a barrel roll or high yo-yo, flown only when it gets #2 in quicker than the plain turning rejoin' },
   ]);
-  const rejoinButtons = REJOIN_SWITCH.map((o) => h('button', {
-    type: 'button',
-    class: 'button ts-side-button',
-    dataset: { rejoin: o.value },
-    title: o.title,
-    'aria-pressed': String(o.value === rejoin),
-    onclick: () => setRejoin(o.value),
-  }, o.label));
-  // The rejoin kind matters only where a rejoin starts: line abreast, and fighting wing to a close formation (update).
-  const rejoinRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead, auto or turning with a roll' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons);
+  // A drop-down since 14 Oct 2026 (Patrick: "Make rejoin be a drop down menu, with TRJ the default. TRJ into/away also a drop
+  // down menu, next to rejoin"; they were two rows of buttons).
+  const rejoinMenu = h('select', {
+    class: 'ts-bank-select',
+    'aria-label': 'Rejoin: turning, straight ahead, auto or turning with a roll',
+    title: REJOIN_SWITCH.map((o) => `${o.label}: ${o.title}`).join(' · '),
+    onchange: () => setRejoin(rejoinMenu.value),
+  }, REJOIN_SWITCH.map((o) => h('option', { value: o.value, title: o.title, selected: o.value === rejoin }, o.label)));
   function setRejoin(value) {
     rejoin = value;
-    for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
+    if (rejoinMenu.value !== rejoin) rejoinMenu.value = rejoin;
     if (rejoinSelect.value !== rejoin) rejoinSelect.value = rejoin;
-    turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
+    turnMenu.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
     greyFour();
   }
 
   // TRJ Into or Away (TS-174, Patrick 10 Oct 2026 20:37Z; SMM 16.20 para 65b(1), Fig 16.24): Into, Lead turns toward #2's
   // side; Away, he turns away from it and #2 crosses behind him to the inside of the turn. Default Into.
-  const turnButtons = [
+  const TURN_SWITCH = [
     { value: 'into', label: 'Into', title: "Lead turns toward #2's side" },
     { value: 'away', label: 'Away', title: "Lead turns away from #2's side; #2 crosses behind him to the inside of the turn" },
-  ].map((o) => h('button', {
-    type: 'button',
-    class: 'button ts-side-button',
-    dataset: { turn: o.value },
-    title: o.title,
-    'aria-pressed': String(o.value === turn),
-    onclick: () => {
-      turn = o.value;
-      for (const x of turnButtons) x.setAttribute('aria-pressed', String(x.dataset.turn === turn));
+  ];
+  const turnMenu = h('select', {
+    class: 'ts-bank-select',
+    'aria-label': 'TRJ: Lead turns into or away from #2',
+    title: TURN_SWITCH.map((o) => `${o.label}: ${o.title}`).join(' · '),
+    onchange: () => {
+      turn = turnMenu.value;
       greyFour();
     },
-  }, o.label));
-  const turnRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'TRJ: Lead turns into or away from #2' }, h('span', { class: 'ts-hint' }, 'TRJ'), turnButtons);
+  }, TURN_SWITCH.map((o) => h('option', { value: o.value, title: o.title, selected: o.value === turn }, o.label)));
+  // The rejoin kind matters only where a rejoin starts: line abreast, and fighting wing to a close formation (update).
+  const rejoinRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin, and for TRJ Lead turning into or away' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinMenu, turnMenu);
 
   // Bank angle setting for close formation turns (echelon, route, line astern; students learn at 30, then 45, then 60).
   const bankOptions = CLOSE_BANK_CHOICES.map((deg) => ({
@@ -526,7 +523,6 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
     fourGrid,
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     rejoinRow,
-    turnRow,
     bankRow,
     closeWingRow,
     echelonShiftRow,
@@ -623,8 +619,8 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
       const pairOnly = (v) => v === 'auto' || v === 'roll';
       if (four && pairOnly(rejoin)) setRejoin('into');
       for (const o of rejoinSelect.options) if (pairOnly(o.value)) o.disabled = four;
-      for (const b of rejoinButtons) if (pairOnly(b.dataset.rejoin)) b.hidden = four;
-      turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
+      for (const o of rejoinMenu.options) if (pairOnly(o.value)) o.disabled = o.hidden = four;
+      turnMenu.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */
