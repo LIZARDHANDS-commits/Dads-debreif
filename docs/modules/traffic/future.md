@@ -104,6 +104,22 @@ Each waits for Patrick's yes or for Astra numbers. None is built; the Astra's ca
 - **Astra cockpit instruments** (its own panel, side-by-side seats beyond the camera points).
 - **Runway 11R and Southport** (where the Astra really flies).
 
+### Astra outer pattern: upwind, outside downwind, 90 or 45 to initial (Dad, 13 Oct 2026; waits on Patrick's yes)
+
+Dad's words: "additionally the astras will have the upwind and outside downwind 90 to initial 45 to initial all inside and tighter than the ct156 pattern".
+
+How it reads, until Dad or Patrick says otherwise: like the CT-156's Pattern 1 (climb out, upwind, crosswind, outside downwind, 45° leg, initial, break), the Astra gets its own outer legs at 3,000 ft MSL and 180 KIAS: after take-off or a go-around it climbs out along the runway, turns crosswind onto an **outside downwind**, and comes back to its **initial** either by a **90 to initial** (a 90° turn onto a leg square to the runway, then 90° onto initial) or a **45 to initial** (a 135° turn onto a 45° leg, then 45° onto initial), then breaks as now. Every leg sits inside the CT-156's (its outside downwind is about 2.0 NM out, `moose-jaw.json` PAT1) and 500 ft below it. Today the Astra's lap is the closed loop: climbing turn straight onto the inner downwind (spec 4.19 item 3).
+
+The physics (shared turn formula, radius = true speed squared / (g x tan bank); 180 KIAS is about 188 KTAS at 3,000 ft): coming back round to initial from an outside downwind is a 180° reversal, so the outside downwind is at least two turn radii out.
+
+| Outer-pattern turns | Turn radius | Outside downwind at least | Against the CT-156's 2.0 NM |
+|---|---|---|---|
+| 30° at 180 KIAS (Patrick's 30°, 13 Oct) | about 5,430 ft | about 1.8 NM, about 2.0 NM with a 45° leg | not tighter |
+| 45° at 180 KIAS | about 3,140 ft | about 1.0 NM, about 1.2 NM with a 45° leg | inside, about 0.6 |
+| 30° at 140 KIAS | about 3,280 ft | about 1.1 NM, about 1.3 NM with a 45° leg | inside, about 0.6 |
+
+All three are physics, not manual numbers; the leg lengths are estimates. The question for Patrick is which one (or his idea); working answer, once he says yes to building it: 45° at 180 KIAS.
+
 ## Rough spots left for later (found by the V2.350 refactor)
 
 - **Two gear-and-flap rules.** The tag's rule (`behaviour.js` `configOf`) reads the pattern stage and the field elevation; the drag's rule (`path-follower.js` `resolveAircraftConfig`) reads the phase and the threshold's height (both 1,892 ft since TR-149). They share their speeds and the 50 ft since refactor step 2, but can disagree for a moment at a phase change, so the tag can show a different configuration from the one being flown. Making them one changes the tag, so it waits for Patrick.
