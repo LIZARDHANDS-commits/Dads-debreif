@@ -470,8 +470,19 @@ export function speedAt(leg, t) {
  * planned against the echelon roll-out's 12°/s² ran away): until then his own roll, so the gentle stop is never planned
  * from a quick roll-in.
  */
-const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <= seg.rollOutRoll.maxRateDps + 1e-9
+export const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <= seg.rollOutRoll.maxRateDps + 1e-9
   && Math.abs(carriedRollAccel(a) ?? 0) <= seg.rollOutRoll.maxAccelDps2 + 1e-9 ? seg.rollOutRoll : null);
+
+/**
+ * One Lead aircraft (TS-225, Patrick 12 Oct 2026): Lead's programme flown on the point mass by his pilot step
+ * (lead-pilot.js), which registers itself here so this file needs no import of it. It is called for an aircraft marked
+ * pointMassLead (formation.js's 2-ship Lead) and returns true when it flew the step; false (the switch off,
+ * lead-moves.js LEAD_PILOT.onePointMass) leaves the step to the programme below, unchanged.
+ */
+let leadPilot = null;
+export function setLeadPilot(fn) {
+  leadPilot = fn;
+}
 
 /**
  * Flies one step. `plan` is the aircraft's { segments, profile } and is used up as
@@ -499,6 +510,7 @@ const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <=
  * With no segments left the aircraft flies straight and level.
  */
 export function stepAircraft(a, plan, t) {
+  if (a.pointMassLead && leadPilot && leadPilot(a, plan, t)) return; // TS-225: Lead on the point mass when the switch is on
   const dt = STEP_SEC;
   const seg = plan.segments[0];
   let targetBank = 0;
@@ -648,7 +660,7 @@ export function stepAircraft(a, plan, t) {
  * that share (1 in a level turn, where G = 1 / cos(bank)). Shown as the pilot's picture, less the fuselage datum (core
  * attitudeDegFromClimb; Patrick 6 Oct 06:20Z, "Both modules", TR-91): about -0.5 to -1° level at 220 KIAS.
  */
-function pitchAboveHorizonDeg(a) {
+export function pitchAboveHorizonDeg(a) {
   return attitudeDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
 }
 

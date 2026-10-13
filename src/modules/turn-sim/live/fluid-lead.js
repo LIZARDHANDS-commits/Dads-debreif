@@ -171,7 +171,9 @@ export function stepLead(st, ask) {
   let s = st;
   // The engine (TS-218): MAX, or the throttle that holds the speed asked (inside ask.torqueBand when given: Lead's 20-80%,
   // TS-216), reached as the engine answers; the step flies the thrust it gives.
-  const eng = engineStep(st.eng ?? null, ask.holdKias ? holdThrottle(st, ask.holdKias, ask.torqueBand ?? null) : 1, st.kias, st.pm.z, STEP_SEC);
+  // ask.throttle: a set throttle instead (the programme Lead's climbs at 80% torque and descents at 20%, TS-225, lead-pilot.js).
+  const wantThr = ask.throttle ?? (ask.holdKias ? holdThrottle(st, ask.holdKias, ask.torqueBand ?? null) : 1);
+  const eng = engineStep(st.eng ?? null, wantThr, st.kias, st.pm.z, STEP_SEC);
   const excess = excessFnFor(eng.thr);
   for (let i = 0; i < 2; i++) {
     // A lift asked for as a vector (the live wingman, TS-194) is read into a G and a bank against the up of this half step,
@@ -222,7 +224,7 @@ export function carryBank(prev, next) {
 // ---- small pilot helpers ----------------------------------------------------------------------------
 
 /** The G that holds (or brings smoothly onto) a climb angle at the bank flown now (core dampedClimbG over cos bank). */
-function gForClimb(st, targetRad, omega = LEAD.climbDamp.holdPerSec) {
+export function gForClimb(st, targetRad, omega = LEAD.climbDamp.holdPerSec) {
   const cb = Math.max(0.25, Math.cos(st.bank * DEG));
   return Math.max(0, dampedClimbG(st.gammaRad, targetRad, st.V, omega)) / cb;
 }

@@ -15,8 +15,9 @@ import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { WING, HOLD, closureNow, FLUID, LEAD_POWER, LEAD_ROLL } from './tuning.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
 import { startLiveWing, stepLiveWing } from './fluid-wing-live.js';
+import { leadPointMassOf, adoptLeadState } from './lead-pilot.js';
 
 export { FLUID }; // its home is wing-moves.js (the tuning sheet, TS-214)
 
@@ -84,7 +85,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   };
 
   // ---- Lead's entries ----
-  const st0 = leadStateOf(lead, blockFt);
+  // Lead's point mass carried straight in from his programme when he flew it on the point mass (TS-225), else worked out
+  // from the aircraft (leadStateOf).
+  const st0 = leadPointMassOf(lead, blockFt);
   const man0 = { id: manId++, key: 'entry', label: 'Entry to fluid manoeuvring' };
   const entryPlanned = entry(-side, bankDegFor(bankValue)); // the entry turn away from #2 (Fig 12.20, turn away: he collapses into the cone)
   // Both go to MAX as soon as fluid manoeuvring starts (Patrick 11 Oct 2026 22:33Z): Lead's entry holds no speed, and #2
@@ -261,6 +264,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       }
       // #2's tag shows the power he flies; STRETCHED only past the 1,000 ft top of fluid's range (SMM 16.17 para 42).
       applyPose(lead, lp);
+      // Back to the programme: his point mass carries straight on from fluid's (TS-225, lead-pilot.js), the engine with it.
+      if (this.done) adoptLeadState(lead, e.st, blockFt);
       applyPose(wing, { ...pose, power: liveNow.power, stretched: liveNow.rangeFt > FLUID.rangeFt.max });
       lead.turning = !this.done;
       wing.turning = !this.done;

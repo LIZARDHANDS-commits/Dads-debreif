@@ -128,3 +128,24 @@ export const LEAD = Object.freeze({
 /** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
  * pair is; climbs and descents of 2,000 ft, at what the T-6 holds at Lead's speed (TS-203). */
 export const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: LEAD_POWER.maxTorquePct, descentTorquePct: LEAD_POWER.minTorquePct }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentTorquePct: his descent power, 20% torque (TS-216; until V2.424 the descent was 80% of the model's idle descent, an estimate)
+
+// ---- One Lead aircraft: the programme flown on the point mass (TS-225) ----------------------------------------------
+
+/**
+ * Lead's programme flown on the same point mass as in fluid (TS-225, Patrick 12 Oct 2026: "let's have him fly the same
+ * point mass"; "our first job is to make lead fly realistically"): lead-pilot.js flies each plan's turns, holds, speed
+ * changes and height legs with thrust, drag, G, his roll and his G onset, and his speed and height come out of the
+ * physics. onePointMass false flies the old programme Lead (flight.js stepAircraft), kept until this is proven. The
+ * pilot's own numbers below have no manual page: they are estimates and say so.
+ */
+export const LEAD_PILOT = Object.freeze({
+  onePointMass: true, // the switch (TS-225: "A setting keeps the old programme Lead until this is proven"); false flies the old programme Lead
+  heightPerSec: 0.125, // how firmly he flies onto a planned or held height: climb rate added per foot of height error, per second (an estimate: a quarter of LEAD.climbDamp.holdPerSec, so the height and flight-path loops are critically damped together)
+  levelFtps: 0.5, // a plan that starts while he still climbs or sinks faster than 0.5 ft/s levels him off first, then holds that height (an estimate; the programme's own level-off, flight.js LEVEL_OFF_SEC, did the same)
+  heightCatchFtps: 25, // the most climb or sink he adds to close a height error, ft/s (about 1,500 ft/min; an estimate)
+  speedDoneKt: 0.5, // a speed change counts as made within 0.5 kt (an estimate; the planners' own "same speed" test)
+  speedStuckKtps: 0.05, // ... or once the power is at the band's edge and the speed has stopped coming toward it, KIAS per second (an estimate), so a change the power cannot make does not hold a plan open
+  labPower: Object.freeze({ minTorquePct: 0, maxTorquePct: LEAD_POWER.maxTorquePct }), // line abreast's own speed changes (replay.js speedSeg lab): power back to the floor (slow-down.js, TS-61) and 80% to speed up (TS-216's LAB exception)
+  climbTorquePct: FW_MOVE.climbTorquePct, // a planned climb at 80% torque (TS-203, TS-216)
+  descentTorquePct: FW_MOVE.descentTorquePct, // a planned descent at 20% torque (TS-216)
+});

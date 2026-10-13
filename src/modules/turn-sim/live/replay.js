@@ -127,8 +127,9 @@ export function leadSlowDownKtps(from, to, altFt = 8000) {
  * floor (slow-down.js, TS-61) and, to speed up, 80% as before.
  */
 export function speedSeg(from, to, blockFt = 8000, { lab = false } = {}) {
-  if (to > from) return { kind: 'speed', toKias: to, rateKtps: leadSpeedUpKtps(from, to, blockFt) };
-  if (lab) return speedSegFor(from, to, blockFt, 'power');
+  // lab rides on the segment so the point-mass Lead (TS-225, lead-pilot.js) flies it inside line abreast's power, not 20-80%.
+  if (to > from) return { kind: 'speed', toKias: to, rateKtps: leadSpeedUpKtps(from, to, blockFt), ...(lab ? { lab: true } : {}) };
+  if (lab) return { ...speedSegFor(from, to, blockFt, 'power'), lab: true };
   return { kind: 'speed', toKias: to, rateKtps: leadSlowDownKtps(from, to, blockFt), stage: 'power' };
 }
 
