@@ -113,7 +113,7 @@ One slot table (`live/slots.js`), one classifier and one judge (`live/judge.js`)
 |---|---|---|
 | Line abreast | anywhere in the SMM's band: 4,000-6,000 ft abeam, 0-10° sweep, up to 2,000 ft above or below Lead; the spacing setting is the aim, a setting outside the band is judged within 100 ft of itself | SMM 16.18 para 49; Patrick 5 Oct 21:38Z; TS-80 |
 | Fighting wing | anywhere in the cone: 500-1,000 ft, 30-60° sweep measured back from Lead's wing line (0° abeam), up to 200 ft above or below Lead, judged only with Lead straight and level (within 5° of bank and 300 ft/min, estimate); default place 750 ft and 45° (estimate; a setting, section 8) | SMM 12.29 para 69, Fig 12.19; Patrick 5 Oct 21:26Z; TS-80 |
-| Route | On the spinner-to-wingtip line, the slot 3 wingspans down it from echelon (about 116 ft out, 96 ft back, 5 ft low; judged from 1 to 3 wingspans; TS-181, Patrick 11 Oct 2026 00:03Z, 00:15Z: the SMM reference, Fig 12.7; 5 wingspans from TS-103 until V2.232, 25 ft back until V2.107). Within 5 ft of the place and 5 kt | SMM 12.6 para 15, Fig 12.7; Patrick 5 Oct 06:11Z, 21:26Z, 6 Oct 02:11Z, 11 Oct 00:15Z; TS-65, TS-80, TS-103, TS-181 |
+| Route | On the spinner-to-wingtip line, the slot 3 wingspans down it from echelon (about 121 ft out, 75 ft back, 3 ft low since TS-230 moved echelon up the line; it was 116 out, 96 back, 5 low; judged from 1 to 3 wingspans; TS-181, Patrick 11 Oct 2026 00:03Z, 00:15Z: the SMM reference, Fig 12.7; 5 wingspans from TS-103 until V2.232, 25 ft back until V2.107). Within 5 ft of the place and 5 kt | SMM 12.6 para 15, Fig 12.7; Patrick 5 Oct 06:11Z, 21:26Z, 6 Oct 02:11Z, 11 Oct 00:15Z; TS-65, TS-80, TS-103, TS-181 |
 | Echelon | about 15.9 ft back, 40.2 ft out, 3 ft down, origin to origin (TS-230, Patrick 14 Oct 2026: 2.5 ft further up the spinner-to-wingtip line than TS-182's 18 back, 43 out, then 1 ft more, "lets make -1 the default"; the "Echelon on the line" control moves it 1 ft a step, 5 ft up to 10 ft down): the SMM's sight references worked through the CT-156 model's geometry (TS-182, `live/slots.js`; 45 out, 25 back, 5 down was the older estimate, corrected here 13 Oct 2026). Within 5 ft of the place and 5 kt (±15 ft until V2.80) | SMM 12.4 paras 11-12; Patrick 21:26Z; TS-80; TS-182 |
 | Line astern | directly behind and below, about 10 ft nose to tail (43 ft centre to centre, 8 ft low; estimates). Within 5 ft of the place and 5 kt | SMM 12.5 para 13; Patrick 21:26Z; TS-80 |
 
@@ -466,6 +466,44 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 3. ~~How much power he leads with~~: answered (the holding setting for what Lead is doing, walked toward from the telegraph, bigger for a faster build-up).
 4. ~~The speed brakes~~: answered (very rarely, for too much closure; not ideal).
 5. ~~The echelon place~~: settled by TS-182 (18 back, 43 out, 3 down from the SMM references); section 4's table corrected.
+
+## 7c. Route and the station changes on the live wingman (B3; DRAFT, awaiting Patrick's approval)
+
+**Objective.** With "#2 in close formation: Live", the live close-in wingman of 7b also holds route and line astern, follows Lead's telegraphed turns in them, and flies the changes between the close formations himself: echelon to route and back along the line, echelon to line astern and back, and the station change to echelon on the other side through the corner (the crossunder). The tracker and the held poses keep flying them with Held. Patrick's order (14 Oct 2026): B3 now; then fighting wing, its TRJ and SARJ, the line abreast manoeuvres and the hot turning rejoin, the 4-ship, the training errors.
+
+**What carries over from 7b unchanged.** Perception (0.3 s late, only Lead's position, velocity and body up, TS-211), the feed-forward of his place's motion in Lead's roll and turn, Lead's G and bank 0.3 s ahead, the power lead from his place's speed change, the roll catch-up, no dead band (TS-228), anticipation only from what he sees (TS-229), the three loops and the shaper. What changes is where his place is and how he gets from one place to another.
+
+**1. The places** (`slots.js`, origin to origin, in Lead's wing plane):
+
+| Formation | Place | Source |
+|---|---|---|
+| Echelon | 15.9 back, 40.2 out, 3 down, on the spinner-to-wingtip line | TS-182, TS-230 |
+| Route | 75 back, 121 out, 3 down: 3 wingspans further out along the same line; judged in from 1 to 3 wingspans | SMM 12.6 para 15, Fig 12.7; TS-181 |
+| Line astern | 43 back (nose to tail about 10 ft), on Lead's centreline, 8 down, below the prop wash | SMM 12.5 para 13; the 8 ft an estimate |
+
+**2. Holding route and line astern.** The same law as echelon at the new place. Route sits three times further out, so Lead's roll moves his place about three times as much: at the slowed telegraph (TS-209) a 60° roll-in swings route's place at about 0.3 G and some 20 ft/s at its quickest (121 ft out x 4.8°/s² and 9.6°/s; to be measured), so route is flown looser and its picture is allowed to move more in the roll. Lead still rolls no faster than the wingman furthest out can follow (TS-209). Line astern's place is on Lead's centreline, so Lead's roll barely moves it; there the job is height (below the wash) and fore and aft.
+
+**3. The changes between close formations** (SMM 12.20 paras 44-47, Figs 12.12-12.13; TS-117 for the corner). The supervisor gains two jobs: off station (flying from one place to another) and deconfliction (never within a wingspan of Lead, never ahead of Lead's 3/9 line, no wings overlapping, under Lead out before up as in B1). A change is flown as a short list of places in Lead's frame that he moves through at a pace, not a planned track:
+- Echelon to route and back: straight along the spinner-to-wingtip line, bank and power together ("power and bank together", 7b.3), the pace cascade of B1 tapering to stop on the new place.
+- Echelon to line astern: back and down into the corner, nose at least 10 ft behind Lead's tail and at line astern's height, below the wash, where he stabilizes (flows through within 5 ft and 5 kt, not stopped, TS-117); then across, slightly aft of line astern, to Lead's centreline.
+- Line astern to echelon: across to directly behind the new slot, stabilized, then forward and up into it, at about 5 ft/s (SMM 12.20).
+- The station change, echelon to echelon on the other side: the first half then the second half, through the corner and across behind Lead.
+- Route to route on the other side, and route to line astern: the same corner, from route's place (to confirm).
+
+**4. Paces.** B1 and B2 move him at most at a jogging 8 ft/s (Patrick 13 Oct 2026). Patrick: "Instructors will 'run' from route to echelon", 13 ft/s. The Rates setting (TS-65) times route to echelon at 10, 5 and 2.5 s (Student, Instructor, AI): about 10, 20 and 40 ft/s on average over route's 100 ft, past both paces. To reconcile (question 1).
+
+**5. Done and judged.** As 7b: in band, closing under 5 kt, bank within 10°, and on the live wingman settled on his place. The judge's bands (`judge.js`) unchanged.
+
+**6. Tasks (plan 12.4 B3, T14-T19).** T14 this section approved; T15 the gauge's route hold and turns, the crossunder both ways, echelon to route and back, echelon to line astern and back, with the pre-B3 run saved and a known-bad case; T16 route and line astern held and turned live; T17 the changes on the live wingman; T18 B3's one test (the crossunder, echelon to echelon the other side, live: never within a wingspan, never ahead of the 3/9 line, in position at the end); T19 docs and the pages; Checkpoint E, Patrick flies B3.
+
+**7. Boundaries.** Held flies as today, checked on the gauge against the run saved before B3. Fighting wing, the rejoins, opening out to line abreast and the 4-ship stay on today's flying until their rungs. No number without its source or "estimate".
+
+**8. Open questions for Patrick** (one at a time):
+1. Paces: does the live wingman move at your paces (8 ft/s jogging, 13 running) with the Rates setting choosing between them, or keep the Rates times (10, 5, 2.5 s)?
+2. Route's tolerance in a turn: how far out of his picture may he be in route while Lead rolls (echelon: 2-3 ft at 45°, a few feet at 60°)?
+3. The corner for the crossunder: still 10 ft behind Lead's tail at line astern's height, stabilized flowing through (TS-117)?
+4. Opening out from a close formation to line abreast: on the live wingman here, or with the line abreast rung?
+5. Route to route on the other side: through the corner as echelon, or another way?
 
 ## 8. Fighting wing
 
