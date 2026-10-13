@@ -75,27 +75,34 @@ On each axis the staying-in-position part weighs the deviation (how far off), ho
 // close-formation.js, each step (a sketch, not final code); seen = what he saw 0.3 s ago
 g      = seen.leadG    + kUp.p * dev.up  + kUp.d * rate.up  + trim.up;      // pitch pressure
 bank   = seen.leadBank + kIn.p * dev.in  + kIn.d * rate.in;                 // roll pressure
-torque = trim.power    + kLead * seen.leadRollDps * outside                 // power before it's needed
-                       + kAft.p * dev.aft + kAft.d * rate.aft;
+torque = holding(seen.leadBank, seen.telegraph)                            // the setting for what Lead is doing, ahead of need
+       + kPace * (paceWanted(dist) - seen.closure);                         // a little on or off to move, walked back as he arrives
 ```
 
 The gains come from two pilot numbers per axis: how firm a pressure a 1 ft deviation gets, and how fast he settles back without overshooting. The 0.3 s reaction limits how firm he can be before he starts to chase (section 6b).
 
 **The SMM agrees** (12.18 para 40; 12.19 paras 42-43): adjustments are made as soon as the need is seen, so they stay small; with experience they become pressures; the PCL's lag is anticipated; on the outside of a turn torque goes up on the roll-in and down on the roll-out, and the opposite on the inside, small changes whose rate and amount a proficient wingman anticipates; the commonest fault is lagging Lead's roll rate, which slides him wide stepped up and toward Lead stepped down.
 
-**Power, two ways** (Patrick, 12 Oct 2026):
-- **A small move (about 5 to 10 ft):** "i increase/decrease the power until theres a gentle movement into the spot i want to go to, then reset it to the setting that keeps me stable in that position." Power is the holding setting plus a small offset while he drifts, then back to the holding setting.
-- **A large move:** "i walk the throttle forward until I see the motion I want, then i bring it back some to 'catch' that rate (usually a jogging/running pace relative to lead, depending on how far out of position I am). then, as I approach the spot, i walk the throttle back until I stop, then 'catch' the position with the power that keeps me stable there." Four phases: walk the power up until the closure shows, catch the closure at a pace set by the distance, walk the power back to stop, catch the position with the holding setting.
-- **The holding setting** is remembered: the power that keeps him in place. It is the "how long it's been there" part of the correction, kept as a pilot keeps it, a known setting he returns to and updates whenever he is steady.
+**How big the first inputs are** (Patrick, 12 Oct 2026: "my initial pitch/roll/power addition is based on the telegraph I see. if I can see a rapid acceleration or I know we're doing something dynamic, I will increase my inputs accordingly"). The reacting-to-Lead part is sized by what the telegraph shows: a faster build-up means a faster, bigger roll is coming, so bigger first inputs. "Something dynamic" he knows is coming (a briefed or called manoeuvre) raises them the same way.
+
+**Power: one law, re-evaluated all the time** (Patrick, 12 Oct 2026: "We are almost constantly readjusting power based on what we see, so for either the small moves or large moves technique, i will constantly re-evaluate my closure/position and make corrections to rates and inputs, as required"):
+- **The holding setting** is the base: the power that keeps him in place for what the formation is doing now (below).
+- **To move:** he sets a little power off the holding setting and watches the closure. For a small move (up to about 10 ft) he leaves that little bit in until he gets where he wants, then walks the power back until he stops ("you don't really need a set and a catch for both start and stop"). For a large move it is a set and a catch at both ends (Patrick, 12 Oct 2026: "for LARGE moves you do a set and a catch for both starting and stopping, walking it up until you see what you need"): he walks the power on until he sees the pace he wants and catches it there; as the spot comes up he walks it back until he sees the closure dying as he needs, catches that, and ends on the holding setting. When he knows he needs a lot more energy he may give it a few seconds of MAX (Patrick, 12 Oct 2026: "If I know I need a lot more energy I might give it a few seconds of MAX power").
+- **The pace** is picked from how far he has to go: a gentle drift for a few feet, up to a jogging pace, about 8 ft/s (about 5 kt), or a running pace, about 13 ft/s (about 8 kt), relative to Lead (Patrick, 12 Oct 2026: "yes 8 ft/s and 13 ft/s works"), and it tapers to zero at the spot.
+
+In code that is a single continuous law, not phases: each step the distance picks the pace he wants, and the power is the holding setting plus a share of the difference between the pace he wants and the closure he sees. The walk up, the catch, the walk back and the stop all come out of it, and it re-evaluates every step as he does. On a large move the power may go as far as MAX for a few seconds when the pace he wants is far above the closure he sees; on station and on small moves it stays a pressure.
+
+**Rates to start** (Patrick, 12 Oct 2026: "Instructors will 'run' from route to echelon. but I think we should start with slower rates until we figure out how to tune the PID"): B1 starts at the jogging pace, 8 ft/s, as its most. The running pace comes once the tuning holds. The Rates setting's route-to-echelon times (10, 5 and 2.5 s, TS-65) average about 6, 12 and 24 kt over about 100 ft, faster than running for the instructor and AI; they are reconciled at B3 (route and station changes).
 
 **The holding setting moves with the turn** (Patrick, 12 Oct 2026: "The holding setting will change depending on what's happening ... as soon as I see that lead is turning, i will pitch back to stay on plane with him, roll my wings to match his bank, and walk power up to stay in position. Once established in the 30 degree turn, our bank angle is matched, and I need more power (due to larger turn circle, and maybe some other aerodynamics) ... its proportionally more the more the formation is turning. Less power than lead when stepped down (lead turning in to you)."). So the holding setting is worked out, not just remembered:
 - **The straight-and-level setting** for the speed, as he knows the aircraft;
 - **plus the turn's share:** the G of the turn (both aircraft pay it), and his bigger or smaller circle. In echelon, about 45 ft out along Lead's wing, he flies the same turn rate on a circle wider or tighter by 45 ft × cos(bank), so he needs g × 45 ft × sin(bank) ÷ speed more or less: at 200 KIAS and 8,000 ft about 1.1 kt at 30°, 1.6 kt at 45°, 2.0 kt at 60° (back of the envelope). Proportional to sin(bank), so more the steeper the turn, and on the inside the same amount less. A percent or two of torque: "quite small" (SMM 12.19 para 42);
+- **plus the roll-in's share, while it lasts** (Patrick, 12 Oct 2026: "You usually need more power while pitching up than you do once established in the new turn ... at least you need more initially to catch up to lead and establish your movement. your aircraft also has to travel thru the air (climb)"). Stepped up, his place rises about 45 ft × sin(bank) during the roll-in: about 23 ft to 30°, 32 ft to 45°, 39 ft to 60°. Climbing 32 ft over a roll-in of about 6.5 s (TS-209) peaks near 7 ft/s, which for a 5,168 lb aircraft is about 66 hp, about 6% of the engine's 1,100 shp, on top of the speed he has to gain. So the roll-in takes several times the steady turn's extra power, as Patrick thought; stepped down it is the reverse (he descends into the plane, less power). Back of the envelope;
 - **plus the remembered trim** on top, updated when he is steady.
 
-When he sees Lead's telegraph, he walks the power toward the new holding setting for the bank Lead is going to, before it is needed. The aircraft's power required comes from the code's existing maths (`powerFor` in `live/power.js`: the power for a speed, G and climb), not a new formula; his estimate need not be perfect, as the trim and the staying-in-position part take up the rest. "Other aerodynamics": a little more G on the wider circle is in the point mass; Lead's wingtip vortex (the lateral trim change in echelon, SMM 12.18 para 40) is not modelled.
+When he sees Lead's telegraph, he walks the power toward the holding setting for the roll-in and the bank Lead is going to, before it is needed. The aircraft's power required comes from the code's existing maths (`powerFor` in `live/power.js`: the power for an acceleration, a speed, a G and a climb), not a new formula; his estimate need not be perfect, as the trim and the staying-in-position part take up the rest. "Other aerodynamics": a little more G on the wider circle is in the point mass; Lead's wingtip vortex (the lateral trim change in echelon, SMM 12.18 para 40) is not modelled.
 
-In control terms the large move is a cascade: the distance picks a closure pace, the pace picks the power, and the holding setting is the base under both. The supervisor's two jobs map onto the two ways: on station is the small move, off station the large one.
+**How it is tuned** (the thread's proposal): one axis at a time in the order he corrects them, plane, then line, then hinge. For each, start #2 a few feet off his place, straight and level, and watch him settle on the plot page: no overshoot, no hunting, settled in the time in section 6b. Then Lead's telegraphed 30°, 45° and 60° turns, both ways. The gauge measures each run; Patrick flies the result.
 
 ## 6b. The pilot model behind the numbers
 
@@ -154,7 +161,7 @@ One test for the rung (AGENTS.md): echelon straight and level, then one telegrap
 ## 12. Open questions for Patrick
 
 1. ~~The sensors in section 3~~: answered (no look inside; the telegraph's build-up is read; plane, then line, then hinge, with the exception under Lead).
-1b. The jogging and running pace relative to Lead, in knots or feet per second, and where small turns into large (about 10 ft?).
+1b. ~~The jogging and running pace~~: answered, 8 and 13 ft/s; B1 starts at 8.
 2. The size of the pressures (section 4).
 3. How much power he leads with, and when (section 6).
 4. The speed brakes in close formation.
