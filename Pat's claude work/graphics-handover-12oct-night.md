@@ -5,7 +5,25 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026, night): chunks 1 to 5 built, Patrick measured at work; read `3d-work` `ct156/plan.md` "Resume here" first
+## Latest (13 Oct 2026, late night): chunks 1 to 8 built and verified; read `3d-work` `ct156/plan.md` first (its decisions log, newest first, and "Next, in order")
+
+- **The master (3d-work), stacked drafts, none merged:** #30, #38, #41, #50, #56 (chunks 1 to 5), #60 (Patrick's
+  readings), #66 (chunk 6: the rear cockpit, High and Performance versions of a part under one name, the front's High
+  version, the consoles dark, the glare shield's rail a padded bar), #72 (chunk 7: the pilots). Each verified by the
+  orchestrator (line ends, its own `check_master`, the pictures). Patrick's rulings tonight: High full detail, budgets
+  as guides; ALL-34 amended (on the canopy-and-shell branch, 2e8a5c0e).
+- **App branches, stacked after #1032, none merged:** the lights and stopped prop; canopy-and-shell (chunks 2 and 3's
+  numbers, the 2.5 degree datum, ALL-34); **#1034 the paint** (chunk 8: G2 to G20 and D12, then every mark moved onto
+  `A24` at Patrick's word, within 0.01 ft).
+- **Next session:** cards first (the padded rail's section, which the flight photos read as a thin lip across the top;
+  the mirrors on the forward bow, two of about 6.2 in near the crown; the lamp spacing, bow foot, indexer gap, compass;
+  the paper's size and photo captions). Then one delivery of chunks 2 to 7, a fresh code agent to import it with every
+  chunk's app numbers (in the 3d-work plan) and the inboard doors open when parked; a fresh modeller for the mirrors,
+  the root fairing (photo 13) and the leg door (photo 17). Then Patrick's look in the app, and the merges in order.
+- **How the work runs now** (Patrick): a fresh agent per chunk, briefs carrying every path, the rows' own numbers and a
+  stop rule; a watch on each running agent; every photo Patrick sends read against the model.
+
+## Earlier (13 Oct 2026, night): chunks 1 to 5 built, Patrick measured at work
 
 - **The master (3d-work), stacked, none merged:** #30 chunk 1 (station-change references), #38 chunk 2 (canopy), #41
   chunk 3 (outside shell, gear on the ground line, the checks fixed: seams measure again, the budget counts the hull
