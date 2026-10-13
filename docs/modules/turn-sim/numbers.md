@@ -183,6 +183,16 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LEAD.climbNearFt | `20` | a climb or descent counts as arrived within 20 ft of the new height (an estimate) |
 | LEAD.speedHold | `Object.freeze({ perSec: 0.2, maxKtps: 3 })` | holding a speed (the entry, Terminate): 0.2 kt/s per knot off it, never more than 3 kt/s (estimates) |
 | FW_MOVE | `Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: LEAD_POWER.maxTorquePct, descentTorquePct: LEAD_POWER.minTorquePct })` | climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentTorquePct: his descent power, 20% torque (TS-216; until V2.424 the descent was 80% of the model's idle descent, an estimate) |
+| LEAD_PILOT |  | Lead's programme flown on the same point mass as in fluid (TS-225, Patrick 12 Oct 2026: "let's have him fly the same point mass"; "our first job is to make lead fly realistically"): lead-pilot.js flies each plan's turns, holds, speed changes and height legs with thrust, drag, G, his roll and his G onset, and his speed and height come out of the physics. onePointMass false flies the old programme L |
+| LEAD_PILOT.onePointMass | `true` | the switch (TS-225: "A setting keeps the old programme Lead until this is proven"); false flies the old programme Lead |
+| LEAD_PILOT.heightPerSec | `0.125` | how firmly he flies onto a planned or held height: climb rate added per foot of height error, per second (an estimate: a quarter of LEAD.climbDamp.holdPerSec, so the height and flight-path loops are critically damped together) |
+| LEAD_PILOT.levelFtps | `0.5` | a plan that starts while he still climbs or sinks faster than 0.5 ft/s levels him off first, then holds that height (an estimate; the programme's own level-off, flight.js LEVEL_OFF_SEC, did the same) |
+| LEAD_PILOT.heightCatchFtps | `25` | the most climb or sink he adds to close a height error, ft/s (about 1,500 ft/min; an estimate) |
+| LEAD_PILOT.speedDoneKt | `0.5` | a speed change counts as made within 0.5 kt (an estimate; the planners' own "same speed" test) |
+| LEAD_PILOT.speedStuckKtps | `0.05` | ... or once the power is at the band's edge and the speed has stopped coming toward it, KIAS per second (an estimate), so a change the power cannot make does not hold a plan open |
+| LEAD_PILOT.labPower | `Object.freeze({ minTorquePct: 0, maxTorquePct: LEAD_POWER.maxTorquePct })` | line abreast's own speed changes (replay.js speedSeg lab): power back to the floor (slow-down.js, TS-61) and 80% to speed up (TS-216's LAB exception) |
+| LEAD_PILOT.climbTorquePct | `FW_MOVE.climbTorquePct` | a planned climb at 80% torque (TS-203, TS-216) |
+| LEAD_PILOT.descentTorquePct | `FW_MOVE.descentTorquePct` | a planned descent at 20% torque (TS-216) |
 
 ## Wingmen: the live laws, the close turns' held poses, the fluid exercise, the rolling rejoin (`wing-moves.js`)
 

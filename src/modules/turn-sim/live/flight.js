@@ -479,7 +479,9 @@ export const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?
  * pointMassLead (formation.js's 2-ship Lead) and returns true when it flew the step; false (the switch off,
  * lead-moves.js LEAD_PILOT.onePointMass) leaves the step to the programme below, unchanged.
  */
+/** @type {((a: any, plan: any, t: number) => boolean) | null} */
 let leadPilot = null;
+/** @param {(a: any, plan: any, t: number) => boolean} fn */
 export function setLeadPilot(fn) {
   leadPilot = fn;
 }
