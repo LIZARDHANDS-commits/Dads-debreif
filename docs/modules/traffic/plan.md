@@ -144,7 +144,7 @@ Screen changes only: nothing in `src/core`, and no default, range or flying beha
 
 Dad's ask and answers are in `future.md` ("A CT-102B Astra II pattern"). Patrick's answers (relayed by Dad, 13 Oct 2026): **same runway, same side, 30° bank angles**. With the CT-156 pattern at 3,500 ft MSL (`PATTERN_ALT_FT`, `airfield.js`), the Astra II's at 3,000 ft MSL sits inside it and 500 ft below. Working values until Patrick rules otherwise or an Astra manual page backs them: 180 KIAS in the pattern, 90 KIAS at the perch and on landing, size fitted to those speeds and the 30° bank.
 
-- [ ] 1. A one-off Fable architecture review (the rule book's allowance; Patrick told through Dad's ask): how a second aircraft type and a second pattern fit Traffic's flying layer, spawns and conflict logic without changing the CT-156's flying; a phased plan for Opus, with the questions for Patrick. Written down before any code.
+- [x] 1. (Done 13 Oct 2026: `ct102-pattern-review.md`; not yet seen by Patrick.) A one-off Fable architecture review (the rule book's allowance; Patrick told through Dad's ask): how a second aircraft type and a second pattern fit Traffic's flying layer, spawns and conflict logic without changing the CT-156's flying; a phased plan for Opus, with the questions for Patrick. Written down before any code.
 - [ ] 2. Onward steps come from the review, once Patrick approves its plan. They depend on the Astra II model's delivery (shared plan Step 3c item 6) and its own performance numbers.
 
 ## Step 6. Check the camera, graphics and scenery work against the code
