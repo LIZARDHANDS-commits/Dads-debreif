@@ -56,7 +56,7 @@ const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackl
 BUTTONS.push({ key: G_WARM.key, label: G_WARM.label, sided: false, ships: [4] });
 // Lead's Wings level and Reversal in the 2-ship close formations (Patrick 12 Oct 2026 19:16Z; formation-turns.js planCloseMove).
 for (const [key, m] of Object.entries(CLOSE_MOVES)) BUTTONS.push({ key, label: m.label, sided: false, ships: [2] });
-const CLOSE_MOVE_FORMATIONS = ['echelon', 'route', 'astern'];
+const CLOSE_MOVE_FORMATIONS = ['echelon', 'route', 'astern', 'corner']; // the corner since B3 (TS-231)
 
 /** The setup isn't remembered between visits (saved setups are a later step), so it lives in memory. */
 function memoryStore() {

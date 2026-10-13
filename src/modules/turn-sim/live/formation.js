@@ -937,7 +937,10 @@ const MOVES_FROM = ['lab', 'other'];
 /** The same for the four: Spread 4, or a wide picture that is none of the formations (a column after an in-place turn). */
 const MOVES_FROM_FOUR = ['spread4', 'other'];
 
-/** The fixed line under Setup. */
+/**
+ * The fixed line under Setup: line abreast's speed and turns, the close formations' speed (as set at load; Lead behaviours
+ * moves it), and Lead's roll limit (90°/s, TS-222; it read "roll up to 180°/s" until V2.428, from before TS-222).
+ */
 export function fixedLine(opts = LIVE_DEFAULTS) {
-  return `${opts.kias} KIAS · ${opts.blockFt.toLocaleString('en-CA')} ft · ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) · still air · roll up to 180°/s`;
+  return `${opts.kias} KIAS and ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) in line abreast, ${KIAS_OUTSIDE_LAB} KIAS outside it · ${opts.blockFt.toLocaleString('en-CA')} ft · still air · Lead rolls up to ${LEAD_ROLL.maxRateDps}°/s`;
 }

@@ -67,7 +67,7 @@ export function nowWords(where) {
 export function changeFlags(state, where) {
   const [lead, wing] = state.aircraft;
   const flags = [];
-  const limit = where.key === 'fw' ? 4 : ['echelon', 'route', 'astern'].includes(where.key) ? 3 : Infinity;
+  const limit = where.key === 'fw' ? 4 : ['echelon', 'route', 'astern', 'corner'].includes(where.key) ? 3 : Infinity;
   if (lead.g > limit) flags.push(`Lead is pulling ${lead.g.toFixed(1)} G in ${FORMATIONS[where.key].label.toLowerCase()}; the limit is ${limit} G (Orders B2 ch 8).`);
   const c = state.current?.change;
   if (c?.rejoining) {
@@ -501,7 +501,8 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   // Two groups (Patrick, 5 Oct): Tactical (line abreast, fighting wing, fluid, the four's wide formations) and Close formation.
   const TACTICAL = new Set(['lab', 'fw', 'fluid', 'spread4', 'fluid4', 'fluidMan', 'offsetBox']);
   const group = (title, buttons) => h('div', { class: 'ts-change-group' }, h('h4', { class: 'ts-change-subtitle' }, title), h('div', { class: 'ts-change-grid' }, buttons));
-  const pairAll = [...CHANGE_BUTTONS, { key: 'astern', label: 'Line astern' }];
+  // Corner (TS-231; Patrick 14 Oct 2026: "if we want to stop in the corner we hit corner"), after Line astern.
+  const pairAll = [...CHANGE_BUTTONS, { key: 'astern', label: 'Line astern' }, { key: 'corner', label: 'Corner' }];
   const fourAll = [...FOUR_CHANGE_BUTTONS, ...FOUR_MORE_BUTTONS];
   const pairGrid = h('div', {},
     group('Tactical', pairAll.filter((b) => TACTICAL.has(b.key)).map((b) => makeButton(b))),
@@ -650,7 +651,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
       // group in fighting wing and echelon (TS-78, fluid-panel.js). A button that is only busy for a moment is greyed.
       // ...and in trail after a break and rejoin, TRJ or SARJ (TS-175; Patrick 11 Oct 2026 07:57Z).
       rejoinRow.hidden = where.key !== 'lab' && where.key !== 'fw' && !(where.key === 'other' && state.trailSide);
-      const closeBankVisible = ['echelon', 'route', 'astern', 'trail'].includes(where.key);
+      const closeBankVisible = ['echelon', 'route', 'astern', 'corner', 'trail'].includes(where.key);
       bankRow.hidden = !closeBankVisible;
       closeWingRow.hidden = !closeBankVisible;
       echelonShiftRow.hidden = where.key !== 'echelon';
