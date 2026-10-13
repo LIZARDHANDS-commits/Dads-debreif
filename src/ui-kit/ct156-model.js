@@ -14,7 +14,7 @@
 //
 // paint 'harvard' (default): navy scheme, cheat line, chrome spinner, dark
 //   prop, roundels, Canada wordmark, red triangles, tail leaf/NATO star/flag/serial, position lights (TS-156).
-//   The whole vertical tail is `color` with a light grey leading edge; the ship's number (122 for #1, ct156TailNumber)
+//   The vertical tail is navy like the rest (G14, Patrick 13 Oct 2026), with a light grey leading edge; the ship's number (122 for #1, ct156TailNumber)
 //   is on the nose and under the right wing, the serial (156122) low on the fin, as Patrick's photo of 156102.
 // paint 'ship': the plain look, everything in `color`; up close only the serial on the fin, the position lights, the
 //   exhaust stacks and the canopy frames (TS-156).
@@ -2627,7 +2627,7 @@ function watchScene(THREE, scene) {
 
 /**
  * Returns a THREE.Group: nose +X, left +Y, up +Z, nose-to-tail length lengthFt.
- * color: CSS colour of the ship (the whole tail in 'harvard', everything in 'ship').
+ * color: CSS colour of the ship, for the 'ship' paint (everything in it); 'harvard' is navy all over (G14, 13 Oct 2026).
  * number: the ship number, drawn on the fin and nose ('harvard' only).
  * paint: 'harvard' (default, and for any unknown value) or 'ship'.
  * @param {any} THREE
@@ -2794,13 +2794,13 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: tx, emissiveIntensity: 0.6, fog: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     }));
-    const finMat = own(new THREE.MeshPhysicalMaterial({ color, fog: false, side: THREE.DoubleSide, roughness: 0.4, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.12, envMap: mats.env, envMapIntensity: 0.5 }));
 
     // Always drawn: the airframe, the canopy glass, the cheat line, the spinner and the prop disc.
     fuselage = add(geo.fuselage, mats.navy);
     add(geo.airframe, [mats.navy, mats.wingLe]);
-    add(geo.fin, [finMat, mats.finLe]);
-    surfaces = addSurfaces(mats.navy, finMat);
+    // The fin and rudder navy like the rest, as the real ship (G14, Patrick 13 Oct 2026; were the ship's colour).
+    add(geo.fin, [mats.navy, mats.finLe]);
+    surfaces = addSurfaces(mats.navy, mats.navy);
     add(geo.cheat, mats.cheat);
     add(geo.spinner, mats.chrome);
     add(geo.spinnerRing, mats.blade);
