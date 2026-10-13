@@ -3,6 +3,10 @@
 // it does next and its configuration unless clean, in the PFL tag's style, for example "[CLOSED: downwind next]". A PFL's own tag and the deconfliction's tags win while they apply
 // (map2d.js getPflBadge); the deconfliction's tags carry the configuration too.
 //
+// A type with a pattern of its own names its lap with its own word (types.js tagWord; the CT-102B Astra II's `[ASTRA]`,
+// TR-160, a working answer not yet confirmed with Patrick), and a type whose numbers are estimates ends its tag with
+// " · est." (spec 4.19 item 5). The CT-156's tags are unchanged.
+//
 // Nothing here moves an aircraft or reads the page: it only names what the sim already flies.
 
 /** The configuration labels: the PFL's four (pfl.js PFL_CONFIG_LABELS) plus gear up with the take-off flap still down. */
@@ -29,8 +33,9 @@ export const BEHAVIOUR = Object.freeze({
 
 /**
  * The tag for aircraft `a` (the sim's own state for it), or null when none shows (landed, not started, or in a PFL,
- * whose own tag shows instead). `a.siPattern` is true for an aircraft flying the SI pattern (sim.js). `ctx` = { route, fieldElevFt, onFinal, toThresholdFt, windowFt }: the route it is on,
- * the field height, whether it is lined up on final, and how far it is from the threshold and the window is.
+ * whose own tag shows instead). `a.siPattern` is true for an aircraft flying the SI pattern (sim.js). `ctx` = { route, fieldElevFt, onFinal, toThresholdFt, windowFt, tagWord }: the route it is on,
+ * the field height, whether it is lined up on final, how far it is from the threshold and the window is, and the word
+ * its type calls its lap (types.js tagWord; 'OHB', the CT-156's, unless given).
  */
 export function behaviourOf(a, ctx = {}) {
   const what = patternOf(a, ctx);
@@ -43,13 +48,19 @@ export function behaviourOf(a, ctx = {}) {
  * or the deconfliction's tag with the configuration added. Clean is never shown: it is implied (Patrick, 4 Oct 23:14Z;
  * only a PFL's own tag says Clean).
  */
-export function behaviourLabel(b, deconflictLabel = null) {
+export function behaviourLabel(b, deconflictLabel = null, { estimate = false } = {}) {
+  const label = labelOf(b, deconflictLabel);
+  // A type flying on estimated numbers says so at the end of its tag (spec 4.19 item 5): "[ASTRA · est.]".
+  return estimate && label ? label.replace(/]$/, ' · est.]') : label;
+}
+
+function labelOf(b, deconflictLabel) {
   const config = b?.config && b.config !== CONFIG.clean ? b.config : null;
   if (deconflictLabel) return config ? deconflictLabel.replace(/]$/, ` · ${config}]`) : deconflictLabel;
   if (!b) return null;
   // An aircraft flying the overhead, downwind, final turn, or SI pattern says only which (Patrick: short
-  // tags [OHB], [DW], [FT], [SI]; no configuration suffix in the tag).
-  if (b.pattern === 'OHB' || b.pattern === 'DW' || b.pattern === 'FT' || b.pattern === 'SI' || Object.values(LANDING_TAGS).includes(b.pattern)) return `[${b.pattern}]`;
+  // tags [OHB], [DW], [FT], [SI]; no configuration suffix in the tag); a type's own lap word likewise ([ASTRA]).
+  if (b.short || b.pattern === 'OHB' || b.pattern === 'DW' || b.pattern === 'FT' || b.pattern === 'SI' || Object.values(LANDING_TAGS).includes(b.pattern)) return `[${b.pattern}]`;
   return `[${b.pattern}${b.next ? `: ${b.next}` : ''}${config ? ` · ${config}` : ''}]`;
 }
 
@@ -60,12 +71,18 @@ function patternOf(a, ctx) {
   // Lined up on final and past the window: what it will do at the runway (Patrick, 4 Oct).
   const pastWindow = ctx.onFinal && Number.isFinite(ctx.toThresholdFt) && Number.isFinite(ctx.windowFt) && ctx.toThresholdFt <= ctx.windowFt;
   if (pastWindow && (!flown || flown === 'EXTEND_FLOWN')) return { pattern: landingTag(a), next: null, stage: ctx.route?.kind === 'entry' ? 'final_straight_in' : 'final' };
+  // A type's own lap word (the Astra's 'ASTRA'), or null for the CT-156's overhead ('OHB'), whose tags follow below.
+  const own = ctx.tagWord && ctx.tagWord !== 'OHB' ? ctx.tagWord : null;
   if (a.flown?.kind === 'high_key') return { pattern: 'CLOSED TO HIGH KEY', next: 'PFL next', stage: 'climb' };
   if (flown === 'CLOSED_FLOWN') return { pattern: 'CLOSED', next: 'downwind next', stage: 'closed' };
-  if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: 'outer downwind next', stage: 'go_around' };
+  // The Astra's go-around joins its own downwind; the CT-156's the outer downwind.
+  if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: own ? 'downwind next' : 'outer downwind next', stage: 'go_around' };
   if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'SI', next: null, stage: 'straight_in_downwind' };
+  // The Astra's overhead from its initial (sim.js startAstraOverhead): its lap word.
+  if (flown === 'ASTRA_OVERHEAD_FLOWN') return { pattern: own ?? 'OHB', next: null, stage: a.phase === 'break' ? 'break' : a.phase === 'downwind' ? 'inner_downwind' : 'initial', short: true };
   if (flown === 'EXTEND_FLOWN') {
     const isFt = a.phase === 'final_turn' || a.phase === 'final';
+    if (own) return { pattern: own, next: null, stage: isFt ? 'final' : 'inner_downwind', short: true };
     const tag = a.siPattern ? 'SI' : (isFt ? 'FT' : 'DW');
     return { pattern: tag, next: null, stage: isFt ? 'final' : 'inner_downwind' };
   }
@@ -77,6 +94,11 @@ function patternOf(a, ctx) {
     return { pattern: 'SI', next: null, stage: ctx.onFinal ? 'final_straight_in' : 'straight_in' };
   }
   // Round the lap the tag names the pattern or phase (OHB, DW, FT, or SI); the stage still sets the configuration.
+  // A type with its own pattern names it the whole way round with its own word.
+  if (own) {
+    const stage = { climb: 'upwind', climb_out: 'upwind', touch_and_go: 'upwind', go_around: 'upwind', crosswind: 'outer', initial: 'initial', break: 'break', downwind: 'inner_downwind', final_turn: 'final', final: 'final' }[a.phase];
+    return stage ? { pattern: own, next: null, stage, short: true } : null;
+  }
   const lap = a.siPattern ? 'SI' : 'OHB';
   switch (a.phase) {
     case 'climb': case 'climb_out': case 'touch_and_go': return { pattern: lap, next: null, stage: 'upwind' };

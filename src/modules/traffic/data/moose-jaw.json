@@ -60,7 +60,7 @@
       ]
     }
   ],
-  "routesNotYetInSetup": [
+  "routesForOtherTypes": [
     {
       "id": "PAT_ASTRA",
       "name": "Astra pattern (working numbers)",

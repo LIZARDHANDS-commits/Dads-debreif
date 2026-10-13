@@ -29,8 +29,11 @@ import { buildAstraCircuit, ASTRA_POINT } from './astra-circuit.js';
  * found by its id, as it always has been (below), so a setup saved before this keeps flying as before.
  */
 const FLOWN_BUILDERS = Object.freeze({
-  'ct102b-overhead': Object.freeze({ fewestPoints: Object.keys(ASTRA_POINT).length, build: (route, fromDeg, kt) => buildAstraCircuit(route.points, fromDeg, kt).track }),
+  'ct102b-overhead': Object.freeze({ fewestPoints: Object.keys(ASTRA_POINT).length, build: (route, fromDeg, kt) => buildAstraCircuit(route.points, fromDeg, kt) }),
 });
+
+/** The `flown` values a route may carry (a saved profile's check, profile.js). */
+export const FLOWN_KINDS = Object.freeze(Object.keys(FLOWN_BUILDERS));
 
 /**
  * V6's route options when the boxes are left alone (built-in profile, line 613).
@@ -279,19 +282,20 @@ function buildSegs(points) {
 }
 
 function buildPath(route, options) {
-  let points;
+  let points, built = null;
   const isPat1 = route.id === 'PAT1';
   const isCompactPat1 = isPat1 && (route.points?.length ?? 0) < 10;
   const flown = Object.hasOwn(FLOWN_BUILDERS, route.flown ?? '') ? FLOWN_BUILDERS[route.flown] : null;
   if (flown && options.flyRoundedTurns !== false && (route.points?.length ?? 0) >= flown.fewestPoints) {
-    points = flown.build(route, options.windFromDeg ?? 360, options.windKt ?? 0);
+    built = flown.build(route, options.windFromDeg ?? 360, options.windKt ?? 0);
+    points = built.track;
   } else if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
     points = generateWindAdjustedTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
   } else {
     points = buildRoundedPoints(route, options);
   }
   const segs = buildSegs(points);
-  return { lengthFt: segs.reduce((sum, s) => sum + s.len, 0), closed: isClosedRoute(route), points, segs, draw: null, pointDists: new Map() };
+  return { lengthFt: segs.reduce((sum, s) => sum + s.len, 0), closed: isClosedRoute(route), points, segs, draw: null, pointDists: new Map(), built };
 }
 
 // What a path was worked out from, so it is redone only when that changes.
@@ -336,6 +340,15 @@ export function routePath(route, options = DEFAULT_ROUTE_OPTIONS) {
   entries.push({ sig: signatureOf(route, options), path, pts: route.points });
   if (entries.length > MOST_PATHS_PER_ROUTE) entries.shift();
   return path;
+}
+
+/**
+ * Everything the builder of a route with a `flown` field returned (astra-circuit.js buildAstraCircuit: the lap, the
+ * overhead from the initial, the perch, ...), worked out with the path and kept with it; null for any other route, or
+ * one drawn with rounded corners (too few points, or the turns not flown). Read only.
+ */
+export function flownBuildOf(route, options = DEFAULT_ROUTE_OPTIONS) {
+  return routePath(route, options).built ?? null;
 }
 
 /** Length of the flown path in feet (V6 `routeLen`, line 216). */

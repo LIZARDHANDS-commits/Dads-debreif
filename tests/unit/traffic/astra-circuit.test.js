@@ -19,7 +19,7 @@ import { TOLERANCES } from '../../helpers/tolerances.js';
 
 const mooseJaw = JSON.parse(readFileSync(resolve(process.cwd(), 'src/modules/traffic/data/moose-jaw.json'), 'utf8'));
 const PAT1 = mooseJaw.routes.find((r) => r.id === 'PAT1');
-const ASTRA = mooseJaw.routesNotYetInSetup.find((r) => r.id === 'PAT_ASTRA');
+const ASTRA = mooseJaw.routesForOtherTypes.find((r) => r.id === 'PAT_ASTRA');
 
 const ASTRA_PATTERN_FT = 3000; // Dad, 13 Oct 2026 (TR-156)
 const CT156_PATTERN_FT = 3500; // airfield.js PATTERN_ALT_FT

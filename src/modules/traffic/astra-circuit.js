@@ -20,7 +20,9 @@
 // closed loop like Pattern 1's: it is the Astra route's flown path (route.js, `flown: 'ct102b-overhead'`). `fromInitial`
 // is the overhead: from the initial point through the break to touchdown. Both share the perch and the final.
 // Phase names: 'climb', 'crosswind' (the climbing turn), 'downwind', 'final_turn', 'final'; and 'initial' and 'break'
-// on the overhead. Nothing here is offered on screen yet (plan Step 5c Phase 3 wires it into the sim and the spawner).
+// on the overhead. Plan Step 5c Phase 3 wires it into the sim (sim.js patternFor) and the spawner, and adds the
+// go-around (buildAstraGoAround, phase 'go_around' until its climbing turn) and the spacing extension
+// (buildAstraExtendedDownwind).
 //
 // Positions are map feet, x east and y north; headings compass degrees true; speeds KIAS unless named otherwise.
 import { ktToFtps } from '../../core/units.js';
@@ -80,14 +82,19 @@ function downwindLineThrough(perch, th, dep) {
 /**
  * From touchdown: full power on the centreline at the climb speed to pattern height, then the climbing turn onto the
  * downwind line once at height and past the departure end. Stops once on the line, wings level. Returns { track, end }.
+ * With `from` (an aircraft's state { x, y, alt, kias, headingDeg, bankDeg }) it is the go-around from there instead
+ * (buildAstraGoAround): the same climb along the centreline and the same climbing turn, named 'go_around' until the turn.
  */
-function flyClimbOut(points, centre, downwind, wind, k) {
+function flyClimbOut(points, centre, downwind, wind, k, from = null) {
   const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd];
   const runwayFt = Math.hypot(dep.x - th.x, dep.y - th.y);
-  const pilot = makePilot({ ...touchdownPointOf(th, dep), alt: THRESHOLD_DATA_ELEV_FT, ias: k.thresholdKias, hdg: 0, src: ASTRA_POINT.threshold, phase: 'climb', perf: k.perf }, wind);
+  const start = from
+    ? { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0, src: ASTRA_POINT.threshold, phase: 'go_around', perf: k.perf }
+    : { ...touchdownPointOf(th, dep), alt: THRESHOLD_DATA_ELEV_FT, ias: k.thresholdKias, hdg: 0, src: ASTRA_POINT.threshold, phase: 'climb', perf: k.perf };
+  const pilot = makePilot(start, wind);
   const { s } = pilot;
-  s.hdg = pilot.headingFor(centre.trackDeg);
-  s.tag = 'climb';
+  if (!from) s.hdg = pilot.headingFor(centre.trackDeg);
+  s.tag = from ? 'go_around' : 'climb';
   pilot.record();
   let turning = false, turned = 0;
   for (let n = 0; n < MAX_STEPS; n++) {
@@ -174,4 +181,45 @@ export function buildAstraCircuit(points, windFromDeg = 360, windKt = 0, numbers
     lapSec: lap.climb.sec + lap.endSec,
     fromInitialSec: initial.sec + overhead.endSec,
   };
+}
+
+/**
+ * The Astra's go-around from an aircraft's state `from` = { x, y, alt, kias, headingDeg, bankDeg } (spec 4.19 item 3,
+ * TR-158: "a go-around climbs straight to 3,000 ft and rejoins downwind"; the level is an engineering choice, Patrick to
+ * confirm): full power along the runway centreline at the climb speed to pattern height, then, once at height and past
+ * the departure end, the 30° climbing turn onto the downwind line, the same climb-out and turn as the lap after a
+ * touch-and-go (flyClimbOut). It stops once on the downwind line, wings level, where the Astra route carries on (sim.js
+ * goAroundEnded). `points` are the Astra route's; the downwind line is the one through today's perch (the route's lap,
+ * buildAstraCircuit's `perch`, passed in). Returns the path [{ x, y, alt, kt, g, bankDeg, src, phase, headingDeg, tag }].
+ */
+export function buildAstraGoAround(points, from, windFromDeg, windKt, perch, numbers = ASTRA_PATTERN) {
+  const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd];
+  return flyClimbOut(points, lineOf(th, dep), downwindLineThrough(perch, th, dep), { windFromDeg, windKt }, numbers, from).track;
+}
+
+/**
+ * Spacing on final for the Astra (TR-R18; spec 4.19 item 6), the same shape as the CT-156's (circuit.js
+ * buildExtendedDownwind) with the Astra's numbers: from its state `from` on its downwind it flies on past today's perch
+ * by `extendFt` before its 30° final turn, so it rolls out further out on the centreline, behind the traffic on final;
+ * the final turn comes down to the glide path's height at its rollout (the window's own slope carried further out).
+ * The path stops on final `joinBeforeWindowFt` inside the Astra's window, where its route carries on. Returns
+ * { track, rollout, rolloutSec, endSec }, as buildExtendedDownwind does.
+ */
+export function buildAstraExtendedDownwind(points, from, windFromDeg, windKt, perch, extendFt, joinBeforeWindowFt = 1000, numbers = ASTRA_PATTERN) {
+  const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd], win = points[ASTRA_POINT.window];
+  const centre = lineOf(th, dep);
+  const back = (centre.trackDeg + 180) * Math.PI / 180;
+  const extended = { x: perch.x + extendFt * Math.sin(back), y: perch.y + extendFt * Math.cos(back) };
+  const windowFt = Math.hypot(win.x - th.x, win.y - th.y);
+  const slope = (win.alt - THRESHOLD_DATA_ELEV_FT) / windowFt;
+  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0 };
+  const inner = flyInner(points, centre, 0, extended, { windFromDeg, windKt }, null, start, {
+    startStage: 'downwind',
+    finalTurnFromAlt: from.alt,
+    finalTurnEndAlt: THRESHOLD_DATA_ELEV_FT + slope * (windowFt + extendFt),
+    stopToGoFt: windowFt - joinBeforeWindowFt,
+    numbers,
+    window: win,
+  });
+  return { track: inner.track, rollout: inner.rollout, rolloutSec: inner.rolloutSec, endSec: inner.endSec };
 }
