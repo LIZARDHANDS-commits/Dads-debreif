@@ -547,6 +547,11 @@ export const FW_WING = Object.freeze({
     // the wing line "out of reach" only when no turn at all keeps him behind it; one that does but passes inside the pass line
     // is the pass line's trouble (round 4, thread): counted as out of reach, the nose-behind ran on while he crossed behind Lead
     lineShortAll: true,
+    // in Lead's turn the filter takes a turn on the lag side (less turn in Lead's direction: toward his tail, outside his circle)
+    // before one inside it, whatever his side last step (round 4; Patrick 14 Oct 2026, never ahead of the 3/9 line, nose
+    // behind Lead; SMM 12.29 Fig 12.22: the miss likely leaves him outside the turn circle); when no turn clears the pass
+    // line, the lag-side turn nearest his aim's that keeps the pass outside 500 ft, before the turn that passes widest
+    lagSide: true,
     // Once engaged the filter stays engaged until his aim's own turn clears the pass line and the wing line by 50 ft (Fable F12's
     // 50 ft margin) for 1 s (estimate); holdsPower: power off (while closing) and pass-clear's pitch held all the engagement
     // (round 4, thread). null: engaged only while his aim's turn fails.

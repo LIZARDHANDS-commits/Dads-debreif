@@ -459,7 +459,12 @@ export function stepFwWingman(w, refSt) {
             for (const c of cands) {
               if (!ok(c)) continue;
               const sideK = Math.sign(c.om - omegaNom) || 1;
-              const cost = Math.abs(c.om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
+              // Round 4 (guard.lagSide): in Lead's turn the lag side, turning less than his aim does in Lead's direction (toward
+              // Lead's tail, outside his circle), is taken before the inside, whose escape (turning harder inside Lead's circle)
+              // carried him round inside it, abeam and 5,000 ft away (the turn into him from tight, gauge r4bi2)
+              const insideK = Math.sign(dot3(seen.turn.omega, out)) || 0;
+              const lagPenalty = W.guard.lagSide && turning && insideK && sideK === insideK ? 2 * omMax : 0;
+              const cost = Math.abs(c.om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0) + lagPenalty;
               if (!best || cost < best.cost) best = { ...c, cost, sideK };
             }
             if (!best) return null;
@@ -484,6 +489,14 @@ export function stepFwWingman(w, refSt) {
           }
           // none clears: the turn that passes widest
           cleared = Boolean(pick);
+          // none clears the pass line: with lagSide, the lag-side turn nearest his aim's that keeps the pass outside the 500 ft
+          // rule (passLine less the closure allowance: minFt), else the turn that passes widest
+          const insideK0 = Math.sign(dot3(seen.turn.omega, out)) || 0;
+          const lagRescue =
+            !pick && W.guard.lagSide && turning && insideK0
+              ? choose((c) => c.pass >= W.guard.minFt && (Math.sign(c.om - omegaNom) || 1) !== insideK0)
+              : null;
+          if (lagRescue) pick = lagRescue;
           const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
           omPick = om / DEG;
           if (pick?.free) filterOn = false;
