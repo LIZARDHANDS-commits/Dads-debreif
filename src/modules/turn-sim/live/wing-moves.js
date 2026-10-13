@@ -547,9 +547,9 @@ export const FW_WING = Object.freeze({
     lookSec: 5, // the pass predicted up to 5 s ahead (spec 7e.7: 3-5 s), every 0.25 s
     lookStepSec: 0.25,
     // ... the filter holding Lead one step tighter to the 500 ft rule (minFt) and Lead as he is to the pass line and the wing
-    // line (round 4, thread, estimate). OFF: it did not free the steer-behind at the turn's start (the filter still turned him
-    // into Lead's turn: its candidates are a turn held 5.4 s), and the turn into him from tight ended 3,368 ft back (gauge r4t)
-    tighterAtMin: false,
+    // line (round 4, thread, estimate). Off at first (gauge r4t, before the feed-forward cap); on since r4yt: at the arc
+    // target (650 ft) Lead one step tighter kept the predicted pass just under the 600 ft line, the filter on and power off
+    tighterAtMin: true,
     // In Lead's turn the filter's candidates are his turn held over the path law's 3 s look (circleLookSec) and then Lead's
     // turn, the capture (SMM 12.29 Fig 12.20: "reverse and promptly capture the turn circle by matching Lead's turn"; round 4,
     // thread, estimate), not a turn held all 5.4 s: held all the look, the steer-behind toward Lead's tail read as a turn
