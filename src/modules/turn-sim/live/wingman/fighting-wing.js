@@ -316,9 +316,12 @@ export function stepFwWingman(w, refSt) {
     let passShort = false; // his aim's own turn passes inside the pass line
     let cleared = true; // a turn was found that keeps the pass outside it
     let passFt = null;
+  let omNom = null; // his aim's turn and the filter's, deg/s in the turn plane (+ left), for the trace
+  let omPick = null;
     if (W.guard.filter) {
       const side = unit3(cross3(out, u)); // his left in the turn plane
       const omegaNom = dot3(aTurn, side) / V; // rad/s, + turning left
+      omNom = omegaNom / DEG;
       const horizon = W.guard.lookSec + (W.deadReckon ? 0 : FW_SEE.delaySec);
       const lp0 = W.deadReckon ? leadNow : seen.lead.p;
       const leadAsIs = { p: lp0, v: leadV, omega: seen.turn.omega };
@@ -331,7 +334,10 @@ export function stepFwWingman(w, refSt) {
         const extra = W.guard.sharedLift ? { acc: aV, maxFt: Math.abs(errFt) } : null;
         const a = leastPass(leadAsIs, me, horizon, extra);
         const b = leastPass(leadTighter, me, horizon, extra);
-        return { pass: Math.min(a.leastFt, b.leastFt), behind: Math.min(a.behindLeastFt, b.behindLeastFt) };
+        if (!W.guard.tighterAtMin) return { pass: Math.min(a.leastFt, b.leastFt), behind: Math.min(a.behindLeastFt, b.behindLeastFt) };
+        // Round 4: Lead one step tighter is held to the 500 ft rule itself, Lead as he is to the pass line; the one number
+        // compared with the pass line meets both, so the widest pass is still one measure. The wing line: Lead as he is.
+        return { pass: Math.min(a.leastFt, b.leastFt + (passLine - W.guard.minFt)), behind: a.behindLeastFt };
       };
       const passFor = (om) => predFor(om).pass;
       // The pass line (Fable F4, second review; Q2's working answer, read with Patrick's bubble ruling): 500 ft plus the range
@@ -389,6 +395,7 @@ export function stepFwWingman(w, refSt) {
           // none clears: the turn that passes widest
           cleared = Boolean(pick);
           const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
+          omPick = om / DEG;
           if (pick?.free) filterOn = false;
           else filterSide = pick ? pick.sideK : filterSide;
           if (filterOn) {
@@ -444,7 +451,7 @@ export function stepFwWingman(w, refSt) {
         filterPull = (Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG);
       } else filterSide = 0;
     }
-    return { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passShort, cleared, passFt };
+    return { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passShort, cleared, passFt, omNom, omPick: filterOn ? omPick : null };
   };
   let vert = vertFor(dzOf(owner));
   let flt = runFilter(vert);
@@ -455,7 +462,7 @@ export function stepFwWingman(w, refSt) {
     flt = runFilter(vert);
   }
   const { dz, errFt, aV, hold } = vert;
-  const { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passFt } = flt;
+  const { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passFt, omNom, omPick } = flt;
   // who has pitch this step, for the trace (Fable Q7's working answer: log it)
   const pitchOwner =
     owner.name === 'passClear' ? 'passClear' : owner.name === 'yoyo' && yoyo.phase === 'up' ? 'highYoYo' : owner.name === 'yoyo' && yoyo.phase === 'down' ? 'yoyoDown' : job.low ? 'lowInside' : job.quick ? 'quickFix' : 'stack';
@@ -511,7 +518,7 @@ export function stepFwWingman(w, refSt) {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
       heightTargetFt: Math.round(dz), wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
-      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null, lineShort, passFt: passFt == null ? null : Math.round(passFt), yoyoFt: yoyo.phase === 'up' ? Math.round(yoyo.hFt) : null,
+      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null, lineShort, passFt: passFt == null ? null : Math.round(passFt), yoyoFt: yoyo.phase === 'up' ? Math.round(yoyo.hFt) : null, omNomDps: omNom, omPickDps: omPick,
     },
   };
 }

@@ -516,6 +516,10 @@ export const FW_WING = Object.freeze({
     releaseSec: 3,
     lookSec: 5, // the pass predicted up to 5 s ahead (spec 7e.7: 3-5 s), every 0.25 s
     lookStepSec: 0.25,
+    // ... the filter holding Lead one step tighter to the 500 ft rule (minFt) and Lead as he is to the pass line and the wing
+    // line (round 4, thread, estimate). OFF: it did not free the steer-behind at the turn's start (the filter still turned him
+    // into Lead's turn: its candidates are a turn held 5.4 s), and the turn into him from tight ended 3,368 ft back (gauge r4t)
+    tighterAtMin: false,
     tighter: 1.3, // ... with Lead on his present turn and one step tighter: his turn rate 1.3 times (estimate)
     lagSec: 1, // "aim at where Lead was": Lead's place 1 s ago (estimate, about 380 ft back along his path at 200 KIAS: "turning slightly toward Lead", SMM Fig 12.20; 2 s turned him 120° off Lead's heading from tight)
     aboveFt: 20, // "above only if already above": more than 20 ft above Lead when the guard engages (estimate), else the miss is below
