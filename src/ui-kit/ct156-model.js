@@ -662,13 +662,16 @@ export function ct156Serial(number) {
 
 /** The serial alone, white with a dark outline, low on the fin (the 'ship' paint's only decal; TS-156). */
 function serialCanvas(number) {
-  return (ctx, w) => outlinedText(ctx, ct156Serial(number), w / 2, finPx(w, -1, 0, 0.0205)[1], 0.0255 * (w / FIN_DECAL.size), 5);
+  return (ctx, w) => outlinedText(ctx, ct156Serial(number), w / 2, finPx(w, -1, 0, FIN_SERIAL_Z)[1], 0.0255 * (w / FIN_DECAL.size), 5);
 }
 
 // The fin's decal (decalGeo.tail) is a square 0.14 units a side, centred 0.676 units aft of the origin and 0.075 up. Each
 // side has its own canvas, so every mark sits at the same place on both sides and the text still reads (side +1 left,
 // -1 right). Places and sizes off Patrick's photo of 156102 (11 Oct 2026; measured from the fin's top front corner).
 const FIN_DECAL = Object.freeze({ x: -0.607, z: 0.075, size: 0.14 });
+// The serial's and the flag's middles, units above the spinner's axis: raised about 0.3 ft (0.013 units) off A24 (G12,
+// Patrick 13 Oct 2026; were 0.0205 and 0.018).
+const FIN_SERIAL_Z = 0.0335, FIN_FLAG_Z = 0.031;
 const finPx = (w, side, x, z) => [((-side * (x - FIN_DECAL.x)) / FIN_DECAL.size + 0.5) * w, (0.5 - (z - FIN_DECAL.z) / FIN_DECAL.size) * w];
 
 function tailCanvas(number, side) {
@@ -688,14 +691,15 @@ function tailCanvas(number, side) {
     ctx.closePath();
     ctx.fill();
     leaf(ctx, ...at(-0.58, 0.1094), 0.029 * k, '#d8202c');
-    natoStar(ctx, ...at(-0.6102, 0.1037), 0.027 * k);
-    // The Canadian flag aft of the serial, low on the fin (about 0.45 ft tall: a close wingman can read it; TS-156).
-    const [fx, fy] = at(-0.6525, 0.018);
-    const fw = 0.046 * k, fh = fw / 2;
+    // The NATO star about 0.95 ft across (G11, A18; r was 0.027 units, about 1.25 ft).
+    natoStar(ctx, ...at(-0.6102, 0.1037), 0.0205 * k);
+    // The Canadian flag aft of the serial, low on the fin (TS-156), about 0.8 by 0.4 ft (G11, A18; fw was 0.046 units, 1.06 ft).
+    const [fx, fy] = at(-0.6525, FIN_FLAG_Z);
+    const fw = 0.035 * k, fh = fw / 2;
     ctx.fillStyle = '#e4212d'; ctx.fillRect(fx - fw / 2, fy - fh / 2, fw, fh);
     ctx.fillStyle = '#ffffff'; ctx.fillRect(fx - fw / 4, fy - fh / 2, fw / 2, fh);
     leaf(ctx, fx, fy, fh * 0.36, '#e4212d');
-    const [tx, ty] = at(-0.623, 0.0205);
+    const [tx, ty] = at(-0.623, FIN_SERIAL_Z);
     ctx.font = `600 ${Math.round(0.0255 * k)}px Arial, Helvetica, sans-serif`;
     ctx.textAlign = side < 0 ? 'left' : 'right'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#eef1f5';
