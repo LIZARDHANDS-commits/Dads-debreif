@@ -521,6 +521,67 @@ How it was built, beyond 1-8 (each an estimate until Patrick says otherwise):
 - **Rough spots, for Checkpoint E:** in route turns the torque swings 10-100% with up to 17 reversals; on corner and station-change legs his roll reaches 86°/s with up to 17° of bank off Lead's; route to route swings 10-100% with 14 reversals. Fixed 14 Oct 2026: after a Held change #2 drifted when the tracker ended 2 kt or more off Lead (once 232 ft in a minute, through Lead); Held #2 idle in a close formation now holds his place fore and aft (0.1 kt a foot, at most 2 kt) and sideways (a fraction of a degree of heading), within 30 ft of it (estimates).
 - **After Patrick's first look (14 Oct 2026):** line astern and the corner 3 ft lower (11 ft below Lead), then 6 ft more (17 ft, his setting on the Corner buttons; to polish with the redone model, future.md); Corner Fwd / Back and Up / Down buttons, 1 ft a step, 10 ft each way, for him to set the corner by its references (the station change's corner moves with it); the seat's lean now shows Lead's spinner, exhaust stacks and wingtips, not only his middle, so it moves whenever the bow hides them; route turns: Lead would rarely turn 60° in route, so its larger out-of-picture is accepted (Patrick: "thats fine").
 
+## 7d. The rejoins from fighting wing on the live wingman (B4's first part; draft 1, 14 Oct 2026, not approved)
+
+Patrick's order (14 Oct 2026): fighting wing first (B5), then "TRJ and SARJ from fighting wing", then line abreast and HTRJ. This section is that middle rung. The rejoins from line abreast, and HTRJ, are the next rung's.
+
+**1. The goal.** From fighting wing, #2 gets into echelon or route (or, on SARJ, line astern) quickly and safely, and never hits Lead. Lead never waits. With a predicted collision, #2 overshoots behind and below; he never tries to save the rejoin.
+
+**2. How a pilot does it (SMM 12.24-12.27, 16.20; spec 6.3 as flown today).**
+- **TRJ.** Lead turns at 30° and 200 KIAS. #2 sets the rejoin line, Lead fixed on the X about 35° off Lead's tail and 4° up, just below Lead's plane. He comes down the line at 10-20 KIAS over Lead (SMM 12.24 para 56). Anywhere between 250 and 100 ft, once his closure is stable, he moves out to route and up the spinner-to-wingtip line to echelon in one movement. If his closure isn't stable by 100 ft, he overshoots (Patrick's window, TS-110; the five SMM rules, 6.3).
+- **SARJ.** About 500 ft behind, he turns slightly toward the echelon side so his vector points slightly away from Lead. Overtake is 20-30 KIAS (EFIG p.371). Lead grows, then "blooms" at route (SMM 12.26 paras 62-63).
+- **From fighting wing he is cold.** He turns hotter to reach the line (6.3). He is already 600-650 ft back in the cone, so the line is close.
+
+**3. The design: one wingman, three jobs.** From fighting wing #2 is already flying live (7e). The rejoin needs no tracker: the supervisor changes his job.
+- *Fighting wing* (7e).
+- *Down the line*:
+  - The aim is the X on the rejoin line: TRJ on Lead's turn circle, 35° off his tail; SARJ behind and to the echelon side.
+  - The power loop sets the overtake: 15 KIAS over Lead on TRJ, 25 on SARJ (the middles of the manuals' ranges).
+  - The vertical loop holds the line's height (4° up, never shallower than 50 ft below; TS-181).
+  - Steering is 7e's pursuit law aimed at the X.
+- *The capture*:
+  - Inside the 250-100 ft window, with closure stable (under 20 kt, TS-110), he hands over to close formation's technique (7b/7c) at its place.
+  - He starts from his own motion, as B1 does from the tracker, so there is no jump.
+  - Route first, then up the line to echelon.
+- **The guard stays on throughout, as the supervisor's top job.**
+  - Far out it is 7e's, with its 500 ft minimum, while he is still in the cone (released once he commits to the line).
+  - On the line it is the overshoot. If the pass is predicted inside the close minimum, or closure isn't stable by 100 ft, he flies the overshoot: wings level, power back, behind and below Lead, never at or above his height. He stabilizes outside, then crosses back with no overtake (rule 5, SMM 12.27 para 65, Fig 12.18).
+
+**4. Numbers (estimates unless a source is given).**
+- Overtake: TRJ 10-20 KIAS (SMM 12.24 para 56); SARJ 20-30 KIAS (EFIG p.371).
+- The line: 35° off Lead's tail (TS-181), Lead 4° up (estimate, TS-181).
+- The window: 250-100 ft, closure under 20 kt (TS-110).
+- **The close minimum** (Patrick 14 Oct 2026, 8(b)): never predicted closer than one wingspan (33.4 ft, `slots.js`) to Lead with more than 10 kt of closure, an estimate.
+- The capture's hand-over: the close-formation technique's own numbers (7b, 7c).
+- Lead's TRJ turn: 30° at 200 KIAS until #2 is in (6.3, TS-87).
+
+**5. What goes.** For a rejoin from fighting wing: the tracker's ride (`ride.js`) and the estimated windows `ROLLED_MAX_SEC` and `ROLLED_BLEND_SEC` (`tuning.js`, used by `formation-turns.js`). They retire only once nothing uses them. Each one's job is listed first, per `AGENTS.md`. The rejoins from line abreast keep today's code until their own rung.
+
+**6. Gauge set and acceptance.**
+- The set: TRJ and SARJ from fighting wing to echelon and route, both sides, into and away; SARJ to line astern; one known-bad case, a rejoin aimed straight at Lead.
+- What a pilot would recognise:
+  - Every rejoin ends in its place, settled.
+  - Overtake stays inside the manuals' figures.
+  - He is never inside the close minimum.
+  - The known-bad case overshoots behind and below.
+  - No lurch at the capture: roll and G reversals no worse than today's.
+  - Lead never waits.
+- Keep unchanged: the close-formation traces and probes, fighting wing's b5 set, the 4-ship.
+
+**7. Tasks (plan 12.4 B4, renumbered from fighting wing).**
+- T20: this section approved.
+- T21: the gauge set.
+- T22: the jobs and the capture.
+- T23: the overshoot guard.
+- T24: retire what nothing uses.
+- T25: B4's one test (a TRJ from fighting wing to echelon, live) and docs.
+- Checkpoint F: Patrick flies them.
+
+**8. Questions for Patrick.**
+(a) **Answered** (Patrick 14 Oct 2026, card "All live, no tracker"): from fighting wing the live wingman flies the whole rejoin, with no tracker.
+(b) **Answered** (Patrick 14 Oct 2026, card "1 span, >10 kt"): he overshoots when the pass is predicted closer than one wingspan (33.4 ft) with more than 10 kt of closure, or his closure isn't stable (under 20 kt) by 100 ft (TS-110). An estimate he picked.
+(c) The overtake middles: 15 KIAS on TRJ, 25 on SARJ.
+
 ## 7e. Fighting wing on the live wingman (B5; approved by Patrick 14 Oct 2026, TS-233: "Approved"; draft 3, with the Fable audit and his answers)
 
 Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 Oct 2026, kept in `docs/references/figures/smm-12-29-*` and `smm-12-30-*`), and Patrick's own technique (14 Oct 2026, quoted). The manual's words are paraphrased with their paragraph; Patrick's are quoted. Numbers marked "estimate" or "guess" wait for his ruling.
@@ -580,6 +641,8 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 - Inverted: "2 can also go inverted in fighting wing of course, only if required" (Patrick 14 Oct 2026): his bank is not capped; he rolls past 90° (his lift pointed where he needs it, as in fluid manoeuvring) only when the geometry needs it, never as the normal way. "So can lead and 2 follows" (Patrick 14 Oct 2026): Lead may go inverted in fighting wing too, and #2 follows him in any plane (SMM 12.29 para 69: Lead free to manoeuvre in any plane), so the technique works in Lead's lift plane, not the horizontal. Lead's own inverted moves in fighting wing (beyond today's Level turn, Wings level, Reversal, Climb, Descend) are not in this rung: `future.md`.
 - Too tight: "IF we're getting too tight we also make S turns back and forth from sides of the cone as well" (as his 5 Oct 23:02Z "in fighting wing a common way to bleed energy is to S turn left and right if required", until now in `future.md`): S-turns across the cone, side to side, add path and bleed closure.
 - Reaction: 0.4 s after he sees Lead's bank and nose start (his pick, 14 Oct 2026; TS-211's 0.3-0.5 s).
+
+**7. Ruling, 14 Oct 2026 (TS-233):** in Lead's level turn, when #2 on the inside can't hold Lead's speed at his higher G (60°/2 G at 200 KIAS), he drops low inside, a few hundred feet (estimate), at MAX, and climbs back to the stack on the roll-out (Patrick, card "Drop low inside, MAX"). The vertical loop owns this; power is at MAX, not the slow PI.
 
 **7. The design: one wingman, a fighting wing technique of its own** (draft 3: the Fable audit of 14 Oct 2026, `Pat's claude work/formation-review-12oct/fable-fighting-wing-audit-14oct.md`, its findings F1-F19 cited below, and Patrick's answers). The live wingman of 7b (perception, supervisor, technique, shaper, the point mass) gains a second technique beside close formation's, with its own quantities, loops and tuning tables (`FW_SEE` and `FW_WING` beside `CLOSE_SEE` and `CLOSE_WING`, `wing-moves.js`), chosen explicitly by formation (F18). Close formation holds a point in Lead's wing plane; fighting wing holds a region and a picture, so its loops close on different quantities, and only the shaper and the aircraft are shared. Nothing new is shared with the 4-ship's old law.
 
