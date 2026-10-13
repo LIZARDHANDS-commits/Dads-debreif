@@ -2,7 +2,15 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
-## Where it stands
+## Later the same night (after compaction)
+
+- Patrick ruled the pilot review (plan 12.2) and set the order: Lead first, then the 2-ship wingman, then the 4-ship. 12.1e (the Web Worker) moved to `future.md`.
+- TS-214, one tuning sheet, built as V2.423 (#1017): `live/handling.js`, `lead-moves.js`, `wing-moves.js` beside `rates.js`, `bands.js` and `moves.js`, all through `tuning.js`; `numbers.md` lists the whole sheet, core's aircraft limits first. No flying changed (the gauge's traces byte-identical). CI green; the thread's admin merge was refused by the permission check, so Patrick merges it, then tag `v2.423-tuning-sheet`.
+- Thread artifact "How Lead Flies" (claude.ai/artifact/JLyp5DTH9CTumjirsak64g): the two Lead pipelines and eight rough spots.
+- Phase A research running in the thread, read-only, writing to its scratch folder (not durable: copy what is checked into `Pat's claude work/formation-review-12oct/` before the session ends): the manuals; public flight-test and flying-qualities data; JSBSim's T-6; Patrick's phase 2 GoPro telemetry (three chapters of one HERO7 recording on his PC; roll and onset a lower bound, loops 3.5 G typical; no latitude or longitude in any output).
+- On the waiting list: 60 EFIG and SMM page images tracked in the public repo (`Pat's claude work/manuals/images/`).
+
+## Where it stands (earlier the same night)
 
 | What | Where |
 |---|---|

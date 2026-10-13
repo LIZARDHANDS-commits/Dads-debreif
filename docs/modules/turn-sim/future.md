@@ -37,6 +37,7 @@ The second wave of live mode (rejoins, fighting wing and fluid manoeuvring, old 
 
 ## Power, speed and the aircraft
 
+- **A GoPro telemetry reader in the repo** (found 12 Oct 2026 late): a GoPro's MP4 carries its accelerometer, gyro and GPS logs (GPMF), which give real G, roll and pitch rates and speed from Patrick's flights. A plain-Node reader was written in the thread's scratch folder for the phase A research (no library). Moving it into `tools/`, with derived traces (never latitude or longitude) as example flights for the gauge and the plot page, waits for Patrick's yes.
 - **Planning in a Web Worker** (was plan Step 12.1e; Patrick 12 Oct 2026: "goes to future feature, we wont do that now"): run a press's planning on a background thread so the picture never stalls. The gauge's "press ms" shows the cost on main at V2.422: a change to fighting wing about 240 ms, a turning rejoin to echelon about 150 ms. V2.422 already pauses the picture instead of lurching after a slow press (J2).
 
 - A torque curve from the reference data (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
