@@ -235,7 +235,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   // #2 in close formation: Held (today's planned poses) or Live (the close-in wingman, TS-226; B1 flies the echelon hold
   // straight and level). Read at the next press, so it is set before pressing Echelon (plan 12.4 B1 T6). 2-ship only.
   let closeWing = 'held';
-  const CLOSE_WING_HINT = 'Held: #2 flies today\'s planned poses. Live: the close-in wingman flies #2 off what he sees of Lead, 0.3 s late (echelon: the hold, the close turns, Wings level and Reversal; route and line astern stay Held until B3). Takes effect at the next press.';
+  const CLOSE_WING_HINT = 'Held: #2 flies today\'s planned poses. Live: the close-in wingman flies #2 off what he sees of Lead, 0.3 s late (echelon: the hold, the close turns, Wings level and Reversal; route and line astern stay Held until B3). Takes effect at once when nothing is being flown, otherwise at the next press.';
   const closeWingButtons = [
     { value: 'held', label: 'Held' },
     { value: 'live', label: 'Live' },
@@ -258,7 +258,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   // i can play with it"): Up 1 ft toward Lead, Down 1 ft away, along the spinner-to-wingtip line; the value is from TS-230's
   // place. A live #2 slides there at once; held flying takes it at the next press. 2-ship only.
   let shiftFt = 0;
-  const ECHELON_SHIFT_HINT = "Moves #2's echelon place along the spinner-to-wingtip line, 1 ft a step: Up toward Lead, Down away from him (0 is 16.5 ft back, 41 ft out, 3 ft down; 5 ft up to 10 ft down). Live: he slides there now. Held: from the next press. Route moves with it.";
+  const ECHELON_SHIFT_HINT = "Moves #2's echelon place along the spinner-to-wingtip line, 1 ft a step: Up toward Lead, Down away from him (0 is 16.5 ft back, 41 ft out, 3 ft down; 5 ft up to 10 ft down). Live: he slides there now. Held: from the next press (choose Live to watch it). Route moves with it.";
   const shiftValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
   const showShift = () => { shiftValue.textContent = `${shiftFt > 0 ? '+' : shiftFt < 0 ? '−' : '+'}${Math.abs(shiftFt)} ft`; };
   const shiftButton = (label, delta, title) => h('button', {

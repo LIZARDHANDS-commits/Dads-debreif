@@ -591,6 +591,17 @@ export function createFormation(options = {}) {
     /** Changes options read only when a manoeuvre is planned (the 4-ship check turn), without starting again. */
     setOptions(next = {}) {
       opts = { ...opts, ...next };
+      // "#2 in close formation" switched while nothing is being flown takes effect at once (Patrick 14 Oct 2026: the echelon
+      // line control did nothing until the next press): Live starts the live wingman in echelon from where #2 is; Held hands
+      // him back (he flies straight on, the idle trim holding Lead's heading). During a press it waits for the next one.
+      if ('closeWing' in next && !state.current && !state.fluid) {
+        state.closeWing = opts.closeWing;
+        if (opts.closeWing === 'live') startLiveWing();
+        else if (state.liveWing) {
+          state.liveWing = null;
+          state.liveTrace = null;
+        }
+      }
     },
     /**
      * A button press. Flown at once when nothing is being flown; a turn button while #2 is changing formation (2-ship) is
