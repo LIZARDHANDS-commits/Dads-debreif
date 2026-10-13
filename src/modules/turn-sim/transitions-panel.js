@@ -106,7 +106,7 @@ function placeWords(key, p) {
  * shown under this one for the 2-ship, or null. Returns
  * { element, cardElement, setShips(n), update(state, where), renderCard(state, where), values() }.
  */
-export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, onEchelonShift = null }) {
+export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, onEchelonShift = null, onCornerShift = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let turn = 'into'; // TRJ Into or Away (TS-174): which way Lead turns, toward #2's side or away from it
@@ -265,6 +265,32 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   const echelonShiftRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Echelon on the line, 1 ft a step', title: ECHELON_SHIFT_HINT },
     h('span', { class: 'ts-hint' }, 'Echelon line'),
     shiftButton('Up', -1, 'Move #2 1 ft up the line, toward Lead'), shiftValue, shiftButton('Down', 1, 'Move #2 1 ft down the line, away from Lead'));
+
+  // The Corner's place (Patrick 14 Oct 2026: "Add a 'forward/back' and 'up/down' button in the corner and I'll adjust"):
+  // Forward / Back and Up / Down, 1 ft a step, from line astern's fore and aft and height (slots.js CORNER_SHIFT). A live #2
+  // moves there at once; held flying at the next press. The station change's corner moves with it. 2-ship, in the corner.
+  let corner = { fwd: 0, up: 0 };
+  const CORNER_HINT = "Moves #2's corner place 1 ft a step (0 is line astern's fore and aft and height: 43.4 ft back, 11 ft down, at echelon's 40.2 ft out; 10 ft each way). Live: he moves there now. Held: from the next press. The station change's corner moves with it.";
+  const signed = (n) => `${n > 0 ? '+' : n < 0 ? '−' : '+'}${Math.abs(n)}`;
+  const fwdValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
+  const upValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
+  const showCorner = () => { fwdValue.textContent = `${signed(corner.fwd)} ft`; upValue.textContent = `${signed(corner.up)} ft`; };
+  const cornerButton = (label, axis, delta, title) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    title,
+    onclick: () => {
+      const next = { ...corner, [axis]: corner[axis] + delta };
+      corner = onCornerShift ? onCornerShift(next) : next;
+      showCorner();
+    },
+  }, label);
+  const cornerFwdRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Corner forward or back, 1 ft a step', title: CORNER_HINT },
+    h('span', { class: 'ts-hint' }, 'Corner'),
+    cornerButton('Fwd', 'fwd', 1, 'Move the corner 1 ft forward'), fwdValue, cornerButton('Back', 'fwd', -1, 'Move the corner 1 ft back'));
+  const cornerUpRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Corner up or down, 1 ft a step', title: CORNER_HINT },
+    h('span', { class: 'ts-hint' }, 'Corner'),
+    cornerButton('Up', 'up', 1, 'Move the corner 1 ft up'), upValue, cornerButton('Down', 'up', -1, 'Move the corner 1 ft down'));
 
   // Lead behaviours (Patrick 14 Oct 2026: "Can we put all of these things under a 'lead behaviours' settings so i can play with
   // them while flying?"; his pick: the telegraph's roll time and build-up, and close formation speed). Each box starts at the
@@ -527,6 +553,8 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
     twoBar,
     closeWingRow,
     echelonShiftRow,
+    cornerFwdRow,
+    cornerUpRow,
   );
   // What the pair can fly now that lives in this file: the close-turn bank, the fluid and fighting wing moves (fluid-panel.js)
   // and #2's lag roll; layout.js puts them in the Manoeuvres box.
@@ -607,6 +635,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
       fourGrid.hidden = !four;
       closeWingRow.hidden = four; // the pair's only in B1 (update shows it in close formation only)
       echelonShiftRow.hidden = four; // the pair's only (TS-230; update shows it in echelon only)
+      cornerFwdRow.hidden = cornerUpRow.hidden = four; // the pair's only (update shows them in the corner only)
       twoBar.hidden = four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
@@ -655,8 +684,9 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
       bankRow.hidden = !closeBankVisible;
       closeWingRow.hidden = !closeBankVisible;
       echelonShiftRow.hidden = where.key !== 'echelon';
+      cornerFwdRow.hidden = cornerUpRow.hidden = where.key !== 'corner';
       breakField.hidden = where.key !== 'echelon';
-      twoBar.hidden = closeWingRow.hidden && echelonShiftRow.hidden;
+      twoBar.hidden = closeWingRow.hidden && echelonShiftRow.hidden && cornerFwdRow.hidden;
       if (bankSelect.value !== String(closeBankNow())) {
         bankSelect.value = String(closeBankNow());
       }

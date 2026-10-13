@@ -19,7 +19,7 @@ import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge, judgeFluid4 } from './judge.js';
-import { FORMATIONS, FOUR_FORMATIONS, pairSlot, setEchelonShift, sideFor } from './slots.js';
+import { FORMATIONS, FOUR_FORMATIONS, pairSlot, setEchelonShift, setCornerShift, sideFor } from './slots.js';
 import { LEAD_ROLL, LEAD_ROLL_STATE } from './lead-moves.js';
 import { leadPointMassOf } from './lead-pilot.js'; // also registers Lead's point-mass pilot step with flight.js (TS-225) for the pointMassLead below
 import { startFrom, stepWingman, applyTo, settledOn, withPlace, withChange } from './wingman/wingman.js';
@@ -720,6 +720,16 @@ export function createFormation(options = {}) {
       const v = setEchelonShift(ft);
       const w = state.liveWing;
       if (w) state.liveWing = withPlace(w, pairSlot(w.key, w.side)); // route and the corner move with echelon (TS-230, TS-231)
+      return v;
+    },
+    /**
+     * The Corner setting { fwd, up } (slots.js CORNER_SHIFT; Patrick 14 Oct 2026): a live #2 in the corner flies to the new
+     * place at once; planned flying takes it at the next press. Returns the setting.
+     */
+    setCornerShift(shift) {
+      const v = setCornerShift(shift);
+      const w = state.liveWing;
+      if (w) state.liveWing = withPlace(w, pairSlot(w.key, w.side));
       return v;
     },
     /** Changes options read only when a manoeuvre is planned (the 4-ship check turn), without starting again. */

@@ -14,7 +14,7 @@
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
 import { phase, runTracker } from './tracker.js';
-import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
+import { FORMATIONS, fwShapeNow, pairSlot, cornerShiftNow } from './slots.js';
 import { REJOIN, STOP_KT, FW_FOLLOW, KIAS_OUTSIDE_LAB, KIAS_LAB, TRACKER, CLOSE_SHAPING, RECIPES } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
@@ -68,7 +68,8 @@ export const stopAt = (slot, over = {}) => slide(slot, {
  */
 export const cornerBehind = (slot, spacingFt) => {
   const astern = pairSlot('astern', 0, spacingFt);
-  return { fwd: astern.fwd, left: slot.left, alt: astern.alt };
+  const shift = cornerShiftNow(); // the Corner setting moves every corner (Patrick 14 Oct 2026)
+  return { fwd: astern.fwd + shift.fwd, left: slot.left, alt: astern.alt + shift.up };
 };
 /** Drop back slowly (SMM 16.32 para 92): subtle power trim (2-3 kt slower than Lead), gentle bank. */
 export const dropBack = (slot, over = {}) => phase(slot, {
