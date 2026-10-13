@@ -2,7 +2,7 @@
 
 Every number the build script (`build_ct102b.py`) uses, with its source. The script keeps these numbers in one constants block, and each one names its row here (for example `P2`, `R7`, `E21`). Shared plan Step 3c, item 1 (`docs/modules/shared/plan.md`, `docs/modules/shared/ct102-astra-plan.md`).
 
-**Status:** first refine pass, 13 Oct 2026, not yet seen by Patrick or Dad. **No manual page is used:** there is no Astra manual in the project files. The numbers below are public fact-sheet figures (P), measured off a scaled three-view (R), Dad's photos (D) or estimates (E).
+**Status:** first refine pass and RCAF paint (D7), 13 Oct 2026, not yet seen by Patrick or Dad. **No manual page is used:** there is no Astra manual in the project files. The numbers below are public fact-sheet figures (P), measured off a scaled three-view (R), Dad's photos (D) or estimates (E).
 
 ## How these were found, and what's missing
 
@@ -98,9 +98,47 @@ Two cockpit photos of a CT-102B on the ramp, sent by Dad. They're family photos,
 | D1 | Two seats side by side, each with its own centre stick between the knees | Confirms the seating (P3, P4) and sticks, not yokes; cockpit, Step 3c item 5 |
 | D2 | A centre console between the seats, with the power lever and other controls on it | Cockpit layout, item 5 (no control is named here until a manual or Patrick confirms it) |
 | D3 | Grey seat shells with mesh cushions, and tall dark headrest frames behind both seats | Cockpit, and what shows through the canopy from outside |
-| D4 | Paint: yellow overall, with dark blue winglets and dark blue and red trim; RCAF roundel on the wing's upper surface; the number 207 on the upper surface behind the cockpit | Paint at delivery (item 6); confirms upswept, swept-back winglets (P5, P6) |
+| D4 | Paint (see D7 for the full scheme from the 202 photo; D7n notes where they disagree): yellow overall, with dark blue winglets and dark blue and red trim; RCAF roundel on the wing's upper surface; the number 207 on the upper surface behind the cockpit | Paint at delivery (item 6); confirms upswept, swept-back winglets (P5, P6) |
 | D5 | A yellow canopy frame with a chrome grab handle, standing up beside the seats with the canopy open | The canopy frame exists; how it opens (slides aft, P6, or lifts) is still to confirm from a photo with it part-open or closed |
 | D6 | An adult seated in the right seat | A rough check of cockpit width later; too oblique to measure from now |
+
+## Paint: Dad's side photo of CT-102B 202 (D7; 13 Oct 2026; kept out of the repo)
+
+A near side-on photo of RCAF CT-102B "202" in a hangar, sent by Dad on 13 Oct 2026. It stays out of the repo and nothing is copied from it; the colours, boundaries and marking positions are measured off it. It is the first photo with a clear view of the whole left side, so it also gives the paint scheme the earlier description (D4) only sketched. **Not yet seen by Patrick.**
+
+**How the numbers were found.** The photo's camera was fitted to six landmarks of the model (the spinner's tip, the three tyres' ground points and the fin's two top corners; the fit leaves up to 12 px, about 0.25 ft, at a landmark). It was taken from ahead and to the left, about **32° off square-on**, with a lens about 45° wide, so the tail is about 40 percent further from the camera than the nose and a flat measure along the picture would be wrong by that much. Instead each boundary pixel was cast from the fitted camera onto the model's skin, and its station and height read from where it hit; this removes the angle and the perspective, and leaves the fit error (about ±0.3 ft by the nose, ±0.5 ft by the tail) and the pixel reading (±3 px, about ±0.1 ft). Stations are feet behind the spinner's tip and heights are feet above the propeller axis, as the rest of this file. The comparison picture (the model from the fitted camera beside the photo, scratch only) shows how well it lines up. Where the model's shape differs from the photo, the cast point lands a little off; see the fix list below.
+
+| Row | What the photo shows | Value used (in the script's `PAINT` block) |
+|---|---|---|
+| D7a | Colours (sRGB 0 to 255, read away from reflections; the hangar lights wash the yellow out, so the yellow is the photo's shade pushed to a full yellow) | navy (16, 26, 72), yellow (255, 208, 36), red (214, 22, 32), white (240, 240, 240), black (22, 22, 24), silver leading edge (170, 170, 172), light grey gear (178, 180, 184), tyre (30, 32, 36), prop blades (46, 49, 60). The camera for the matching render: 6.18 ft ahead of the spinner's tip, 30.6 ft left, yaw 148°, a 43 mm lens on a 36 mm sensor |
+| D7b | Spinner, cowl and forward fuselage dark navy, back to a curved line just ahead of the windshield (6.8 ft, R6); below that line along the lower fuselage to the tail the fuselage is navy too | The navy edge: (6.30, up), (6.30, 0.49), (6.33, -0.43), (6.45, -1.26), (6.76, -1.54), (7.77, -1.67) (all station ft, height ft), then a straight line to (18.84, -0.98) because the wing hides the photo there, then (21.35, -0.73), (23.91, -0.53), (25.40, -0.35). The nose line is nearly square across the top: the photo does not show the top view of the curve, so it is taken straight across at station 6.30 (assumption) |
+| D7c | A stripe along that edge: white, red, white from the navy toward the yellow (Dad's description: "a white line, then a red stripe, then yellow") | white 0.05 ft, red 0.17 ft, white 0.05 ft; widths measured at the nose (the red about 12 px, 0.2 ft; the thin whites are 3 to 4 px, so ±0.03 ft) |
+| D7d | Yellow everywhere else: fuselage, fin, rudder, upper wing, winglets, tailplane, canopy's frame. The wing's leading edge is light grey or silver, a band about 13 px tall on the near wing; the tailplane's near side looks grey | Silver band, the front 10 percent of the wing's chord and of the tailplane's, top and bottom. **Estimate:** the photo does not show the tailplane's top or the wings' undersides, so those are yellow (Dad: "everything else is yellow") |
+| D7e | "202" in white on the navy nose side, about 1.0 ft wide and 0.5 ft tall | Centre station 5.13, height -0.53 above the axis, width 1.00 ft, white. Blender's built-in lettering stands in for the real face |
+| D7f | "Canada" in black on the yellow ahead of the cockpit, with a small flag at the end | Centre station 7.88, height -0.62, width 1.80 ft, black; flag centre (8.70, -0.40), 0.30 by 0.16 ft |
+| D7g | "RCAF", the roundel and "ARC" on the aft fuselage side | "RCAF" centre station 17.33, width 1.60 ft; roundel centre (18.87, 0.14), diameter 1.10 ft; "ARC" centre 20.24, width 1.36 ft (heights 0.10 and 0.20 above the axis) |
+| D7h | A Canadian flag on the fin | Centre (25.10, 3.27), 1.00 ft wide, 0.60 ft tall |
+| D7i | Roundel on the wing's upper surface (D4; not in this photo) | **Estimate:** 1.5 ft across, 7.5 ft out on each wing, 45 percent of the chord back |
+| D7j | A white light at each winglet's root, in a dark rim, hanging under the wing's leading edge | **Estimate of size and place:** 1.1 ft long, 0.4 ft across, 0.3 ft under the wing at 15 ft out, station 9.3 |
+| D7k | Light grey gear struts, black tyres, red wheel hubs (and a navy main-gear door, not modelled) | Struts light grey; red discs on both faces of every wheel, 55 percent of the tyre's diameter (**estimate**) |
+| D7l | 5 dark blades | Dark grey-blue (46, 49, 60); the photo's white and silver leading-edge line on the blades is not drawn |
+| D7m | The right side was not photographed | Taken as the left side's mirror (**assumption**); lettering is flipped so it reads correctly from the right |
+| D7n | The photo disagrees with D4 on the winglets: D4 says dark blue, the photo shows them yellow with only a navy trim at the light | Followed the photo; D4 may describe the trim, or another aircraft (it quotes number 207) |
+| D7o | The roundel and flags are only simple geometric stand-ins (rings, bands and an 11-lobed star in place of the maple leaf); the lettering is Blender's built-in face | Not copied from the photo or from any artwork |
+
+### Fix list from the 202 photo (shape differences found; **not built**, for the next refine pass)
+
+Sizes are estimated off the photo with the fitted camera, so about ±0.3 ft.
+
+1. **Main gear:** the photo's left main leg is a navy door and leg cover about 0.35 ft wide and 1.8 ft tall, with a smaller grey strut and a red pull cord. The model has a plain round grey leg (E26) and no door. Needs a door fairing, its size from a photo of the gear down from the front.
+2. **Gear doors under the fuselage:** a black door or fairing under the fuselage from about station 5.5 to 9, about 0.4 ft deep and 0.3 ft wide, between the nose and main gear; the model has a plain belly there.
+3. **Wing leading edge and tips:** the photo shows the leading edge as a thicker, rounder, silver-metal strip (about 0.3 ft deep) along the whole wing, and a pod hanging at the winglet's root for the light. The model has a NACA stand-in (E10) and a thin leading edge, and the light is a placed estimate (D7j).
+4. **Ventral shape under the tail:** in the photo the lower aft fuselage ends squarely at about station 25 with a vertical face of about 0.8 ft, then the rudder; the model tapers to a point at 25.6. The lozenge below the tail cone from the three-view (R5a, up to 0.45 ft) is the same difference.
+5. **Canopy and turtle deck:** the photo shows a lower, longer fairing behind the sliding canopy (a hump about 0.2 ft high from station 15 to 18) and a clearly separate yellow canopy frame about 0.15 ft wide around the glass; the model has only the windshield's bow (R6). Needed before the cockpit work (item 5).
+6. **Lower cowl:** a silver scoop or intake on the underside of the cowl from about station 2.5 to 5.5, about 0.3 ft deep; not in the model.
+7. **Propeller:** blades in the photo are wider near the tip than the estimate (E22) and have a clear white edge line. The photo is too oblique to give numbers.
+8. **Tailplane:** tips carry a red and navy trim and the near tip looks slightly upswept; the model is flat (R12). Estimated 0.2 ft.
+9. **Fin:** a small white antenna and a lighter fairing at the fin's top; the top's corner is squarer than the model's by about 0.1 ft.
 
 ## Size checks (first refine pass, 13 Oct 2026)
 

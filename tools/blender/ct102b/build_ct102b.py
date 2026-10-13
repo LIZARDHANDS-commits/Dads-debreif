@@ -13,15 +13,22 @@
 # Parts are smooth-shaded with a hard edge where faces meet at more than SHARP_DEG, as the CT-156's are. The baked soft
 # shadows come with the High and Performance delivery (plan Step 3c item 6), not in this pass.
 #
-# With a render directory, the saved master is opened again and the full renders are made from it in plain colours:
-# both quarters, below, and square-on side, front and top over a 1 ft grid.
+# The paint (plan Step 3c, Dad's ask 13 Oct 2026, "put on the RCAF colours") is one block of colours, boundaries and markings in
+# the constants (rows D7a to D7p in sources.md, all read off Dad's photo of CT-102B 202), drawn into small generated textures
+# and applied to the parts by position. It is for renders and checking: for the CT-156 the paint stays the app's code (ALL-38),
+# and where the delivered Astra II carries its paint is a question for Patrick at delivery (plan Step 3c item 6).
+#
+# With a render directory, the saved master is opened again and the full renders are made from it: both quarters, below,
+# and square-on side, front and top over a 1 ft grid, and a side view from the photo's own camera.
 import math
 import os
+import shutil
 import sys
+import tempfile
 
 import bpy  # first: with the bpy module, bmesh exists only once bpy is loaded
 import bmesh  # noqa: E402
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 if not argv:
@@ -161,6 +168,46 @@ EYE_STATION_FT, EYE_OUT_FT, EYE_Z_FT = 11.0, 0.95, 1.85  # E30 estimate, side by
 
 SHARP_DEG = 40  # as build_ct156_exterior.py: faces meeting at more than this keep a hard edge
 
+# ---------- RCAF paint (Dad's photo of CT-102B 202, 13 Oct 2026; rows D7a to D7p in sources.md) ----------
+# How the boundaries were found: the camera of the photo was fitted to six landmarks (spinner tip, the three tyres' ground
+# points, the fin's top corners), leaving up to 12 px (about 0.25 ft) between where the model puts a landmark and where the
+# photo has it. The photo is taken from ahead and to the left, about 32 deg off square-on, with a 45 deg wide lens, so the tail
+# is about 40 percent further away than the nose. Each boundary pixel was then cast from that camera onto the model's skin, which
+# takes the angle and the perspective out; what remains is that fit error (about +-0.3 ft by the nose, +-0.5 ft by the tail) and
+# the pixel reading (+-3 px). Stations are feet behind the spinner's tip, heights are feet above the prop axis (as FUSELAGE).
+# Colours are sRGB 0 to 255 read off the photo, away from reflections (D7a); the photo's yellow is washed by the hangar lights.
+PAINT_RGB = {
+    'navy': (16, 26, 72), 'yellow': (255, 208, 36), 'red': (214, 22, 32), 'white': (240, 240, 240), 'black': (22, 22, 24),
+    'silver': (170, 170, 172), 'grey': (178, 180, 184), 'tyre': (30, 32, 36), 'prop': (46, 49, 60),
+}
+# D7b: the dark navy nose meets yellow along this line (station, height), running down the cowl's side just ahead of the
+# windshield (6.8 ft, R6), then aft along the lower fuselage to the tail. Navy is below and ahead of it. The nose part is read
+# off the photo; the part under the wing (stations 7.8 to 18.8) is hidden by the wing in the photo and is a straight line
+# between the two ends. It runs off the top (height 3) and off the tail (station 30) so the line has no end caps.
+NAVY_EDGE = [(6.30, 3.0), (6.30, 0.49), (6.33, -0.43), (6.45, -1.26), (6.76, -1.54), (7.77, -1.67), (18.84, -0.98),
+             (21.35, -0.73), (23.91, -0.53), (25.40, -0.35), (30.0, -0.22)]
+# D7c: from the navy edge toward the yellow: white, red, white; widths in ft (red about 0.17 ft, from the photo's stripe at the nose)
+STRIPE_BANDS = ((0.05, 'white'), (0.17, 'red'), (0.05, 'white'))
+WING_LE_SILVER = 0.10          # D7d estimate: the leading edge's silver band, as a fraction of the chord (it looks about 10 percent)
+TAIL_LE_SILVER = 0.10          # D7d estimate, likewise (the photo shows the tailplane's near side grey; its top is not seen)
+# Markings: on = which part; s, z = centre (station ft, height ft above the axis, from the casts); size in ft. The text is
+# Blender's built-in font, scaled to the photo's width; the real lettering is a different face and is not copied (D7e).
+MARKS = [
+    dict(on='fuselage', kind='text', text='202', s=5.13, z=-0.53, width=1.00, colour='white'),      # D7e: on the navy cowl
+    dict(on='fuselage', kind='text', text='Canada', s=7.88, z=-0.62, width=1.80, colour='black'),   # D7f
+    dict(on='fuselage', kind='flag', s=8.70, z=-0.40, width=0.30, height=0.16),                     # D7f: the small flag by the word
+    dict(on='fuselage', kind='text', text='RCAF', s=17.33, z=0.10, width=1.60, colour='black'),     # D7g
+    dict(on='fuselage', kind='roundel', s=18.87, z=0.14, diameter=1.10),                            # D7g
+    dict(on='fuselage', kind='text', text='ARC', s=20.24, z=0.20, width=1.36, colour='black'),      # D7g
+    dict(on='fin', kind='flag', s=25.10, z=3.27, width=1.00, height=0.60),                          # D7h
+]
+# Seen on the left side only; the right side is taken as the same, mirrored so it reads the right way (E, not in the photo).
+WING_ROUNDEL_FT = dict(out=7.5, chord_fraction=0.45, diameter=1.5)  # D7i estimate: on both wings' upper surfaces, position not seen
+TIP_LIGHT = dict(station=9.3, out=15.0, below=0.30, length=1.1, width=0.40, depth=0.16)  # D7j: under the winglet's root; size E
+HUB_FRACTION = 0.55            # D7k: red wheel hubs, about this fraction of the tyre's diameter (the photo shows red hubs)
+# The photo's camera for the matching render (D7a): position (ft), yaw, pitch, roll (rad), focal length in pixels of a 1400 px picture
+PHOTO_CAM = dict(pos=(6.18, 30.56, -0.17), yaw=2.58390, pitch=0.02308, roll=-0.06267, f_px=1678.8, size=(1400, 786))
+
 # ---------- worked out from the numbers above ----------
 GROUND_Z = -AXIS_HEIGHT_FT
 FIN_TOP_Z = HEIGHT_FT - AXIS_HEIGHT_FT
@@ -249,12 +296,15 @@ def fuselage_ring(s, n=48):
             for t in (2 * math.pi * k / n for k in range(n))]
 
 
-# Materials: plain colours (estimates, for the renders only; the paint scheme is not part of this pass)
-COLOURS = {
-    'airframe': (0.85, 0.85, 0.83, 1), 'surface': (0.50, 0.60, 0.72, 1), 'canopy': (0.45, 0.62, 0.78, 1),
-    'spinner': (0.55, 0.55, 0.57, 1), 'prop': (0.12, 0.12, 0.13, 1), 'gear': (0.60, 0.60, 0.62, 1),
-    'tyre': (0.07, 0.07, 0.07, 1),
-}
+# Materials. Plain colours from PAINT_RGB for the parts that carry one colour; the fuselage, fin, wing and tailplane get
+# generated textures (the paint block below). The canopy's glass stays an estimate.
+def linear(c):
+    return tuple(((v / 255 + 0.055) / 1.055) ** 2.4 if v > 10.3 else v / 255 / 12.92 for v in c)
+
+
+COLOURS = {k: (*linear(v), 1) for k, v in PAINT_RGB.items()}
+COLOURS.update({'airframe': COLOURS['yellow'], 'surface': COLOURS['yellow'], 'spinner': COLOURS['navy'],
+                'gear': COLOURS['grey'], 'canopy': (0.45, 0.62, 0.78, 1)})
 
 
 def material(name):
@@ -266,7 +316,7 @@ def material(name):
     m.use_nodes = True
     bsdf = m.node_tree.nodes.get('Principled BSDF')
     bsdf.inputs['Base Color'].default_value = COLOURS[name]
-    bsdf.inputs['Roughness'].default_value = 0.6
+    bsdf.inputs['Roughness'].default_value = 0.6 if name in ('tyre', 'prop', 'gear') else 0.3
     return m
 
 
@@ -600,6 +650,272 @@ nose_hinge = empty('gearNoseHinge', nose_pivot, (0, 1, 0), positive='leg up (fol
 attach(part('gearNoseLeg', 'gear', nose_leg), nose_hinge)
 attach(part('gearNoseWheel', 'tyre', lambda bm: wheel(bm, nose_axle, NOSE_WHEEL_DIA_FT, NOSE_WHEEL_WIDTH_FT)), nose_hinge)
 
+# ---------- RCAF paint (constants above; rows D7a to D7p) ----------
+import numpy as np  # noqa: E402  (the bpy module needs it, so it is always there)
+
+TMP_DIR = tempfile.mkdtemp()
+SS = 2  # the textures are drawn at twice the size and averaged down, for smooth edges
+
+
+def glyph_triangles(text):
+    """The text's outline as triangles (list of 3 points, unit height-ish), centred, from Blender's built-in font."""
+    cu = bpy.data.curves.new('glyphs', 'FONT')
+    cu.body = text
+    cu.align_x = 'CENTER'
+    ob = bpy.data.objects.new('glyphs', cu)
+    bpy.context.collection.objects.link(ob)
+    bpy.context.view_layer.update()
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    bm = bmesh.new()
+    bm.from_mesh(ev.to_mesh())
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    tris = np.array([[(v.co.x, v.co.y) for v in f.verts] for f in bm.faces])
+    bm.free()
+    ev.to_mesh_clear()
+    bpy.data.objects.remove(ob)
+    bpy.data.curves.remove(cu)
+    lo, hi = tris.reshape(-1, 2).min(0), tris.reshape(-1, 2).max(0)
+    return (tris - (lo + hi) / 2) / (hi[0] - lo[0])  # width 1
+
+
+def fill_triangles(mask, tris):
+    h, w = mask.shape
+    for t in tris:
+        x0, x1 = max(int(t[:, 0].min()), 0), min(int(t[:, 0].max()) + 2, w)
+        y0, y1 = max(int(t[:, 1].min()), 0), min(int(t[:, 1].max()) + 2, h)
+        if x1 <= x0 or y1 <= y0:
+            continue
+        xs, ys = np.meshgrid(np.arange(x0, x1) + 0.5, np.arange(y0, y1) + 0.5)
+        (ax, ay), (bx, by), (cx, cy) = t
+        d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+        if abs(d) < 1e-12:
+            continue
+        l1 = ((by - cy) * (xs - cx) + (cx - bx) * (ys - cy)) / d
+        l2 = ((cy - ay) * (xs - cx) + (ax - cx) * (ys - cy)) / d
+        mask[y0:y1, x0:x1] |= (l1 >= 0) & (l2 >= 0) & (1 - l1 - l2 >= 0)
+
+
+def leaf(r, a, size):
+    """A stand-in for the maple leaf: an 11-lobed star, not the real artwork."""
+    return r <= size * (0.5 + 0.5 * np.abs(np.cos(5.5 * a)))
+
+
+def draw_mark(canvas, m, cx, cy, px):
+    """Draws one marking into the canvas (rows from the bottom), centred at pixel (cx, cy), px pixels per foot."""
+    h, w, _ = canvas.shape
+    rgb = lambda k: np.array(PAINT_RGB[k]) / 255  # noqa: E731
+    if m['kind'] == 'text':
+        mask = np.zeros((h, w), bool)
+        fill_triangles(mask, glyph_triangles(m['text']) * m['width'] * px + np.array([cx, cy]))
+        canvas[mask] = rgb(m['colour'])
+        return
+    xs, ys = (np.arange(w) + 0.5 - cx) / px, (np.arange(h) + 0.5 - cy) / px
+    X_, Y_ = np.meshgrid(xs, ys)
+    if m['kind'] == 'roundel':  # D7g: simple rings, white edge, navy ring, white disc, red leaf; not the real artwork
+        r = np.hypot(X_, Y_) / (m['diameter'] / 2)
+        a = np.arctan2(Y_, X_)
+        for limit, colour in ((1.0, 'white'), (0.90, 'navy'), (0.60, 'white')):
+            canvas[r <= limit] = rgb(colour)
+        canvas[leaf(r, a, 0.45)] = rgb('red')
+    elif m['kind'] == 'flag':  # D7f, D7h: red, white, red bands (1:2:1) and an 11-lobed leaf; geometric stand-in
+        inside = (np.abs(X_) <= m['width'] / 2) & (np.abs(Y_) <= m['height'] / 2)
+        canvas[inside] = rgb('white')
+        canvas[inside & (np.abs(X_) > m['width'] / 4)] = rgb('red')
+        r = np.hypot(X_, Y_) / (m['height'] / 2)
+        canvas[inside & leaf(r, np.arctan2(Y_, X_), 0.48)] = rgb('red')
+
+
+def edge_distance(S, Z, path):
+    """Distance from each point to the polyline, positive on the left of its travel (the yellow side of NAVY_EDGE)."""
+    best, sign = np.full(S.shape, 1e9), np.ones(S.shape)
+    for (ax, ay), (bx, by) in zip(path, path[1:]):
+        dx, dy = bx - ax, by - ay
+        t = np.clip(((S - ax) * dx + (Z - ay) * dy) / (dx * dx + dy * dy), 0, 1)
+        d = np.hypot(S - (ax + t * dx), Z - (ay + t * dy))
+        near = d < best
+        best = np.where(near, d, best)
+        sign = np.where(near, np.where(dx * (Z - ay) - dy * (S - ax) < 0, -1.0, 1.0), sign)
+    return best * sign
+
+
+def fuselage_base(S, Z):
+    d = edge_distance(S, Z, NAVY_EDGE)
+    col = np.empty(S.shape + (3,))
+    col[:] = np.array(PAINT_RGB['yellow']) / 255
+    col[d < 0] = np.array(PAINT_RGB['navy']) / 255
+    start = 0.0
+    for width, name in STRIPE_BANDS:
+        col[(d >= start) & (d < start + width)] = np.array(PAINT_RGB[name]) / 255
+        start += width
+    return col
+
+
+def plain_base(S, Z):
+    col = np.empty(S.shape + (3,))
+    col[:] = np.array(PAINT_RGB['yellow']) / 255
+    return col
+
+
+def make_image(name, panels):
+    """panels: list of float arrays (rows from the bottom, columns, 3), stacked bottom to top into one picture."""
+    pix = np.concatenate(panels, 0)
+    img = bpy.data.images.new(name, pix.shape[1], pix.shape[0], alpha=False)
+    rgba = np.ones(pix.shape[:2] + (4,), np.float32)
+    rgba[..., :3] = pix
+    img.pixels.foreach_set(rgba.ravel())
+    # A generated picture is lost when the file is saved, so write it out once, load that and pack it into the .blend
+    tmp = os.path.join(TMP_DIR, name + '.png')
+    img.filepath_raw = tmp
+    img.file_format = 'PNG'
+    img.save()
+    bpy.data.images.remove(img)
+    packed = bpy.data.images.load(tmp)
+    packed.pack()  # the file stays until the script ends: saving packs from it again
+    return packed
+
+
+def down(canvas):
+    h, w, c = canvas.shape
+    return canvas.reshape(h // SS, SS, w // SS, SS, c).mean((1, 3))
+
+
+def side_texture(name, s0, s1, z0, z1, ppf, base, marks):
+    """Two panels, one per side: the left's station runs to the right, the right's to the left, so lettering reads
+    correctly from either side (the right side is taken as the left's mirror, E)."""
+    w, h = round((s1 - s0) * ppf), round((z1 - z0) * ppf)
+    panels = []
+    for side in (0, 1):
+        cols, rows = (np.arange(w * SS) + 0.5) / (ppf * SS), (np.arange(h * SS) + 0.5) / (ppf * SS)
+        S, Z = np.meshgrid(s0 + cols if side == 0 else s1 - cols, z0 + rows)
+        canvas = base(S, Z)
+        for m in marks:
+            cx = (m['s'] - s0 if side == 0 else s1 - m['s']) * ppf * SS
+            draw_mark(canvas, m, cx, (m['z'] - z0) * ppf * SS, ppf * SS)
+        panels.append(down(canvas))
+    return make_image(name, panels)
+
+
+def top_texture(name, s0, s1, y0, y1, ppf, le_fn, chord_fn, silver, marks=()):
+    """One picture of a wing or tailplane seen from above: station along u, span along v. A silver band at the leading edge."""
+    w, h = round((s1 - s0) * ppf), round((y1 - y0) * ppf)
+    cols, rows = (np.arange(w * SS) + 0.5) / (ppf * SS), (np.arange(h * SS) + 0.5) / (ppf * SS)
+    S, Y = np.meshgrid(s0 + cols, y0 + rows)
+    canvas = plain_base(S, Y)
+    canvas[S < le_fn(Y) + silver * chord_fn(Y)] = np.array(PAINT_RGB['silver']) / 255
+    for m in marks:
+        draw_mark(canvas, m, (m['s'] - s0) * ppf * SS, (m['y'] - y0) * ppf * SS, ppf * SS)
+    return down(canvas)
+
+
+def textured(name, img):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    tex = nt.nodes.new('ShaderNodeTexImage')
+    tex.image = img
+    tex.interpolation = 'Linear'
+    tex.extension = 'EXTEND'
+    bsdf = nt.nodes['Principled BSDF']
+    bsdf.inputs['Roughness'].default_value = 0.3
+    nt.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+    return m
+
+
+def set_uv(obj, fn):
+    me = obj.data
+    uv = me.uv_layers.new(name='paint')
+    for p in me.polygons:
+        cos = [me.vertices[me.loops[i].vertex_index].co for i in p.loop_indices]
+        left = sum(c.y for c in cos) >= 0
+        for i, c in zip(p.loop_indices, cos):
+            uv.data[i].uv = fn(c, left)
+
+
+def paint_side(names, img, s0, s1, z0, z1):
+    for name in names:
+        obj = bpy.data.objects[name]
+        obj.data.materials.clear()
+        obj.data.materials.append(textured(f'paint_{name}', img))
+        set_uv(obj, lambda c, left: (((-c.x - s0) if left else (s1 + c.x)) / (s1 - s0),
+                                     ((c.z - z0) / (z1 - z0) + (0 if left else 1)) / 2))
+
+
+def paint_top(names, top_img, bottom_img, s0, s1, y0, y1):
+    for name in names:
+        obj = bpy.data.objects[name]
+        obj.data.materials.clear()
+        obj.data.materials.append(textured(f'paint_{name}_top', top_img))
+        obj.data.materials.append(textured(f'paint_{name}_bottom', bottom_img))
+        set_uv(obj, lambda c, left: ((-c.x - s0) / (s1 - s0), (c.y - y0) / (y1 - y0)))
+        for p in obj.data.polygons:
+            p.material_index = 0 if p.normal.z >= 0 else 1
+
+
+# Fuselage and cowl: stations 0 to 26 ft, heights -2.4 to 1.6 ft (D7b to D7g); the fin: its own picture (D7h).
+FUS_PICTURE = (0.0, 26.0, -2.4, 1.6)
+fuse_marks = [m for m in MARKS if m['on'] == 'fuselage']
+fin_marks = [m for m in MARKS if m['on'] == 'fin']
+paint_side(['cowl', 'fuselage'], side_texture('paintFuselage', *FUS_PICTURE, 80, fuselage_base, fuse_marks), *FUS_PICTURE)
+FIN_PICTURE = (22.0, 28.0, -1.1, 4.7)
+paint_side(['fin'], side_texture('paintFin', *FIN_PICTURE, 100, plain_base, fin_marks), *FIN_PICTURE)
+
+
+def np_wing_le(y):
+    return WING_LE_FT[0] + (WING_LE_FT[1] - WING_LE_FT[0]) * np.abs(y) / WING_REF_OUT_FT
+
+
+def np_wing_chord(y):
+    return WING_TE_FT[0] + (WING_TE_FT[1] - WING_TE_FT[0]) * np.abs(y) / WING_REF_OUT_FT - np_wing_le(y)
+
+
+# Wings: stations 7.8 to 14.2 ft, out to 17.2 ft each side; the roundel on the upper surfaces only (D7i, estimate)
+WING_PICTURE = (7.8, 14.2, -17.2, 17.2)
+roundel_s = lambda out: WING_LE_FT[0] + (WING_LE_FT[1] - WING_LE_FT[0]) * out / WING_REF_OUT_FT \
+    + WING_ROUNDEL_FT['chord_fraction'] * (WING_TE_FT[0] + (WING_TE_FT[1] - WING_TE_FT[0]) * out / WING_REF_OUT_FT
+                                           - WING_LE_FT[0] - (WING_LE_FT[1] - WING_LE_FT[0]) * out / WING_REF_OUT_FT)  # noqa: E731
+wing_marks = [dict(kind='roundel', s=roundel_s(WING_ROUNDEL_FT['out']), y=sgn * WING_ROUNDEL_FT['out'],
+                   diameter=WING_ROUNDEL_FT['diameter']) for sgn in (1, -1)]
+args = (*WING_PICTURE[:2], *WING_PICTURE[2:], 64, np_wing_le, np_wing_chord, WING_LE_SILVER)
+paint_top(['wingLeft', 'wingRight'], make_image('paintWingTop', [top_texture('a', *args, marks=wing_marks)]),
+          make_image('paintWingBottom', [top_texture('b', *args)]), *WING_PICTURE)
+# Tailplane: stations 21 to 24.3 ft, out to 6.3 ft each side (D7d)
+TAIL_PICTURE = (21.0, 24.3, -6.3, 6.3)
+tail_le = lambda y: TAIL_LE_FT[0] + (TAIL_LE_FT[1] - TAIL_LE_FT[0]) * np.abs(y) / TAIL_HALF_SPAN_FT  # noqa: E731
+tail_args = (*TAIL_PICTURE[:2], *TAIL_PICTURE[2:], 64, tail_le, lambda y: TAIL_TE_FT - tail_le(y), TAIL_LE_SILVER)
+tail_img = make_image('paintTail', [top_texture('t', *tail_args)])
+paint_top(['tailplane'], tail_img, tail_img, *TAIL_PICTURE)
+# The canopy's frames and the flaps, ailerons, elevator and rudder are plain yellow; the spinner is navy; the blades dark.
+
+# Small shapes: red wheel hubs (D7k) and the white lights under the winglets' roots (D7j, size and place estimated)
+for side, lr in ((1, 'Left'), (-1, 'Right')):
+    for kind, wheel_obj, width in (('Main', f'gearMain{lr}Wheel', MAIN_WHEEL_WIDTH_FT), ('Nose', 'gearNoseWheel', NOSE_WHEEL_WIDTH_FT)):
+        if kind == 'Nose' and lr == 'Right':
+            continue
+        w_obj = bpy.data.objects[wheel_obj]
+        hub_dia = (MAIN_WHEEL_DIA_FT if kind == 'Main' else NOSE_WHEEL_DIA_FT) * HUB_FRACTION
+        # the wheel's mesh is drawn in world coordinates, so its centre is the average of its points
+        verts = [w_obj.matrix_world @ v.co for v in w_obj.data.vertices]
+        centre = sum(verts, Vector()) / len(verts)
+
+        def hub(bm, c=centre, wd=width, d=hub_dia):
+            for sgn in (1, -1):
+                cylinder(bm, c + Vector((0, sgn * (wd / 2 - 0.002), 0)), c + Vector((0, sgn * (wd / 2 + 0.012), 0)), d / 2, seg=32)
+
+        h_obj = part(f'hub{kind}{lr}' if kind == 'Main' else 'hubNose', 'red', hub)
+        h_obj.parent = w_obj.parent
+        h_obj.matrix_parent_inverse = w_obj.matrix_parent_inverse
+    LT = TIP_LIGHT
+    ls = LT['station']
+
+    def light(bm, rx, ry, rz, at):
+        bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=12, radius=1.0)
+        for v in bm.verts:
+            v.co = Vector((v.co.x * rx, v.co.y * ry, v.co.z * rz)) + at
+
+    at = Vector((X(ls), side * LT['out'], wing_z(LT['out']) - LT['below']))
+    part(f'tipLightRim{lr}', 'navy', lambda bm, a=at: light(bm, LT['length'] / 2 + 0.04, LT['width'] / 2 + 0.04, LT['depth'] / 2, a))
+    part(f'tipLight{lr}', 'white', lambda bm, a=at: light(bm, LT['length'] / 2, LT['width'] / 2, LT['depth'] / 2 + 0.07, a))
+
 # ---------- named points ----------
 empty('datum', (0, 0, 0), source='E31: the model origin, the spinner tip on the prop axis (not the weighing datum)')
 for side, lr in ((1, 'Left'), (-1, 'Right')):
@@ -643,9 +959,10 @@ bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
 print('saved', OUT_BLEND)
 
 if not RENDER_DIR:
+    shutil.rmtree(TMP_DIR, ignore_errors=True)  # the pictures are packed in the saved master
     sys.exit(0)
 
-# ---------- full renders from the saved master, plain colours ----------
+# ---------- full renders from the saved master ----------
 bpy.ops.wm.open_mainfile(filepath=OUT_BLEND)
 os.makedirs(RENDER_DIR, exist_ok=True)
 scene = bpy.context.scene
@@ -740,3 +1057,32 @@ shoot('below', mid + Vector((0.45, 0.35, -0.80)) * R * 1.45, mid)
 shoot('side', (mid.x, 60, mid.z), (mid.x, 0, mid.z), ortho=LENGTH_FT * 1.15)
 shoot('front', (60, 0, mid.z), (0, 0, mid.z), ortho=SPAN_FT * 1.12)
 shoot('top', (mid.x, 0, 60), ortho=SPAN_FT * 1.08, euler=(0, 0, math.radians(-90)), res=(1600, 1600))
+
+# The same side view from the photo's own camera (PHOTO_CAM), over a plain floor, to set beside the photo (D7a).
+pc = PHOTO_CAM
+cy_, sy_, cp_, sp_, cr_, sr_ = (f(a) for a in (pc['yaw'], pc['pitch'], pc['roll']) for f in (math.cos, math.sin))
+Rz = Matrix(((cy_, -sy_, 0), (sy_, cy_, 0), (0, 0, 1)))
+Rx = Matrix(((1, 0, 0), (0, cp_, -sp_), (0, sp_, cp_)))
+Ry = Matrix(((cr_, 0, sr_), (0, 1, 0), (-sr_, 0, cr_)))
+Rm = Rz @ Rx @ Ry
+cam.data.type = 'PERSP'
+cam.data.sensor_fit = 'HORIZONTAL'
+cam.data.sensor_width = 36
+cam.data.lens = pc['f_px'] * 36 / pc['size'][0]
+cam.matrix_world = Matrix.Translation(pc['pos']) @ Matrix((Rm.col[0], Rm.col[2], -Rm.col[1])).transposed().to_4x4()
+floor = bpy.data.objects.new('floor', bpy.data.meshes.new('floor'))
+bmf = bmesh.new()
+bmf.faces.new([bmf.verts.new((a * 80, b * 80, GROUND_Z)) for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+bmf.to_mesh(floor.data)
+bmf.free()
+fm = bpy.data.materials.new('floor')
+fm.diffuse_color = (0.45, 0.45, 0.46, 1)
+floor.data.materials.append(fm)
+scene.collection.objects.link(floor)
+for o in grids.values():
+    o.hide_render = True
+scene.render.resolution_x, scene.render.resolution_y = pc['size']
+scene.render.filepath = os.path.join(RENDER_DIR, 'ct102b-photo-angle.png')
+bpy.ops.render.render(write_still=True)
+print('render', scene.render.filepath)
+shutil.rmtree(TMP_DIR, ignore_errors=True)

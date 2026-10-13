@@ -2,19 +2,22 @@
 
 Dad's ask, Patrick approved 13 Oct 2026: the CT-156's process applied to the Astra II (shared plan Step 3c, `docs/modules/shared/ct102-astra-plan.md`). This folder is the one writer's own (Dad's thread). It never edits a CT-156 file.
 
-**Status:** first refine pass of the outside, 13 Oct 2026, not yet seen by Patrick or Dad. Sized to the published length, span and height; the shape inside them is measured off the Aeromaquina three-view Dad sent (rows R1 to R16 in `sources.md`), and what the drawing doesn't show (gear legs, blades, cockpit) is still an estimate.
+**Status:** first refine pass of the outside, with the RCAF paint added, 13 Oct 2026, not yet seen by Patrick or Dad. Sized to the published length, span and height; the shape inside them is measured off the Aeromaquina three-view Dad sent (rows R1 to R16 in `sources.md`), and what the drawing doesn't show (gear legs, blades, cockpit) is still an estimate.
 
 | File | What it does |
 |---|---|
 | `sources.md` | Every number the build uses, with its source (public page, measured off the three-view, Dad's photos, or "estimate"), where the sources disagree, the four things still to confirm (gear, prop, seating, canopy) and the size-check results. |
-| `build_ct102b.py` | Builds the outside by script from the constants block at its top (each number names its row in `sources.md`), saves the master `.blend`, prints the size checks and the named points, and optionally makes the full renders. |
+| `build_ct102b.py` | Builds the outside by script from the constants block at its top (each number names its row in `sources.md`), saves the master `.blend`, prints the size checks and the named points, and optionally makes the full renders (now painted, plus a side view from the photo's own camera). |
 
 ## What the master holds
 
 - Real feet, the CT-156 scripts' axes: nose +X, left +Y, up +Z from the propeller axis, origin at the spinner's tip.
 - **Parts:** `cowl`, `fuselage`, `canopy`, `canopyBow` (the windshield's frame), `spinner`, `blade1` to `blade5`, `wingLeft` and `wingRight` (centre section, outer panel with dihedral, winglet), `flapLeft`, `flapRight`, `aileronLeft`, `aileronRight`, `tailplane`, `elevator`, `fin`, `rudder`, and the gear, down: `gearNoseLeg`, `gearNoseWheel`, `gearMainLeftLeg`, `gearMainLeftWheel` and the right side's. Smooth-shaded, with a hard edge where faces meet at more than 40°, as the CT-156's are.
 - **Named points (empties):** `datum` (the model origin), `eyeLeftSeat`, `eyeRightSeat`, and the hinges `aileronLeftHinge`, `aileronRightHinge`, `flapLeftHinge`, `flapRightHinge`, `elevatorHinge`, `rudderHinge`, `propAxis`, `gearMainLeftHinge`, `gearMainRightHinge` and `gearNoseHinge`. Each hinge's local X is its turning axis, and it carries `axis`, `positive` (which way a positive turn moves the part), `travel` and `source`. Each moving part is parented to its hinge, so turning the empty moves the part.
-- No baked shadows, panel lines or paint yet: those come with refining and the High and Performance delivery (plan Step 3c items 4 and 6).
+- **RCAF paint (13 Oct 2026, Dad's ask, not yet seen by Patrick):** navy spinner, cowl and nose with a white, red, white stripe running down the line just ahead of the windshield and aft along the lower fuselage; yellow everywhere else with a silver wing and tailplane leading edge; "202", "Canada" with a small flag, "RCAF", a roundel and "ARC" on the fuselage, a flag on the fin, roundels on the upper wings, red wheel hubs, a white light under each winglet root. Everything is read off Dad's photo of 202 (sources.md rows D7a to D7o); the roundel, flags and leaf are simple geometric stand-ins and the lettering is Blender's built-in face, so no artwork is copied. The photo's shape differences are in sources.md under "Fix list from the 202 photo", not built.
+- **How it is painted:** one block of colours, boundaries and markings in the script's constants (`PAINT_RGB`, `NAVY_EDGE`, `STRIPE_BANDS`, `MARKS` and so on), drawn by the script into small generated pictures (packed into the `.blend`) and applied by position; no new libraries (it uses the numpy that `bpy` already brings).
+- **This paint is for renders and checking.** For the CT-156, the paint and decals stay the app's code and the Blender file has plain colours (ALL-38). Whether the delivered Astra II carries its paint in the file or in the app is a question for Patrick at delivery (plan Step 3c item 6).
+- No baked shadows or panel lines yet: those come with the High and Performance delivery (plan Step 3c item 6).
 
 ## Running it
 
