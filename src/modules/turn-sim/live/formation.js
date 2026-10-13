@@ -265,13 +265,13 @@ export function createFormation(options = {}) {
    * The path drawn ahead is flown ahead at the press, Lead's plan and the wingman's law together on copies, so the drawn
    * path is the flown one (spec 7b.6d item 9, fw-live.js planFwMoveLive's pattern); the turn is done when Lead's plan is
    * done and #2 is settled on his place (or LIVE_TURN_SETTLE_CAP_SEC after Lead's, an estimate). where: { key, side }.
-   * Route and line astern stay on the held poses until B3.
+   * B3 (TS-231, spec 7c.2): in every close formation, echelon, route, line astern and the corner.
    */
   function liveTurn(where) {
     const c = state.current;
-    if (!c || state.closeWing !== 'live' || state.aircraft.length !== 2 || where?.key !== 'echelon') return;
+    if (!c || state.closeWing !== 'live' || state.aircraft.length !== 2 || !LIVE_CLOSE.includes(where?.key)) return;
     const [lead, wing] = state.aircraft;
-    if (!state.liveWing) state.liveWing = startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: 'echelon', side: where.side || sideOfTwo() });
+    if (!state.liveWing) state.liveWing = startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: where.key, side: where.side || sideOfTwo() });
     state.plans[wing.id] = { segments: [] };
     const a = copyAircraft(lead);
     const lp = state.plans[lead.id] ?? { segments: [] };
@@ -350,7 +350,7 @@ export function createFormation(options = {}) {
     state.current = {
       key: `change:${to}`,
       // liveHand: a 2-ship change into echelon with Live chosen ends on the live wingman's hand-over test (events.js inBandAndSteady).
-      change: { to: plan.to ?? to, side: plan.side, from: plan.from, liveHand: !four && (plan.to ?? to) === 'echelon' && state.closeWing === 'live', holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, liveHand: !four && LIVE_CLOSE.includes(plan.to ?? to) && state.closeWing === 'live', holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -438,6 +438,8 @@ export function createFormation(options = {}) {
 
   function finish() {
     const [lead, wing] = state.aircraft;
+    // A change into a close formation hands #2 to the live wingman there (B3), whatever the classifier reads at the line.
+    const into = state.current.change && LIVE_CLOSE.includes(state.current.change.to) ? { key: state.current.change.to, side: state.current.change.side } : null;
     if (state.current.change) {
       // A change of formation is judged against the target formation's band in the spec table (section 10; the four:
       // design section 7, each link against the aircraft it flies off).
@@ -504,21 +506,23 @@ export function createFormation(options = {}) {
         else start(next.key, next.dir);
       }
     }
-    startLiveWing();
+    startLiveWing(into);
   }
 
   /**
-   * With Live chosen at the last press (B1, TS-226), the pair idle in echelon: the close-in wingman flies #2 from here, from
-   * the motion the manoeuvre left him (wingman.js startFrom, bumpless: spec 7b.6d item 2). What is left of #2's plan (the
-   * held poses' tail) is dropped, so the next press plans him from where he is. The next press hands him back (step()).
+   * With Live chosen at the last press (B1, TS-226), the pair idle in a close formation (echelon in B1 and B2; route, line
+   * astern and the corner since B3, TS-231): the close-in wingman flies #2 from here, from the motion the manoeuvre left him
+   * (wingman.js startFrom, bumpless: spec 7b.6d item 2). What is left of #2's plan (the held poses' tail) is dropped, so the
+   * next press plans him from where he is. The next press hands him back (step()). into: { key, side }, the close formation
+   * a change has just ended in (else where the classifier says the pair is).
    */
-  function startLiveWing() {
+  function startLiveWing(into = null) {
     if (state.closeWing !== 'live' || state.aircraft.length !== 2 || state.current || state.fluid || state.liveWing) return;
-    const where = whereNow();
-    if (where.key !== 'echelon') return;
+    const where = into ?? whereNow();
+    if (!LIVE_CLOSE.includes(where.key)) return;
     const [lead, wing] = state.aircraft;
     state.plans[wing.id] = { segments: [] };
-    state.liveWing = startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: 'echelon', side: where.side || sideOfTwo() });
+    state.liveWing = startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: where.key, side: where.side || sideOfTwo() });
   }
 
   /**
@@ -585,7 +589,7 @@ export function createFormation(options = {}) {
     setEchelonShift(ft) {
       const v = setEchelonShift(ft);
       const w = state.liveWing;
-      if (w) state.liveWing = withPlace(w, pairSlot('echelon', w.side));
+      if (w) state.liveWing = withPlace(w, pairSlot(w.key, w.side)); // route and the corner move with echelon (TS-230, TS-231)
       return v;
     },
     /** Changes options read only when a manoeuvre is planned (the 4-ship check turn), without starting again. */
@@ -836,6 +840,9 @@ export function createFormation(options = {}) {
     },
   };
 }
+
+/** The close formations the live close-in wingman flies (B1-B2 echelon; B3 route, line astern and the corner, TS-231). */
+const LIVE_CLOSE = Object.freeze(['echelon', 'route', 'astern', 'corner']);
 
 /** A live close turn ends once #2 is settled on his place, or this long after Lead's plan is done (B2; estimate). */
 const LIVE_TURN_SETTLE_CAP_SEC = 15;

@@ -39,6 +39,9 @@ export const FORMATIONS = Object.freeze({
   echelon: { label: 'Echelon', sided: true },
   route: { label: 'Route', sided: true },
   astern: { label: 'Line astern', sided: false },
+  // The corner as a close position of its own (TS-231; Patrick 14 Oct 2026: "I want to add 'CORNER' as a position in close
+  // formation (just like echelon and route) so if we want to stop in the corner we hit corner"): link('corner') below.
+  corner: { label: 'Corner', sided: true },
 });
 
 /** The 4-ship's formations, their words and the speed they are flown at (KIAS: 200 outside line abreast, 220 in it, Patrick 4 Oct 11:08Z). */
@@ -215,6 +218,15 @@ function link(key, s, spacingFt) {
     case 'route': return downTheLine(link('echelon', s, spacingFt), s, ROUTE_SPANS.slot * WINGSPAN_FT);
     // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash (estimate)
     case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -8 };
+    // the corner (SMM 12.20 para 45, Figs 12.12-12.13; TS-231, Patrick 14 Oct 2026: "The corner should be if you move straight
+    // right from Line Astern, and down and back from echelon"): line astern's fore and aft and height (his nose about 10 ft
+    // behind Lead's tail, below the prop wash) at echelon's own lateral, about 43 back, 40 out, 8 down; it moves with the
+    // echelon setting (TS-230). The station change flows through it (recipes.js cornerBehind, the same place).
+    case 'corner': {
+      const e = link('echelon', s, spacingFt);
+      const a = link('astern', 0, spacingFt);
+      return { fwd: a.fwd, left: e.left, alt: a.alt };
+    }
     default: throw new Error(`No formation called ${key}`);
   }
 }

@@ -60,7 +60,7 @@ export function stepWingman(w, refSt) {
   const seen = p.seen;
   const job = supervise(w.job, seen);
   const holdPct = holdingTorque(seen, w.st, w.place, w.key);
-  const law = closeLaw(w.law, seen, job, { st: w.st, side: w.side, key: w.key, holdPct, held: w.hand.held });
+  const law = closeLaw(w.law, seen, job, { st: w.st, side: w.side, key: w.key, holdPct, held: w.hand.held, place: w.place });
   const hand = shape(w.hand, law.want, job, seen.g);
   const lift = liftFor(seen, w.st, hand.mem);
   const throttle = throttleAtTorque(hand.mem.torquePct, w.st.kias, w.st.pm.z);

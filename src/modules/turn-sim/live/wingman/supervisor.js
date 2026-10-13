@@ -18,7 +18,7 @@
 //
 // Signs and units as perception.js. The memory is never changed in place. Numbers: wing-moves.js CLOSE_WING.
 import { STEP_SEC } from '../flight.js';
-import { WINGSPAN_FT } from '../slots.js';
+import { WINGSPAN_FT, LENGTH_FT } from '../slots.js';
 import { CLOSE_WING } from '../wing-moves.js';
 
 const C = CLOSE_WING;
@@ -36,7 +36,7 @@ const movingFtps = (seen) => Math.hypot(seen.rate.plane, seen.rate.line, seen.ra
 function pick(prev, seen) {
   const d = offFt(seen);
   const v = movingFtps(seen);
-  const clear = seen.rel.up >= 0 || Math.abs(seen.rel.left) > WINGSPAN_FT / 2 + C.underClearFt;
+  const clear = seen.rel.up >= 0 || Math.abs(seen.rel.left) > WINGSPAN_FT / 2 + C.underClearFt || seen.rel.fwd < -LENGTH_FT - C.underClearFt;
   if (seen.under || (prev === 'outBeforeUp' && !clear)) return 'outBeforeUp';
   if ((prev === 'largeMove' || prev === 'outBeforeUp') && (d > C.smallBackFt || v > C.driftBackFtps)) return 'largeMove';
   if (d > C.largeFromFt || v > C.driftFtps) return 'largeMove';

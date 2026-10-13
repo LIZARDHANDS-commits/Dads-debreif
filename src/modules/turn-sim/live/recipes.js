@@ -161,8 +161,10 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     side = sTo;
   };
   let switched = false;
-  const closeTarget = to === 'echelon' || to === 'route';
-  if (at !== 'astern' && to !== 'astern' && side !== sTo && !(at === 'fw' && closeTarget)) {
+  const closeTarget = to === 'echelon' || to === 'route' || to === 'corner';
+  // Into or out of the corner between the close formations (TS-231) the corner's own legs make any change of side.
+  const cornerMove = (at === 'corner' && CLOSE_KEYS.includes(to)) || (to === 'corner' && CLOSE_KEYS.includes(at));
+  if (at !== 'astern' && to !== 'astern' && side !== sTo && !(at === 'fw' && closeTarget) && !cornerMove) {
     if (at === 'fw') {
       // The fast side switch (fw-switch.js, TS-102; Patrick 6 Oct 01:04Z): an S-turn behind Lead at the switch bank, power
       // back, into the far cone, where the band goal settles him (the whole cone, TS-75). Until V2.98: three slides at
@@ -205,6 +207,10 @@ export function legsFor(from, s, to, sTo, spacingFt) {
       at = 'route';
       if (to === 'route') return phases;
     }
+    if (at === 'corner' || to === 'corner') {
+      phases.push(...cornerLegs(at, side, to, sTo, spacingFt));
+      return phases;
+    }
     if (to === 'astern') {
       // Echelon to line astern (SMM 12.20 para 46): smooth transition under wake to directly astern, then settle
       const astern = slot('astern', 0);
@@ -222,14 +228,7 @@ export function legsFor(from, s, to, sTo, spacingFt) {
         slide(slot(to, sTo), { fwdRate: CLOSE_SHAPING.targetFwdFtps, latRate: CLOSE_SHAPING.targetCornerFtps }),
       );
     } else if (side === sTo && ((at === 'echelon' && to === 'route') || (at === 'route' && to === 'echelon'))) {
-      // Echelon to route and back on one side: along the spinner-wingtip line, power setting the rate fore and aft and bank
-      // holding the line (Patrick 11 Oct 2026 06:24Z; tracker.js alongFrom).
-      // Down the line power leads and bank follows; up it bank leads and power follows, so he is never ahead of the line.
-      const a = slot(at, side);
-      const b = slot(to, sTo);
-      const up = to === 'echelon';
-      const rate = up ? CLOSE_SHAPING.lineFwdFtps * Math.abs((b.left - a.left) / (b.fwd - a.fwd)) : CLOSE_SHAPING.lineFwdFtps;
-      phases.push(slide(b, { alongFrom: a, alongLead: up ? 'l' : 'f', alongLagSec: CLOSE_SHAPING.lineLeadSec, fwdRate: CLOSE_SHAPING.lineFwdFtps, latRate: up ? rate : CLOSE_SHAPING.targetLateralFtps, refAccelShare: (CLOSE_SHAPING.lineAccelFtps2 * rate) / CLOSE_SHAPING.lineFwdFtps / rate }));
+      phases.push(alongTheLine(at, to, side, spacingFt));
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }
@@ -241,6 +240,69 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     phases[phases.length - 1] = { ...last, coneAlt: true, goal: (L, W) => fwGoal(L, W, sTo, false) };
   }
   return phases;
+}
+
+/** The close formations a change between them is flown by the close legs (the corner's included, TS-231). */
+const CLOSE_KEYS = Object.freeze(['echelon', 'route', 'astern', 'corner']);
+
+/**
+ * Echelon to route or back on one side (key `from` to `to`, side s): along the spinner-wingtip line, power setting the rate
+ * fore and aft and bank holding the line (Patrick 11 Oct 2026 06:24Z; tracker.js alongFrom). Down the line power leads and
+ * bank follows; up it bank leads and power follows, so he is never ahead of the line.
+ */
+function alongTheLine(from, to, s, spacingFt) {
+  const a = pairSlot(from, s, spacingFt);
+  const b = pairSlot(to, s, spacingFt);
+  const up = to === 'echelon';
+  const rate = up ? CLOSE_SHAPING.lineFwdFtps * Math.abs((b.left - a.left) / (b.fwd - a.fwd)) : CLOSE_SHAPING.lineFwdFtps;
+  return slide(b, { alongFrom: a, alongLead: up ? 'l' : 'f', alongLagSec: CLOSE_SHAPING.lineLeadSec, fwdRate: CLOSE_SHAPING.lineFwdFtps, latRate: up ? rate : CLOSE_SHAPING.targetLateralFtps, refAccelShare: (CLOSE_SHAPING.lineAccelFtps2 * rate) / CLOSE_SHAPING.lineFwdFtps / rate });
+}
+
+/**
+ * Into or out of the corner as a formation of its own (TS-231; SMM 12.20 paras 45-47, Figs 12.12-12.13), between it and
+ * the other close formations, with the station change's own legs (legsFor's crossover): from echelon straight back and down
+ * into it; from line astern straight across; across behind Lead to the other side's corner; out of it to line astern
+ * straight across, or forward and up into echelon. Route as route and line astern change today: back and down into route's
+ * own corner and across, or across out to it and forward and up into route. at, to: the close formations (one of them the
+ * corner), s and sTo their sides.
+ */
+function cornerLegs(at, s, to, sTo, spacingFt) {
+  const slot = (key, side) => pairSlot(key, side, spacingFt);
+  const S = CLOSE_SHAPING;
+  const across = (place, flow) => slide(place, { fwdRate: S.targetCornerFtps, latRate: S.targetLateralFtps, ...(flow ? { advanceTol: 10 } : {}) });
+  const legs = [];
+  let side = s;
+  if (at === 'route') {
+    // back and down into route's own corner, then across into the corner (as route to line astern goes today)
+    legs.push(slide(cornerBehind(slot('route', side), spacingFt), { fwdRate: S.targetFwdFtps, latRate: S.targetCornerFtps, advanceTol: 12 }), across(slot('corner', sTo), false));
+    return legs;
+  }
+  if (at === 'echelon') {
+    // back and down into the corner on his side (the first half of the station change)
+    legs.push(slide(slot('corner', side), { fwdRate: S.targetFwdFtps, latRate: S.targetCornerFtps, ...(to === 'corner' && side === sTo ? {} : { advanceTol: 12 }) }));
+  } else if (at === 'astern') {
+    // straight across to the corner on the side asked
+    legs.push(across(slot('corner', sTo), to !== 'corner'));
+    side = sTo;
+  }
+  if (to === 'astern') {
+    // across to directly astern, then settle (SMM 12.20 para 46)
+    legs.push(slide(slot('astern', 0), { fwdRate: S.targetCornerFtps, latRate: S.targetLateralFtps, advanceTol: 8 }), slide(slot('astern', 0), { fwdRate: S.targetFwdFtps }));
+    return legs;
+  }
+  if (side !== sTo) {
+    // across behind Lead to the other corner, passing through or slightly aft of line astern (SMM 12.20 para 45)
+    legs.push(across(slot('corner', sTo), to !== 'corner'));
+    side = sTo;
+  }
+  if (to === 'route') {
+    // across out to route's corner, then forward and up into route (as line astern to route goes today)
+    legs.push(across(cornerBehind(slot('route', sTo), spacingFt), true), slide(slot('route', sTo), { fwdRate: S.targetFwdFtps, latRate: S.targetCornerFtps }));
+  } else if (to === 'echelon') {
+    // forward and up into echelon (SMM 12.20 paras 45, 47)
+    legs.push(slide(slot('echelon', sTo), { fwdRate: S.targetFwdFtps, latRate: S.targetCornerFtps }));
+  }
+  return legs;
 }
 
 /** How far out from Lead's straight track (ft, positive on side s) #2 is: Lead flies straight, so his track is a line. */

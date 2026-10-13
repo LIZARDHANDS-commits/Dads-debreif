@@ -48,7 +48,11 @@ export function shape(mem, want, job, gRef) {
   const sized = clamp(want.torquePct, base - caps.torqueCapPct, base + caps.torqueCapPct);
   const flags = { outOfPower: want.torquePct > 100 || want.torquePct < C.boardsBelowPct, boards: sized < C.boardsBelowPct };
   const aim = clamp(sized, C.boardsBelowPct, 100);
-  const torquePct = toward(mem.torquePct, aim, want.telegraph ? Math.max(j.torquePctps, C.telegraphTorquePctps) : j.torquePctps);
+  // While he sees Lead rolling his hand moves at the telegraph's rate, times how much further out than echelon his place is
+  // (B3: route about 3.3 times, so a 60° roll-in away from him, which needs about MAX from its start, gets MAX in about 0.7 s,
+  // not 2 s: Patrick 13 Oct 2026, "If I know I need a lot more energy I might give it a few seconds of MAX power"; the
+  // engine answers 0 to 100% in about 0.2 s, TS-108, TS-218).
+  const torquePct = toward(mem.torquePct, aim, want.telegraph ? Math.max(j.torquePctps, C.telegraphTorquePctps * (want.reach ?? 1)) : j.torquePctps);
   const held = {
     plane: upCorrG !== want.upCorrG,
     side: leftCorrG !== want.leftCorrG,

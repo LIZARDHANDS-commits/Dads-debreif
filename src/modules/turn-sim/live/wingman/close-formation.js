@@ -36,7 +36,7 @@ import { DEG } from '../../../../core/angles.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../../../core/units.js';
 import { STEP_SEC } from '../flight.js';
 import { powerFor, throttleAtTorque, ktpsAtThrottle } from '../power.js';
-import { LINE_BACK_PER_OUT, FOUR_FORMATIONS } from '../slots.js';
+import { LINE_BACK_PER_OUT, FOUR_FORMATIONS, pairSlot } from '../slots.js';
 import { KIAS_OUTSIDE_LAB } from '../moves.js';
 import { CLOSE_WING, CLOSE_SEE } from '../wing-moves.js';
 import { add3, scale3, perp3, unit3, cross3, len3 } from '../attitude.js';
@@ -97,6 +97,19 @@ export function powerLeadPct(seen, st, key, holdPct) {
   return wantKtps / ktpsPerPct;
 }
 
+/**
+ * How much further out than echelon his place is (1 in echelon, about 3.3 in route; never under 1): Lead's roll swings a
+ * place r ft out at r times his roll rate, so the power a place needs changes that much faster as Lead rolls (in route at
+ * 60°, a place flown exactly needs about 57% torque level, 97-101% through the roll-in away from him and 16% through the
+ * roll-in toward him: the B3 probe, power.js powerFor along the place's own flight). Spec 7c.2 (Patrick 14 Oct 2026: route
+ * "About 3x echelon"); standard kinematics.
+ */
+function reachOf(place) {
+  if (!place) return 1;
+  const e = pairSlot('echelon', 1);
+  return Math.max(1, Math.hypot(place.fwd, place.left, place.alt) / Math.hypot(e.fwd, e.left, e.alt));
+}
+
 /** The in-plane braking he can count on to stop (ft/s², true): from the holding setting down to the power floor's torque. */
 function brakingFtps2(seen, st, key) {
   const kias = briefedKias(key);
@@ -111,7 +124,7 @@ function brakingFtps2(seen, st, key) {
  * the trims are held still, anti-windup) }. Returns { mem, want: { upCorrG, leftCorrG, torquePct, holdPct } }: the pitch
  * and roll corrections in G (along Lead's lift line, and along his wing line, left +) and the torque he wants.
  */
-export function closeLaw(mem, seen, job, { st, side, key, holdPct, held }) {
+export function closeLaw(mem, seen, job, { st, side, key, holdPct, held, place = null }) {
   const j = C.jobs[job.kind];
   const m = job.masks;
   const k = LINE_BACK_PER_OUT;
@@ -162,8 +175,9 @@ export function closeLaw(mem, seen, job, { st, side, key, holdPct, held }) {
   return {
     mem: { plane: up.mem, side: out.mem, fore: pwr.mem },
     // basePct: the setting the turn needs now, the holding power and the power lead (what the shaper sizes his corrections
-    // around); telegraph: he sees Lead rolling, so his hand moves the throttle at the telegraph's rate (B2).
-    want: { upCorrG, leftCorrG: side * out.out, torquePct: holdPct + lead + pwr.out, holdPct, basePct: holdPct + lead, telegraph: Math.abs(seen.rollDps) > 1 },
+    // around); telegraph: he sees Lead rolling, so his hand moves the throttle at the telegraph's rate (B2), quicker the
+    // further out his place is (reach, B3).
+    want: { upCorrG, leftCorrG: side * out.out, torquePct: holdPct + lead + pwr.out, holdPct, basePct: holdPct + lead, telegraph: Math.abs(seen.rollDps) > 1, reach: reachOf(place) },
   };
 }
 
