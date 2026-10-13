@@ -260,6 +260,8 @@ Rule-book lines every phase carries: one test at most, pilot-recognisable, no ti
 
 ## 7. Open questions for Patrick (one at a time; his own idea is always an option)
 
+**Dad's answer to Q1 (13 Oct 2026): (b), an overhead with a break, "it should be smaller than the CT-156 pattern so tighten it up".** Worked consequence, for Patrick: the CT-156's break is 60° of bank, slowing from 220 to about 140 KIAS (`circuit.js`, `breakKias`). The same break for the Astra from a 180 KIAS initial, slowing on the same curve to about 115 KIAS, puts its downwind about 2,400 ft out (standard turn physics, an estimate until built), about 0.7 of the CT-156's 3,500. Patrick's 30° can't be the break's bank (a 30° turn at 180 is a 5,400 ft radius). A 30° final turn at 90 KIAS needs the downwind about 2,700 ft out, so either the break is a little gentler (about 55°) or the final turn a little steeper (about 34°). Working answer until Patrick rules: a 60° break like the CT-156's, 30° for the other turns, the downwind set by the 30° final turn at about 2,700 ft out.
+
 **Q1. The Astra's turns at 180 KIAS and 30° do not fit inside the CT-156 pattern (5,400 ft radius). Where is the 180 flown?**
 - (a) **180 KIAS on the straight downwind only**: the climbing turn onto downwind and the perch turn are flown slow (about 90 to 100 KIAS) at 30°, the Astra accelerates to 180 once wings level and powers back to 90 by the perch. The downwind then sits about 2,700 ft out, inside the CT-156's. **Recommended**: it keeps all three of your numbers and the physics.
 - (b) An overhead-style pattern like the CT-156's: initial at 180, a break that slows before the bank settles. Needs a break at more than 30° or a slow-down first; a different pattern to build.
