@@ -52,55 +52,13 @@ import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
-import { ROLL, WING } from './tuning.js';
+import { ROLL, WING, LEAD } from './tuning.js';
 import { excessPerWeight } from './slow-down.js';
+
+export { LEAD }; // its home is lead-moves.js (the tuning sheet, TS-214); read from here by older imports
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
-
-/** The numbers Lead flies. Every one has its source; "estimate" where no manual or ruling gives it. */
-export const LEAD = Object.freeze({
-  gOnset: T6A_G_ONSET, // G per second and per second²: the T-6A's in core (estimate, design 5.3; TS-85)
-  levelBanks: Object.freeze({ gentle: 30, medium: 60, steep: 70.5 }), // AFM7 p.17 (30, 60/2); SMM 16.18 para 50 (70/3, estimate as "steep")
-  entryHoldSec: 5, // the entry's 30° bank stage while "all call ready" (AFM7 p.17): 5 s is an estimate
-  // The entry turn (AFM7 brief p.17: 30° away, then the chosen bank at MAX) is off: Lead flies straight and level while #2
-  // moves into the fluid picture, and the 360 waits for the Standard sequence (Patrick 5 Oct 22:30Z: "fluid manoeuvring
-  // should just move into position to begin, not start a turn yet. the 360 happens when we hit sequence"; TS-86). true
-  // flies AFM7's entry turn as before.
-  entryTurn: false,
-  fwKias: 200, // fighting wing speed (TS-53; SMM 12.23 para 53)
-  terminateBankDeg: 30, // "gentle" (AFM7 p.17), "predictable" (SMM 16.17 para 46): 30° is an estimate
-  terminateTurnDeg: 90, // the most the terminate turn goes before rolling out, if #2 is not back in fighting wing sooner: an estimate
-  earlyCueSec: 4, // how long a new turn's lag (into #2) or lead (away from #2) lasts before pure: an estimate
-  climbDeg: 15, // the climb or descent angle (design 5.1, an estimate)
-  climbChangeFt: 2000, // how far a climb or descent goes before levelling off (an estimate)
-  levelOffFt: 800, // the climb eases onto the new height over its last 800 ft (an estimate)
-  pitchCueDps: 0.5, // #2 reads Lead's nose as rising or falling past 0.5°/s of pitch rate (an estimate)
-  climbPitchDps: 3, // how fast Lead raises or lowers the nose into and out of the climb or descent (an estimate)
-  minPushG: 0.5, // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a); 0.5 G at the push over is an estimate
-  loopEntryKias: 230, // SMM Table 7.1, 7.5 para 11, Fig 7.2 (entry and exit)
-  loopEntryBandKias: 15, // the aerobatics start within 15 KIAS of the entry speed (Patrick 5 Oct 04:59Z: "Fluid maneouvering aerobatics can happen as long as the aircraft are within 15 knots of the starting parameters"; 5 kt, an estimate, until V2.59; SMM 7.12 para 28b allows 200-250 for the loop)
-  loopG: 3.5, // EFIG p.171 "3 1/2 G", inside SMM 7.5 para 11 and Table 7.1's 3-4 G
-  loopDownMaxG: 4, // coming down Lead may pull up to 4 G, the top of the SMM's 3-4 G (Table 7.1), to "adjust back pressure to achieve 230 KIAS" (SMM 7.5 para 12); at the Orders' 4 G, not over it
-  loopTopMinG: 0.5, // "slight positive G" over the top (SMM 7.5 para 11): 0.5 is an estimate
-  loopVerticalDeg: 80, // "until the aircraft approaches the vertical" (SMM 7.5 para 11): 80° is an estimate
-  loopPullOutDeg: 330, // where Lead stops holding the pitch rate and pulls out to level (an estimate)
-  setupMaxPitchDeg: 10, // the speed set-up's nose down or up before the loop (an estimate)
-  loopWaitSec: 5, // in the standard sequence Lead holds wings level for 5 s after the 360 before the loop's pull, so #2 has rolled out and is set for the pull (Patrick 12 Oct 2026 01:50Z, "1 just waits for 2 to roll out of the turn before he begins his loop"; 04:14Z after flying V2.371, "lead can just wait another 2 seconds to pull in to the loop": 3 s became 5 s, his option A). An estimate from his words; #2 levels about 1.5 s after Lead
-  setupLimitSec: 60, // a guard only: after a minute of set-up the loop starts at whatever speed (an estimate)
-  wingoverKias: 230, // "approximately 230 KIAS" (SMM 16.17 para 47)
-  wingoverG: 3, // "approximately 3 G" (SMM 16.17 para 47); the cloverleaf's pull, 2.5-3.5 G (SMM Table 7.1; EFIG p.137 about 3 G)
-  wingoverPitchDeg: 45, // "approximately 45 degrees of pitch (above and below the horizon)" (SMM 16.17 para 47)
-  noseAccelDps2: 8, // how fast Lead changes the nose's rate along a planned nose path, 8°/s² (an estimate)
-  noseEndDps2: 3, // and how gently he slows it onto the end of the path, 3°/s² (an estimate): the pull-out to level
-  noseSteerPerSec: 1.2, // how fast he steers back onto the planned nose path, per second (an estimate)
-  shakerShare: 0.9, // he pulls no more than 90% of the stick shaker's G on a planned nose path (an estimate)
-  barrelKias: 230, // SMM Table 14.1, 14.8 para 19 (entry and exit)
-  barrelG: 3, // entry load (SMM Table 14.1; Fig 14.1 "3G, wings level pull and begin roll")
-  barrelTopG: 2.25, // the back pressure reduced over the top (SMM 14.8 para 19): 2.25 G is an estimate (230 KIAS out)
-  barrelPitchDeg: 45, // SMM 14.8 para 19 (45° pitch up and down at the quarter points); Patrick's pick row 6
-  barrelOffDeg: 45, // the nose circles a point 45° off the reference line (SMM 14.8 para 19: 45° off, then 90° off)
-});
 
 /** The buttons Lead has in the baseline (design 5.1, cut down by Patrick 21:44Z), with their words. */
 export const FLUID_MOVES = Object.freeze({
@@ -111,15 +69,15 @@ export const FLUID_MOVES = Object.freeze({
   descend: { label: 'Descend', sided: false, interruptible: true, source: "Patrick's list; design 5.1 (15° and 2,000 ft are estimates)" },
   loop: {
     label: 'Loop', sided: false, interruptible: false, source: 'SMM 7.5 paras 10-13, Fig 7.2; Table 7.1; EFIG p.171',
-    speeds: { entryKias: 230, exitKias: 230, source: 'SMM Table 7.1, 7.5 paras 11-12, Fig 7.2' },
+    speeds: { entryKias: LEAD.loopEntryKias, exitKias: LEAD.loopEntryKias, source: 'SMM Table 7.1, 7.5 paras 11-12, Fig 7.2' },
   },
   wingover: {
     label: 'Wingovers', sided: true, interruptible: false, source: 'SMM 16.17 para 47',
-    speeds: { entryKias: 230, exitKias: null, source: 'SMM 16.17 para 47: about 230 in, the exit not given' },
+    speeds: { entryKias: LEAD.wingoverKias, exitKias: null, source: 'SMM 16.17 para 47: about 230 in, the exit not given' },
   },
   barrelRoll: {
     label: 'Barrel roll', sided: true, interruptible: false, source: 'SMM 14.8 paras 18-19, Fig 14.1; Table 14.1',
-    speeds: { entryKias: 230, exitKias: 230, source: 'SMM Table 14.1, 14.8 para 19, Fig 14.1' },
+    speeds: { entryKias: LEAD.barrelKias, exitKias: LEAD.barrelKias, source: 'SMM Table 14.1, 14.8 para 19, Fig 14.1' },
     maxPitch: { deg: 60, source: 'AFM7 brief p.17, Exercise 4' },
   },
   sequence: { label: 'Standard sequence', sided: true, interruptible: false, source: 'SMM 16.17 para 42' },
@@ -174,7 +132,7 @@ function finish(st) {
 function holdSpeedExcess(kiasTarget) {
   return (ktas, altFt, g) => {
     const kias = tasToIasKt(ktas, altFt);
-    const wantKtps = Math.min(3, 0.2 * (kiasTarget - kias));
+    const wantKtps = Math.min(LEAD.speedHold.maxKtps, LEAD.speedHold.perSec * (kiasTarget - kias));
     const wantFtps2 = wantKtps * KT_TO_FTPS * (ktas / Math.max(kias, 1));
     return Math.max(excessPerWeight('power', kias, altFt, g), Math.min(wantFtps2 / G_FTPS2, t6aExcessFn(ktas, altFt, g)));
   };
@@ -241,7 +199,7 @@ export function carryBank(prev, next) {
 // ---- small pilot helpers ----------------------------------------------------------------------------
 
 /** The G that holds (or brings smoothly onto) a climb angle at the bank flown now (core dampedClimbG over cos bank). */
-function gForClimb(st, targetRad, omega = 0.5) {
+function gForClimb(st, targetRad, omega = LEAD.climbDamp.holdPerSec) {
   const cb = Math.max(0.25, Math.cos(st.bank * DEG));
   return Math.max(0, dampedClimbG(st.gammaRad, targetRad, st.V, omega)) / cb;
 }
@@ -333,7 +291,7 @@ export function followNose(st, path, mem, gWant) {
  * down, PURE for the pull-out. The breaks (0.4, 0.6, 0.9) are estimates.
  */
 function overTheTopMode(u) {
-  return u < 0.4 ? 'lag' : u < 0.6 ? 'pure' : u < 0.9 ? 'lead' : 'pure';
+  return u < LEAD.overTopCue.pureFromU ? 'lag' : u < LEAD.overTopCue.leadFromU ? 'pure' : u < LEAD.overTopCue.pureAgainFromU ? 'lead' : 'pure';
 }
 
 // ---- the controllers: one per button -------------------------------------------------------------
@@ -364,7 +322,7 @@ export function levelTurn(dir, bankDeg, { turnDeg = null, label = null } = {}) {
       }
       const mode = mem.t < LEAD.earlyCueSec ? (mem.into ? 'lag' : 'lead') : 'pure';
       const done = mem.rollingOut && level(st);
-      const cue = { mode, latDeg: 15 }; // hold 15° off Lead's current tail (Patrick 22:28Z)
+      const cue = { mode, latDeg: LEAD.cueOffTailDeg }; // hold 15° off Lead's current tail (Patrick 22:28Z)
       // The sequence's 360° is where #2 sets his spacing (Patrick 01:03Z, "360 and the wingman uses it to set their
       // spacing"): a new distance, or a place he is not yet on, is eased in over the rest of the turn (at the commanded
       // bank's turn rate, standard kinematics), never quicker than WING.rangeSec, instead of in a few seconds. Already
@@ -386,7 +344,7 @@ export function wingsLevel() {
     interruptible: true,
     init: () => ({}),
     step(st) {
-      return { g: gForClimb(st, 0), bank: 0, phase: Math.abs(st.bank) > 1 ? 'rolling out' : 'straight', cue: { mode: 'pure', latDeg: 15 }, done: false };
+      return { g: gForClimb(st, 0), bank: 0, phase: Math.abs(st.bank) > 1 ? 'rolling out' : 'straight', cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg }, done: false };
     },
   };
 }
@@ -431,14 +389,14 @@ export function climbOrDescend(sign, bankDeg = 0) {
       const want = Math.max(-1, Math.min(1, toGo / LEAD.levelOffFt)) * LEAD.climbDeg * DEG;
       const pitchDps = (st.gammaRad - mem.gammaPrev) / DEG / STEP_SEC;
       mem.gammaPrev = st.gammaRad;
-      const near = Math.abs(toGo) < 20 && Math.abs(st.gammaRad) < 0.5 * DEG;
+      const near = Math.abs(toGo) < LEAD.climbNearFt && Math.abs(st.gammaRad) < 0.5 * DEG;
       const phase = near ? 'level' : Math.abs(toGo) < LEAD.levelOffFt ? 'levelling off' : sign > 0 ? 'climbing' : 'descending';
       // The nose moves at no more than 3°/s (estimate): the same damped climb, its target brought nearer.
-      const omega = 0.4;
+      const omega = LEAD.climbDamp.pitchPerSec;
       const reach = (LEAD.climbPitchDps * DEG) / omega;
       const aim = st.gammaRad + Math.max(-reach, Math.min(reach, want - st.gammaRad));
       const g = Math.max(LEAD.minPushG, gForClimb(st, aim, omega));
-      return { g, bank: bankDeg, phase, cue: { mode: pitchCue(pitchDps), latDeg: 15 }, done: false };
+      return { g, bank: bankDeg, phase, cue: { mode: pitchCue(pitchDps), latDeg: LEAD.cueOffTailDeg }, done: false };
     },
   };
 }
@@ -456,7 +414,7 @@ function speedSetUp(st, mem, kias) {
   const pitch = Math.max(-LEAD.setupMaxPitchDeg, Math.min(LEAD.setupMaxPitchDeg, 0.5 * dKias)) * DEG;
   const reach = (LEAD.climbPitchDps * DEG) / 0.4;
   const aim = st.gammaRad + Math.max(-reach, Math.min(reach, pitch - st.gammaRad));
-  const g = Math.max(LEAD.minPushG, gForClimb(st, aim, 0.4));
+  const g = Math.max(LEAD.minPushG, gForClimb(st, aim, LEAD.climbDamp.pitchPerSec));
   const phase = Math.abs(st.bank) > 1 ? 'wings level' : dKias < -LEAD.loopEntryBandKias ? `nose low for ${kias}` : dKias > LEAD.loopEntryBandKias ? `nose high for ${kias}` : 'steady for the pull';
   return { g, bank: 0, phase };
 }
@@ -468,7 +426,7 @@ function speedSetUp(st, mem, kias) {
  */
 function loopMode(alphaRad) {
   const deg = alphaRad / DEG;
-  return deg < 155 ? 'lag' : deg < 205 ? 'pure' : deg < LEAD.loopPullOutDeg ? 'lead' : 'pure';
+  return deg < LEAD.loopCueDeg.pureFrom ? 'lag' : deg < LEAD.loopCueDeg.leadFrom ? 'pure' : deg < LEAD.loopPullOutDeg ? 'lead' : 'pure';
 }
 
 /**
@@ -484,9 +442,9 @@ export function loop({ waitSec = 0 } = {}) {
     step(st, mem) {
       if (mem.stage === 'setup') {
         const s = speedSetUp(st, mem, LEAD.loopEntryKias);
-        if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        if (s) return { ...s, cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg }, done: false };
         // waitSec (the sequence): wings level at least that long from the loop's start before the pull.
-        if (mem.setupSec < waitSec) return { g: gForClimb(st, 0), bank: 0, phase: 'wings level, #2 rolling out', cue: { mode: 'pure', latDeg: 15 }, done: false };
+        if (mem.setupSec < waitSec) return { g: gForClimb(st, 0), bank: 0, phase: 'wings level, #2 rolling out', cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg }, done: false };
         mem.stage = 'pull';
         mem.n0 = unit3({ x: st.nose.x, y: st.nose.y, z: 0 });
         mem.alpha = 0;
@@ -513,14 +471,14 @@ export function loop({ waitSec = 0 } = {}) {
         if (alpha >= LEAD.loopPullOutDeg * DEG) mem.stage = 'exit';
       }
       if (mem.stage === 'exit') {
-        g = Math.min(LEAD.loopDownMaxG, gForClimb(st, 0, 1.2));
+        g = Math.min(LEAD.loopDownMaxG, gForClimb(st, 0, LEAD.climbDamp.loopDownPerSec));
         phase = 'pull-out';
       }
       // The exit speed is read as the nose comes back to the horizon (SMM 7.5 para 12; Fig 7.2 "Exit 230 KIAS").
       if (mem.stage === 'exit' && mem.exitKias === undefined && alpha >= 2 * Math.PI - 0.5 * DEG) mem.exitKias = st.kias;
       const done = mem.stage === 'exit' && level(st);
       // The loop's frame for #2 (fluid-wing-live.js reads cue.loop): the entry heading and the angle round so far.
-      return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: 15, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
+      return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: LEAD.cueOffTailDeg, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
 }
@@ -542,7 +500,7 @@ export function wingovers(dir) {
     step(st, mem) {
       if (mem.stage === 'setup') {
         const s = speedSetUp(st, mem, LEAD.wingoverKias);
-        if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        if (s) return { ...s, cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg }, done: false };
         mem.stage = 'over';
         mem.h0 = headingOf(st);
         mem.s = 0;
@@ -559,14 +517,14 @@ export function wingovers(dir) {
         r = followNose(st, path, mem, 1 + (LEAD.wingoverG - 1) * Math.min(1, mem.t));
         if (r.end) mem.stage = 'exit';
       }
-      if (mem.stage === 'exit') r = { ...r, g: gForClimb(st, 0, 0.6), bank: 0 };
+      if (mem.stage === 'exit') r = { ...r, g: gForClimb(st, 0, LEAD.climbDamp.exitPerSec), bank: 0 };
       if (mem.stage === 'exit' && mem.exitKias === undefined) mem.exitKias = st.kias;
       const first = r.u <= 1;
       const v = first ? r.u : r.u - 1;
       const phase = mem.stage === 'exit' ? 'level' : `${first ? 'first' : 'second'} wingover, ${v < 0.25 ? 'nose up' : v < 0.5 ? 'to the top' : v < 0.75 ? 'nose down' : 'pulling up'}`;
       const done = mem.stage === 'exit' && level(st);
       // Through the wingovers #2 goes where Lead was and drifts in the cone (hold 0), back to 15° once level (Patrick 23:02Z).
-      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(v), latDeg: 15, hold: 0, over: v }; // over: how far through, for the live wingman's own breaks
+      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: LEAD.cueOffTailDeg } : { mode: overTheTopMode(v), latDeg: LEAD.cueOffTailDeg, hold: 0, over: v }; // over: how far through, for the live wingman's own breaks
       return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
@@ -586,7 +544,7 @@ export function barrelRoll(dir) {
     step(st, mem) {
       if (mem.stage === 'setup') {
         const s = speedSetUp(st, mem, LEAD.barrelKias);
-        if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        if (s) return { ...s, cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg }, done: false };
         mem.stage = 'roll';
         mem.h0 = headingOf(st);
         mem.s = 0;
@@ -603,14 +561,14 @@ export function barrelRoll(dir) {
         r = followNose(st, path, mem, 1 + (plan - 1) * Math.min(1, mem.t));
         if (r.end) mem.stage = 'exit';
       }
-      if (mem.stage === 'exit') r = { ...r, g: gForClimb(st, 0, 0.6), bank: 0 };
+      if (mem.stage === 'exit') r = { ...r, g: gForClimb(st, 0, LEAD.climbDamp.exitPerSec), bank: 0 };
       // The exit speed is read as the nose comes back to the horizon on the line (SMM 14.8 para 19).
       if (mem.stage === 'exit' && mem.exitKias === undefined) mem.exitKias = st.kias;
       const u = r.u;
       const phase = mem.stage === 'exit' ? 'level' : u < 0.25 ? 'pull and roll' : u < 0.5 ? 'to inverted' : u < 0.75 ? 'nose down' : 'back to the line';
       const done = mem.stage === 'exit' && level(st);
       // #2 like the loop (Patrick card 19:21Z), drifting in the cone, back to 15° once level (23:02Z).
-      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(u), latDeg: 15, hold: 0, over: u };
+      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: LEAD.cueOffTailDeg } : { mode: overTheTopMode(u), latDeg: LEAD.cueOffTailDeg, hold: 0, over: u };
       return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
@@ -676,7 +634,7 @@ export function entry(dir, bankDeg) {
       step(st, mem, ctx) {
         mem.t += STEP_SEC;
         const blendSec = ctx?.blendInSec ?? WING.blendInSec;
-        return { g: gForClimb(st, 0), bank: 0, holdKias: mem.fwKias, phase: '#2 into position', cue: { mode: 'pure', latDeg: 15, blend: 1 }, done: mem.t > blendSec + 1 };
+        return { g: gForClimb(st, 0), bank: 0, holdKias: mem.fwKias, phase: '#2 into position', cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg, blend: 1 }, done: mem.t > blendSec + 1 };
       },
     };
   }
@@ -690,7 +648,7 @@ export function entry(dir, bankDeg) {
       if (mem.stage === 'thirty') {
         mem.t += Math.abs(st.bank) > LEAD.levelBanks.gentle - 1 ? STEP_SEC : 0;
         if (mem.t < LEAD.entryHoldSec) {
-          return { g: gForClimb(st, 0), bank: -dir * LEAD.levelBanks.gentle, holdKias: mem.fwKias, phase: '30° turn, ready calls', cue: { mode: 'pure', latDeg: 15, blend: 0 }, done: false };
+          return { g: gForClimb(st, 0), bank: -dir * LEAD.levelBanks.gentle, holdKias: mem.fwKias, phase: '30° turn, ready calls', cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg, blend: 0 }, done: false };
         }
         mem.stage = 'turn';
         mem.turnMem = turn.init(st, ctx);
@@ -700,7 +658,7 @@ export function entry(dir, bankDeg) {
       // and the entry ends once he is in it (the blend time: from the close-in rate since V2.59, ctx.blendInSec, else
       // WING.blendInSec), so Lead's next manoeuvre starts from a settled picture.
       const blendSec = ctx?.blendInSec ?? WING.blendInSec;
-      return { ...r, phase: `${Math.round(bankDeg)}° at MAX`, cue: { mode: 'lead', latDeg: 15, blend: 1 }, done: Math.abs(st.bank) >= bankDeg - 1 && mem.turnMem.t > blendSec + 1 };
+      return { ...r, phase: `${Math.round(bankDeg)}° at MAX`, cue: { mode: 'lead', latDeg: LEAD.cueOffTailDeg, blend: 1 }, done: Math.abs(st.bank) >= bankDeg - 1 && mem.turnMem.t > blendSec + 1 };
     },
   };
 }
@@ -728,7 +686,7 @@ export function terminate(dir) {
       const steady = mem.rollingOut && level(st) && Math.abs(st.kias - LEAD.fwKias) < 0.5;
       mem.steady = steady ? mem.steady + STEP_SEC : 0;
       mem.t += STEP_SEC;
-      return { g: gForClimb(st, 0), bank, holdKias: LEAD.fwKias, phase: mem.rollingOut ? 'rolling out' : 'gentle turn', cue: { mode: 'pure', latDeg: 15, blend: 0 }, done: mem.steady >= 3 && mem.t > backSec + 1 };
+      return { g: gForClimb(st, 0), bank, holdKias: LEAD.fwKias, phase: mem.rollingOut ? 'rolling out' : 'gentle turn', cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg, blend: 0 }, done: mem.steady >= 3 && mem.t > backSec + 1 };
     },
   };
 }

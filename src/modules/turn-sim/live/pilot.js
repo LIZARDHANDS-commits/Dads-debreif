@@ -21,13 +21,9 @@ import { STEP_SEC, stepAircraft, rollLimitAt, carriedRollAccel, keepRollAccel } 
 import { T6A_ROLL } from '../../../core/t6-performance.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom, throttleFor } from './power.js';
-import { POWER, FW_ENERGY, RATE_SET_SEC, experienceNow } from './tuning.js';
+import { POWER, FW_ENERGY, RATE_SET_SEC, experienceNow, POWER_MAX_FROM, GATE_G_MAX_BANK_DEG, PILOT_SLOW_CAP_KTPS } from './tuning.js';
 
 const dt = STEP_SEC;
-/** From this share of full power's acceleration the power is MAX (power.js's MAX_FROM). */
-const MAX_SHARE = 0.985;
-/** Steeper than this the level-turn G is not this model's (flight.js's gate leaves it to the roll alone). */
-const G_SHAPE_MAX_BANK_DEG = 85;
 
 /** Sets the indicated airspeed and keeps the true airspeed in proportion (the height is held, so the ratio is constant). */
 export function setKias(a, kias) {
@@ -84,14 +80,14 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
   // he never gains energy faster than full power gives. Until V2.351 a climb the cone picked was left out here (climbKtps 0),
   // and the fast start into fighting wing climbed 30 ft/s at 5 G while slowing only as fast as level flight would.
   const aMax = fullPowerKtps(W.kias, blockFt, g) - Math.max(climb, climbCostKtps(W, W.climbFtps ?? 0));
-  const aMin = Math.min(7.95, slowKtps(top ?? 'power', W.kias, blockFt, g, floorThr) + climb + extraSlowKtps);
+  const aMin = Math.min(PILOT_SLOW_CAP_KTPS, slowKtps(top ?? 'power', W.kias, blockFt, g, floorThr) + climb + extraSlowKtps);
   const want = Math.max(-aMin, Math.min(aMax, aWant));
   const jerk = pilotJerkKtps2() * dt;
   p.accel += Math.max(-jerk, Math.min(jerk, want - p.accel));
   // A torque floor that comes in (a rule of his, such as the turn's hold power) is moved to at the lever rate, as he moves the
   // power: only what the aircraft can't do without it is taken at once. Until V2.322 the floor was taken in one step, so the
   // speed rate jumped (35 kt/s² at the straight rejoin's vector point, as the bank passed 15°; the Formation unit tests).
-  const aMinBare = floorThr > 0 ? Math.min(7.95, slowKtps(top ?? 'power', W.kias, blockFt, g, 0) + climb + extraSlowKtps) : aMin;
+  const aMinBare = floorThr > 0 ? Math.min(PILOT_SLOW_CAP_KTPS, slowKtps(top ?? 'power', W.kias, blockFt, g, 0) + climb + extraSlowKtps) : aMin;
   if (p.accel < -aMinBare && want <= -aMin) p.accel = -aMinBare;
   if (p.accel > aMax && want >= aMax) p.accel = aMax;
   let kias = W.kias + p.accel * dt;
@@ -117,7 +113,7 @@ export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel, roll =
   const X = experienceNow();
   const limits = { ...pilotRollLimits(W, roll), onsetSec: T6A_ROLL.onsetSec };
   let r = easeRoll(p.bank, p.rate, bankDeg, dt, { ...limits, accelDps2: p.rollAcc ?? 0 });
-  if (Math.abs(r.bankDeg) > Math.abs(p.bank) && Math.abs(r.bankDeg) < G_SHAPE_MAX_BANK_DEG && Math.sign(r.bankDeg) === (Math.sign(p.bank) || Math.sign(r.bankDeg))) {
+  if (Math.abs(r.bankDeg) > Math.abs(p.bank) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG && Math.sign(r.bankDeg) === (Math.sign(p.bank) || Math.sign(r.bankDeg))) {
     const gMax = gFromBankDeg(p.bank) + X.gOnsetGps * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
       const b = Math.sign(r.bankDeg) * bankDegFromG(gMax);
@@ -141,7 +137,7 @@ export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel, roll =
  * while it can). t: the step's time.
  */
 export function pilotPower(p, W, blockFt, t) {
-  if (p.accel >= p.aMax * MAX_SHARE) return note(p, powerFrom(null, 1, W.kias, blockFt), t);
+  if (p.accel >= p.aMax * POWER_MAX_FROM) return note(p, powerFrom(null, 1, W.kias, blockFt), t);
   const climbFtps = W.climbFtps ?? 0;
   let power = powerFor(p.accel, W.kias, blockFt, Math.abs(W.g ?? 1), climbFtps, p.top, p.floorThr);
   const held = t - p.stageSince < RATE_SET_SEC - 1e-9;

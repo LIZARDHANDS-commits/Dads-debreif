@@ -5,7 +5,22 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (12 Oct 2026, late evening)
+## Latest (12 Oct 2026, night): the fix list under way
+
+- **The working plan for item 4 is `3d-work` `ct156/fix-list.md`:** steps and state, Patrick's decisions, the M list
+  of measurements for work, every fix row. Read it first.
+- **References:** 43 pictures renamed by area (`3d-work` `ct156/references.md`), the Moose Jaw CT-156 video (39 best
+  frames, all front seat); the RC build-guide video dropped. Panel version: before PF-25 (Patrick).
+- **Manuals read page by page** by Sonnet agents (CFAFM used, never cited; SMM; case study): printed elevator, rudder
+  and flap travel, prop 97 in, tailplane 11 ft 4 in, the type certificate's levelling (canopy rail at -6.00°).
+- **Levelling settled:** the EADI's 2.5° on the gear is the datum's; the spinner axis sits about level; ALL-34
+  reworded. The height check now measures with the spinner axis level: 11 ft 0.8 in against 10 ft 8 in (rows A2
+  wheels, A3 fin).
+- **Agents running** on areas F, G, B and C, and D; their rows are checked against the master before they reach
+  Patrick.
+- Dropped from the waiting list (Patrick): the cloud project pointer and the tags.
+
+## Earlier (12 Oct 2026, late evening)
 
 - **3.3 done** (`3d-work` #4, merged): the parts the code drew itself are in the master: speed brake and well, five gear
   wells, four flap wells, prop blades (19th hinge, `hinge.prop`), exhaust stacks, floor and coamings seen from outside,

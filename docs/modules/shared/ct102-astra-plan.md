@@ -1,6 +1,6 @@
-# CT-102 Astra model: proposed plan (not being built)
+# CT-102B Astra II model: plan (approved)
 
-> **Status:** a proposal on the shared future list (`future.md`, "Aircraft models"). Dad asked for it on 13 Oct 2026: "Can you start the same process and plan for the CT-102 Astra", meaning the process the CT-156 model went through (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). Nothing is built until Patrick moves it up. The questions are on the waiting list in `../../PLAN.md`.
+> **Status:** approved. Dad asked on 13 Oct 2026 ("Can you start the same process and plan for the CT-102 Astra"), picked the **CT-102B Astra II, the turboprop Grob G 120TP**, and said "use blender". Patrick approved (relayed by Dad, 13 Oct 2026). It is Step 3c of `plan.md`. The process is the CT-156's (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). Question 1 below is answered: (b). Questions 2 and 3 run on their working answers. Where the master file lives waits on `3d-work` access (waiting list in `../../PLAN.md`); until then the build script and sources table live in `tools/blender/ct102b/`.
 
 ## What it would be
 
@@ -52,7 +52,7 @@ Each step is one pull request in `3d-work` or this repo, by the graphics session
    - (d) not now: it stays on the future list;
    - (e) your idea.
 
-   Working answer: (d) until Patrick says, then whichever Dad flies or instructs on.
+   **Answered: (b), the CT-102B Astra II** (Dad's pick, Patrick approved, 13 Oct 2026).
 2. **Where it's used first:**
    - (a) the Debrief, so Astra tracks replay as an Astra;
    - (b) the EP Tabletop, with an Astra cockpit;
@@ -65,7 +65,7 @@ Each step is one pull request in `3d-work` or this repo, by the graphics session
    - (b) a new thread under the same `3d-work` rules;
    - (c) your idea.
 
-   Working answer: (a).
+   Working answer, changed 13 Oct 2026: (b), Dad's thread, in its own files (`ct102b/`), so it never edits a CT-156 file.
 
 ## What Dad can gather meanwhile (no code needed)
 

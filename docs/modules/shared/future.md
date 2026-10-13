@@ -31,4 +31,4 @@ Ideas for the shared parts (flight core, app frame, weather, airfields, storage,
 
 ## Aircraft models
 
-- **CT-102 Astra model** (Dad, 13 Oct 2026: "Can you start the same process and plan for the CT-102 Astra"). The CT-156's process (ALL-38: Blender master in `3d-work`, sources table, size checks, full renders and a fix list, High and Performance delivery), applied to the Astra. Which Astra (CT-102A piston or CT-102B Astra II turboprop), where it's used first, and who builds it wait on Patrick. The proposed plan, public sizes with their sources, and what Dad can gather meanwhile: [ct102-astra-plan.md](ct102-astra-plan.md).
+- The CT-102B Astra II model moved up to `plan.md` Step 3c (Patrick approved, 13 Oct 2026).
