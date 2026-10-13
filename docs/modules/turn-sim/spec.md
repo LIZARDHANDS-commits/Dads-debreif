@@ -534,6 +534,15 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 - **Pure pursuit** (para 73): his flight path on Lead, Lead in the middle of the windscreen. Builds closure, less than lead; zero line-of-sight rate; aspect rises.
 - **Lag pursuit** (para 74): his flight path behind Lead, Lead high in the windscreen. Cuts closure, opens the range, and brings down the aspect that lead and pure build.
 
+**3b. The visual cues (SMM 12.2 paras 4-9; Patrick's paste, 14 Oct 2026).** The cues a formation pilot cross-checks, close, tactical or rejoining, in the manual's terms:
+- **Closure** (para 5): how fast the range is shrinking or growing, judged in pursuit by how fast the other aircraft grows in size; the change from low to high closure is subtle, so it is watched all the time.
+- **Aspect angle** (para 6): where he is relative to the line through the other aircraft's long axis, independent of his own heading; low when the other is heading away, high when heading toward him; in rejoins a little high is "hot", a little low "cold".
+- **Range** (para 7): the distance, judged by the other aircraft's size in the canopy against features in the cockpit (for example the spacing of the warning lights) at known distances. This is the rough range gauge below.
+- **Line of sight** (para 8): how fast the other aircraft moves across the windscreen; zero when holding a constant range on the other's turn circle.
+- **Heading crossing angle** (para 9): the angle between the two headings (the paste stops at its start).
+
+**Design note (Patrick 14 Oct 2026: "We may use visual cues as inputs/outputs for the PID? maybe not").** These are the quantities a pilot actually reads, so they are the natural outputs of perception and the measured inputs of the fighting wing technique's loops: range (Lead's apparent size), closure (its rate of change), line of sight (Lead's drift across the windscreen), aspect angle and heading crossing angle; the loops' outputs stay what a pilot moves (the aim point, so G and bank; the vertical; power). Whether the loops close on these cues, or on positions worked out from them, is for the Fable audit before building (section 11).
+
 **4. Turn entry (Figs 12.20-12.22).** How #2 answers Lead's roll-in depends on where he is (in position, stretched, or tight) and on whether Lead turns into him or away:
 
 | Where #2 is | Lead turns away | Lead turns into him |
@@ -579,7 +588,7 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 
 **10. Done and judged.** As today: in the cone (500-1,000 ft, 30-60°, within 200 ft of Lead's height, TS-80) and steady, Lead's move done.
 
-**11. Tasks (plan 12.4 B5, T26-T31).** T26 this section approved; T27 the gauge's fighting wing set (level turn into #2 and away, from in position, stretched and tight; reversal; wings level; climb; the turn buttons; echelon to fighting wing) with the run before B5, today's law the known-bad case (it cuts across, overbanks, overshoots; F9's 19 G reversals); T28 perception's fighting wing quantities and the supervisor's jobs; T29 the fighting wing technique (aim loop, steering, vertical, power) behind the live switch, today's law kept until flown; T30 the blended hand-over from close formation into the cone; T31 B5's one test (a level turn into #2 from in position: never inside 500 ft less the margin, in the cone at the end) and docs; Checkpoint G, Patrick flies fighting wing. Sight pictures from #2's seat (the cone's corners, stretched and tight, aiming at the route positions) on a design page beside this section, for Patrick to check against his eye.
+**11. Tasks (plan 12.4 B5, T26-T31).** T26 this section approved, then a one-off Fable audit of the design before any code (Patrick 14 Oct 2026: "we will have another fable audit before we build"; the rule book allows Fable for a one-off architecture review, the thread telling Patrick first), its findings back to Patrick; T27 the gauge's fighting wing set (level turn into #2 and away, from in position, stretched and tight; reversal; wings level; climb; the turn buttons; echelon to fighting wing) with the run before B5, today's law the known-bad case (it cuts across, overbanks, overshoots; F9's 19 G reversals); T28 perception's fighting wing quantities and the supervisor's jobs; T29 the fighting wing technique (aim loop, steering, vertical, power) behind the live switch, today's law kept until flown; T30 the blended hand-over from close formation into the cone; T31 B5's one test (a level turn into #2 from in position: never inside 500 ft less the margin, in the cone at the end) and docs; Checkpoint G, Patrick flies fighting wing. Sight pictures from #2's seat (the cone's corners, stretched and tight, aiming at the route positions) on a design page beside this section, for Patrick to check against his eye.
 
 **12. Open questions for Patrick** (one at a time):
 1. Reaction time: **answered**, 0.4 s.
