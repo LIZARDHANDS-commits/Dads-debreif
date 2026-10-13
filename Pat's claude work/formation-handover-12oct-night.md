@@ -2,6 +2,14 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
+## 14 Oct 2026, later: B3 built (V2.428)
+
+- **On `formation-close-wingman-b2`:** the B3 agent's T15-T17 (branch `formation-close-wingman-b3`, merged), the thread's T18 test, a live change done only once settled (53eabec9), the Corner button and the fixed line under Setup (c1c49e8d). Spec 7c.9 has the measured numbers, the estimates and the rough spots.
+- **Gauge:** `node tools/formation-gauge.mjs --only b3-` flies the seven B3 scenarios with Live.
+- **For Patrick:** Checkpoint E (the list in the plan); route's quicker throttle hand while Lead rolls (about 66%/s, against echelon's 20%/s).
+- **Unseen:** nobody has flown B3 on screen (the browser pane was hidden, so the thread's screen run crawled); the Corner button was seen on screen, not pressed in flight. CI not watched.
+- **Next after Checkpoint E:** fighting wing (B5), then TRJ and SARJ from fighting wing, then line abreast and HTRJ, the 4-ship, the errors.
+
 ## 14 Oct 2026, morning: B2 extras from Patrick's flying, and #1018's CI
 
 - **On `formation-close-wingman-b2` (#1031), all at V2.427:** the HUD's TQ row and bar (`ui-kit/hud.js`, `power.js` torqueReadout); TS-230 echelon 3.5 ft up the line (15.9 back, 40.2 out; slots.js ECHELON_UP_LINE_FT) and the "Echelon line" Up / Down control (ECHELON_SHIFT, session only); Live / Held chosen while nothing is flown takes effect at once; TS-209 slowed (TELEGRAPH 8.25 s and 2.0 s: at 60° worst 1.75 ft, torque 36-86%); the roll catch-up (CLOSE_WING.rollCatchUp 0.6); TS-229 written; "Lead behaviours" in Settings (`rates.js` setTelegraph, `moves.js` KIAS_OUTSIDE_LAB now a live `let` with setKiasOutsideLab, 190-230 KIAS). Patrick: "defaults are good as is, leave the settings there".

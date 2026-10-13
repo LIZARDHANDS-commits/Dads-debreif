@@ -506,6 +506,20 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 4. ~~Opening out to line abreast~~: answered, left for the line abreast rung (section 7).
 5. ~~Route to route~~: answered, through echelon and the station change (section 3).
 
+**9. Built (14 Oct 2026, V2.428, on `formation-close-wingman-b2`; Checkpoint E to come: Patrick has not flown it yet).** T15-T17 by the B3 agent (72e9d90c, 1c2769ce, 2be8bf0d), checked and merged by the thread; T18 the test (6af15463); the thread's fix that a live change is done only once he has settled on his place (5 above; in band alone ended the station change about 5 ft short, still closing), the Corner button and T19 these docs. Measured on the gauge from the default start, Live:
+- Holds: route 60 s within 0.02 ft (torque 56.5-56.8%); line astern within 0.03 ft.
+- Turns at 60°: route into #2 2.8 ft worst (off his plane), away 3.1 ft (along the line), inside "about 3x echelon"; line astern 0.8 ft; the corner within 1.7 ft (offline probe). Echelon unchanged: B1 and B2's probes byte-identical, 60° turns within 1.7 ft.
+- Changes, never within 40 ft of Lead (a wingspan is 33.4 ft), never ahead of his 3/9 line (furthest forward 15.9 ft behind it, at echelon), at most 8.5 ft/s: echelon to route 13 s, route to echelon 13 s, echelon to line astern 12 s, line astern to echelon 13 s, the station change 26 s (Held 25 s), ending 0.4 ft off the new place; route to route 51 s. Every change into and out of the corner, Held and Live, ends IN POSITION.
+- Held: every pre-B3 gauge trace byte-identical (one Live measure corrected: at a Reversal the classifier read line astern, so the gauge now reads #2's last side).
+
+How it was built, beyond 1-8 (each an estimate until Patrick says otherwise):
+- **His throttle hand in route.** A place flown exactly in route needs 97-101% torque through a 60° roll-in away from him (`power.js` powerFor along the place's flight). At the telegraph's 20%/s he fell 15.7 ft behind, so while he sees Lead roll his hand moves at 20%/s times how much further out than echelon his place is (about 3.3 in route, so about 66%/s; echelon unchanged). Basis: standard kinematics, Patrick 13 Oct 2026 ("If I know I need a lot more energy I might give it a few seconds of MAX power"), the engine's 0.2 s response (TS-108, TS-218). **For Patrick to confirm** at Checkpoint E.
+- **"Under Lead"** is below his wing plane, inside his wingtip and not behind his tail: line astern and the corner sit behind Lead, not under him.
+- **Stabilized in the corner** is flowing through within 5 ft and 5 kt (TS-117), not stopping; a press of Corner stops there.
+- **Stopping a move back** counts the throttle's walk up to MAX from his torque now (a first cut passed the corner by 9 ft).
+- **The new numbers** (`wing-moves.js` CLOSE_WING offStation and deconflict): jogging 8 ft/s (Patrick); into echelon from the corner 5 ft/s (7c.3, an estimate); flow 5 ft and 5 kt (TS-117); the list's end 1.5 ft and 1.5 ft/s; the deconfliction dead bands 2 ft, 1 s, 2 ft and 5 ft (estimates).
+- **Rough spots, for Checkpoint E:** in route turns the torque swings 10-100% with up to 17 reversals; on corner and station-change legs his roll reaches 86°/s with up to 17° of bank off Lead's; route to route swings 10-100% with 14 reversals. Found and not fixed: after a Held change, #2 can drift when the tracker ends 2 kt or more off Lead (the idle trim acts only within 2 kt).
+
 ## 8. Fighting wing
 
 **The cone** (SMM 12.29 para 69, Fig 12.19): 500-1,000 ft and 30-60° of sweep from Lead's wing line, 0° abeam. Fighting wing may use the whole cone, high or low, in every move (Patrick 5 Oct 08:54Z, 08:58Z: "the whole cone can be used"; in position up to 200 ft above or below Lead, TS-80). The tracker's last leg into fighting wing aims for the nearest point of the cone and, once inside, holds where #2 arrives (`fwGoal`), instead of the one slot (TS-83). The place is a default, a setting (below) and a reference: the sim flies outside the SMM band and flags it.
