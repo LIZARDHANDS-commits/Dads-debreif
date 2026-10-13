@@ -118,7 +118,7 @@ The physics (shared turn formula, radius = true speed squared / (g x tan bank); 
 | 45° at 180 KIAS | about 3,140 ft | about 1.0 NM, about 1.2 NM with a 45° leg | inside, about 0.6 |
 | 30° at 140 KIAS | about 3,280 ft | about 1.1 NM, about 1.3 NM with a 45° leg | inside, about 0.6 |
 
-All three are physics, not manual numbers; the leg lengths are estimates. The question for Patrick is which one (or his idea); working answer, once he says yes to building it: 45° at 180 KIAS.
+All three are physics, not manual numbers; the leg lengths are estimates. The question for Patrick is which one (or his idea). **Dad picked 45° at 180 KIAS** (13 Oct 2026); it is built once Patrick says yes.
 
 ## Rough spots left for later (found by the V2.350 refactor)
 
