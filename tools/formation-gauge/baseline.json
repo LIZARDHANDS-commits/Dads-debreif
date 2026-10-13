@@ -500,5 +500,60 @@
     }
    }
   }
+ ],
+ "echelon-hold": [
+  {
+   "label": "Echelon hold, 60 s straight and level",
+   "how": "held",
+   "aircraft": {
+    "Lead": {
+     "g": [
+      1,
+      1
+     ],
+     "gRateMax": 0,
+     "gReversals": 0,
+     "rollMax": 0,
+     "rollAccMax": 0,
+     "rollReversals": 0,
+     "drawnMax": 0,
+     "rangeMin": null
+    },
+    "#2": {
+     "g": [
+      0.94,
+      1
+     ],
+     "gRateMax": 0.1,
+     "gReversals": 0,
+     "rollMax": 1,
+     "rollAccMax": 8,
+     "rollReversals": 0,
+     "drawnMax": 1,
+     "rangeMin": 47,
+     "close": {
+      "maxFt": {
+       "plane": 1.23,
+       "line": 0.29,
+       "along": 0.22
+      },
+      "rmsFt": {
+       "plane": 1.1,
+       "line": 0.16,
+       "along": 0.11
+      },
+      "settleSec": null,
+      "bankOffMaxDeg": 0.12,
+      "gOffMax": 0.07,
+      "torquePct": [
+       56.6,
+       56.6
+      ],
+      "torqueReversals": 0,
+      "rollLagSec": null
+     }
+    }
+   }
+  }
  ]
 }
