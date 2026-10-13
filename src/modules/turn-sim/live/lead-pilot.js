@@ -12,8 +12,11 @@
 //  - speed: the speed changed by power inside Lead's 20-80% torque (TS-216; line abreast's own changes inside its power,
 //    replay.js speedSeg lab), the throttle reached as the engine answers (TS-218); a full-power turn at MAX (TS-204). The
 //    plan is not done until the speed is made, or the power is at its edge and the speed has stopped coming;
-//  - height legs (plan.profile): he pulls or pushes onto the planned height path, climbs at 80% torque and descents at 20%
-//    (TS-203, TS-216); between legs he holds his height.
+//  - height legs (plan.profile): a planned climb or descent at a set power, 80% torque climbing and 20% descending (TS-203,
+//    TS-216), with his nose holding his airspeed, so the climb or descent rate comes out of the physics; he levels off on
+//    the leg's height however long the physics takes (TS-225 as Patrick ruled 13 Oct 2026, "Yes, i agree"; until then he
+//    followed the leg's drawn height path in time, and his speed swung +17 kt in a 2,000 ft climb and -30 kt descending).
+//    A drawn leg (a table, a dive, a level leg) is still flown onto its path; between legs he holds his height.
 // His speed and height come out of the physics. Every aircraft field the rest of the code reads is filled from the point
 // mass, so the planners, the judge, the card, the tags and the 3D view read him as before. His point-mass state rides on
 // the aircraft (a.pmLead, never changed in place, so copyAircraft's copy shares it safely); if anything else moved the
@@ -22,9 +25,9 @@
 // The switch: lead-moves.js LEAD_PILOT.onePointMass (on); off flies the old programme Lead (flight.js), unchanged.
 // It changes no flight physics: the point mass, the engine, the roll and G laws are fluid's, unchanged.
 import { bankDegFromG, gFromBankDeg, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
-import { gAtAoaUnits } from '../../../core/t6-performance.js';
+import { excessFnFor, gAtAoaUnits } from '../../../core/t6-performance.js';
 import { DEG, wrapPi } from '../../../core/angles.js';
-import { G_FTPS2 } from '../../../core/units.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, angleToGo, headingChangeRollingOut, heightAt, keepRollAccel, outRoll, pitchAboveHorizonDeg, setLeadPilot } from './flight.js';
 import { stepLead, leadStateOf, gForClimb } from './fluid-lead.js';
 import { LEAD, LEAD_POWER, LEAD_PILOT } from './lead-moves.js';
@@ -33,7 +36,7 @@ import { throttleAtTorque, powerFrom, withEngine, POWER_BLOCK_FT } from './power
 import { leadExcessPerWeight } from './replay.js';
 
 const dt = STEP_SEC;
-/** Wings level within this many degrees (and degrees per second of roll) are level: maths, not a flying number (flyLead). */
+/** Wings level within this many degrees (and degrees per second of roll) end the roll-out prediction (rollOutTurnRad). */
 const WINGS_LEVEL_SNAP_DEG = 0.01;
 
 let on = LEAD_PILOT.onePointMass;
@@ -72,18 +75,6 @@ function drawnBleed(seg, plan, st) {
   const next = plan.segments[1];
   if (!seg.withNext || !(seg.toKias < st.kias) || next?.kind !== 'turn') return false;
   return leadExcessPerWeight(st.kias, st.pm.z, gFromBankDeg(next.bankDeg)) < 0;
-}
-
-/**
- * A turn's gentler roll-out (flight.js outRoll: seg.rollOutRoll, a close wingman in his wing plane, TS-126), once his roll-in
- * has settled: its rate no faster than the gentle roll's, and (here) its roll acceleration no more than the gentle roll's
- * either. With an acceleration above it, core easeRoll's planned stop has no stop to plan (its jerk range is empty) and
- * the roll-out prediction runs wild (-1,361° of heading from 0.25° of bank, 7.5°/s and -150°/s² at 12°/s²; found 12 Oct
- * 2026 for TS-225: the programme Lead takes it too and rolls out of fighting wing to echelon's 110° turn after about 7°).
- */
-function settledOutRoll(seg, a, st) {
-  const r = outRoll(seg, a);
-  return r && Math.abs(st.rollAcc ?? 0) <= r.maxAccelDps2 + 1e-9 ? r : null;
 }
 
 /**
@@ -188,7 +179,7 @@ function flyLead(a, plan, t) {
           // Roll out where the wings come level on the heading: the roll-out he flies (his roll, its onset and the
           // planned stop, TS-223), predicted as fluid Lead's level turns predict it; near the roll-out, flown ahead on
           // the point mass itself (rollOutTurnRad), whose G comes off at its own onset.
-          const roll = settledOutRoll(seg, a, st) ?? seg.roll ?? plan.roll ?? a.techRoll;
+          const roll = outRoll(seg, a) ?? seg.roll ?? plan.roll ?? a.techRoll;
           let rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, roll, -(st.rollAcc ?? 0), true));
           if (seg.started && toGo <= 1.5 * rollOutChange + 2 * thisStep) rollOutChange = rollOutTurnRad(st, roll);
           if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
@@ -210,10 +201,16 @@ function flyLead(a, plan, t) {
     const capDeg = gCap > 1 ? bankDegFromG(gCap) : 0;
     if (Math.abs(targetBank) > capDeg) targetBank = Math.sign(targetBank) * capDeg;
   }
-  const roll = (seg?.rollingOut && settledOutRoll(seg, a, st)) || seg?.roll || plan.roll || a.techRoll || ROLL;
+  const roll = (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || plan.roll || a.techRoll || ROLL;
 
-  // Height: the planned leg's path (its climb rate and its pull as the lead), or the height held, closed at heightPerSec.
-  const height = heightAt(plan.profile, t + dt);
+  // Height. A planned climb or descent (a leg that changes height and is not drawn) is flown at a set power with the nose
+  // holding the airspeed until he levels off on its height (hold.climb, kept past the leg's own time if the physics is
+  // slower). A drawn leg (a table, a dive, a level leg) is flown onto its path; else the height held, closed at heightPerSec.
+  const hLeg = legAt(plan.profile, t + dt);
+  const setLeg = hLeg && !hLeg.table && !hLeg.dive && hLeg.toFt !== hLeg.fromFt ? hLeg : null;
+  if (setLeg && hold.climb?.leg !== setLeg && hold.doneLeg !== setLeg) hold.climb = { leg: setLeg, zTo: blockFt + setLeg.toFt, dir: Math.sign(setLeg.toFt - setLeg.fromFt), levelling: false };
+  if (hLeg && !setLeg) hold.climb = null; // a drawn leg takes over
+  const height = hLeg && !setLeg ? heightAt(plan.profile, t + dt) : null;
   let zT = null;
   let vT = 0;
   let nzLead = 0;
@@ -224,7 +221,30 @@ function flyLead(a, plan, t) {
     hold.z = zT;
   } else if (hold.z !== null) zT = hold.z;
   let gamma = 0;
-  if (zT === null) {
+  let climb = hold.climb; // never changed in place: a dry run's copy of the aircraft shares it
+  if (climb) {
+    // The climb angle the set power gives at his speed (the excess thrust, sin γ = (T - D) / W), plus a share of his speed
+    // error (faster than wanted: nose up), and the level-off: never steeper than the angle that closes the height at
+    // heightPerSec, so he rounds onto it. Never sinking in a climb or climbing in a descent.
+    const wantKias = plan.speedLeg?.toKias ?? hold.kias;
+    const thr = st.eng?.thr ?? throttleAtTorque(climb.dir > 0 ? LEAD_PILOT.climbTorquePct : LEAD_PILOT.descentTorquePct, st.kias, z);
+    const excess = excessFnFor(thr)(st.V / KT_TO_FTPS, z, st.g);
+    const fastFtps = ((st.kias - wantKias) * st.V) / Math.max(st.kias, 1);
+    const sinSpeed = excess + (LEAD_PILOT.speedByNosePerSec * fastFtps) / G_FTPS2;
+    const sinHeight = (LEAD_PILOT.heightPerSec * (climb.zTo - z)) / st.V;
+    // Once the height starts to govern (the level-off), he sets the power for his speed again, as a pilot does as he levels:
+    // held at 80% or 20% through it, the speed swung +8 kt after a 2,000 ft climb and -18 kt after the descent.
+    if (!climb.levelling && (climb.dir > 0 ? sinHeight < sinSpeed : sinHeight > sinSpeed)) hold.climb = climb = { ...climb, levelling: true };
+    // Levelling, the height alone steers the nose (the power now holds the speed).
+    const sinWant = climb.levelling ? sinHeight : climb.dir > 0 ? Math.min(sinSpeed, sinHeight) : Math.max(sinSpeed, sinHeight);
+    const sinG = climb.dir > 0 ? Math.max(0, sinWant) : Math.min(0, sinWant);
+    gamma = Math.asin(Math.max(-0.5, Math.min(0.5, sinG)));
+    if (Math.abs(climb.zTo - z) < LEAD_PILOT.levelOffFt && Math.abs(st.vel.z) < LEAD_PILOT.levelFtps) {
+      hold.z = climb.zTo;
+      hold.doneLeg = climb.leg;
+      hold.climb = null;
+    }
+  } else if (zT === null) {
     // A climb carried into a plan with no height: level off (the flight path brought onto level), then hold that height.
     if (Math.abs(st.vel.z) < LEAD_PILOT.levelFtps) hold.z = z;
   } else {
@@ -236,22 +256,15 @@ function flyLead(a, plan, t) {
 
   // Power: MAX in a full-power turn (TS-204); a planned climb at 80% torque and a descent at 20% (TS-203, TS-216); else the
   // speed wanted, held inside the band (20-80%, TS-216; line abreast's own changes inside its power).
-  const hLeg = legAt(plan.profile, t + dt);
-  const climbing = hLeg && !hLeg.table && !hLeg.dive && hLeg.toFt !== hLeg.fromFt ? Math.sign(hLeg.toFt - hLeg.fromFt) : 0;
+  const climbing = hold.climb && !hold.climb.levelling ? hold.climb.dir : 0;
   let power;
   if (seg?.kind === 'turn' && seg.fullPower) power = { throttle: 1 };
   else if (climbing) power = { throttle: Math.max(0, Math.min(1, throttleAtTorque(climbing > 0 ? LEAD_PILOT.climbTorquePct : LEAD_PILOT.descentTorquePct, st.kias, z))) };
   else power = { holdKias: plan.speedLeg?.toKias ?? hold.kias, torqueBand: plan.speedLeg?.band ?? LEAD_POWER };
 
-  let s = stepLead(st, { g, bank: -targetBank, lead: true, roll, ...power });
-  // Wings level within a hundredth of a degree, with the roll all but stopped, is wings level. A numerical snap, not a
-  // flying number: core easeRoll's planned stop can stick a few thousandths of a degree short of its target, the rate at
-  // zero and the roll acceleration flipping ±13°/s² every step (0.0007° short after a 60° turn at 90°/s, found 12 Oct 2026
-  // for TS-225; the programme Lead sticks the same way, 0.0054° short), and the plan then never reads as done (planDone
-  // wants the wings exactly level).
-  if (targetBank === 0 && Math.abs(s.bank) < WINGS_LEVEL_SNAP_DEG && Math.abs(s.rollRate) < WINGS_LEVEL_SNAP_DEG) {
-    s = { ...s, bank: 0, rollRate: 0, rollAcc: 0 };
-  }
+  // The roll comes level exactly on its own (core easeRoll's planned stop, fixed 13 Oct 2026; it used to stick a few
+  // thousandths of a degree short, and this step snapped it).
+  const s = stepLead(st, { g, bank: -targetBank, lead: true, roll, ...power });
 
   // The aircraft as the rest of the code reads it.
   a.xFt = s.pm.x;

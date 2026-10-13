@@ -148,4 +148,6 @@ export const LEAD_PILOT = Object.freeze({
   labPower: Object.freeze({ minTorquePct: 0, maxTorquePct: LEAD_POWER.maxTorquePct }), // line abreast's own speed changes (replay.js speedSeg lab): power back to the floor (slow-down.js, TS-61) and 80% to speed up (TS-216's LAB exception)
   climbTorquePct: FW_MOVE.climbTorquePct, // a planned climb at 80% torque (TS-203, TS-216)
   descentTorquePct: FW_MOVE.descentTorquePct, // a planned descent at 20% torque (TS-216)
+  speedByNosePerSec: 0.125, // in a planned climb or descent his nose holds his airspeed (TS-225, Patrick 13 Oct 2026): a speed error is taken out at this share per second, on top of the climb angle the power gives (an estimate, as slow as the height loop so the pitch never chases the speed)
+  levelOffFt: 5, // a climb or descent is over once he is within 5 ft of the planned height and climbing or sinking under levelFtps (an estimate)
 });
