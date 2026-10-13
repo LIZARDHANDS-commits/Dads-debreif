@@ -1,12 +1,12 @@
-# Builds the CT-102B Astra II's outside (Grob G 120TP) as a Blender master file, first pass (shared plan Step 3c items 1
-# to 3, docs/modules/shared/ct102-astra-plan.md). Runs headless, with Blender 5.2 or the bpy module:
+# Builds the CT-102B Astra II's outside (Grob G 120TP) as a Blender master file, first refine pass (shared plan Step 3c
+# items 1 to 4, docs/modules/shared/ct102-astra-plan.md). Runs headless, with Blender 5.2 or the bpy module:
 #
 #   blender -b --factory-startup -P tools/blender/ct102b/build_ct102b.py -- <out>/ct102b.blend [<render dir>]
 #   <venv>/bin/python tools/blender/ct102b/build_ct102b.py -- <out>/ct102b.blend [<render dir>]
 #
-# Every number is in the constants block below and names its row in sources.md (P = a public page, E = an estimate).
-# Nothing here is measured off a picture yet: the shape is sized to the published length, span, height and wing area,
-# and everything else is an estimate until the fix list replaces it.
+# Every number is in the constants block below and names its row in sources.md (P = a public page, R = measured off the
+# Aeromaquina three-view Dad sent on 13 Oct 2026, E = an estimate). The first refine pass (plan Step 3c item 4) replaced
+# most first-pass estimates with R rows; what is still an estimate says so.
 #
 # Axes and units are the CT-156 scripts' (build_ct156_exterior.py, ct156-points.mjs): real feet, nose +X, left +Y,
 # up +Z from the propeller's axis. The origin is the spinner's tip, so a part's station (feet behind the tip) is -X.
@@ -44,90 +44,126 @@ PROP_DIAMETER_FT = 2.10 * M_TO_FT   # P2a (also P5)
 PROP_BLADES = 5                     # P2a (also P5)
 
 # Propeller axis and spinner
-AXIS_HEIGHT_FT = 4.35               # E1 estimate: axis above the ground, gear down
-SPINNER_LENGTH_FT = 1.7             # E20 estimate
-SPINNER_RADIUS_FT = 0.64            # E20 estimate
-PROP_STATION_FT = 1.0               # E21 estimate
+AXIS_HEIGHT_FT = 4.08               # R1: the height (P2) less the fin top above the axis (R14); level on the ground (P6)
+SPINNER_LENGTH_FT = 1.7             # R3 (was E20)
+SPINNER_RADIUS_FT = 0.65            # R3 (was E20)
+PROP_STATION_FT = 1.0               # E21 estimate (no blades drawn on the three-view)
 BLADE_ROOT_FT = 0.55                # E22 estimate: where the blade leaves the spinner
 BLADE_CHORD_FT = (0.50, 0.32)       # E22 estimate: root, tip
 BLADE_ANGLE_DEG = (42, 14)          # E23 estimate: root, tip, from the disc's plane
 
-# Fuselage stations (E2 estimate): station ft, half-width ft, top ft, bottom ft (heights above the axis)
+# Fuselage stations (R4 half-widths from the top view, R5 top and bottom from the side view): station ft, half-width ft,
+# top ft, bottom ft (heights above the axis). Under the canopy the top is a deck hidden inside the bubble.
 FUSELAGE = [
-    (1.7, 0.66, 0.66, -0.70),
-    (2.5, 0.85, 0.85, -1.05),
-    (4.0, 1.10, 1.15, -1.35),
-    (5.5, 1.30, 1.35, -1.50),
-    (7.0, 1.55, 1.50, -1.55),
-    (8.5, 1.85, 1.58, -1.55),
-    (10.0, 1.98, 1.62, -1.50),
-    (11.5, 1.98, 1.62, -1.40),
-    (13.0, 1.85, 1.58, -1.25),
-    (15.0, 1.50, 1.50, -1.00),
-    (17.5, 1.10, 1.40, -0.65),
-    (20.0, 0.80, 1.32, -0.30),
-    (22.5, 0.55, 1.28, 0.00),
-    (25.0, 0.35, 1.25, 0.30),
-    (26.6, 0.15, 1.20, 0.65),
+    (1.7, 0.68, 0.70, -0.72),
+    (2.0, 0.87, 0.74, -1.05),
+    (2.5, 1.08, 0.80, -1.20),
+    (3.0, 1.25, 0.86, -1.34),
+    (3.5, 1.39, 0.89, -1.50),
+    (4.0, 1.52, 0.93, -1.72),
+    (5.0, 1.71, 1.00, -1.92),
+    (6.0, 1.88, 1.05, -1.92),
+    (7.0, 2.03, 1.10, -1.95),
+    (8.0, 2.15, 0.75, -2.05),
+    (9.0, 2.20, 0.70, -2.15),
+    (10.5, 2.20, 0.70, -2.20),
+    (12.0, 2.18, 0.70, -2.10),
+    (13.0, 2.10, 0.80, -1.98),
+    (14.0, 1.75, 1.05, -1.84),
+    (15.0, 1.53, 1.40, -1.77),
+    (16.0, 1.25, 1.38, -1.68),
+    (17.0, 1.03, 1.33, -1.62),
+    (18.0, 0.89, 1.27, -1.55),
+    (19.0, 0.67, 1.23, -1.52),
+    (20.0, 0.53, 1.25, -1.48),
+    (21.0, 0.43, 1.30, -1.43),
+    (22.0, 0.38, 1.30, -1.38),
+    (23.0, 0.33, 1.20, -1.33),
+    (24.0, 0.28, 1.00, -1.25),
+    (25.0, 0.22, 0.60, -1.12),
+    (25.6, 0.12, 0.20, -0.95),
 ]
-FIREWALL_STATION_FT = 7.0           # E3 estimate: the cowl ends here
+FIREWALL_STATION_FT = 7.0           # E3 estimate: the cowl ends here (the windshield's foot is at 6.8, R6)
 SECTION_POWER = 2.5                 # E4 estimate: superellipse power of the fuselage's sections
 
-# Canopy (E5 to E7 estimates): one bubble that slides aft (P6); closed, no frame drawn
-CANOPY_FRONT_FT, CANOPY_PEAK_FT, CANOPY_AFT_FT = 7.8, 11.0, 15.5  # E5
-CANOPY_PEAK_HEIGHT_FT = 3.35        # E6, above the axis
-CANOPY_SILL = 0.6                   # E7: the sill sits this far up the fuselage's side (0 middle, 1 top)
+# Canopy (R6): station ft, sill height ft, top height ft (above the axis). The sill lies on the fuselage's side, so the
+# bubble is as wide as the fuselage there. Windshield 6.8 to 9.25 ft, sliding part 9.25 to 14.8 ft (slides aft, P6).
+CANOPY = [
+    (6.8, 1.10, 1.12),
+    (7.0, 0.64, 1.45),
+    (7.5, 0.24, 1.80),
+    (8.0, 0.00, 1.98),
+    (8.5, -0.10, 2.16),
+    (9.0, -0.15, 2.32),
+    (9.5, -0.15, 2.46),
+    (10.0, -0.15, 2.51),
+    (11.0, -0.15, 2.52),
+    (12.0, -0.15, 2.37),
+    (12.5, -0.15, 2.27),
+    (13.0, -0.13, 2.10),
+    (13.5, -0.08, 1.95),
+    (14.0, 0.05, 1.80),
+    (14.5, 0.50, 1.62),
+    (14.8, 1.40, 1.42),
+]
+CANOPY_BOW_FT = (9.05, 9.45)        # R6: the windshield's frame, seen on the side and top views
+CANOPY_SECTION_POWER = 4.0          # R6: superellipse power of the bubble's section; the front view shows a flat top
 
-# Wing (E8 to E15 estimates; span P2, area check P2)
-WING_ROOT_Z_FT = -1.20              # E8 chord line at the root, below the axis (low wing, P5)
-WING_BREAK_FT = 2.0                 # E9 flat centre section out to here
-WING_DIHEDRAL_DEG = 5.0             # E9
-WING_THICKNESS = (0.15, 0.12)       # E10 root, tip (NACA 24xx stand-in)
+# Wing (R7 to R10; span P2, area check P2). Leading and trailing edges are straight lines through the centreline values
+# and the values at WING_REF_OUT_FT, the winglet's root on the top and front views.
+WING_ROOT_Z_FT = -1.80              # R9 chord line at the centreline, below the axis (low wing, P5; was E8 -1.20)
+WING_BREAK_FT = 0.0                 # R9 dihedral from the root: no flat centre section on the front view (was E9 2.0)
+WING_DIHEDRAL_DEG = 2.9             # R9 (was E9 5.0)
+WING_THICKNESS = (0.15, 0.15)       # R10 root, tip (front view); section still the NACA 24xx stand-in, E10
 WING_CAMBER = 0.02                  # E10
-WING_CHORD_FT = (5.6, 3.2)          # E11 root, tip; quarter-chord line straight across; area to P2
-WING_LE_ROOT_FT = 8.6               # E12 station of the root's leading edge
-WINGLET_LENGTH_FT = 1.9             # E13
-WINGLET_BEND_FT = 0.7               # E13
-WINGLET_CANT_DEG = 72               # E13, from level
-WINGLET_TIP_CHORD_FT = 1.4          # E13
+WING_REF_OUT_FT = 15.44             # R7 the winglet's root, out from the centreline
+WING_LE_FT = (8.14, 8.54)           # R7 leading-edge station at the centreline, at WING_REF_OUT_FT (was E11, E12)
+WING_TE_FT = (13.89, 11.71)         # R7 trailing-edge station, likewise
+WINGLET_LENGTH_FT = 2.1             # R11 (was E13 1.9)
+WINGLET_BEND_FT = 1.0               # R11 (was E13 0.7)
+WINGLET_CANT_DEG = 58               # R11, from level at the tip (was E13 72)
+WINGLET_TIP_CHORD_FT = 1.15         # R11 (was E13 1.4)
+WINGLET_LE_SHIFT = 1.0              # R11: the winglet's trailing edge is straight on, so its leading edge takes all the taper
 WINGLET_THICKNESS = 0.10            # E13
-FLAP_SPAN_FT = (2.1, 9.0)           # E14 out from the centreline
-AILERON_SPAN_FT = (9.2, 15.4)       # E15
-WING_HINGE_CHORD = 0.75             # E14, E15: flaps and ailerons are the aft 25%
+FLAP_SPAN_FT = (2.25, 10.40)        # R8 out from the centreline (was E14)
+AILERON_SPAN_FT = (10.45, 15.30)    # R8 (was E15)
+FLAP_HINGE_CHORD = 0.75             # R8: flaps are the aft 25% of the chord
+AILERON_HINGE_CHORD = 0.71          # R8: ailerons are the aft 29%
 
-# Tailplane, fin (E16 to E19 estimates; fin top from HEIGHT_FT and AXIS_HEIGHT_FT; root TE from LENGTH_FT)
-TAIL_HALF_SPAN_FT = 11.5 / 2        # E16
-TAIL_Z_FT = 0.55                    # E16
-TAIL_CHORD_FT = (3.2, 2.1)          # E16 root, tip
-TAIL_LE_FT = (22.2, 22.8)           # E16 root, tip
+# Tailplane (R12), fin and rudder (R13, R14); fin top from HEIGHT_FT and AXIS_HEIGHT_FT; the rudder's top trailing edge
+# is the overall length
+TAIL_HALF_SPAN_FT = 12.35 / 2       # R12 (was E16 11.5)
+TAIL_Z_FT = 0.30                    # R12 (was E16 0.55)
+TAIL_LE_FT = (21.28, 22.00)         # R12 root, tip (was E16)
+TAIL_TE_FT = 24.12                  # R12 straight across
 TAIL_THICKNESS = 0.10               # E16
-ELEVATOR_HINGE_CHORD = 0.62         # E17
-FIN_ROOT_Z_FT = 0.9                 # E18
-FIN_ROOT_CHORD_FT = 5.74            # E18
-FIN_TIP_CHORD_FT = 2.7              # E18
-FIN_TIP_LE_FT = 24.6                # E18
-FIN_THICKNESS = 0.12                # E18
-RUDDER_HINGE_CHORD = 0.62           # E19
+ELEVATOR_HINGE_FT = 23.36           # R12 straight across (was E17, 38% of the chord)
+FIN_ROOT_Z_FT = -0.90               # R13 the rudder's foot (was E18 0.9)
+FIN_LE_LINE = ((2.01, 22.81), (4.36, 24.81))  # R13 two points (height ft, station ft) on the fin's leading edge: 40 deg
+FIN_FILLET = ((1.25, 20.00), (2.01, 22.81))   # R13 the dorsal fillet's leading edge, from the fuselage's top to the fin
+FIN_TE_ROOT_FT = 26.30              # R13 trailing edge at the root
+FIN_THICKNESS = 0.08                # R13 the top view shows about 0.2 ft either side of the centreline near the root
+RUDDER_HINGE_LINE = ((-0.13, 24.45), (3.72, 26.81))  # R14 two points (height ft, station ft) on the rudder's hinge
 
-# Gear, down (E24 to E26 estimates; retractable tricycle P5, mains inwards and nose backwards P6)
-MAIN_PIVOT_OUT_FT = 5.37            # E24
-MAIN_WHEEL_OUT_FT = 5.0             # E24
-MAIN_STATION_FT = 10.6              # E24
-MAIN_WHEEL_DIA_FT, MAIN_WHEEL_WIDTH_FT = 1.30, 0.45  # E24
-NOSE_STATION_FT = 3.9               # E25
-NOSE_PIVOT_Z_FT = -1.2              # E25
-NOSE_WHEEL_DIA_FT, NOSE_WHEEL_WIDTH_FT = 1.10, 0.40  # E25
+# Gear, down (R15, R16; retractable tricycle P5, mains inwards and nose backwards P6). The three-view draws no legs.
+MAIN_WHEEL_OUT_FT = 3.91            # R15: track 7.82 ft (was E24 5.0)
+MAIN_PIVOT_OUT_FT = MAIN_WHEEL_OUT_FT + 0.37  # E24 estimate: the leg's pivot just outboard of the wheel
+MAIN_STATION_FT = 10.98             # R15 (was E24 10.6)
+MAIN_WHEEL_DIA_FT, MAIN_WHEEL_WIDTH_FT = 1.25, 0.48  # R15 (was E24)
+NOSE_STATION_FT = 4.95              # R16 (was E25 3.9)
+NOSE_PIVOT_Z_FT = -1.5              # E25 estimate, inside the cowl
+NOSE_WHEEL_DIA_FT, NOSE_WHEEL_WIDTH_FT = 1.15, 0.36  # R16 (was E25)
 MAIN_LEG_RADIUS_FT, NOSE_LEG_RADIUS_FT = 0.13, 0.12  # E26
 
 # Named points
-EYE_STATION_FT, EYE_OUT_FT, EYE_Z_FT = 11.3, 0.95, 2.55  # E30 estimate, side by side (P3, P4)
+EYE_STATION_FT, EYE_OUT_FT, EYE_Z_FT = 11.0, 0.95, 1.85  # E30 estimate, side by side (P3, P4); height lowered under the
+#                                                          measured canopy, from the pilot's head drawn on the side view
 
 SHARP_DEG = 40  # as build_ct156_exterior.py: faces meeting at more than this keep a hard edge
 
 # ---------- worked out from the numbers above ----------
 GROUND_Z = -AXIS_HEIGHT_FT
 FIN_TOP_Z = HEIGHT_FT - AXIS_HEIGHT_FT
-FIN_ROOT_LE_FT = LENGTH_FT - FIN_ROOT_CHORD_FT  # the rudder's root trailing edge is the overall length
 PROP_RADIUS_FT = PROP_DIAMETER_FT / 2
 
 
@@ -296,32 +332,34 @@ spinner_obj = part('spinner', 'spinner', spinner)
 
 
 def canopy_sill(s):
-    """Height and half-width of the canopy's sill at station s: on the fuselage's side, CANOPY_SILL of the way up,
-    where the section is still nearly its full width, so the bubble's sides run down into the fuselage's."""
+    """Height and half-width of the canopy's sill at station s: the sill height is measured (CANOPY, R6), and the
+    bubble is as wide as the fuselage's section at that height, so its sides run down into the fuselage's."""
     hw, top, bot = (catmull(FUSELAGE, s, c) for c in (1, 2, 3))
     zc, hh = (top + bot) / 2, (top - bot) / 2
-    return zc + CANOPY_SILL * hh, hw * (1 - CANOPY_SILL ** SECTION_POWER) ** (1 / SECTION_POWER)
+    sill = catmull(CANOPY, s, 1)
+    f = min(1.0, abs(sill - zc) / hh)
+    return sill, max(0.02, hw * (1 - f ** SECTION_POWER) ** (1 / SECTION_POWER))
 
 
-def canopy(bm, n=33):
-    peak_h = CANOPY_PEAK_HEIGHT_FT - canopy_sill(CANOPY_PEAK_FT)[0]
+def canopy_rings(s0, s1, grow=0.0, n=33):
     rings = []
-    for s in steps(CANOPY_FRONT_FT, CANOPY_AFT_FT, 0.2):
-        if s <= CANOPY_PEAK_FT:
-            h = peak_h * math.sin((s - CANOPY_FRONT_FT) / (CANOPY_PEAK_FT - CANOPY_FRONT_FT) * math.pi / 2) ** 0.7
-        else:
-            h = peak_h * math.cos((s - CANOPY_PEAK_FT) / (CANOPY_AFT_FT - CANOPY_PEAK_FT) * math.pi / 2)
-        h = max(h, 0.03)
+    for s in steps(s0, s1, 0.1):
         sill, w = canopy_sill(s)
-        rings.append([(X(s), w * se(math.cos(t), 2.6), sill + h * abs(math.sin(t)) ** (2 / 2.6))
+        h = max(catmull(CANOPY, s, 2) - sill, 0.03)
+        p = CANOPY_SECTION_POWER
+        rings.append([(X(s), (w + grow) * se(math.cos(t), p), sill + (h + grow) * abs(math.sin(t)) ** (2 / p))
                       for t in (math.pi * k / (n - 1) for k in range(n))])
-    loft(bm, rings)
+    return rings
+
+
+def canopy(bm):
+    loft(bm, canopy_rings(CANOPY[0][0], CANOPY[-1][0]))
 
 
 part('canopy', 'canopy', canopy)
+part('canopyBow', 'airframe', lambda bm: loft(bm, canopy_rings(*CANOPY_BOW_FT, grow=0.03)))  # R6
 
 # ---------- wing, with flaps, ailerons and winglets ----------
-C_ROOT, C_TIP = WING_CHORD_FT
 T_ROOT, T_TIP = WING_THICKNESS
 
 
@@ -353,17 +391,15 @@ def winglet_reach(c0):
 
 
 # The panel's tip, so the span over the winglets is the published span (P2). The tip chord barely depends on it.
-WING_TIP_FT = SPAN_FT / 2 - winglet_reach(WING_CHORD_FT[1])
-
-
-def chord(y):
-    if y <= WING_BREAK_FT:
-        return C_ROOT
-    return C_ROOT + (C_TIP - C_ROOT) * (y - WING_BREAK_FT) / (WING_TIP_FT - WING_BREAK_FT)
+WING_TIP_FT = SPAN_FT / 2 - winglet_reach(WING_TE_FT[1] - WING_LE_FT[1])
 
 
 def wing_le(y):
-    return WING_LE_ROOT_FT + 0.25 * (C_ROOT - chord(y))
+    return WING_LE_FT[0] + (WING_LE_FT[1] - WING_LE_FT[0]) * y / WING_REF_OUT_FT
+
+
+def chord(y):
+    return WING_TE_FT[0] + (WING_TE_FT[1] - WING_TE_FT[0]) * y / WING_REF_OUT_FT - wing_le(y)
 
 
 def wing_z(y):
@@ -391,7 +427,7 @@ def winglet(bm, side):
     rings = []
     for dy, dz, phi, f in WINGLET:
         c = c0 + (WINGLET_TIP_CHORD_FT - c0) * f
-        le = le0 + 0.8 * (c0 - c)
+        le = le0 + WINGLET_LE_SHIFT * (c0 - c)
         t = T_TIP + (WINGLET_THICKNESS - T_TIP) * f
         ny, nz = -math.sin(phi), math.cos(phi)  # the section's "up", turning inboard as the winglet rises
         rings.append([(X(le + x * c), side * (WING_TIP_FT + dy + zc * c * ny), z0 + dz + zc * c * nz)
@@ -400,18 +436,17 @@ def winglet(bm, side):
 
 
 def wing_main(bm, side):
-    h = WING_HINGE_CHORD
     loft(bm, wing_span(0.0, FLAP_SPAN_FT[0], 0, 1, side))
-    loft(bm, wing_span(FLAP_SPAN_FT[0], FLAP_SPAN_FT[1], 0, h, side))
+    loft(bm, wing_span(FLAP_SPAN_FT[0], FLAP_SPAN_FT[1], 0, FLAP_HINGE_CHORD, side))
     loft(bm, wing_span(FLAP_SPAN_FT[1], AILERON_SPAN_FT[0], 0, 1, side))
-    loft(bm, wing_span(AILERON_SPAN_FT[0], AILERON_SPAN_FT[1], 0, h, side))
+    loft(bm, wing_span(AILERON_SPAN_FT[0], AILERON_SPAN_FT[1], 0, AILERON_HINGE_CHORD, side))
     loft(bm, wing_span(AILERON_SPAN_FT[1], WING_TIP_FT, 0, 1, side))
     winglet(bm, side)
 
 
-def hinge_point(y):
-    """On the chord line at the flaps' and ailerons' hinge."""
-    return Vector((X(wing_le(y) + WING_HINGE_CHORD * chord(y)), y, wing_z(y)))
+def hinge_point(y, h):
+    """On the chord line at a flap's or aileron's hinge, the aft (1 - h) of the chord."""
+    return Vector((X(wing_le(y) + h * chord(y)), y, wing_z(y)))
 
 
 def aligned(v, want):
@@ -426,58 +461,74 @@ TE_DOWN = (0, -1, 0)
 hinges = {}
 for side, lr in ((1, 'Left'), (-1, 'Right')):
     part(f'wing{lr}', 'airframe', lambda bm, s=side: wing_main(bm, s))
-    for surf, (y0, y1), row in (('flap', FLAP_SPAN_FT, 'E14'), ('aileron', AILERON_SPAN_FT, 'E15')):
-        obj = part(f'{surf}{lr}', 'surface', lambda bm, a=y0, b=y1, s=side: loft(bm, wing_span(a, b, WING_HINGE_CHORD, 1, s)))
-        p0, p1 = hinge_point(y0), hinge_point(y1)
+    for surf, (y0, y1), h, row in (('flap', FLAP_SPAN_FT, FLAP_HINGE_CHORD, 'R8'),
+                                   ('aileron', AILERON_SPAN_FT, AILERON_HINGE_CHORD, 'R8')):
+        obj = part(f'{surf}{lr}', 'surface', lambda bm, a=y0, b=y1, s=side, h=h: loft(bm, wing_span(a, b, h, 1, s)))
+        p0, p1 = hinge_point(y0, h), hinge_point(y1, h)
         p0.y *= side
         p1.y *= side
         hinges[obj.name] = empty(f'{surf}{lr}Hinge', (p0 + p1) / 2, aligned(p1 - p0, TE_DOWN),
-                                 positive='trailing edge down', travel='not set (no source yet)', source=f'{row} (estimate)')
+                                 positive='trailing edge down', travel='not set (no source yet)', source=f'{row} (measured)')
         attach(obj, hinges[obj.name])
 
 # ---------- tailplane and elevator, fin and rudder ----------
 
 
+def tail_le(y):
+    return TAIL_LE_FT[0] + (TAIL_LE_FT[1] - TAIL_LE_FT[0]) * abs(y) / TAIL_HALF_SPAN_FT
+
+
+def tail_hinge_frac(y):
+    return (ELEVATOR_HINGE_FT - tail_le(y)) / (TAIL_TE_FT - tail_le(y))
+
+
 def tail_ring(y, a, b):
-    f = abs(y) / TAIL_HALF_SPAN_FT
-    c = TAIL_CHORD_FT[0] + (TAIL_CHORD_FT[1] - TAIL_CHORD_FT[0]) * f
-    le = TAIL_LE_FT[0] + (TAIL_LE_FT[1] - TAIL_LE_FT[0]) * f
+    le = tail_le(y)
+    c = TAIL_TE_FT - le
     return [(X(le + x * c), y, TAIL_Z_FT + zc * c) for x, zc in foil(a, b, TAIL_THICKNESS)]
 
 
 TAIL_YS = sorted(set(steps(-TAIL_HALF_SPAN_FT, TAIL_HALF_SPAN_FT, 0.5)) | {0.0})
-part('tailplane', 'airframe', lambda bm: loft(bm, [tail_ring(y, 0, ELEVATOR_HINGE_CHORD) for y in TAIL_YS]))
-elevator = part('elevator', 'surface', lambda bm: loft(bm, [tail_ring(y, ELEVATOR_HINGE_CHORD, 1) for y in TAIL_YS]))
-
-
-def tail_hinge(y):
-    f = abs(y) / TAIL_HALF_SPAN_FT
-    c = TAIL_CHORD_FT[0] + (TAIL_CHORD_FT[1] - TAIL_CHORD_FT[0]) * f
-    return Vector((X(TAIL_LE_FT[0] + (TAIL_LE_FT[1] - TAIL_LE_FT[0]) * f + ELEVATOR_HINGE_CHORD * c), y, TAIL_Z_FT))
-
-
-hinges['elevator'] = empty('elevatorHinge', tail_hinge(0), aligned(tail_hinge(TAIL_HALF_SPAN_FT) - tail_hinge(0), TE_DOWN),
-                           positive='trailing edge down', travel='not set (no source yet)', source='E17 (estimate)')
+part('tailplane', 'airframe', lambda bm: loft(bm, [tail_ring(y, 0, tail_hinge_frac(y)) for y in TAIL_YS]))
+elevator = part('elevator', 'surface', lambda bm: loft(bm, [tail_ring(y, tail_hinge_frac(y), 1) for y in TAIL_YS]))
+hinges['elevator'] = empty('elevatorHinge', Vector((X(ELEVATOR_HINGE_FT), 0, TAIL_Z_FT)), TE_DOWN,
+                           positive='trailing edge down', travel='not set (no source yet)', source='R12 (measured)')
 attach(elevator, hinges['elevator'])
 
 
+def line_at(pts, z):
+    """Station on the straight line through two (height, station) points, at height z."""
+    (z0, s0), (z1, s1) = pts
+    return s0 + (s1 - s0) * (z - z0) / (z1 - z0)
+
+
+def fin_le(z):
+    if z >= FIN_FILLET[1][0]:
+        return line_at(FIN_LE_LINE, z)
+    return line_at(FIN_FILLET, max(z, FIN_FILLET[0][0]))  # the dorsal fillet; below the fuselage's top, held
+
+
+def fin_te(z):
+    return FIN_TE_ROOT_FT + (LENGTH_FT - FIN_TE_ROOT_FT) * (z - FIN_ROOT_Z_FT) / (FIN_TOP_Z - FIN_ROOT_Z_FT)
+
+
 def fin_ring(z, a, b):
-    f = (z - FIN_ROOT_Z_FT) / (FIN_TOP_Z - FIN_ROOT_Z_FT)
-    c = FIN_ROOT_CHORD_FT + (FIN_TIP_CHORD_FT - FIN_ROOT_CHORD_FT) * f
-    le = FIN_ROOT_LE_FT + (FIN_TIP_LE_FT - FIN_ROOT_LE_FT) * f
-    return [(X(le + x * c), zc * c, z) for x, zc in foil(a, b, FIN_THICKNESS)]
+    le = fin_le(z)
+    c = fin_te(z) - le
+    return [(X(le + x * c), zc * c, z) for x, zc in foil(a, b, min(FIN_THICKNESS, 0.48 / c))]
 
 
-def fin_hinge(z):
-    return Vector((fin_ring(z, RUDDER_HINGE_CHORD, 1)[N_FOIL - 1][0], 0, z))
+def rudder_frac(z):
+    return (line_at(RUDDER_HINGE_LINE, z) - fin_le(z)) / (fin_te(z) - fin_le(z))
 
 
-FIN_ZS = steps(FIN_ROOT_Z_FT, FIN_TOP_Z, 0.4)
-part('fin', 'airframe', lambda bm: loft(bm, [fin_ring(z, 0, RUDDER_HINGE_CHORD) for z in FIN_ZS]))
-rudder = part('rudder', 'surface', lambda bm: loft(bm, [fin_ring(z, RUDDER_HINGE_CHORD, 1) for z in FIN_ZS]))
-hinges['rudder'] = empty('rudderHinge', (fin_hinge(FIN_ROOT_Z_FT) + fin_hinge(FIN_TOP_Z)) / 2,
-                         aligned(fin_hinge(FIN_TOP_Z) - fin_hinge(FIN_ROOT_Z_FT), (0, 0, 1)),
-                         positive='trailing edge right', travel='not set (no source yet)', source='E19 (estimate)')
+FIN_ZS = sorted(set(steps(FIN_ROOT_Z_FT, FIN_TOP_Z, 0.25)) | {FIN_FILLET[0][0], FIN_FILLET[1][0]})
+part('fin', 'airframe', lambda bm: loft(bm, [fin_ring(z, 0, rudder_frac(z)) for z in FIN_ZS]))
+rudder = part('rudder', 'surface', lambda bm: loft(bm, [fin_ring(z, rudder_frac(z), 1) for z in FIN_ZS]))
+r0 = Vector((X(line_at(RUDDER_HINGE_LINE, FIN_ROOT_Z_FT)), 0, FIN_ROOT_Z_FT))
+r1 = Vector((X(line_at(RUDDER_HINGE_LINE, FIN_TOP_Z)), 0, FIN_TOP_Z))
+hinges['rudder'] = empty('rudderHinge', (r0 + r1) / 2, aligned(r1 - r0, (0, 0, 1)),
+                         positive='trailing edge right', travel='not set (no source yet)', source='R14 (measured)')
 attach(rudder, hinges['rudder'])
 
 # ---------- propeller ----------
@@ -525,7 +576,7 @@ for side, lr in ((1, 'Left'), (-1, 'Right')):
     axle = Vector((X(MAIN_STATION_FT), side * MAIN_PIVOT_OUT_FT, GROUND_Z + MAIN_WHEEL_DIA_FT / 2))
     wheel_at = Vector((axle.x, side * MAIN_WHEEL_OUT_FT, axle.z))
     hinge = empty(f'gearMain{lr}Hinge', pivot, (-side, 0, 0), positive='leg up (folds inwards, P6)',
-                  travel='not set (no source yet)', source='E24 (estimate)')
+                  travel='not set (no source yet)', source='R15 (wheel, measured), E24 (pivot, estimate)')
     leg = part(f'gearMain{lr}Leg', 'gear', lambda bm, a=pivot, b=axle, w=wheel_at: main_leg(bm, a, b, w))
     tyre = part(f'gearMain{lr}Wheel', 'tyre', lambda bm, w=wheel_at: wheel(bm, w, MAIN_WHEEL_DIA_FT, MAIN_WHEEL_WIDTH_FT))
     attach(leg, hinge)
@@ -545,7 +596,7 @@ def nose_leg(bm):
 
 
 nose_hinge = empty('gearNoseHinge', nose_pivot, (0, 1, 0), positive='leg up (folds backwards, P6)',
-                   travel='not set (no source yet)', source='E25 (estimate)')
+                   travel='not set (no source yet)', source='R16 (wheel, measured), E25 (pivot, estimate)')
 attach(part('gearNoseLeg', 'gear', nose_leg), nose_hinge)
 attach(part('gearNoseWheel', 'tyre', lambda bm: wheel(bm, nose_axle, NOSE_WHEEL_DIA_FT, NOSE_WHEEL_WIDTH_FT)), nose_hinge)
 
@@ -564,7 +615,8 @@ for o in bpy.data.objects:
             lo = Vector(map(min, lo, w))
             hi = Vector(map(max, hi, w))
 size = hi - lo
-wing_area = 2 * (WING_BREAK_FT * C_ROOT + (WING_TIP_FT - WING_BREAK_FT) * (C_ROOT + C_TIP) / 2)
+wing_area = WING_TIP_FT * (chord(0) + chord(WING_TIP_FT))           # to the winglet roots, through the fuselage
+wing_area_full = SPAN_FT / 2 * (chord(0) + chord(SPAN_FT / 2))      # the same lines carried out to the full span
 
 
 def check(what, got, ref, src):
@@ -576,9 +628,11 @@ for what, got, rcaf, easa in (('length', size.x, RCAF_LENGTH_FT, LENGTH_FT), ('s
                               ('height', size.z, RCAF_HEIGHT_FT, HEIGHT_FT)):
     check(what, got, rcaf, 'RCAF page (P1)    ')
     check('', got, easa, 'EASA sheet (P2)   ')
-print(f'  wing area  {wing_area:7.1f} ft2  EASA sheet (P2) {WING_AREA_FT2:7.1f} ft2  difference {wing_area - WING_AREA_FT2:+.1f} ft2 '
-      '(trapezoids to the winglet roots, through the fuselage)')
-print(f'  prop tip to ground {AXIS_HEIGHT_FT - PROP_RADIUS_FT:.2f} ft (E1 with P2a)')
+for what, a in (('to the winglet roots', wing_area), ('carried to the full span', wing_area_full)):
+    print(f'  wing area  {a:7.1f} ft2  EASA sheet (P2) {WING_AREA_FT2:7.1f} ft2  difference {a - WING_AREA_FT2:+.1f} ft2 '
+          f'(trapezoid {what}, through the fuselage)')
+print(f'  wing panel tip {WING_TIP_FT:.2f} ft out (from the span and winglet), measured winglet root {WING_REF_OUT_FT:.2f} ft (R7)')
+print(f'  prop tip to ground {AXIS_HEIGHT_FT - PROP_RADIUS_FT:.2f} ft (R1 with P2a)')
 print('named points (ft: forward +X from the spinner tip, left +Y, up +Z from the prop axis):')
 for o in sorted((o for o in bpy.data.objects if o.type == 'EMPTY'), key=lambda o: o.name):
     axis = f"  axis {tuple(o['axis'])}, positive {o['positive']}" if 'axis' in o else ''
