@@ -84,7 +84,7 @@ test('the live close-in wingman holds echelon through the 60° close turn, into 
     return { fwd: r.fwd, left: r.left * Math.cos(b) - dz * Math.sin(b), up: r.left * Math.sin(b) + dz * Math.cos(b) };
   };
   const place = { fwd: -ECHELON.back, left: side * ECHELON.out, up: -ECHELON.down };
-  for (const [dir, words] of [[-side, 'into #2'], [side, 'away from #2']]) {
+  for (const [dir, words] of [[side, 'into #2'], [-side, 'away from #2']]) { // dir -1 turns right: into #2 when he is on the right (side -1)
     assert.equal(f.press('delayed90', dir), 'started');
     let prev = null;
     let t = 0;
