@@ -473,6 +473,22 @@ const UNDERWING_MARKS = Object.freeze({ s: 0.5, x: 0.06, size: 0.7 / 23.148 }); 
 const WING_MARK = Object.freeze([0.068, 0.42]);
 // The wing numbers' patch (G4, G20): 0.19 units (4.4 ft) along the span by 0.11 (2.5 ft, the digits' height) along the chord.
 const WING_NUMBER = Object.freeze({ span: 0.19, chord: 0.11 });
+// The marks on the fuselage's side, placed off A24 (156115 side on, the paint laid over it; Patrick 13 Oct 2026, from A24,
+// "Move all to the photo"). bt: feet behind the spinner's tip of the mark's middle; z: feet above the spinner's axis of the
+// patch's middle; size: the patch, units. The triangles fill 7/8 of their patch and sit 1/32 of it below its middle.
+const SIDE_FT = 23.148; // feet per model unit
+const SIDE_MARKS = Object.freeze({
+  triFwd: Object.freeze({ bt: 12.74, z: -0.048, size: 0.031 }), // the triangle's middle at z -0.07 (was bt 13.38)
+  triMid: Object.freeze({ bt: 15.21, z: 0.171, size: 0.015 }), // at z +0.16 (was bt 16.04)
+  triAft: Object.freeze({ bt: 17.68, z: 0.193, size: 0.0316 }), // at z +0.17, about 0.64 ft wide (was bt 18.77, 0.027 units)
+  roundel: Object.freeze({ bt: 21.74, z: -0.47, size: 1.27 / 0.992 / 23.148 }), // 1.27 ft across (was bt 22.98, z -0.63, 1.15 ft)
+  // "Canada" 1.63 ft long and about 0.45 tall, its letters' middle at bt 10.40, z -0.15: the letters sit 0.04 of the patch
+  // aft of its middle and 0.0483 ft above it (was 1.79 by 0.41 ft at bt 10.89, z +0.04).
+  canada: Object.freeze({ bt: 10.40 - 0.04 * 0.1046 * 23.148, z: -0.15 - 0.0483, w: 0.1046, h: 0.0355 }),
+});
+// The nose number (G10, then Patrick 13 Oct 2026, from A24): middle 5.52 ft behind the tip and 0.79 ft under the axis, the
+// digits 0.57 ft tall and "115" 0.85 ft wide (noseDigits); the patch 1.39 by 0.69 ft (was 0.37 ft digits at 5.46, -0.76).
+const NOSE_NUMBER = Object.freeze({ bt: 5.52, z: -0.79, wFt: 0.06 * 23.148, hFt: 0.03 * 23.148, tallFt: 0.57, ref: '115', refWideFt: 0.85 });
 // The two small marks on top of each wing (G5, G01): their middle about 1 ft aft of the leading edge (aft, units), at
 // station s, just outboard of the roundel (to 0.49) and the number (to 0.515); the station an estimate off G01.
 const UPPER_MARKS = Object.freeze({ s: 0.55, aft: 1 / 23.148 });
@@ -644,6 +660,41 @@ function plainDigits(ctx, text, w, h, tall = 0.9, wide = 0.96) {
 }
 
 /**
+ * The nose number as on A24 (Patrick 13 Oct 2026, from A24: "0.57 ft, plain"): plain white digits NOSE_NUMBER.tallFt
+ * tall, each 1 a plain bar with no flag, narrowed so that "115" is refWideFt wide (every number takes the same narrowing),
+ * centred in its w by h canvas, which spans NOSE_NUMBER's wFt by hFt.
+ */
+function noseDigits(ctx, text, w, h) {
+  const { wFt, hFt, tallFt, ref, refWideFt } = NOSE_NUMBER;
+  ctx.font = '700 100px Arial, Helvetica, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const all = ctx.measureText('0234567890');
+  const asc = all.actualBoundingBoxAscent, desc = all.actualBoundingBoxDescent, tall = asc + desc;
+  const bar = 14, gap = 8; // the 1's bar and the space between digits, in the font's units (100 to the em)
+  const glyph = (c) => {
+    if (c === '1') return { w: bar, left: 0 };
+    const m = ctx.measureText(c);
+    return { w: m.actualBoundingBoxLeft + m.actualBoundingBoxRight, left: m.actualBoundingBoxLeft };
+  };
+  const widthOf = (t) => [...t].reduce((s, c, i) => s + glyph(c).w + (i ? gap : 0), 0);
+  if (!(tall > 0)) return;
+  const ky = ((tallFt / hFt) * h) / tall, kx = ((refWideFt / wFt) * w) / widthOf(ref);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.scale(kx, ky);
+  ctx.fillStyle = '#ffffff';
+  let x = -widthOf(text) / 2;
+  for (const c of text) {
+    const g = glyph(c);
+    if (c === '1') ctx.fillRect(x, -tall / 2, bar, tall);
+    else ctx.fillText(c, x + g.left, asc - tall / 2);
+    x += g.w + gap;
+  }
+  ctx.restore();
+}
+
+/**
  * The ship's number on the nose and the wings: 122 for #1, 123 for #2 and so on (Patrick, 11 Oct 2026, of his photo
  * of 156102's paint: "Make it 122 all else the same"). A label that is not a ship number (Turn Fight's letters) shows
  * as it is; none gives 122.
@@ -672,6 +723,11 @@ const FIN_DECAL = Object.freeze({ x: -0.607, z: 0.075, size: 0.14 });
 // The serial's and the flag's middles, units above the spinner's axis: raised about 0.3 ft (0.013 units) off A24 (G12,
 // Patrick 13 Oct 2026; were 0.0205 and 0.018).
 const FIN_SERIAL_Z = 0.0335, FIN_FLAG_Z = 0.031;
+// The serial and the flag along the fin, off A24 (Patrick 13 Oct 2026, from A24): the serial's digits 1.40 ft long and
+// 0.44 ft tall, narrow, their aft end 29.62 ft behind the spinner's tip and their middle where the old text's digits sat
+// (0.0021 units over FIN_SERIAL_Z, the old text's em middle); the flag (0.035 units wide) about 0.11 ft aft of them.
+const FIN_SERIAL = Object.freeze({ aftX: 0.66 - 29.62 / 23.148, lengthFt: 1.4, tallFt: 0.44, z: FIN_SERIAL_Z + 0.0021 });
+const FIN_FLAG_X = 0.66 - (29.62 + 0.11 + (0.035 * 23.148) / 2) / 23.148;
 const finPx = (w, side, x, z) => [((-side * (x - FIN_DECAL.x)) / FIN_DECAL.size + 0.5) * w, (0.5 - (z - FIN_DECAL.z) / FIN_DECAL.size) * w];
 
 function tailCanvas(number, side) {
@@ -694,16 +750,26 @@ function tailCanvas(number, side) {
     // The NATO star about 0.95 ft across (G11, A18; r was 0.027 units, about 1.25 ft).
     natoStar(ctx, ...at(-0.6102, 0.1037), 0.0205 * k);
     // The Canadian flag aft of the serial, low on the fin (TS-156), about 0.8 by 0.4 ft (G11, A18; fw was 0.046 units, 1.06 ft).
-    const [fx, fy] = at(-0.6525, FIN_FLAG_Z);
+    const [fx, fy] = at(FIN_FLAG_X, FIN_FLAG_Z);
     const fw = 0.035 * k, fh = fw / 2;
     ctx.fillStyle = '#e4212d'; ctx.fillRect(fx - fw / 2, fy - fh / 2, fw, fh);
     ctx.fillStyle = '#ffffff'; ctx.fillRect(fx - fw / 4, fy - fh / 2, fw / 2, fh);
     leaf(ctx, fx, fy, fh * 0.36, '#e4212d');
-    const [tx, ty] = at(-0.623, FIN_SERIAL_Z);
-    ctx.font = `600 ${Math.round(0.0255 * k)}px Arial, Helvetica, sans-serif`;
-    ctx.textAlign = side < 0 ? 'left' : 'right'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#eef1f5';
-    ctx.fillText(ct156Serial(number), tx, ty);
+    // The serial (FIN_SERIAL): its digits' aft end at the anchor, so they run forward from it on either side.
+    const [tx, ty] = at(FIN_SERIAL.aftX, FIN_SERIAL.z);
+    const serial = ct156Serial(number);
+    ctx.font = '600 100px Arial, Helvetica, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    const m = ctx.measureText(serial);
+    const gw = m.actualBoundingBoxLeft + m.actualBoundingBoxRight, gh = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    if (gw > 0 && gh > 0) {
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.scale((FIN_SERIAL.lengthFt / 23.148) * k / gw, (FIN_SERIAL.tallFt / 23.148) * k / gh);
+      ctx.fillStyle = '#eef1f5';
+      ctx.fillText(serial, side < 0 ? m.actualBoundingBoxLeft : -m.actualBoundingBoxRight, (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2);
+      ctx.restore();
+    }
   };
 }
 
@@ -2058,8 +2124,11 @@ function wingPatch(THREE, x, y, w, h, ax, ay, side) {
 function cheatLine(THREE) {
   const pos = [], idx = [];
   const runs = [
-    { x0: 0.363, x1: -0.715, N: 48, half: 0.0041, z: cheatZ }, // 0.19 ft thick (G13, Patrick 13 Oct 2026; was 0.0032, 0.15 ft)
-    { x0: 0.552, x1: 0.463, N: 8, half: 0.0016, z: () => cheatZ() - 0.006 },
+    // 0.19 ft thick (G13, Patrick 13 Oct 2026; was 0.0032, 0.15 ft), from 6.35 to 31.53 ft behind the spinner's tip (Patrick
+    // 13 Oct 2026, from A24; was 6.87 to 31.83).
+    { x0: 0.66 - 6.35 / 23.148, x1: 0.66 - 31.53 / 23.148, N: 48, half: 0.0041, z: cheatZ },
+    // The forward run to 4.66 ft behind the tip, 0.13 ft thick (A24; was to 4.56 ft, 0.074 ft thick).
+    { x0: 0.552, x1: 0.66 - 4.66 / 23.148, N: 8, half: 0.065 / 23.148, z: () => cheatZ() - 0.006 },
   ];
   for (const { x0, x1, N, half, z: zOf } of runs) {
     for (const side of [1, -1]) {
@@ -2392,20 +2461,23 @@ function buildKit(THREE) {
 
   const both = (make) => ({ 1: make(1), '-1': make(-1) });
   const decalGeo = {
-    roundelSide: both((side) => patch(THREE, -0.333, cheatZ(-0.333), 0.05, 0.05, side, fuseSurf)),
+    roundelSide: both((side) => patch(THREE, 0.66 - SIDE_MARKS.roundel.bt / SIDE_FT, SIDE_MARKS.roundel.z / SIDE_FT, SIDE_MARKS.roundel.size, SIDE_MARKS.roundel.size, side, fuseSurf)),
     // "Canada" and the rescue triangles just under the canopy's rail, as on Patrick's photo of 156102 (were 0.4 ft lower).
     // "Canada" about 1.75 ft long (G9, A18; the patch was 0.085 by 0.024 units, the text about 1.3 ft).
-    canada: both((side) => patch(THREE, 0.194, 0, 0.115, 0.032, side, fuseSurf)),
+    // Then moved and sized off A24 (SIDE_MARKS.canada).
+    canada: both((side) => patch(THREE, 0.66 - SIDE_MARKS.canada.bt / SIDE_FT, SIDE_MARKS.canada.z / SIDE_FT, SIDE_MARKS.canada.w, SIDE_MARKS.canada.h, side, fuseSurf)),
     // The triangles (each 7/8 of its patch) about 0.63 ft (forward), 0.55 ft (aft) and 0.32 ft (middle) wide on A18
     // (G8, Patrick 13 Oct 2026; the forward and aft patches were 0.022 units, 0.45 ft triangles).
-    triA: both((side) => patch(THREE, 0.082, 0, 0.031, 0.031, side, fuseSurf)),
-    triB: both((side) => patch(THREE, -0.151, 0, 0.027, 0.027, side, fuseSurf)),
-    triC: both((side) => patch(THREE, -0.033, 0, 0.015, 0.015, side, fuseSurf)),
+    // Then moved off A24, the aft one to about 0.64 ft (SIDE_MARKS).
+    triA: both((side) => patch(THREE, 0.66 - SIDE_MARKS.triFwd.bt / SIDE_FT, SIDE_MARKS.triFwd.z / SIDE_FT, SIDE_MARKS.triFwd.size, SIDE_MARKS.triFwd.size, side, fuseSurf)),
+    triB: both((side) => patch(THREE, 0.66 - SIDE_MARKS.triAft.bt / SIDE_FT, SIDE_MARKS.triAft.z / SIDE_FT, SIDE_MARKS.triAft.size, SIDE_MARKS.triAft.size, side, fuseSurf)),
+    triC: both((side) => patch(THREE, 0.66 - SIDE_MARKS.triMid.bt / SIDE_FT, SIDE_MARKS.triMid.z / SIDE_FT, SIDE_MARKS.triMid.size, SIDE_MARKS.triMid.size, side, fuseSurf)),
     dotAft: both((side) => patch(THREE, -0.385, cheatZ(-0.385) - 0.012, 0.005, 0.005, side, fuseSurf)),
     dotRoot: both((side) => patch(THREE, -0.1, -0.085, 0.005, 0.005, side, fuseSurf)),
     // The nose number on the cheat line between its two runs (the photo; was one digit, 0.02 units further forward), its
     // middle 5.5 ft behind the spinner's tip and 0.1 ft lower than before (G10, Patrick 13 Oct 2026, A24; was x 0.406).
-    nose: both((side) => patch(THREE, 0.424, cheatZ(0.424) - 0.006, 0.05, 0.025, side, fuseSurf)),
+    // Then 5.52 ft behind the tip and 0.79 ft under the axis, as A24 (NOSE_NUMBER).
+    nose: both((side) => patch(THREE, 0.66 - NOSE_NUMBER.bt / SIDE_FT, NOSE_NUMBER.z / SIDE_FT, NOSE_NUMBER.wFt / SIDE_FT, NOSE_NUMBER.hFt / SIDE_FT, side, fuseSurf)),
     // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
     // the fin above the tail cone (Patrick, 11 Oct 2026: "central on the vertical stab, not right on the edge"; was 0.03
     // units aft, at the trailing edge).
@@ -2790,9 +2862,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     const tailNumber = ct156TailNumber(number);
     // The wing numbers plain white, no outline, their digits about 2.5 ft tall in their 2.55 ft patch (G4, G20).
     const wingTex = own(canvasTexture(THREE, 380, 220, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.97), 2));
-    // The nose number plain white, narrow digits about 0.37 ft tall, 0.64 of the 0.58 ft patch (G10, the row's target: "the
-    // app's about right"; the old outlined number's digits were about 0.4 ft).
-    const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.64, 0.96), 2));
+    // The nose number plain white, 0.57 ft tall with plain-bar 1s (noseDigits; Patrick 13 Oct 2026, from A24, over G10's 0.37 ft).
+    const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => noseDigits(ctx, tailNumber, w, h), 2));
     const decal = (tx) => own(new THREE.MeshStandardMaterial({
       map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: tx, emissiveIntensity: 0.6, fog: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
