@@ -104,7 +104,7 @@ Each waits for Patrick's yes or for Astra numbers. None is built; the Astra's ca
 - **Astra cockpit instruments** (its own panel, side-by-side seats beyond the camera points).
 - **Runway 11R and Southport** (where the Astra really flies).
 
-### Astra outer pattern: upwind, outside downwind, 90 or 45 to initial (Dad, 13 Oct 2026; waits on Patrick's yes)
+### Astra outer pattern: upwind, outside downwind, 90 or 45 to initial (Dad, 13 Oct 2026; moved up to plan Step 5c Phase 4b, Patrick approved, relayed by Dad, 13 Oct 2026)
 
 Dad's words: "additionally the astras will have the upwind and outside downwind 90 to initial 45 to initial all inside and tighter than the ct156 pattern".
 
@@ -118,7 +118,7 @@ The physics (shared turn formula, radius = true speed squared / (g x tan bank); 
 | 45° at 180 KIAS | about 3,140 ft | about 1.0 NM, about 1.2 NM with a 45° leg | inside, about 0.6 |
 | 30° at 140 KIAS | about 3,280 ft | about 1.1 NM, about 1.3 NM with a 45° leg | inside, about 0.6 |
 
-All three are physics, not manual numbers; the leg lengths are estimates. The question for Patrick is which one (or his idea). **Dad picked 45° at 180 KIAS** (13 Oct 2026); it is built once Patrick says yes.
+All three are physics, not manual numbers; the leg lengths are estimates. The question for Patrick is which one (or his idea). **Dad picked 45° at 180 KIAS** (13 Oct 2026) and Patrick approved it (relayed by Dad, 13 Oct 2026): spec 4.19 item 11, TR-164.
 
 ## Rough spots left for later (found by the V2.350 refactor)
 
