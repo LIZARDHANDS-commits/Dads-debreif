@@ -302,3 +302,20 @@ export function dampedClimbG(climbRad, targetClimbRad, speedFtps, omega = 1.0) {
   return Math.cos(climbRad) + (speedFtps / G_FTPS2) * omega * (targetClimbRad - climbRad);
 }
 
+/**
+ * One pilot's axis, one step (Formation spec 7b.6c, TS-226): the pressure that takes away a deviation he sees, from how
+ * far off he is (P), how fast it is changing (D, on the motion he sees, never on a jump in where he wants to be) and, weakly,
+ * how long it has been there (I, a slow trim). The textbook difference equation (Bhandari and Csurcsia 2022; Toochinda
+ * 2011), with a pilot's soft threshold (spec 7b.6d item 11; estimates): P reads the deviation less deadFt, smoothly
+ * (x - d tanh(x / d)); D ignores drift under about deadFtps (x (1 - e^-(x/d)²)); the trim builds only on what P reads, so
+ * nothing builds inside the threshold, and is held at ±iMax and held still while `hold` says his control is at its limit
+ * (anti-windup). mem { i } is never changed: the new one is returned. Returns { out, mem }, out = -(P + D + I).
+ */
+export function pilotAxis(mem, dev, rate, dt, { kp, kd, ki = 0, iMax = 0, deadFt = 0.5, deadFtps = 0.5, hold = false }) {
+  const p = deadFt > 0 ? dev - deadFt * Math.tanh(dev / deadFt) : dev;
+  const d = deadFtps > 0 ? rate * (1 - Math.exp(-((rate / deadFtps) ** 2))) : rate;
+  const i0 = mem?.i ?? 0;
+  const i = hold ? i0 : Math.max(-iMax, Math.min(iMax, i0 + ki * p * dt));
+  return { out: -(kp * p + kd * d + i), mem: { ...mem, i } };
+}
+
