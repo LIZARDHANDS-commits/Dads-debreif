@@ -346,9 +346,22 @@ function finSurf(x, z) {
 // position lights, the exhaust stacks and the stabiliser tips. Places are estimates off the model's own tables.
 const [, WINGTIP_Y, WINGTIP_Z] = wingBend([0, TIP_S, WING_Z]);
 const WINGTIP = Object.freeze({ y: WINGTIP_Y, z: WINGTIP_Z }); // the wing's tip after its dihedral (TIP)
-const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge
-const STROBE_X = WING_TIP.le - WING_TIP.chord + 0.01; // at the tip's trailing edge
+// The CT-156's exterior lights (CFAFM p190, fix rows F6 and F23, approved by Patrick 13 Oct 2026): red left and green right at each
+// tip's leading edge, a steady white nav light at each tip's trailing edge, an anti-collision strobe on each tip near the
+// leading edge, a landing light aft and inboard of the left main strut and a taxi light the right (lit with all three
+// legs down only); no tail light and no beacon light.
+const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge (red and green)
+const WHITE_NAV_X = WING_TIP.le - WING_TIP.chord + 0.01; // the steady white nav light at the tip's trailing edge
+const STROBE_X = NAV_LIGHT_X - 0.035; // the strobe, about 0.55 ft aft of the nav light, still near the leading edge (an estimate: the CFAFM gives no distance)
+// Not drawn since F23 (the CT-156 has no tail light), but kept as a point: CT156_REFERENCE_POINTS.tailLight is a formation
+// reference for ct156-cockpit.js sightAnglesOf and is in the delivered points file.
 const TAIL_LIGHT = Object.freeze([-0.746, 0, -0.058]); // the tail cone's end, under the rudder
+// The strobes flash in a double flash every 1.2 s: two 0.08 s flashes 0.16 s apart (an estimate of a typical anti-collision
+// strobe; no manual number), each ship at its own phase.
+export const CT156_STROBE = Object.freeze({ periodS: 1.2, flashS: 0.08, gapS: 0.16 });
+// The landing and taxi lights, in feet from the main leg's pivot: aft and inboard of the strut, on the wing's underside; the
+// lens about 0.36 ft long and 0.22 ft wide (estimates: the CFAFM p190 says only "aft and inboard of the main strut").
+const GEAR_LIGHT = Object.freeze({ aftFt: 0.9, inboardFt: 0.8, halfLongFt: 0.18, halfWideFt: 0.11 });
 // The exhaust stacks: placed off Patrick's photo of 156102 (11 Oct 2026, marked), their middle level with the spinner's
 // axis; shaped and sized off the reference top and side views (Patrick, 11 Oct 2026 08:26Z "look at the
 // diagrams"; 20:12Z "the exhaust is the right shape", with his photo of a T-6C from above). The top view: each stack's
@@ -2149,14 +2162,26 @@ function buildKit(THREE) {
     // The dark gap in the cowl round the stack's root (the 156102 photo shows it as a dark rim, widest over the stack).
     { geometry: ellipsoid(THREE, STUB.xBend + STUB.R, s * (fuseSurf(STUB.xBend + STUB.R, STUB.z) - 0.0045), STUB.z + 0.002, STUB.halfWide * 1.3, 0.003, STUB.halfTall * 1.45), materials: [1] },
   ]));
-  // The position lights (TS-156): red on the left wingtip and green on the right, just behind each tip's leading edge,
-  // a white strobe at each tip's trailing edge and a white light on the tail. Small lit shapes, sizes estimates.
+  // The position lights (TS-156; F6, F23): red on the left wingtip and green on the right, just behind each tip's leading
+  // edge, and a steady white nav light at each tip's trailing edge. Small lit shapes, sizes estimates. No tail light.
   geo.lights = joinGeometries(THREE, [
     { geometry: ellipsoid(THREE, ...CT156_REFERENCE_POINTS.leftLight, 0.014, 0.007, 0.006), materials: [0] },
     { geometry: ellipsoid(THREE, ...CT156_REFERENCE_POINTS.rightLight, 0.014, 0.007, 0.006), materials: [1] },
-    ...[1, -1].map((s) => ({ geometry: ellipsoid(THREE, STROBE_X, s * (WINGTIP.y + 0.002), WINGTIP.z, 0.008, 0.005, 0.004), materials: [2] })),
-    { geometry: ellipsoid(THREE, ...TAIL_LIGHT, 0.006, 0.004, 0.005), materials: [2] },
+    ...[1, -1].map((s) => ({ geometry: ellipsoid(THREE, WHITE_NAV_X, s * (WINGTIP.y + 0.002), WINGTIP.z, 0.008, 0.005, 0.004), materials: [2] })),
   ]);
+  // The anti-collision strobes, one on each tip near the leading edge, flashing (turnProp): a mesh of their own.
+  geo.strobes = joinGeometries(THREE, [1, -1].map((s) => ({ geometry: ellipsoid(THREE, STROBE_X, s * (WINGTIP.y + 0.002), WINGTIP.z, 0.01, 0.006, 0.005), materials: [0] })));
+  // The landing light (left) and taxi light (right), on the wing's underside aft and inboard of each main strut; shown only with
+  // all three legs down (setGear).
+  {
+    const L = gearLayout();
+    const lamp = (s) => {
+      const x = L.pivot[0] - GEAR_LIGHT.aftFt * GFT, y = L.pivot[1] - GEAR_LIGHT.inboardFt * GFT;
+      const [bx, by, bz] = wingBend([x, y, wingSurfZ(x, y, -1) - 0.0015]);
+      return { geometry: ellipsoid(THREE, bx, s * by, bz, GEAR_LIGHT.halfLongFt * GFT, GEAR_LIGHT.halfWideFt * GFT, 0.012 * GFT), materials: [0] };
+    };
+    geo.gearLights = joinGeometries(THREE, [lamp(1), lamp(-1)]);
+  }
   // The spinner: a smooth ogive (its tip a formation reference, AETCMAN 11-248 Fig 9.17; TS-156), on a dark backplate
   // ring so its outline reads against the cowling.
   const ogive = ct156SpinnerProfile().map(([x, r]) => new THREE.Vector2(r, x));
@@ -2369,6 +2394,11 @@ function buildKit(THREE) {
     gearWell: mat({ color: '#2a2e33', roughness: 0.8, side: two }),
     // The position lights, lit whatever the sun (TS-156): red, green, white.
     lights: ['#ff2b2b', '#2bff6a', '#ffffff'].map((color) => keep(new THREE.MeshBasicMaterial({ color, fog: false }))),
+    // The landing and taxi lights' lenses, a warm white (an estimate), and the stopped prop's blades: the same colours as the
+    // turning prop's, but solid (a stopped blade is not a blur; setPropStopped).
+    lamp: keep(new THREE.MeshBasicMaterial({ color: '#fff6d8', fog: false })),
+    propBladeStill: mat({ color: '#0a0c10', roughness: 0.6, side: two }),
+    propTipStill: mat({ color: '#d2202c', roughness: 0.5, side: two }),
     roundel: decalMat(tex.roundel),
     canada: decalMat(tex.canada),
     tri: decalMat(tex.tri),
@@ -2425,13 +2455,27 @@ function onScreenPx(THREE, obj, camera, renderer) {
  * picture, which reads as fast and forward, its blades half see-through over the faint disc.
  */
 export const PROP_TURN = Object.freeze({ revPerSec: 2000 / 60, stepDeg: 30 });
+/**
+ * Where a stopped prop's blades rest, degrees off the spinner's + (F27, Patrick 13 Oct 2026): about 40, an X, as the ramp photo
+ * of 156107 shows (about 36 to 42 off vertical; the thread's read of A18). Was 22.
+ */
+export const PROP_REST_DEG = 40;
 function turnProp(root) {
   const d = root.userData.ct156;
   const now = globalThis.performance?.now?.() ?? Date.now();
   const dt = d.propAt === null ? 0 : Math.max(0, now - d.propAt) / 1000;
   d.propAt = now;
   d.propTurn = (d.propTurn + Math.min(dt * PROP_TURN.revPerSec * 2 * Math.PI, rad(PROP_TURN.stepDeg))) % (2 * Math.PI);
-  if (d.prop) d.prop.rotation.x = rad(22) + d.propTurn;
+  if (d.strobes) {
+    const t = (now / 1000 + d.strobePhase) % CT156_STROBE.periodS;
+    const { flashS, gapS } = CT156_STROBE;
+    d.strobes.visible = t < flashS || (t >= flashS + gapS && t < 2 * flashS + gapS);
+  }
+  if (d.propStopped) {
+    if (d.prop) d.prop.rotation.x = rad(PROP_REST_DEG);
+    return;
+  }
+  if (d.prop) d.prop.rotation.x = rad(PROP_REST_DEG) + d.propTurn;
   if (d.disc) d.disc.rotation.x = d.propTurn;
 }
 
@@ -2581,7 +2625,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return { sides, elevator: pivot('elevator', geo.elevator, paintMat), rudder: pivot('rudder', geo.rudder, rudderMat) };
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -2612,6 +2656,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.spinnerRing, mats.blade);
     // Up close only: the position lights, the exhaust stacks, the canopy's frames and the serial on the fin (TS-156).
     add(geo.lights, mats.lights, detail);
+    strobes = add(geo.strobes, mats.lights[2], detail);
+    gearLights = add(geo.gearLights, mats.lamp, detail);
+    gearLights.visible = false; // lit only with all three legs down (setGear)
     add(geo.stubs, [mats.exhaust, mats.soot], detail);
     add(geo.frames, mats.frame, detail);
     seats = add(geo.seats, mats.frame, detail);
@@ -2667,6 +2714,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     speedBrake = addSpeedBrake(mats.navy);
     gear = addGear(mats.navy);
     add(geo.lights, mats.lights, detail);
+    strobes = add(geo.strobes, mats.lights[2], detail);
+    gearLights = add(geo.gearLights, mats.lamp, detail);
+    gearLights.visible = false; // lit only with all three legs down (setGear)
     floor = add(geo.floor, mats.floor, detail);
     coamings = add(geo.coamings, mats.coaming, detail);
     add(geo.frames, mats.frame, detail);
@@ -2675,7 +2725,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     helmetRear = add(geo.helmetRear, mats.pilot, detail);
     seats = add(geo.seats, mats.headbox, detail);
     prop = new THREE.Group();
-    prop.rotation.x = rad(22);
+    prop.rotation.x = rad(PROP_REST_DEG);
     add(geo.blade, mats.propBlade, prop);
     add(geo.bladeTip, mats.propTip, prop);
     detail.add(prop);
@@ -2689,7 +2739,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     setDetail(THREE, root, camera, renderer);
     turnProp(root);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, coamings, prop, disc, bowFront, speedBrake, gear, surfaces, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, coamings, prop, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 
@@ -2706,6 +2756,31 @@ export function setSpeedBrake(root, out) {
   const f = clamp01(typeof out === 'number' ? out : out ? 1 : 0);
   b.hinge.rotation.y = b.shut - rad(b.openDeg) * f;
   b.well.visible = f > 0;
+}
+
+/**
+ * Stops or starts a ship's prop (F26's app half, Patrick 12 Oct 2026: "a stopped prop, feathered, when the engine is off"). Stopped:
+ * the prop stays at its rest pose (PROP_REST_DEG, an X), its blades solid and shown (a stopped blade is not a blur: a view that
+ * hides them for the blur, blurProp, gets them back) and the faint disc gone; running (the default): as before. A module
+ * calls this from its own engine state; nothing in the modules says "engine off" to the model yet, so none calls it.
+ * The blade pitch (feathered at 86 degrees) is the master blade's (F26, Blender), not this call's.
+ * @param {any} root a ship from createCt156Model
+ * @param {boolean} stopped
+ */
+export function setPropStopped(root, stopped) {
+  const d = root?.userData?.ct156;
+  const on = Boolean(stopped);
+  if (!d?.prop || d.propStopped === on) return;
+  d.propStopped = on;
+  const [blade, tip] = d.propMats[on ? 'still' : 'running'];
+  const blades = [];
+  d.prop.traverse((o) => { if (o.isMesh) blades.push(o); });
+  if (on) d.bladesShownRunning = blades.map((o) => o.visible);
+  blades.forEach((o, i) => {
+    o.material = o.geometry === d.kit.geo.bladeTip ? tip : blade;
+    o.visible = on ? true : (d.bladesShownRunning?.[i] ?? true);
+  });
+  if (d.disc) d.disc.visible = !on;
 }
 
 /**
@@ -2763,6 +2838,8 @@ export function setGear(root, t) {
   d.nose.rotation.y = (Math.PI / 2) * (1 - legs);
   for (const door of d.noseDoors) door.rotation.x = rad(GEAR.noseDoor.openDeg) * legs;
   d.noseWell.visible = legs > 0;
+  const lamps = root.userData.ct156.gearLights;
+  if (lamps) lamps.visible = legs >= 1; // the landing and taxi lights: all three legs down (F6, F23)
 }
 
 /**
