@@ -32,7 +32,7 @@ import { STEP_SEC, copyAircraft, planDone } from './flight.js';
 import { flyStep } from './replay.js';
 import { relativeTo } from './manoeuvres.js';
 import { predict } from './fw-pursuit.js';
-import { G_RULE, HOLD } from './tuning.js';
+import { G_RULE, HOLD, FW_LIVE } from './tuning.js';
 import { FW_BAND, FW4 } from './slots.js';
 import { IN_POSITION } from './bands.js';
 import { fwLeadPlan, fwMoveWords } from './formation-turns.js';
@@ -46,64 +46,8 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const toward = (x, to, rate) => x + clamp(to - x, -rate * dt, rate * dt);
 
-/** The fighting wing wingmen's numbers (TS-208). Estimates unless a source is given. */
-export const FW_LIVE = Object.freeze({
-  settleSec: 30, // his run goes on this long past Lead's plan, long enough to reset in position after a roll-out (estimate)
-  maxSec: 300,
-  arcFt: FW4.rangeFt, // in a turn he aims 650 ft of arc behind the one ahead (TS-208; Patrick 4 Oct 11:44Z, slots.js FW4)
-  floorFt: FW_BAND.bubbleFt, // never closer than 500 ft to the one ahead (Patrick 12 Oct 2026 16:49Z; SMM 16.17 para 44c)
-  floorMarginFt: 100, // he starts to give room 100 ft before the floor, at the range he will have in lookSec (estimate)
-  lookSec: HOLD.lookSec, // ... in about 2 s at the closure he has (estimate, TS-74)
-  floorGain: 2, // each foot short of the floor plus its margin counts as 2 ft too close (estimate)
-  // The floor in a turn into him: he looks floorLookSec ahead with the one ahead holding his turn (fw-pursuit.js predict),
-  // and if the heading he wants would bring him inside the floor plus its margin he takes the nearest heading on the lag
-  // side that keeps him out (searched in floorStepDeg steps up to floorMaxDeg off it); with none, the best one and height
-  // (estimates).
-  floorLookSec: 6,
-  floorStepDeg: 5,
-  floorMaxDeg: 20, // ... and never more than 20° off Lead's circle (estimates; measured 12 Oct 2026: 90° stretched #3 to 2,500 ft, 45° to 1,900)
-  stackFt: Object.freeze([-100, -50]), // 50 to 100 ft below the one ahead (Patrick 12 Oct 2026 17:16Z, 17:32Z "500 and stack is a technique that works")
-  stackKeepFt: IN_POSITION.fwStackFt, // a deeper stack he has at the press is kept, up to the cone's 200 ft (TS-80), until Lead is level and he is clear (estimate)
-  coneFt: 150, // height in the cone: no more than 150 ft from his stack to keep the floor (TS-96's cone height; estimate)
-  // The pilot's hands (estimates): about 1 G of turn per 10° of heading error (a 4-6 s period, Fable's audit), his nose
-  // put back onto the path over about 4 s of flight, at most 30° across it.
-  gPer10Deg: 1,
-  pathLookSec: 4,
-  maxCutDeg: 30,
-  rollDps: 60, // he rolls no faster than about 60°/s in fighting wing (estimate; the T-6A's own limit stays in stepLead) ...
-  rollLeadDeg: 6, // ... his ask leading his wings by no more than 6° (estimate)
-  lagTurnShare: 0.75, // lagging off the floor he turns at three quarters of Lead's turn ... (estimate; measured 12 Oct 2026: none overshot and stretched #3 and #4 to 1,400 ft, all of it passed closer) ...
-  ffSec: 1, // ... eased over about a second (estimate)
-  anticipateSec: 0.75, // he rolls with Lead's turn about 0.75 s of flight before he reaches where Lead rolled (estimate)
-  // Lead, lag and pure: how far across Lead's circle he goes to close or open the arc (estimates). He wants the arc
-  // error gone in about 6 s, at no more than 30 ft/s; the offset that gives is at most 500 ft, full in a turn of 1 G of
-  // turning (about 45° of bank) and none straight.
-  arcSec: 6,
-  arcRateFtps: 30,
-  acrossMaxFt: 500,
-  turnFullG: 1,
-  turnSec: 2, // his picture of the turn (lead, lag and pure against the cone) builds and fades over about 2 s (estimate)
-  takeTurn: 0.25, // with Lead level and his own turn under a quarter of full, the cone place is taken (estimate)
-  coneFtps: 40, // his place across the cone moves at no more than 40 ft/s (estimate)
-  // Height: a gentle loop on his stack and the energy height, never from the pointing error (estimates).
-  altFtps: 8, // moved up or down at no more than 8 ft/s (the live wingman's fighting wing rate, estimate)
-  altSec: 4,
-  climbSec: 1,
-  maxClimbG: 0.25,
-  floorFtps: 40, // the floor's height is flown at up to 40 ft/s (2,400 ft/min) ...
-  floorClimbG: 0.5, // ... the climb or descent started at up to half a G ...
-  floorSec: 1, // ... and closed on in about 1 s (estimates)
-  energyFt: 100, // speed as height first, up to 100 ft (TS-96, TS-202; estimate)
-  placeKtPerFt: 0.08, // power: 1 kt per 12.5 ft of arc behind his place (estimate) ...
-  closeKtPerKt: 0.6, // ... less 0.6 kt per knot he is already closing (estimate) ...
-  overtakeKias: HOLD.overtakeKias, // ... within 15 KIAS of Lead (EFIG p.374's 10-20 KIAS)
-  overLeadG: 1.5, // he pulls no more than about 1.5 G over Lead (estimate), the floor excepted ...
-  normalG: G_RULE.normalG, // ... and 5 G, the normal ceiling (SMM 16.17 para 44a; Gen Book p.11), flagged, not a wall
-  minG: 0.5, // no push below 0.5 G (as Lead, 2 CFFTS Orders B2 ch 8 para 1a; 0.5 an estimate)
-  // Lead's track, kept for the wingmen to fly: seeded this far behind Lead at the first press, at this spacing (estimates).
-  seedFt: 8000,
-  seedStepFt: 50,
-});
+export { FW_LIVE }; // its home is wing-moves.js (the tuning sheet, TS-214)
+
 
 // ---- Lead's track: the circle he flew, where he flew it ----------------------------------------------------------------
 

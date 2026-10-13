@@ -44,3 +44,10 @@ export const POWER_MAX_FROM = 0.985;
  * pilotSpeed). No source was written beside it (it came in with the HTRJ change, 2a37a7c3); an estimate.
  */
 export const PILOT_SLOW_CAP_KTPS = 7.95;
+
+/**
+ * Nobody pushes below this: Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a) and the live wingmen never ask for less
+ * on the lift they have. 0.5 G is an estimate. One number for Lead's push (lead-moves.js LEAD.minPushG) and the live
+ * wingmen's floor (wing-moves.js FW_LIVE.minG, LIVE.minG); they were three copies.
+ */
+export const MIN_POSITIVE_G = 0.5;

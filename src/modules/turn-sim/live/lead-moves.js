@@ -4,9 +4,11 @@
 // manoeuvres.js, with the numbers that sat bare in fluid-lead.js's functions named here (12.2b). Numbers with no manual
 // page or ruling are estimates and say so.
 //
-// This file imports only core, so any file can read it without an import loop.
+// This file imports only core and the other number files, so any file can read it without an import loop.
 import { bankDegFromG } from '../../../core/flight-math.js';
 import { T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { WING } from './moves.js';
+import { MIN_POSITIVE_G } from './handling.js';
 
 // ---- Lead's programme: the line abreast turns and the break (from manoeuvres.js) ------------------------------------
 
@@ -44,7 +46,7 @@ export const LEAD = Object.freeze({
   levelOffFt: 800, // the climb eases onto the new height over its last 800 ft (an estimate)
   pitchCueDps: 0.5, // #2 reads Lead's nose as rising or falling past 0.5°/s of pitch rate (an estimate)
   climbPitchDps: 3, // how fast Lead raises or lowers the nose into and out of the climb or descent (an estimate)
-  minPushG: 0.5, // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a); 0.5 G at the push over is an estimate
+  minPushG: MIN_POSITIVE_G, // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a); 0.5 G at the push over is an estimate (handling.js)
   loopEntryKias: 230, // SMM Table 7.1, 7.5 para 11, Fig 7.2 (entry and exit)
   loopEntryBandKias: 15, // the aerobatics start within 15 KIAS of the entry speed (Patrick 5 Oct 04:59Z: "Fluid maneouvering aerobatics can happen as long as the aircraft are within 15 knots of the starting parameters"; 5 kt, an estimate, until V2.59; SMM 7.12 para 28b allows 200-250 for the loop)
   loopG: 3.5, // EFIG p.171 "3 1/2 G", inside SMM 7.5 para 11 and Table 7.1's 3-4 G
@@ -68,7 +70,7 @@ export const LEAD = Object.freeze({
   barrelPitchDeg: 45, // SMM 14.8 para 19 (45° pitch up and down at the quarter points); Patrick's pick row 6
   barrelOffDeg: 45, // the nose circles a point 45° off the reference line (SMM 14.8 para 19: 45° off, then 90° off)
   // Moved out of fluid-lead.js's functions into the sheet (12.2b, TS-214), values unchanged:
-  cueOffTailDeg: 15, // the cue Lead's moves give #2: hold about 15° off Lead's current tail (Patrick 5 Oct 22:28Z)
+  cueOffTailDeg: WING.latDeg, // the cue Lead's moves give #2: hold 15° off Lead's current tail (Patrick 5 Oct 22:28Z; moves.js WING)
   overTopCue: Object.freeze({ pureFromU: 0.4, leadFromU: 0.6, pureAgainFromU: 0.9 }), // #2's cue through a wingover or barrel roll by how far through it Lead is: LAG up, PURE over the top, LEAD down, PURE for the pull-out (Patrick 17:12Z, card 19:21Z); the breaks are estimates
   loopCueDeg: Object.freeze({ pureFrom: 155, leadFrom: 205 }), // the loop's cue by Lead's loop angle: LAG, PURE over the top from 155°, LEAD from 205°, PURE again from loopPullOutDeg (estimates)
   climbDamp: Object.freeze({ holdPerSec: 0.5, pitchPerSec: 0.4, loopDownPerSec: 1.2, exitPerSec: 0.6 }), // how firmly Lead's pull brings the flight path onto the one wanted (core dampedClimbG's omega, per second; estimates): holding a level path or a climb's angle; raising or lowering the nose into a climb and before the loop; the loop's pull-out; the wingover's and barrel roll's exit
