@@ -69,12 +69,16 @@ const rad = (d) => (d * Math.PI) / 180;
 // below the sill and the belly keep their shape. Ahead of the bow's feet the windscreen's lower edge stays about 0.55 ft
 // above the axis until 1.1 ft behind its foot and then rises steeply to the foot (it rose all the way from the bow's feet, up to 5 in
 // higher): under the windscreen the section's upper half is rounder and its top lower, the cowl ahead of the foot as it was.
+// Chunk 3 of the CT-156 rebuild (3d-work ct156/sources.md, "The outside shell"; Patrick, 13 Oct 2026, "I agree"): FU6 lowers the cowl's top
+// 0.05 ft at 2.64 ft behind the spinner's tip and 0.065 ft from 3.39 to 7.67 ft (nothing at 1.99 and 8.52 ft), FU4 lowers the aft top and
+// bottom 0.09 ft at 20.25 ft, 0.10 at 22, 0.13 at 25 to 27, 0.15 at 30 and 0.11 at 32.5 ft (nothing at 19.3 ft), each at the stations' own
+// places (ct156/build/shell_shape.py, stations()). Only the tops and bottoms of the stations at those places moved.
 const STATIONS = [
   [0.578, 0.034, 0.0363, -0.04, 2.2, 2.2],
-  [0.55, 0.0387, 0.0387, -0.07, 2.3, 2.3],
-  [0.518, 0.0451, 0.0414, -0.083, 2.4, 2.4],
-  [0.437, 0.06, 0.048, -0.095, 2.5, 2.5],
-  [0.329, 0.0677, 0.0563, -0.107, 2.6, 2.6],
+  [0.55, 0.0387, 0.03685, -0.07, 2.3, 2.3],
+  [0.518, 0.0451, 0.03868, -0.083, 2.4, 2.4],
+  [0.437, 0.06, 0.04519, -0.095, 2.5, 2.5],
+  [0.329, 0.0677, 0.05349, -0.107, 2.6, 2.6],
   [0.292, 0.0688, 0.0601, -0.11, 2.78, 2.78],
   [0.268, 0.0695, 0.0566, -0.112, 2.89, 2.3],
   [0.2415, 0.0695, 0.0466, -0.1141, 3.05, 2.3],
@@ -83,13 +87,13 @@ const STATIONS = [
   [-0.009, 0.0694, 0.0426, -0.128, 3.77, 6],
   [-0.1, 0.0694, 0.0463, -0.1219, 3.53, 6],
   [-0.158, 0.0694, 0.0447, -0.118, 3.38, 6],
-  [-0.215, 0.0694, 0.0339, -0.112, 2.97, 6],
-  [-0.32, 0.052, 0.026, -0.103, 3.0, 3.0],
-  [-0.482, 0.034, 0.014, -0.0958, 2.69, 2.69],
-  [-0.59, 0.023, 0.0, -0.092, 2.4, 2.4],
-  [-0.685, 0.0125, -0.014, -0.0775, 2.3, 2.3],
-  [-0.725, 0.008, -0.024, -0.069, 2.2, 2.2],
-  [-0.744, 0.004, -0.048, -0.068, 2.0, 2.0],
+  [-0.215, 0.0694, 0.03001, -0.11589, 2.97, 6],
+  [-0.32, 0.052, 0.02138, -0.10762, 3, 3],
+  [-0.482, 0.034, 0.00838, -0.10142, 2.69, 2.69],
+  [-0.59, 0.023, -0.00617, -0.09817, 2.4, 2.4],
+  [-0.685, 0.0125, -0.0197, -0.0832, 2.3, 2.3],
+  [-0.725, 0.008, -0.02906, -0.07406, 2.2, 2.2],
+  [-0.744, 0.004, -0.05275, -0.07275, 2, 2],
 ];
 // The top line aft of the fairing, into the tail, is the side view's (Patrick, 11 Oct 2026: "the fuselage
 // flows down into the tail"): 0.4 ft above the spinner's axis 6.9 ft ahead of the tail, level with it at 4.4 ft and
@@ -129,6 +133,7 @@ const STATIONS = [
 // drops straight-line between the crests (nothing at the windscreen's foot, nothing where the dorsal fin leaves the fairing: an
 // estimate), from the master's own table (ct156/build/canopy_shape.py, Canopy()); a row added at each crest, the forward bow's crest
 // 0.145 ft further aft (4.392 ft ahead of the origin) so its feet stay where they were (C3).
+// The rows aft of the rear bow (x below -0.174) are lowered with FU4 as well (the fairing follows the lowered back, 3d-work chunk 3).
 const CANOPY = [
   [0.292, 0.01, 0.0601],
   [0.278, 0.034, 0.07011],
@@ -146,14 +151,14 @@ const CANOPY = [
   [-0.03, 0.0605, 0.13861],
   [-0.075, 0.0605, 0.13333],
   [-0.12, 0.06, 0.12324],
-  [-0.174, 0.055, 0.10282],
-  [-0.195, 0.055, 0.09363],
-  [-0.23, 0.05, 0.07815],
-  [-0.276, 0.042, 0.0579],
-  [-0.322, 0.033, 0.0415],
-  [-0.368, 0.024, 0.0315],
-  [-0.414, 0.015, 0.0246],
-  [-0.446, 0.008, 0.018],
+  [-0.174, 0.055, 0.10279],
+  [-0.195, 0.055, 0.09162],
+  [-0.23, 0.05, 0.07418],
+  [-0.276, 0.042, 0.05366],
+  [-0.322, 0.033, 0.03686],
+  [-0.368, 0.024, 0.0264],
+  [-0.414, 0.015, 0.01904],
+  [-0.446, 0.008, 0.01238],
 ];
 // The cockpit, in model units (from the photo, as the canopy): the canopy frame hoops (the forward one is the windscreen
 // bow), the two seats' stations (front, rear; each helmet sits there, its seat back just behind) and the helmets' heights
@@ -278,6 +283,26 @@ const STAB = [
 // behind the spinner's tip; the rudder's trailing edge leaning forward 9°, 31.4 ft behind the tip at the tail cone and
 // 30.5 ft at the top (was about 1.5 ft further aft, the view read with its length ending at the tail cone).
 const FIN = [{ le: -0.4775, s: -0.045, chord: 0.2229, t: 0.09, z: 0 }, { le: -0.5552, s: 0.232, chord: 0.0981, t: 0.09, z: 0 }];
+// FU2 (3d-work chunk 3; Patrick, 13 Oct 2026, "I agree"): the fin's top slopes down aft, straight from 5.16 ft at its front corner (28.15 ft
+// behind the spinner's tip) to 4.79 ft at the rudder's trailing corner (30.45 ft), the fin below 2.0 ft kept and the part between eased onto it.
+const FIN_TOP = Object.freeze({ frontBtFt: 28.15, frontZFt: 5.16, rearBtFt: 30.45, rearZFt: 4.79, keepBelowFt: 2.0 });
+const FIN_FT_PER_UNIT = CT156_LENGTH_FT / CT156_UNIT_LENGTH;
+/** The fin's top, feet above the spinner's axis, at model x (FU2). */
+const finTopFt = (x) => {
+  const bt = (0.66 - x) * FIN_FT_PER_UNIT;
+  return FIN_TOP.frontZFt + ((FIN_TOP.rearZFt - FIN_TOP.frontZFt) * (bt - FIN_TOP.frontBtFt)) / (FIN_TOP.rearBtFt - FIN_TOP.frontBtFt);
+};
+/** Moves a fin or rudder geometry's points under the sloping top (FU2): below keepBelowFt as it was, above it eased to the new top. */
+function sinkFinTop(g) {
+  const p = g.attributes.position, z0 = FIN_TOP.keepBelowFt / FIN_FT_PER_UNIT, oldTop = FIN[FIN.length - 1].s;
+  for (let i = 0; i < p.count; i++) {
+    const z = p.getZ(i);
+    if (z > z0) p.setZ(i, z0 + ((z - z0) * (finTopFt(p.getX(i)) / FIN_FT_PER_UNIT - z0)) / (oldTop - z0));
+  }
+  p.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
 // The flight surfaces (ALL-35, Patrick 12 Oct 2026), cut along the panel lines the Blender outside draws (measured
 // 11 Oct 2026 off the reference top and side views): chord fractions from the leading edge, span stations in units
 // (along the bent wing, out along the tailplane, up the fin). The ailerons behind 0.765 of the chord from 0.40 out to
@@ -306,13 +331,14 @@ const VENTRAL_RISE = 0.134; // the foot's rise per unit aft
 // where it meets the fin at 27.1 ft; scaled as the fin, card "Tail and wing"), the fairing and fuselage falling away
 // under it (Patrick, 11 Oct 2026: "instead of having a straight bulky spine"; it was a spine as wide as the canopy's
 // end). The half-widths are estimates.
+// Chunk 3 (FU5, FU4; Patrick, 13 Oct 2026, "I agree"): 2 in wide all along (half-width 1 in, was 0.8 to 1.2 in), the tops lowered with FU4.
 const DORSAL = [
-  [-0.283, 0.0035, 0.056], // where it leaves the fairing, which ends further forward (Patrick, 12 Oct 2026)
-  [-0.33, 0.0035, 0.0586],
-  [-0.39, 0.004, 0.0615],
-  [-0.45, 0.0045, 0.0645],
-  [-0.5, 0.005, 0.067],
-  [-0.53, 0.0035, 0.0684],
+  [-0.283, 0.0036, 0.05172], // where it leaves the fairing, which ends further forward (Patrick, 12 Oct 2026)
+  [-0.33, 0.0036, 0.05388],
+  [-0.39, 0.0036, 0.05618],
+  [-0.45, 0.0036, 0.05888],
+  [-0.5, 0.0036, 0.06138],
+  [-0.53, 0.0036, 0.06263],
 ];
 // The forward bow leans aft from its crest 9° to the sill, as the side view shows it (was upright).
 export const CT156_BOW_LEAN = rad(12); // C3 (Patrick, 12 Oct 2026; provisional until M22), each photo read against its own canopy rail with the rail's rise taken off (was 14.5°, the side view's band, 11 Oct 2026)
@@ -364,7 +390,7 @@ const WHITE_NAV_X = WING_TIP.le - WING_TIP.chord + 0.01; // the steady white nav
 const STROBE_X = NAV_LIGHT_X - 0.55 * CT156_UNIT_LENGTH / CT156_LENGTH_FT; // the strobe, 0.55 ft aft of the nav light, still near the leading edge (an estimate: the CFAFM gives no distance)
 // Not drawn since F23 (the CT-156 has no tail light), but kept as a point: CT156_REFERENCE_POINTS.tailLight is a formation
 // reference for ct156-cockpit.js sightAnglesOf and is in the delivered points file.
-const TAIL_LIGHT = Object.freeze([-0.746, 0, -0.058]); // the tail cone's end, under the rudder
+const TAIL_LIGHT = Object.freeze([-0.746, 0, -1.453 / 23.148]); // the tail cone's end, under the rudder; 1.453 ft under the axis since FU4 (was 0.058 units, 1.343 ft)
 // The strobes flash in a double flash every 1.2 s: two 0.08 s flashes 0.16 s apart (an estimate of a typical anti-collision
 // strobe; no manual number), each ship at its own phase.
 export const CT156_STROBE = Object.freeze({ periodS: 1.2, flashS: 0.08, gapS: 0.16 });
@@ -386,7 +412,10 @@ const STUB = Object.freeze({ y0: 0.036, xBend: 0.66 - 3.68 / 23.148, yBend: 1.2 
 // spinner's tip, hanging 0.34 ft under the belly at its front and 0.41 ft at its back (the side view,
 // measured 11 Oct 2026; Patrick's photo of 156102 shows it the same length). Its width is an estimate (the views
 // don't show it): 1 ft across. [x front, x back, depth front, depth back, half-width], units.
-const NOSE_FAIRING = Object.freeze({ x0: 0.66 - 5.85 / 23.148, x1: 0.66 - 10.5 / 23.148, depth0: 0.34 / 23.148, depth1: 0.41 / 23.148, half: 0.5 / 23.148 });
+// F17 (3d-work chunk 3; Patrick, 13 Oct 2026): the strip runs unbroken from the nose doors back to the wing's leading edge: its end moves from 10.5 to
+// 11.6 ft behind the tip (0.5 ft past the leading edge, 11.09 ft), its depth reaching 0.41 ft at the old 10.5 ft (xDepth) and held, and aft of the leading edge no
+// deeper than the wing's underside there (0.02 ft into it), its end not eased.
+const NOSE_FAIRING = Object.freeze({ x0: 0.66 - 5.85 / 23.148, x1: 0.66 - 11.6 / 23.148, xDepth: 0.66 - 10.5 / 23.148, depth0: 0.34 / 23.148, depth1: 0.41 / 23.148, half: 0.5 / 23.148 });
 // The antennas (the upper TAS antenna on the engine cowling's top; the lower TAS, transponder,
 // VHF/UHF, DME and marker beacon antennas under the fuselage). On the cowl's top 5.8 ft behind the spinner's tip (the
 // side view): the TAS antenna's two blades side by side on one round base (Patrick, 11 Oct 2026 20:12Z: "there are
@@ -481,7 +510,7 @@ export const CT156_REFERENCE_POINTS = Object.freeze({
   rightExhaust: Object.freeze([(STUB.xOut + STUB.xIn) / 2, -STUB.yMid, STUB.z]),
   leftStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, -STAB[0].s, STAB[0].z]),
   rightStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, STAB[0].s, STAB[0].z]),
-  finTop: Object.freeze([FIN[1].le - FIN[1].chord / 2, 0, FIN[1].s]),
+  finTop: Object.freeze([FIN[1].le - FIN[1].chord / 2, 0, finTopFt(FIN[1].le - FIN[1].chord / 2) / FIN_FT_PER_UNIT]), // 4.981 ft after FU2 (was 5.37)
   forwardBowCrest: Object.freeze([CT156_FRAME_X[0], 0, canopyAt(CT156_FRAME_X[0]).top]),
   centreBowCrest: Object.freeze([CT156_FRAME_X[1], 0, canopyAt(CT156_FRAME_X[1]).top]),
   rearBowCrest: Object.freeze([CT156_FRAME_X[2], 0, canopyAt(CT156_FRAME_X[2]).top]),
@@ -760,11 +789,12 @@ const kits = new WeakMap(); // THREE namespace -> kit
  * fuselage. Its front end starts inside the fairing and its back end inside the fin. Closed at each end.
  */
 function dorsalGeometry(THREE) {
-  const N = 24, M = 12, n = 2.4, FLARE = 1.2; // n: a little boxier than an ellipse
+  const N = 24, M = 12, n = 2.4, FLARE = 0.3, POINT_FT = 1.2; // n: a little boxier than an ellipse; FU5: the foot's flare 0.3 (was 1.2), the front drawn to a point over its first 1.2 ft
   const x0 = DORSAL[0][0], x1 = DORSAL[DORSAL.length - 1][0];
   const pos = [], idx = [];
   const ring = (x) => {
-    const [, w, top] = rowAt(DORSAL, x);
+    const [, w0, top] = rowAt(DORSAL, x);
+    const w = w0 * Math.max(0.08, Math.sin((Math.PI / 2) * Math.min(1, (x0 - x) / GFT / POINT_FT)));
     const foot = w * (1 + FLARE);
     const base = sillZ(x, foot) - 0.002;
     const pts = [];
@@ -875,12 +905,11 @@ function stackLipGeometry(THREE, s) {
  * the skin, the ends eased over the first and last tenth of its length, closed at each end.
  */
 function noseFairingGeometry(THREE) {
-  const { x0, x1, depth0, depth1, half } = NOSE_FAIRING;
-  const N = 16, M = 16, n = 3, sink = 0.004, pos = [], idx = [];
+  const { x0, x1 } = NOSE_FAIRING;
+  const N = 16, M = 16, n = 3, pos = [], idx = [];
   for (let i = 0; i <= N; i++) {
     const t = i / N, x = x0 + (x1 - x0) * t;
-    const ease = Math.sin((Math.PI / 2) * Math.min(1, t / 0.1, (1 - t) / 0.1)) ** 0.5;
-    const depth = (depth0 + (depth1 - depth0) * t) * ease, w = half * (0.6 + 0.4 * ease), top = bellyAt(x) + sink;
+    const { top, depth, w, sink } = noseStripAt(x);
     for (let k = 0; k <= M; k++) {
       const a = (k / M) * Math.PI, c = Math.cos(a), sn = Math.sin(a);
       pos.push(x, w * Math.sign(c) * Math.abs(c) ** (2 / n), top - (depth + sink) * sn ** (2 / n));
@@ -1010,11 +1039,20 @@ const gearX = (ft) => 0.66 - ft * GFT; // feet behind the spinner's tip to the m
 
 /** The nose fairing's skin underneath at x, y (noseFairingGeometry's section, inverted), units; y 0 its lowest line. */
 function fairingBottomAt(x, y = 0) {
-  const { x0, x1, depth0, depth1, half } = NOSE_FAIRING, sink = 0.004;
-  const t = clamp01((x - x0) / (x1 - x0));
-  const ease = Math.sin((Math.PI / 2) * Math.min(1, t / 0.1, (1 - t) / 0.1)) ** 0.5;
-  const w = half * (0.6 + 0.4 * ease), c = Math.min(1, Math.abs(y) / w) ** 1.5;
-  return bellyAt(x) + sink - ((depth0 + (depth1 - depth0) * t) * ease + sink) * Math.sqrt(1 - c * c) ** (2 / 3);
+  const { top, depth, w, sink } = noseStripAt(x);
+  const c = Math.min(1, Math.abs(y) / w) ** 1.5;
+  return top - (depth + sink) * Math.sqrt(1 - c * c) ** (2 / 3);
+}
+
+/** The belly strip's section at x (F17): its top just inside the belly, its depth, its half-width and the sink, eased in over its first tenth and held at its depth to the end, no deeper than the wing's underside once aft of its leading edge. */
+function noseStripAt(x) {
+  const { x0, x1, xDepth, depth0, depth1, half } = NOSE_FAIRING, sink = 0.004;
+  const t = Math.max(0, (x - x0) / (x1 - x0));
+  const ease = Math.sin((Math.PI / 2) * Math.min(1, t / 0.1)) ** 0.5;
+  let depth = (depth0 + (depth1 - depth0) * Math.min(1, (x - x0) / (xDepth - x0))) * ease;
+  const top = bellyAt(x) + sink;
+  if (x < WING[0].le) depth = Math.max(Math.min(depth, top - sink - (wingSurfZ(x, 0, -1) + 0.02 * GFT)), 0.02 * GFT);
+  return { top, depth, w: half * (0.6 + 0.4 * ease), sink };
 }
 
 /** The inboard door's outboard edge (feet out from the middle) at xFt feet behind the spinner's tip: a D, its corners
@@ -2144,8 +2182,8 @@ function buildKit(THREE) {
   ]);
   // The fin, its leading edge a second slot: unpainted light grey on Patrick's photo of 156102 (width an estimate).
   const fin = airfoilSplit(THREE, FIN, { span: 'z', leBand: 0.12, cuts: [{ s0: SURFACES.rudder.z0, s1: 1, f: SURFACES.rudder.hinge, part: 'rudder' }] });
-  geo.fin = fin.body;
-  geo.rudder = fin.parts.rudder;
+  geo.fin = sinkFinTop(fin.body);
+  geo.rudder = sinkFinTop(fin.parts.rudder);
   Object.assign(geo, flapGeometries(THREE));
   geo.canopy = canopyGeometry(THREE);
   geo.frames = joinGeometries(THREE, [
