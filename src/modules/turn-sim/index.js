@@ -143,7 +143,8 @@ function mount(root, app) {
     onSettings: (next) => formation.setFluid(next),
     settings: { rangeFt: LIVE_DEFAULTS.fluidRangeFt, bank: LIVE_DEFAULTS.fluidBank },
   });
-  const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options), fluidUi });
+  // #2 in close formation, Held or Live (B1): read by the formation at the next press, so it never starts the run again.
+  const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options), fluidUi, onCloseWing: (v) => formation.setOptions({ closeWing: v }) });
   const ui = createLayout({ buttons: BUTTONS, setupControls, layout, layoutControls, listen: app.listen, fixedLine: fixedLine(LIVE_DEFAULTS), changeUi });
   root.append(ui.element);
 

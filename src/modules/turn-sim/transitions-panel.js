@@ -110,7 +110,7 @@ function placeWords(key, p) {
  * shown under this one for the 2-ship, or null. Returns
  * { element, cardElement, setShips(n), update(state, where), renderCard(state, where), values() }.
  */
-export function createChangeUi({ onChange, fluidUi = null }) {
+export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let turn = 'into'; // TRJ Into or Away (TS-174): which way Lead turns, toward #2's side or away from it
@@ -231,6 +231,28 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     'aria-label': 'Bank angle for close formation turns',
     hidden: true,
   }, h('span', { class: 'ts-hint' }, 'Bank angle'), bankSelect);
+
+  // #2 in close formation: Held (today's planned poses) or Live (the close-in wingman, TS-226; B1 flies the echelon hold
+  // straight and level). Read at the next press, so it is set before pressing Echelon (plan 12.4 B1 T6). 2-ship only.
+  let closeWing = 'held';
+  const CLOSE_WING_HINT = 'Held: #2 flies today\'s planned poses. Live: the close-in wingman flies #2 off what he sees of Lead, 0.3 s late (B1: holding echelon, straight and level; turns stay Held until B2). Takes effect at the next press.';
+  const closeWingButtons = [
+    { value: 'held', label: 'Held' },
+    { value: 'live', label: 'Live' },
+  ].map((o) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    dataset: { closeWing: o.value },
+    title: CLOSE_WING_HINT,
+    'aria-pressed': String(o.value === closeWing),
+    onclick: () => {
+      closeWing = o.value;
+      for (const x of closeWingButtons) x.setAttribute('aria-pressed', String(x.dataset.closeWing === closeWing));
+      onCloseWing?.(closeWing);
+    },
+  }, o.label));
+  const closeWingRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': '#2 in close formation: Held or Live', title: CLOSE_WING_HINT },
+    h('span', { class: 'ts-hint' }, '#2 in close formation'), closeWingButtons);
 
   const handlers = {};
 
@@ -437,6 +459,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     rejoinRow,
     turnRow,
     bankRow,
+    closeWingRow,
     positionGroup,
     refusal,
     floatHeight,
@@ -515,6 +538,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         cancelPick();
       }
       fourGrid.hidden = !four;
+      closeWingRow.hidden = four; // the pair's only in B1
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
       if (fluidUi) fluidUi.lagElement.hidden = true; // the pair's lag roll group is shown by update
