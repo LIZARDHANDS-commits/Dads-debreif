@@ -2,6 +2,15 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
+## 14 Oct 2026, night: Live the default, fighting wing designed, B5 being built
+
+- **On `formation-close-wingman-b2`, V2.431:** a live change is done once settled; Corner button; line astern and the corner 17 ft below Lead (Patrick's -6 on the Corner buttons; polish with the redone model, future.md); Corner Fwd / Back and Up / Down; Held #2 holds his place idle in close formation (holdCloseFore / holdCloseSide; he once drifted 232 ft through Lead); the seat's lean on Lead's spinner, exhausts and wingtips; Live the default (TS-232), the gauge pinned to Held for its old runs.
+- **Fighting wing (B5):** spec 7e approved (TS-233) from SMM 12.29-12.30 and 12.2 (Patrick's pages, `docs/references/figures/smm-12-29-*`, `smm-12-30-*`), a Sonnet manual sweep (`docs/references/smm-fighting-wing-and-pursuit.md`) and a Fable audit. Fable's safeguards stopped two runs on the manuals' wording; it reviewed a renamed, self-contained brief instead (`Pat's claude work/formation-review-12oct/fable-fighting-wing-brief-14oct.md`, report `...-report-14oct.md`, summary and check `...-audit-14oct.md`).
+- **Running:** the B3 Opus agent (reused) builds T27 (the gauge's fighting wing set, today's law the known-bad case) and T28 (perception's fighting wing cues at 0.4 s, the separation guard) on `formation-fighting-wing-b5`, then stops for Patrick to fly the turn into #2. On its report: check it against TS-233 and the keep-unchanged checks, then merge into b2.
+- **Rulings added after approval:** #2 may go inverted only if required; Lead may too and #2 follows in any plane (Lead's inverted buttons in future.md).
+- **Waiting on Patrick:** Checkpoint E (fly B3, set the corner with its buttons, route's throttle hand); the formation climb torque (SMM 16.31 about 85% against our 80%).
+- **Working rule:** after a small tweak, don't fly every change headless (Patrick: "dont fly every change").
+
 ## 14 Oct 2026, later: B3 built (V2.428)
 
 - **On `formation-close-wingman-b2`:** the B3 agent's T15-T17 (branch `formation-close-wingman-b3`, merged), the thread's T18 test, a live change done only once settled (53eabec9), the Corner button and the fixed line under Setup (c1c49e8d). Spec 7c.9 has the measured numbers, the estimates and the rough spots.
