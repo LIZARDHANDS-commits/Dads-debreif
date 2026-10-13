@@ -13,7 +13,7 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, easeValue, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
-import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL, thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, rollLimitsAtKtasT6A, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL, thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
@@ -28,6 +28,8 @@ export { ROLL };
  * gentler rate) and the T-6A's own at that speed (core rollWithinT6A, estimates; TS-85).
  */
 export const rollLimitAt = (tasFtps, roll = ROLL) => rollWithinT6A(roll, tasFtps / KT_TO_FTPS);
+/** A planned roll's limits with its firm-up brake: the hardest the T-6A rolls at this speed, never less than the roll's own (core easeRoll brakeAccelDps2). */
+const plannedLimits = (limits, tasFtps) => ({ ...limits, brakeAccelDps2: Math.max(limits.maxAccelDps2, rollLimitsAtKtasT6A(tasFtps / KT_TO_FTPS).maxAccelDps2) });
 
 /**
  * The roll acceleration an aircraft carries into this step (degrees per second²), or undefined for one whose roll does not
@@ -66,7 +68,8 @@ export { G_ONSET_CEILING };
  * rollRateDps, rollAccelDps2 }.
  */
 export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, accelDps2 = undefined, plannedStop = false) {
-  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2, plannedStop };
+  const base = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2, plannedStop };
+  const limits = plannedStop ? plannedLimits(base, tasFtps) : base;
   // A rate handed in faster than the aircraft rolls (a replayed pose's own) is taken at the aircraft's.
   const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps ?? 0));
   let target = targetDeg;
@@ -271,7 +274,8 @@ function stepTurnRad(tasFtps, fromDeg, toDeg) {
  * the gate flies, built over the same onset; undefined for a roll without it. plannedStop: as gateRoll's.
  */
 export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL, accelDps2 = undefined, plannedStop = false) {
-  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, plannedStop };
+  const base = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, plannedStop };
+  const limits = plannedStop ? plannedLimits(base, tasFtps) : base;
   let bank = bankDeg;
   let rate = rollRateDps;
   let acc = accelDps2 ?? 0;
@@ -462,9 +466,12 @@ export function speedAt(leg, t) {
 
 /**
  * A turn's gentler roll-out (seg.rollOutRoll: Lead's, with a close wingman in his wing plane; TS-126), once his roll-in has
- * settled to no faster than it: until then his own roll, so the gentle stop is never planned from a quick roll-in.
+ * settled to no faster than it, in rate and in the roll acceleration he carries (13 Oct 2026: a brisk roll-in's 150°/s²
+ * planned against the echelon roll-out's 12°/s² ran away): until then his own roll, so the gentle stop is never planned
+ * from a quick roll-in.
  */
-const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <= seg.rollOutRoll.maxRateDps + 1e-9 ? seg.rollOutRoll : null);
+const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <= seg.rollOutRoll.maxRateDps + 1e-9
+  && Math.abs(carriedRollAccel(a) ?? 0) <= seg.rollOutRoll.maxAccelDps2 + 1e-9 ? seg.rollOutRoll : null);
 
 /**
  * Flies one step. `plan` is the aircraft's { segments, profile } and is used up as

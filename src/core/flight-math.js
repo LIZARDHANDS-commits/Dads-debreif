@@ -160,13 +160,14 @@ export function rollToward(bank, target, maxDeltaRad, prefer = 1) {
  * onset to build and one to die away (the stick pushed, not slammed); accelDps2
  * is the acceleration it already has. That chase of a wanted rate rings past
  * the target (about 15° from 30° of bank at 90°/s, 0.2 s onset); plannedStop
- * plans the roll-out instead, so it never rolls past (plannedStopStep). Lead
+ * plans the roll-out instead, so it never rolls past (plannedStopStep; brakeAccelDps2, the hardest the aircraft may
+ * roll, is the most it may firm up to when a gentle roll could not stop in time). Lead
  * flies it now; the wingmen keep the chase, which their tracker was tuned on,
  * until phase B (Patrick, 12 Oct 2026). Onset 0 is the law without it, exactly.
  * Degrees, degrees per second and per second²; returns { bankDeg, rollRateDps,
  * rollAccelDps2 } for the next step. With no time step nothing moves.
  */
-export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxAccelDps2, onsetSec = 0, accelDps2 = 0, plannedStop = false }) {
+export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxAccelDps2, onsetSec = 0, accelDps2 = 0, plannedStop = false, brakeAccelDps2 = maxAccelDps2 }) {
   const onset = onsetSec > 0 ? onsetSec : 0;
   if (!(dt > 0)) return { bankDeg, rollRateDps, rollAccelDps2: onset > 0 ? accelDps2 : 0 };
   const err = targetDeg - bankDeg;
@@ -180,7 +181,7 @@ export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxA
     const rate = rollRateDps + Math.max(-step, Math.min(step, wanted - rollRateDps));
     return { bankDeg: bankDeg + rate * dt, rollRateDps: rate, rollAccelDps2: (rate - rollRateDps) / dt };
   }
-  if (plannedStop) return plannedStopStep(bankDeg, rollRateDps, accelDps2, targetDeg, dt, maxRateDps, maxAccelDps2, maxAccelDps2 / onset);
+  if (plannedStop) return plannedStopStep(bankDeg, rollRateDps, accelDps2, targetDeg, dt, maxRateDps, maxAccelDps2, maxAccelDps2 / onset, brakeAccelDps2);
   // The acceleration that reaches the rate wanted over half an onset, never past maxAccelDps2 or the rate limit, moved
   // toward at most maxAccelDps2 / onset per second.
   let accWanted = Math.max(-maxAccelDps2, Math.min(maxAccelDps2, ((wanted - rollRateDps) * 2) / onset));
@@ -223,16 +224,46 @@ function restAfterBrake(x, v, a, J, A) {
  * of acceleration, within the jerk limit J, that still lets the motion stop on the target with full braking and level
  * off at the rate limit; it finds it by halving. The stop is checked in closed form, so nothing overshoots by more than
  * a step's rounding.
+ *
+ * Two cases a gentle roll (A small) met in flight (13 Oct 2026: from 0.25° of bank at 7.5°/s and 150°/s², the echelon
+ * roll-out at 12°/s² rolled past 20° and its look-ahead read over 1,400° of turn):
+ *  - a roll acceleration carried in stronger than A (a gentle roll-out asked for in the middle of a brisk roll-in) is
+ *    taken out over the same onset it went in with (the stick moves back at the speed it moved forward) and never grows;
+ *    held at the gentle roll's own jerk it ran on, and the roll with it. A brake that strong is predicted held and eased
+ *    at that speed, so it is not let go too early;
+ *  - when even the gentle roll's hardest brake would stop past the target, he uses more stick, no more than he needs to
+ *    stop on it and never more than the aircraft's (brakeA): the gentle roll is technique, not a wall, and the roll-out
+ *    never goes past.
  */
-function plannedStopStep(x, v, a, target, dt, R, A, J) {
+function plannedStopStep(x, v, a, target, dt, R, A, J, brakeA = A) {
   const s = target !== x ? Math.sign(target - x) : (v !== 0 ? -Math.sign(v) : 1); // toward the target is positive
   const E = s * target, X = s * x, V = s * v, Acc = s * a;
-  const fits = (j) => {
-    const [x1, v1, a1] = jerkStep(X, V, Acc, j, dt);
-    if (v1 + Math.max(a1, 0) ** 2 / (2 * J) > R + 1e-9) return false; // would run past the rate limit
-    return restAfterBrake(x1, v1, a1, J, A) <= E + 1e-9; // would stop past the target
+  // The plan at roll strength S (its acceleration limit; the jerk keeps the same onset, J x S / A).
+  const at = (S) => {
+    const JS = (J * S) / A;
+    const Am = Math.max(S, Math.abs(Acc)), Jm = (JS * Am) / S; // a stronger acceleration carried in: shed at its own onset
+    const stops = (j) => {
+      const [x1, v1, a1] = jerkStep(X, V, Acc, j, dt);
+      const Ab = Math.max(S, -a1); // a brake stronger than S is held and eased at its own onset
+      return restAfterBrake(x1, v1, a1, (JS * Ab) / S, Ab) <= E + 1e-9; // would not stop past the target
+    };
+    const fits = (j) => {
+      const [, v1, a1] = jerkStep(X, V, Acc, j, dt);
+      if (v1 + Math.max(a1, 0) ** 2 / (2 * JS) > R + 1e-9) return false; // would run past the rate limit
+      return stops(j);
+    };
+    return { jLo: Math.max(-Jm, (-Am - Acc) / dt), jHi: Math.min(Jm, (Am - Acc) / dt), fits, stops };
   };
-  const jLo = Math.max(-J, (-A - Acc) / dt), jHi = Math.min(J, (A - Acc) / dt);
+  let plan = at(A);
+  if (brakeA > A && !plan.stops(plan.jLo)) {
+    let lo = A, hi = brakeA;
+    const hardest = at(brakeA);
+    if (hardest.stops(hardest.jLo)) {
+      for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2, q = at(m); if (q.stops(q.jLo)) hi = m; else lo = m; }
+    }
+    plan = at(hi);
+  }
+  const { jLo, jHi, fits } = plan;
   let j;
   if (fits(jHi)) j = jHi;
   else if (!fits(jLo)) j = jLo;
@@ -242,8 +273,11 @@ function plannedStopStep(x, v, a, target, dt, R, A, J) {
     j = lo;
   }
   const [x1, v1, a1] = jerkStep(X, V, Acc, j, dt);
-  // Within a thousandth of a degree, with the rate and the acceleration all but gone, the wings are on it.
-  if (Math.abs(E - x1) < 1e-3 && Math.abs(v1) < 1e-2 && Math.abs(a1) < 1) return { bankDeg: target, rollRateDps: 0, rollAccelDps2: 0 };
+  // Within a hundredth of a degree and a tenth of a degree per second, the wings are on it. Finer than that a step can't
+  // place them (the jerk limit moves them up to a few hundredths of a degree in one step), and the plan only rang: until
+  // 13 Oct 2026 the test was a thousandth with the acceleration under 1°/s², and the roll sat about 0.005° short with its
+  // acceleration flipping ±26°/s² every step, so a turn's roll-out never finished.
+  if (Math.abs(E - x1) < 0.01 && Math.abs(v1) < 0.1) return { bankDeg: target, rollRateDps: 0, rollAccelDps2: 0 };
   return { bankDeg: s * x1, rollRateDps: s * v1, rollAccelDps2: s * a1 };
 }
 
