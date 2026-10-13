@@ -90,6 +90,20 @@ His answers the same day: the size is **fitted to the numbers** (it comes out wh
 - **Flying the Astra:** Traffic's aircraft fly on the shared T-6 numbers in `src/core/`. The Astra II needs its own performance numbers (turboprop thrust, drag, stall, limits) from a manual in the project files or Patrick's ruling, and no second copy of a formula: the same point mass with an Astra parameter set.
 - **Assessment:** Dad suggests a Fable assessment. The rule book allows Fable for a one-off architecture review once Patrick has been told: how a second aircraft type and a second pattern fit Traffic's flying layer (one simulated pilot and one path follower per aircraft), the spawns and the conflict logic, without disturbing the CT-156 pattern.
 
+### Left out of the first Astra build (plan Step 5c, 13 Oct 2026)
+
+Each waits for Patrick's yes or for Astra numbers. None is built; the Astra's card does not offer them (spec 4.19 item 6).
+
+- **An Astra PFL and engine failure.** No Astra glide data (glide ratio by configuration, flap and gear speeds). Needs a manual page or Patrick's ruling.
+- **An Astra closed pattern and High Key.** Built on the CT-156's 140 KIAS climbs and 3,500 and 4,500 ft heights.
+- **An Astra breakout and the 4,500 ft rejoin.** CT-156 numbers (4,500 ft, 220 KIAS, ENT1).
+- **An Astra straight-in and SI pattern.**
+- **Randomize behaviour for Astras.** Randomize is filtered by type in the meantime so a CT-156 is never put on the Astra pattern.
+- **A Mixed circuit scenario** (say three Astras in their pattern with the Busy circuit). A new scenario, so a plan item, if Patrick wants it (TR-161).
+- **An Astra hitbox.** The CT-156's 35 ft is used (TR-116); the Astra is 27.6 ft long and 33.8 ft across, close enough.
+- **Astra cockpit instruments** (its own panel, side-by-side seats beyond the camera points).
+- **Runway 11R and Southport** (where the Astra really flies).
+
 ## Rough spots left for later (found by the V2.350 refactor)
 
 - **Two gear-and-flap rules.** The tag's rule (`behaviour.js` `configOf`) reads the pattern stage and the field elevation; the drag's rule (`path-follower.js` `resolveAircraftConfig`) reads the phase and the threshold's height (both 1,892 ft since TR-149). They share their speeds and the 50 ft since refactor step 2, but can disagree for a moment at a phase change, so the tag can show a different configuration from the one being flown. Making them one changes the tag, so it waits for Patrick.

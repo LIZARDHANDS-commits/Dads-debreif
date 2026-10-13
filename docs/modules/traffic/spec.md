@@ -457,6 +457,68 @@ Code: `sim.js` `collisionTick` and `eject`. TR-116.
 4. Aircraft rolling out or taxiing on the ground are left out. So are two that were already within 35 ft of each other when the step began (two started on the same spot); they pass through each other.
 5. The automatic deconfliction (4.12) is unchanged: a collision happens only when it doesn't keep them apart, or when it is switched off.
 
+### 4.19 CT-102B Astra II pattern (Dad's ask, 13 Oct 2026; Patrick's yes to the plan and a 60° break, relayed by Dad, 13 Oct 2026)
+
+Not built yet. The plan is Step 5c in `plan.md`; the reasoning and the file-by-file list are in `ct102-pattern-review.md` (where this section and that file disagree, this section wins). Numbers below are marked **Dad**, **Patrick**, **physics** (worked from the speeds and the bank by the shared turn formula, radius = true speed squared / (g x tan bank)), **public** (a public fact sheet or type-certificate figure, read only through search summaries, unchecked) or **estimate** (no source yet). No Astra manual is in the project files, so nothing here is a manual number. TR-154 to TR-162 in `decisions.md` say which answers are Patrick's and which are working answers not yet confirmed with Patrick.
+
+1. **What it is.** A second pattern at Moose Jaw for the CT-102B Astra II (a Grob G 120TP): same runway (29L), same side (left-hand), flown beside the CT-156's overhead, inside it and 500 ft below. It is an **overhead with a break**, tighter than the CT-156's (Dad's pick, Patrick's yes, 13 Oct). It is flown by the same simulated pilot and the same path follower as every other aircraft, with an Astra parameter set (a second set of numbers for the same point-mass formulas, never a second copy of a formula).
+2. **Geometry, from a 180 KIAS initial.**
+   - **Initial** at 180 KIAS and 3,000 ft MSL, along the runway, level.
+   - **Break** at 60° of bank like the CT-156's (Patrick, 13 Oct: "60 degree break"), power idle, level, slowing on the CT-156's own break curve to about 115 KIAS by the end of the turn. The break point is the CT-156's rule (2,000 ft past the threshold in a 10 kt headwind, later in more headwind, SMM 4.17 para 39 and 4.18 para 42) as a **working choice, not yet confirmed with Patrick**. The 30° limit Patrick gave cannot be the break's bank: a 30° turn at 180 KIAS is a 5,430 ft radius (physics).
+   - **Other turns at 30°** (Patrick, 13 Oct): the climbing turn and the final turn.
+   - **Downwind about 2,700 ft out** from the centreline (physics: twice the 1,340 ft radius of a 30° turn at 90 KIAS, 3,000 ft down to the 3° path), parallel to the runway, about 0.77 of the CT-156's inner downwind (about 3,500 ft). The 60° break on its own would put it about 2,400 ft out (estimate), so the break rolls out on the line the final turn needs, not the other way round; the builder places it and the track shows where it lands.
+   - **Speed on downwind:** slows from the break's roll-out speed to 90 KIAS by the perch; the gear and flap point is an estimate.
+   - **Perch** about abeam a point 0.3 NM short of the threshold (along about -2,000 ft), found by the same wind-shaped search the CT-156 uses, at 90 KIAS (Dad); **final turn** at 30° descending to roll out on the 3° path about 0.5 NM out (along about -3,000 to -3,500 ft). This is a working answer, not yet confirmed with Patrick (decisions TR-157). It keeps the Astra downwind clear of the CT-156's final turn, which comes down through 3,000 ft at about 2,700 ft across. The two types then share final from about 0.5 NM in.
+   - **Final and flare** are the CT-156's code with 90 KIAS at the threshold (Dad). Same aim point, same 3° path (SMM 4.7), same touchdown point.
+   - **Size.** Fitted to the numbers, as Dad asked. Against the CT-156's inner downwind about 0.77 wide; against its outer downwind (2.0 NM) about 0.22; whole footprint about a fifth. Reported to Dad as both readings; exact once flown.
+   - **Vertical room.** The two downwinds are 500 ft apart with no spare against the 500 ft caution. Nothing in the plan changes a limit; the check on screen looks for flicker.
+3. **The climb and the climbing turn** (take-off, touch-and-go, go-around): working answer, not yet confirmed with Patrick (TR-158). Full power at about 100 KIAS (estimate) to 3,000 ft, straight along the centreline. The climbing turn onto downwind starts when 3,000 ft is reached or the departure end is passed, whichever is later (so it clears the CT-156 go-around level of 2,500 ft), at 30° and held at 90 to 100 KIAS so the 2R of 2,700 to 3,350 ft matches the downwind line. A go-around climbs straight to 3,000 ft and rejoins downwind; the level is an engineering choice, Patrick to confirm. Note: a CT-156 climbing at 180 KIAS behind an Astra climbing at 100 reaches 3,000 ft about 1.1 NM out, the same place, so the upwind is where the two types meet (item 6).
+4. **The numbers.**
+
+| Number | Working value | Source status |
+|---|---|---|
+| Pattern height | 3,000 ft MSL (about 1,100 ft above the field) | Dad, 13 Oct; Patrick's working value |
+| Initial speed | 180 KIAS (indicated) | Dad |
+| Perch and threshold speed | 90 KIAS (indicated) | Dad |
+| Break bank | 60° | Patrick (approved 13 Oct, relayed by Dad) |
+| Break slows to | about 115 KIAS | physics on the CT-156's break curve; estimate until flown |
+| Climbing turn and final turn bank | 30° | Patrick, 13 Oct |
+| Downwind distance out | about 2,700 ft | physics (30°, 90 KIAS); exact once flown |
+| Climb speed | about 100 KIAS | estimate |
+| Rate of climb, full power | about 2,100 ft/min at sea level | public, unchecked; drives the thrust fit |
+| Engine power | 456 shp (Rolls-Royce M250-B17F) | public, unchecked |
+| Weight | empty 1,095 kg (2,414 lb); pattern weight about 1,450 kg (3,200 lb) | public, and an estimate |
+| Wing area and span | 13.52 m2 (145.5 ft2), 10.31 m (33.83 ft) | public (EASA sheet) |
+| Zero-lift drag, Oswald efficiency | CD0 about 0.025, e about 0.8 | estimates (standard values for a clean light turboprop trainer) |
+| Propeller efficiency; engine flat-rating height | about 0.8; about 10,000 ft | estimates |
+| Stall speed, clean and landing flap | about 68 and 59 KIAS | estimates (public figures for the G 120TP, unchecked) |
+| G limits | +6 / -4 | public (aerobatic category), unchecked; not reached in the pattern |
+| Maximum speed | about 240 KIAS | estimate, unchecked; not reached |
+| Gear and flap limit speeds | not known | estimate, used for the tag's configuration only |
+| Roll rate and G onset | the T-6's | estimates (already estimates for the T-6) |
+| Drawn pitch (angle of attack, fuselage datum) | the T-6's shape scaled by the Astra stall speed | estimate, drawing only |
+| Length, span, height for drawing | 27.62 ft, 33.83 ft, 8.66 ft | public (EASA sheet) |
+| Hitbox for collisions | the CT-156's 35 ft | kept (TR-116); noted on `future.md` |
+| Go-around level | straight to 3,000 ft | engineering choice, Patrick to confirm |
+
+   Thrust and drag are worked from standard aerodynamics (the T-6 fit's own form: thrust per weight falls with true airspeed, drag per weight has a zero-lift and an induced part) with the derivation beside the constants. The check that the fit is sane: full-power climb at 100 KIAS comes out near the public 2,100 ft/min, and the 180 KIAS level cruise needs less than full power. A published limit (G, speed, the orders) is flagged on screen and is never a wall; only what the aircraft physically cannot do is (AGENTS.md).
+5. **Estimates are shown (rule book: flagged, not hidden).** While any number in the Astra's set is an estimate: its aircraft-card tooltip and its behaviour tag end with " · est."; the spawner's route row reads "Astra pattern (working numbers)"; the route's name in "Routes on the map" says the same; and one line in the Traffic settings footer reads "CT-102B numbers are estimates: see docs/modules/traffic/spec.md 4.19." The flags come off number by number as a manual page or Patrick's ruling backs them.
+6. **Spawns and conflicts** (working answers, not yet confirmed with Patrick; TR-159).
+   - **Type and route are tied.** Picking the Astra route sets the type to CT-102B; picking CT-102B shows its route. The spot buttons come from the route's own tags: Initial, Break (or the nearest tagged point), Downwind, Perch, and the climb-out spots.
+   - **Spawn a conflict works both ways** with the existing route-generic planner: select an aircraft of either type and pick either type's route; the aircraft that appears is timed to meet it inside 500 ft and 500 ft within 3 minutes. The message names the type.
+   - **Right of way between types.** The existing rows apply where they match (final and past the perch have right of way; before the perch the one turning in extends or breaks out). For the rest: the aircraft established in its own pattern at its own height has right of way; the one crossing or climbing through it gives way. So a CT-156 climbing through 3,000 ft on the upwind, or coming down through it in its final turn before its perch, gives way; an Astra joining or going around gives way to a CT-156 that is established. The moves an Astra can be given are go-around (its own), a bank-away flinch and extend downwind (its own); the CT-156 breakout, move-over, fly-through and climb-breakout are not given to it.
+   - **Spacing on final** (the 2,000 ft aim, TR-R18) counts both types as leaders and followers. Pair gap (20 s) is unchanged: at 90 KIAS it is more than the aim.
+   - **Not offered to an Astra:** PFL from area, the rejoin boxes and SI spots, and the Manoeuvres buttons (Breakout, Closed pattern, High Key, PFL). Its card keeps Landing behaviour (touch-and-go, full stop, go-around) and Remove.
+   - **Scenarios.** The Busy circuit, Random and the others stay all CT-156. Randomize is filtered to routes of the scenario's type so it never puts a CT-156 on the Astra pattern. A Mixed scenario is not built (TR-161; `future.md`).
+7. **The ground-track toggle.** The Astra route is one more row in "Routes on the map", like the others: it shows or hides its line, dims it, says "Hidden", and the aircraft keep flying. **Hidden at first**, like the SI Rejoin and the SI pattern, so the opening picture does not change (TR-R2). The tag word is `[ASTRA]`, with " · est." while any number is an estimate (working answer, not yet confirmed with Patrick; TR-160).
+8. **When data fails** (safety item):
+   - **A missing or damaged Astra route** (not in the saved setup, or a point missing): the Astra type is not offered in the spawner and its row is absent; an Astra already in a loaded setup is removed with a plain message. The sim, the CT-156s and the 3D view carry on.
+   - **A failed Astra model load** (file missing, corrupt or too slow): the plain stand-in aircraft is drawn at the Astra's length (27.6 ft) in the Astra colour, and the 3D view never stops (ALL-38 (4)).
+   - **A pattern that cannot be built** (the pilot hits its step limit): that one aircraft is removed with the reason; the sim carries on.
+   - **Stale or missing numbers** are never invented: an Astra number with no value stops that Astra from flying (item above) and is never filled from the T-6's, except the display-only ones marked in the table.
+9. **What the CT-156 keeps.** Every default in the new code equals today's T-6 constant; every `PAT1` lookup returns PAT1 for a CT-156; the only edit inside the CT-156's own flying is a pure move of the final approach and flare into a function both types call, checked track for track in calm air, 15 kt and 25 kt. No CT-156 test is edited or retired.
+10. **Left out** (on `future.md`): Astra PFL, closed pattern, High Key, breakout, straight-in and SI pattern, Randomize, a Mixed scenario, the Astra hitbox, Astra cockpit instruments, Runway 11R.
+
 ---
 
 ## 5. Spawn UI
