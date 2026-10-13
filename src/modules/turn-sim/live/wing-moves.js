@@ -389,9 +389,17 @@ export const FW_WING = Object.freeze({
   // The path law's angle off the local tangent capped (Fable F7) ... OFF: with the caps the cases that start far behind or
   // outside the circle could not close (the -12° inward cap against an offset of up to 400 ft inside): into stretched ended the
   // turn 3,797 ft back (2,215 without), away tight 3,023 (1,276), outside the cone 3,170 (670). Kept for the thread (gauge r7-F7).
+  // Round 4, re-tried with the inward cap open when very stretched (below): still off, the lag first and the feed-forward cap
+  // now give the steer-behind, and with the caps away stretched passes but away tight and the reversal gain job switches (4,
+  // 5) and away in position kisses 585 ft (gauge r4f7 against r4ls4).
   pathCaps: false,
   pathOutDeg: 20, // ... +20° outward, the steer-behind (lag) cap (Fable F7, Q1's working answer, estimate) ...
   pathInDeg: 12, // ... -12° inward, the steer-ahead (lead) cap (Fable F7, estimate)
+  // ... the inward cap open beyond 1,000 ft of arc behind Lead, eased back by 800 ft (Patrick 14 Oct 2026, rulings on Fable's
+  // questions: very stretched, outside about 1,000 ft, he may cut across Lead's turn, then reset onto a circle; 800 ft the
+  // coordinator's working number, estimate)
+  pathOpenFt: 1000,
+  pathCloseFt: 800,
   arcLoop: true, // the turn's arc loop: d = R (1 - V2/V_L) + (wanted - actual closure) / Lead's turn rate (Fable F1)
   arcTargetFt: 650, // s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft)
   arcNearFt: 300, // the wanted closure at most ... (Fable F1, estimate)

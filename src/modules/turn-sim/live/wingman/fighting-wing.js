@@ -224,7 +224,13 @@ export function stepFwWingman(w, refSt) {
         const toT = perp3(sub3(target, st.pm), axis);
         const dist = Math.max(len3(toT), 1);
         const a = Math.atan2(dot3(toT, radial), dot3(toT, tangent));
-        const ac = Math.max(-W.pathInDeg * DEG, Math.min(W.pathOutDeg * DEG, a));
+        // Round 4 (Patrick 14 Oct 2026, his rulings on Fable's questions: very stretched he may cut across Lead's turn, then
+        // reset onto a lead, lag or pure circle): beyond pathOpenFt of arc behind the inward cap is open, eased back to
+        // pathInDeg by pathCloseFt
+        const sBehind = arcFt ?? 0;
+        const open = W.pathOpenFt == null ? 0 : Math.max(0, Math.min(1, (sBehind - W.pathCloseFt) / (W.pathOpenFt - W.pathCloseFt)));
+        const inCap = W.pathInDeg * DEG + open * (Math.PI / 2 - W.pathInDeg * DEG);
+        const ac = Math.max(-inCap, Math.min(W.pathOutDeg * DEG, a));
         target = add3(st.pm, scale3(add3(scale3(tangent, Math.cos(ac)), scale3(radial, Math.sin(ac))), dist));
       }
     }
