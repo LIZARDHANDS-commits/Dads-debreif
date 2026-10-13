@@ -3,7 +3,7 @@
 // coaming with its grab rail, the three lamps under the rail, the AOA indexer and the standby compass on top and an air
 // vent at each upper corner; the lower panel with its centre pedestal, knee wells and landing gear handle; the side
 // consoles (power lever, flap lever, striped handles, knobs); the stick in its boot; the rudder pedals; the ejection
-// seat with its cushions, harness, headbox, canopy breakers, yellow and black seat handle and green oxygen hose. Round
+// seat with its cushions, harness, headbox, canopy breakers, yellow and black seat handle and pale grey oxygen hose. Round
 // the canopy: the forward bow's T section with its studs and flared feet and its two curved mirrors, the canopy's side frames with
 // their rows of fasteners, and the inter-cockpit arch with its fasteners and the clear
 // inter-cockpit shield. The rear cockpit's panel sits under a big moulded hump over the front seat's back, with its own
@@ -760,9 +760,18 @@ const LIVE_WINDOWS = Object.freeze({
   lights: { x: 0, y: 704, w: 64, h: 280 },
 });
 
-// The panel's and consoles' face: matte medium grey, as Patrick's CT-156 cockpit photos show (Patrick, 12 Oct 2026; dark
-// charcoal '#2b2e32' since 11 Oct 2026 22:06Z after US Navy T-6A photos, and mid grey '#8e9296' before). Shade an estimate.
-const PANEL_GREY = '#5a5e63';
+// The panel's and consoles' face: a matte sage grey, as the CT-156 photos D03 and D09 show it (D12, Patrick 13 Oct 2026:
+// "sage grey", the shade picked off those photos to sit with G15's walls; was the medium grey '#5a5e63' of 12 Oct 2026,
+// dark charcoal '#2b2e32' after US Navy T-6A photos on 11 Oct, and mid grey '#8e9296' before). Shade an estimate.
+const PANEL_GREY = '#7a8e91';
+// The cockpit's walls (the bow band, and the tub's walls in ct156-model.js) and the sill bands with the canopy's lower
+// side frames: lighter and cooler, as daylit CT-156 photos show them (G15, Patrick 13 Oct 2026: D03, D10 and the Moose
+// Jaw frames; both were PANEL_GREY's '#5a5e63').
+const WALL_GREY = '#858c9a';
+const SILL_GREY = '#8d9296';
+// The placards: dark plates with light lettering (G16, Patrick 13 Oct 2026: E01's NWS placard, Moose Jaw D02; were light plates).
+const PLACARD = '#16181b';
+const PLACARD_INK = '#d9dcdf';
 const SEAM = 'rgba(36, 39, 43, 0.55)';
 const BEZEL = '#1d2024';
 /** The displays' black frames round their screens, feet (about 0.5 in; Patrick's CT-156 photo, judged). */
@@ -1280,9 +1289,9 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, 'DC', cx, cy + rr * 0.76, rr * 0.13, DIM);
       break;
     }
-    case 'placard': // a placard: a light plate with lines of small lettering (drawn as bars; no words copied)
-      ctx.fillStyle = '#d9dcdf'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.fillStyle = '#3b3f44';
+    case 'placard': // a placard: a dark plate with lines of light lettering (drawn as bars; no words copied; G16)
+      ctx.fillStyle = PLACARD; ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = PLACARD_INK;
       for (let y = b.y + b.h * 0.12, k = 0; y < b.y + b.h * 0.85; y += Math.max(3, b.w * 0.14), k++) ctx.fillRect(b.x + b.w * 0.1, y, b.w * (k % 3 === 2 ? 0.5 : 0.8), Math.max(1, b.w * 0.05));
       break;
     case 'label':
@@ -1495,8 +1504,8 @@ function drawLowerPanel(ctx, width, height) {
   dot(1.17, -0.27, 0.025, '#0a0b0d');
   stripes(ctx, X(1.05), Z(-0.22), X(0.97) - X(1.05), Z(-0.31) - Z(-0.22), 3);
   // The park brake's placard: a plate with two lines of lettering (drawn as bars, the figure's words not copied).
-  rect(-0.91, -1.15, 0.2, 0.12, '#25282c');
-  ctx.fillStyle = '#c9ced4';
+  rect(-0.91, -1.15, 0.2, 0.12, PLACARD);
+  ctx.fillStyle = PLACARD_INK;
   for (const z of [0.18, 0.15]) ctx.fillRect(X(-0.94), Z(z), X(-1.12) - X(-0.94), Math.max(1, R(0.008)));
   // Placard lines.
   for (const [y, z] of [[1.2, -0.42], [0.25, -0.13]]) ctx.fillRect(X(y), Z(z), R(0.2), Math.max(1, R(0.008)));
@@ -2059,8 +2068,8 @@ function bowFootParts(THREE) {
 }
 /**
  * The canopy's handle on the left lower frame just aft of the forward bow (Patrick, 12 Oct 2026, from his photo): a
- * black triangular handle, its open loop hanging from a pivot pin and hub near the frame's top by the bow, on a light
- * placard plate, and two round knobs on the frame ahead of it by the bow's foot. Sizes estimates. [geometry, slot] pairs.
+ * black triangular handle, its open loop hanging from a pivot pin and hub near the frame's top by the bow, on a dark
+ * placard plate (G16: the knob slot, drawn in PLACARD in the canopy-rails part, PART_MATS), and two round knobs on the frame ahead of it by the bow's foot. Sizes estimates. [geometry, slot] pairs.
  */
 function canopyHandleParts(THREE) {
   const [fx0, fy, fz] = bowFoot(1), out = [];
@@ -2422,8 +2431,8 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
 
   // The seat (Dad's pictures 26, 27, 29): a dark bucket, light grey cushion with a front roll and thigh bolsters, a
   // light grey back cushion in front of the model's seat back, the dark headbox with the canopy breakers on top,
-  // harness straps lying on the cushions with a buckle, the yellow and black handle between the legs and the green
-  // oxygen hose to the right console.
+  // harness straps lying on the cushions with a buckle, the yellow and black handle between the legs and the pale grey
+  // oxygen hose to the right console (G17).
   const { pan, backCushion: bc, headbox: hb, breakers: br } = S;
   tag = 'seat';
   // The back, its headbox and breakers lean aft (ct156SeatRakeFt); the whole seat then rises as its helmet does.
@@ -2712,23 +2721,30 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   // since Patrick, 11 Oct 2026 22:06Z, after US Navy T-6A cockpit photos; the grey slot medium grey, PANEL_GREY, since
   // 12 Oct 2026): dark charcoal panel and consoles, near-black
   // coaming and rail, red, mirror, light knobs, unlit lamps, the light bow band, dark seat cushions, dark grey (seat
-  // bucket, headbox, bezels, vents), the green oxygen hose, metal, mid grey canopy frames and straps (were light grey; the
-  // T-6A photos' inner frame and rails are mid grey).
+  // bucket, headbox, bezels, vents), the oxygen hose (the 'green' slot, pale grey since G17, Patrick 13 Oct 2026, D03;
+  // was green '#4d6a2f'), metal, mid grey canopy frames and straps (were light grey; the T-6A photos' inner frame and
+  // rails are mid grey). The bow band the walls' grey (G15).
   const slotMats = [
     solid(PANEL_GREY, { roughness: 0.85 }), solid('#1d2023', { roughness: 0.75 }), solid('#1d2024', { roughness: 0.6 }), solid('#b3202a', { roughness: 0.5 }),
     // The mirrors chrome (Patrick, 12 Oct 2026, "Construction only", from his reference picture; were blue-grey).
     solid('#e4e8ec', { roughness: 0.12, metalness: 0.85, emissive: '#8f969d' }), solid('#c9ced4', { roughness: 0.5 }),
     lamp('#3a1414'), lamp('#3a2c0e'), lamp('#10301a'),
     // The forward bow and the arch, the cockpit's own grey (Patrick, 12 Oct 2026, "color of the bow should match our
-    // interior too right", a little self-lit as the panel reads; was '#d3d6d9' self-lit '#7a7d80', white to light grey, TS-156).
-    solid(PANEL_GREY, { roughness: 0.7, emissive: '#26282a' }),
-    solid('#3a3c3f', { roughness: 0.9 }), solid('#3b3f44', { roughness: 0.8 }), solid('#4d6a2f', { roughness: 0.7 }),
+    // interior too right", a little self-lit as the panel reads; was '#d3d6d9' self-lit '#7a7d80', white to light grey, TS-156),
+    // the walls' since G15.
+    solid(WALL_GREY, { roughness: 0.7, emissive: '#26282a' }),
+    solid('#3a3c3f', { roughness: 0.9 }), solid('#3b3f44', { roughness: 0.8 }), solid('#c4c8cc', { roughness: 0.7 }),
     solid('#a9aeb4', { roughness: 0.35, metalness: 0.7 }), solid('#7d8185', { roughness: 0.75, emissive: '#26282a' }),
   ];
   // The painted and covered surfaces take a grain and a faint mottling (paintGrain; Patrick, 12 Oct 2026: "give the
   // whole interior a texture, its not quite right"): the grey, the coaming and rail, the bow, the seats, the dark parts
   // and the frames. The chrome, metal, red, green, knobs and lamps stay smooth.
   for (const k of ['grey', 'black', 'rail', 'band', 'seat', 'dark', 'frame']) paintGrain(slotMats[SLOT[k]], INTERIOR_GRAIN);
+  // One part's slots drawn in another colour, the same in the code's part and the model file's (whose materials are named
+  // by slot): the canopy rails' grey is the sill's (G15) and their knob slot, the canopy handle's placard, a dark plate (G16).
+  const PART_MATS = {
+    'canopy-rails': { grey: paintGrain(solid(SILL_GREY, { roughness: 0.85 }), INTERIOR_GRAIN), knob: solid(PLACARD, { roughness: 0.6 }) },
+  };
   const geometries = [];
   const add = (geometry, material) => {
     geometries.push(geometry);
@@ -2895,9 +2911,9 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   // The canopy's side frames with their fasteners (Dad's pictures 19, 21, 27) and the sill bands below them.
   const sf = sideFrameParts(THREE);
   const railParts = [];
-  for (const g of sf.frames) railParts.push({ geometry: g, materials: [SLOT.grey] }); // the cockpit's own grey (Patrick, 12 Oct 2026; was a lighter grey)
+  for (const g of sf.frames) railParts.push({ geometry: g, materials: [SLOT.grey] }); // the sill's grey in this part (PART_MATS, G15; Patrick 12 Oct 2026 had them the cockpit's grey)
   for (const g of sf.nubs) railParts.push({ geometry: g, materials: [SLOT.dark] });
-  for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.grey] }); // also the cockpit's grey (Patrick, 12 Oct 2026; was SLOT.frame's lighter grey)
+  for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.grey] }); // SILL_GREY in this part (PART_MATS, G15; was the cockpit's grey, and SLOT.frame's before 12 Oct 2026)
   for (const [g, slot] of canopyHandleParts(THREE)) railParts.push({ geometry: g, materials: [slot] });
   for (const part of railParts) solidParts.push({ ...part, name: 'canopy-rails' });
   // The named parts (seatParts' tags) each their own mesh, for the Blender cockpit to replace; with keepPieces their pieces
@@ -2915,12 +2931,14 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   }
   for (const [name, list] of named) {
     const hash = cockpitPiecesHash(list);
-    const mesh = add(ct156JoinGeometries(THREE, list), slotMats);
+    const mats = slotMats.slice();
+    for (const [k, m] of Object.entries(PART_MATS[name] ?? {})) mats[SLOT[k]] = m;
+    const mesh = add(ct156JoinGeometries(THREE, list), mats);
     mesh.name = `ct156-cockpit-${name}`;
     mesh.userData.hash = hash; // the model file's part shows only if it was built from these same pieces
   }
   // The Blender cockpit's parts (ALL-32), once its file is in, in place of the code's parts of the same names.
-  attachCockpitModel(THREE, group, Object.fromEntries(Object.entries(SLOT).map(([k, i]) => [k, slotMats[i]])), own);
+  attachCockpitModel(THREE, group, Object.fromEntries(Object.entries(SLOT).map(([k, i]) => [k, slotMats[i]])), own, PART_MATS);
 
   // The yellow and black striped parts: the seat handles, the emergency gear T, the console T-handle and guard.
   const stripe = canvasTexture(32, 32);

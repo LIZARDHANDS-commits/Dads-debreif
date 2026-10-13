@@ -2474,8 +2474,9 @@ function buildKit(THREE) {
     // Both with the cockpit's paint grain (ct156-cockpit.js INTERIOR_GRAIN, Patrick, 12 Oct 2026: "give the whole
     // interior a texture").
     tubFloor: paintGrain(mat({ color: '#26292c', roughness: 0.95, side: two }), { unit: 1 / FT }),
-    // The walls medium grey like the panels since 12 Oct 2026 (Patrick's CT-156 cockpit photos; were '#2f3236').
-    tubWall: paintGrain(mat({ color: '#5a5e63', roughness: 0.85, side: two }), { unit: 1 / FT }),
+    // The walls lighter and cooler, as daylit CT-156 photos show them (G15, Patrick 13 Oct 2026: D03, D10, the Moose Jaw
+    // frames; ct156-cockpit.js WALL_GREY; were '#5a5e63' like the panels from 12 Oct 2026, and '#2f3236' before).
+    tubWall: paintGrain(mat({ color: '#858c9a', roughness: 0.85, side: two }), { unit: 1 / FT }),
     // The pilots (pilotGeometry): one material per slot of CT156_PILOT_SLOTS (helmet, visor, mask, hose, flight suit, vest and
     // collar, harness, gloves, and the mask's grey-blue parts, black hardware, vest panel and skin; colours estimates);
     // and the seats' headboxes.

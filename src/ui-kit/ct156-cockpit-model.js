@@ -27,7 +27,7 @@ function cockpitParts(THREE) {
  * seat, knob and the rest), so the parts
  * light and dispose with the rest of the cockpit; own(material) hands it the shaded copies to dispose. Does nothing without a browser (tests, export scripts).
  */
-export function attachCockpitModel(THREE, group, mats, own = (m) => m) {
+export function attachCockpitModel(THREE, group, mats, own = (m) => m, partMats = {}) {
   if (typeof document === 'undefined') return;
   cockpitParts(THREE).then((list) => {
     if (group.userData.disposed) return;
@@ -43,7 +43,7 @@ export function attachCockpitModel(THREE, group, mats, own = (m) => m) {
           if (ao) part.add(new THREE.Mesh(geometry, own(new THREE.MeshBasicMaterial({ map: ao, blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide, fog: false }))));
           continue;
         }
-        const base = mats[material] ?? mats.frame;
+        const base = partMats[name]?.[material] ?? mats[material] ?? mats.frame; // a part may draw a slot in its own colour (partMats)
         // Lit colours take the part's baked shadows; the self-lit lamps don't.
         const m = ao && geometry.attributes.uv && base.isMeshStandardMaterial ? own(aoShaded(base, ao)) : base;
         const mesh = new THREE.Mesh(geometry, m);
