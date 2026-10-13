@@ -465,6 +465,13 @@ export const FW_WING = Object.freeze({
   lowFt: 300, // "a few hundred feet" (estimate)
   lowStartKt: 5, // short of energy: more than 5 KIAS slower than Lead (estimate) ...
   lowEndKt: 1, // ... until back within 1 KIAS of him (estimate)
+  // F6's action when the wing line binds (Patrick 14 Oct 2026, rulings on Fable's questions: never ahead of Lead's 3/9 line,
+  // "nose pointed BEHIND Lead, banking steeply in and down", hot turning rejoin style): he aims where Lead was guard.lagSec
+  // ago and goes down 300 ft (the miss's deepest, estimate) until 200 ft behind the wing line again (estimate). When on,
+  // the wing line no longer sets off the yo-yo (its speed trigger stays).
+  // onCircle: the point aimed at on Lead's circle, his arc target (650 ft) behind Lead, instead of where Lead was 1 s ago. OFF: it
+  // left him ahead of the wing line (aspect 107, gauge r4b2); where Lead was took him 78° across and out to 3,000 ft (r4b)
+  behind: Object.freeze({ on: true, downFt: 300, clearFt: 200, onCircle: false }),
   // The high yo-yo inside Lead's turn (Patrick 14 Oct 2026, card "High yo-yo, then back down"; TS-233 addendum; Fable F8)
   // and the pitch owners' order (Fable F9): pass-clear, then the climb, then the stack's family.
   yoyo: Object.freeze({

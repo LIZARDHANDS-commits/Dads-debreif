@@ -23,7 +23,7 @@ import { throttleAtTorque } from '../power.js';
 import { ROLL } from '../rates.js';
 import { FW_SEE, FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
-import { seenOf, startFwSight, seeFw, aheadOnTurn } from './perception.js';
+import { seenOf, startFwSight, seeFw, aheadOnTurn, rotate3 } from './perception.js';
 import { startFwGuard, fwGuard, startFwJob, fwJob, leastPass } from './supervisor.js';
 
 const W = FW_WING;
@@ -231,9 +231,27 @@ export function stepFwWingman(w, refSt) {
     offFt = w.offFt + Math.max(-W.aimSlewFtps * STEP_SEC, Math.min(W.aimSlewFtps * STEP_SEC, -w.offFt));
     aimKind = job.sTurn ? 'sTurn' : 'swept';
   }
-  // A change of job blends his aim (against Lead's place) over about 1.5 s; the guard's at once (F17).
+  // F6's action when it binds (Patrick 14 Oct 2026, his rulings on Fable's questions: never ahead of Lead's 3/9 line; flown
+  // hot-turning-rejoin style, "nose pointed behind Lead, banking steeply in and down"): while the wing line is out of reach
+  // in Lead's turn he aims at a point behind Lead, where Lead was guard.lagSec ago (about 380 ft back), and goes down, until
+  // he is clearFt behind the wing line again. Rolling over Lead, the ruling's other remedy, is not built.
+  const B = W.behind;
+  const behindNowFt = -dot3(sub3(ownP, leadNow), unit3(leadV)); // + behind Lead's wing line
+  let behindOn = false;
+  if (B.on && job.turning) {
+    behindOn = w.behindOn ? Boolean(w.lineShort) || behindNowFt < B.clearFt : Boolean(w.lineShort);
+    if (behindOn) {
+      // the point on Lead's circle his arc target behind him (650 ft), else where Lead was guard.lagSec ago
+      target =
+        B.onCircle && seen.turn.centre && Number.isFinite(seen.turn.radiusFt)
+          ? add3(seen.turn.centre, rotate3(sub3(leadNow, seen.turn.centre), unit3(seen.turn.omega), -W.arcTargetFt / seen.turn.radiusFt))
+          : sub3(leadNow, scale3(leadV, W.guard.lagSec));
+      aimKind = 'behind';
+    }
+  }
+  // A change of job blends his aim (against Lead's place) over about 1.5 s; the guard's and the nose-behind at once (F17).
   const offNow = sub3(target, leadNow);
-  const aimOff = guard.on || !w.aimOff ? offNow : ease3(w.aimOff, offNow, W.blendSec);
+  const aimOff = guard.on || behindOn || !w.aimOff ? offNow : ease3(w.aimOff, offNow, W.blendSec);
   const at = add3(leadNow, aimOff);
   const dIn = flat(sub3(at, st.pm));
   const d = len3(dIn) > 1e-6 ? unit3(dIn) : u;
@@ -268,16 +286,17 @@ export function stepFwWingman(w, refSt) {
     const done = !job.turning || eArc == null || eArc > Y.exitArcFt || (Math.abs(eArc) < Y.exitArcFt && Math.abs(dFt ?? 0) < Y.onCircleFt);
     // the trigger: the wing line out of reach (F6), or the speed that holds his radius more than 10 kt under his own with
     // power already back
-    const trigger = !done && (Boolean(w.lineShort) || (slowKt > Y.slowKt && Boolean(w.powerBack)));
+    const trigger = !done && ((Boolean(w.lineShort) && !B.on) || (slowKt > Y.slowKt && Boolean(w.powerBack)));
     if (yoyo.phase !== 'up' && trigger) yoyo = { phase: 'up', hFt: Math.min(Y.maxFt, Math.max(Y.minFt, yoyoNeedFt ?? 0)) };
     else if (yoyo.phase === 'up') yoyo = done ? { phase: 'down', hFt: 0 } : { phase: 'up', hFt: Math.min(Y.maxFt, Math.max(yoyo.hFt, yoyoNeedFt ?? 0)) };
     else if (yoyo.phase === 'down' && seen.heightFt - job.heightFt < Y.downEndFt) yoyo = { phase: null, hFt: 0 };
   }
   const passClearWanted = W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on;
   let owner = w.owner ?? { name: 'stack', sec: 0, vert: -1 };
-  let want = Y.on && yoyo.phase ? 'yoyo' : passClearWanted ? 'passClear' : 'stack';
-  // 2 s between owners (Fable F9, estimate); pass-clear takes pitch at once
-  if (Y.on && want !== owner.name && owner.sec < Y.ownerHoldSec && want !== 'passClear') want = owner.name;
+  // the nose-behind's descent (F6's action, above) ahead of the climb: pass-clear, then in and down, then the yo-yo
+  let want = behindOn && !passClearWanted ? 'inDown' : Y.on && yoyo.phase ? 'yoyo' : passClearWanted ? 'passClear' : 'stack';
+  // 2 s between owners (Fable F9, estimate); pass-clear and the nose-behind take pitch at once
+  if (Y.on && want !== owner.name && owner.sec < Y.ownerHoldSec && want !== 'passClear' && want !== 'inDown') want = owner.name;
   const takeOwner = (name) =>
     name === owner.name
       ? { ...owner, sec: owner.sec + STEP_SEC }
@@ -286,7 +305,9 @@ export function stepFwWingman(w, refSt) {
   const dzOf = (o) =>
     o.name === 'passClear'
       ? o.vert * (guard.on ? guard.missFt : W.guard.missFt[0])
-      : o.name === 'yoyo' && yoyo.phase === 'up'
+      : o.name === 'inDown'
+        ? -B.downFt
+        : o.name === 'yoyo' && yoyo.phase === 'up'
         ? yoyo.hFt
         : job.heightFt;
   const vertFor = (dz) => {
@@ -467,7 +488,7 @@ export function stepFwWingman(w, refSt) {
   const { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passFt, omNom, omPick } = flt;
   // who has pitch this step, for the trace (Fable Q7's working answer: log it)
   const pitchOwner =
-    owner.name === 'passClear' ? 'passClear' : owner.name === 'yoyo' && yoyo.phase === 'up' ? 'highYoYo' : owner.name === 'yoyo' && yoyo.phase === 'down' ? 'yoyoDown' : job.low ? 'lowInside' : job.quick ? 'quickFix' : 'stack';
+    owner.name === 'passClear' ? 'passClear' : owner.name === 'inDown' ? 'inDown' : owner.name === 'yoyo' && yoyo.phase === 'up' ? 'highYoYo' : owner.name === 'yoyo' && yoyo.phase === 'down' ? 'yoyoDown' : job.low ? 'lowInside' : job.quick ? 'quickFix' : 'stack';
   const capNormal = Math.min(seen.leadG + W.overLeadG, shakerG(st.kias));
   // The guard pulls past Lead + 1.5 G only while the pass it predicts is still inside 500 ft (flagged), up to what the
   // aircraft gives (Patrick 14 Oct 2026: references, not walls); otherwise it keeps the estimate as the rest of his flying.
@@ -515,7 +536,7 @@ export function stepFwWingman(w, refSt) {
   const gAsk = len3(lift);
   const jobName = filterOn ? 'guard-filter' : guard.on && !W.guard.filter ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
   return {
-    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing, yoyo, owner, lineShort, powerBack },
+    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing, yoyo, owner, lineShort, powerBack, behindOn },
     trace: {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
