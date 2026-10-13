@@ -5,7 +5,20 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (12 Oct 2026, night): the fix list under way
+## Latest (12 Oct 2026, about 21:30): all but two areas analysed
+
+- **Read `3d-work` `ct156/fix-list.md` first:** its "Resume here" block, the step table, the decisions log, every
+  row (candidates unless marked), and the measurements M1 to M25 for Patrick's next day at work.
+- **Analysed:** A by overlays (levelling approved, A1; the height check with the spinner axis level: 11 ft 0.8 in,
+  rows A2 wheels and A3 fin; the fin offset on the ramp photo was perspective). B and C, D, F, G by Sonnet agents in
+  parallel (Patrick: several at once is fine), each checked by the thread before filing.
+- **Fixed:** F8, the right aileron and flaps at the model's origin (a seeding bug), with a mirror check in
+  `check_master.py`. Merged: `3d-work` #7, #8 and the save; app #1019 (ALL-34 reworded).
+- **Next:** agents for E (rear cockpit) and H (pilots); put the rows to Patrick an area at a time, A with B and C
+  first, each with options and a recommendation, the canopy height (B2) among the first.
+- **Usage:** two agents hit the session limit (reset 20:50) and were resumed where they stopped.
+
+## Earlier (12 Oct 2026, night): the fix list under way
 
 - **The working plan for item 4 is `3d-work` `ct156/fix-list.md`:** steps and state, Patrick's decisions, the M list
   of measurements for work, every fix row. Read it first.
