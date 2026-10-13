@@ -285,7 +285,12 @@ function fwRaw(ref, own) {
   const slant = len3(r);
   const f = frameOf(ref);
   const rel = { fwd: dot3(r, f.nose), left: dot3(r, f.left), up: dot3(r, f.up) };
+  // His side of Lead's path, level (B5 T29: the cone's sides are left and right of Lead's path, whatever Lead's bank)
+  const levelLeft = unit3(cross3(Z, f.nose));
+  const levelLeftFt = dot3(r, levelLeft);
   return {
+    levelLeftFt,
+    levelSide: Math.sign(levelLeftFt) || -1,
     slant,
     los: scale3(r, -1 / Math.max(slant, 1e-6)), // from him to Lead
     aspectDeg: angleDeg(scale3(ref.v, -1), r),

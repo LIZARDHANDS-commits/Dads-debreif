@@ -24,7 +24,7 @@ import { ROLL } from '../rates.js';
 import { FW_SEE, FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
 import { seenOf, startFwSight, seeFw } from './perception.js';
-import { startFwGuard, fwGuard } from './supervisor.js';
+import { startFwGuard, fwGuard, startFwJob, fwJob } from './supervisor.js';
 
 const W = FW_WING;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
@@ -42,7 +42,20 @@ export function startFwWing(aircraft, refSt, { blockFt }) {
   const st = leadStateOf(aircraft, blockFt);
   const sight = startFwSight(seenOf(refSt), seenOf(st), { ownAcc: vec(aircraft.accFtps2), g: refSt.g ?? 1 });
   const aimDir = unit3(sub3(refSt.pm, st.pm));
-  return { st, sight, guard: startFwGuard(), aimDir, aimTurn: { x: 0, y: 0, z: 0 }, blockFt, t: 0 };
+  const first = seeFw(sight, seenOf(refSt), seenOf(st)).seen;
+  return {
+    st, sight, guard: startFwGuard(), job: startFwJob(first), aimDir, aimTurn: { x: 0, y: 0, z: 0 }, blockFt, t: 0,
+    offFt: 0, // the aim loop's offset from Lead's circle (ft, + inside), slewed
+    aimOff: null, // his aim against Lead's place (ft, world axes), blended across a change of job
+    powerI: 0, // the power loop's integral (ft/s of speed), held at its limits
+  };
+}
+
+/** Lead's wing line and path, level: { nose (his path, unit), left (level, unit) }; the cone's frame. */
+function coneFrame(v) {
+  const nose = unit3(v);
+  const left = unit3(cross3(Z, nose));
+  return { nose, left };
 }
 
 /**
@@ -66,10 +79,65 @@ export function stepFwWingman(w, refSt) {
   const out = turning ? scale3(unit3(omegaL), Math.sign(dot3(omegaL, Z)) || 1) : Z; // the turn plane's normal, upward
   const flat = (x) => perp3(x, out);
 
-  // ---- the aim: Lead as he sees him, carried across the 0.4 s (pure), or where Lead was (the guard's miss) ----
-  const missing = guard.on && guard.phase === 'miss';
+  const job = fwJob(w.job, seen);
   const leadNow = add3(seen.lead.p, scale3(seen.lead.v, FW_SEE.delaySec));
-  const at = missing ? seen.wasAt(W.guard.lagSec) : leadNow;
+  const cone = coneFrame(seen.lead.v);
+  const vL = len3(seen.lead.v);
+
+  // ---- the aim loop (T29; spec 7e.7, Fable F3): a wanted closure from the range error, soft inside the happy band ----
+  const happyMid = (W.happyFt[0] + W.happyFt[1]) / 2;
+  const e = seen.slant - happyMid; // + too far
+  const soft = seen.slant > W.happyFt[0] && seen.slant < W.happyFt[1] ? W.happyGain : 1;
+  const cWant = Math.max(-W.aimMaxFtps, Math.min(W.aimMaxFtps, (soft * e) / W.aimSec)); // + closing wanted
+
+  // ---- where he aims, by job; and the closure the aim can't give, for power ----
+  let aimKind;
+  let target;
+  let residual = 0; // ft/s of closure (or of catching up along Lead's path) the aim can't give: the power loop's P
+  let cTarget = 0; // the closure he wants and cActual the closure he has: the power loop's I closes the difference
+  let cActual = seen.closure;
+  let offFt = w.offFt;
+  const missing = guard.on && guard.phase === 'miss';
+  if (missing) {
+    aimKind = 'wasLead'; // the guard's miss: where Lead was (SMM Fig 12.20; EFIG p.391)
+    target = seen.wasAt(W.guard.lagSec);
+  } else if (guard.on) {
+    aimKind = 'lead'; // the guard's reversal onto Lead's circle: pure
+    target = leadNow;
+  } else if (job.turning) {
+    // In the turn: on or around Lead's circle, nearly astern (F11), aiming at the point offFt inside his circle from him
+    // (the route positions at about ±120 ft: wing down inside, a lead; wing up outside, a lag; Patrick 14 Oct 2026: "I
+    // personally fly at the 'route position' instead of directly at lead in turns"). The offset that gives the wanted
+    // closure at Lead's turn rate (flying d ft inside his circle closes at about omega x d); what it can't give goes to power.
+    const omega = Math.max(len3(omegaL), W.minTurnRadps);
+    // PD: the wanted closure (P on the range error), and the closure he has against it (D), so closing faster than he
+    // wants already eases the lead toward pure or lag
+    const want = Math.max(-W.offsetMaxFt, Math.min(W.offsetMaxFt, (cWant + W.aimClosureGain * (cWant - seen.closure)) / omega));
+    offFt = w.offFt + Math.max(-W.aimSlewFtps * STEP_SEC, Math.min(W.aimSlewFtps * STEP_SEC, want - w.offFt));
+    residual = cWant - len3(omegaL) * offFt;
+    cTarget = cWant;
+    const inward = seen.turn.centre ? unit3(seen.turn.aPerp) : scale3(cone.left, job.dir || 1);
+    target = add3(leadNow, scale3(inward, offFt));
+    aimKind = offFt > W.routeFt / 4 ? 'lead' : offFt < -W.routeFt / 4 ? 'lag' : 'pure';
+  } else {
+    // Swept (Lead wings level, straight, climbing or descending): 625 ft at 45°, on the side the jobs chose, his place carried
+    // sweptLookSec ahead along Lead's path so he flies to it in an arc, not a cut; fore and aft by power.
+    const s = job.side;
+    const back = W.sweptFt * Math.sin(W.sweptDeg * DEG);
+    const out2 = W.sweptFt * Math.cos(W.sweptDeg * DEG);
+    const place = add3(add3(leadNow, scale3(cone.nose, -back)), scale3(cone.left, s * out2));
+    target = add3(place, scale3(seen.lead.v, W.sweptLookSec));
+    const behindFt = dot3(sub3(place, st.pm), cone.nose); // + he is behind his place
+    residual = Math.max(-W.aimMaxFtps, Math.min(W.aimMaxFtps, behindFt / W.aimSec));
+    cTarget = residual;
+    cActual = dot3(sub3(st.vel, seen.lead.v), cone.nose); // how fast he is catching his place up along Lead's path
+    offFt = w.offFt + Math.max(-W.aimSlewFtps * STEP_SEC, Math.min(W.aimSlewFtps * STEP_SEC, -w.offFt));
+    aimKind = job.sTurn ? 'sTurn' : 'swept';
+  }
+  // A change of job blends his aim (against Lead's place) over about 1.5 s; the guard's at once (F17).
+  const offNow = sub3(target, leadNow);
+  const aimOff = guard.on || !w.aimOff ? offNow : ease3(w.aimOff, offNow, W.blendSec);
+  const at = add3(leadNow, aimOff);
   const dIn = flat(sub3(at, st.pm));
   const d = len3(dIn) > 1e-6 ? unit3(dIn) : u;
   const aimTurn = ease3(w.aimTurn, scale3(cross3(w.aimDir, sub3(d, w.aimDir)), 1 / STEP_SEC), W.aimTurnSec);
@@ -81,16 +149,17 @@ export function stepFwWingman(w, refSt) {
   const n = len3(toward) > 1e-9 ? unit3(toward) : { x: 0, y: 0, z: 0 };
   const aFf = scale3(cross3(aimTurn, u), V); // his speed x the aim line's turn
   const aP = scale3(n, G_FTPS2 * W.gPerDeg * angleDeg);
-  // ---- the vertical, square to the turn plane: one pitch owner, the guard's miss, else his stack 50 ft below (spec 7e.7's
-  // vertical loop, PD) ----
-  const dz = guard.on ? guard.vert * guard.missFt : W.stackFt;
+  // ---- the vertical, square to the turn plane: one pitch owner (F7), the guard's miss, else the jobs' height target (the
+  // quick fix's or his stack 50 ft below), PD (spec 7e.7) ----
+  const dz = guard.on ? guard.vert * guard.missFt : job.heightFt;
   const errFt = dot3(sub3(add3(leadNow, scale3(Z, dz)), st.pm), out); // + he has to go toward the normal (up)
   const errRate = -dot3(sub3(st.vel, seen.lead.v), out);
   const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
   const aV = scale3(out, vertG * G_FTPS2);
-  const aTurn = perp3(add3(add3(aFf, aP), aV), u);
-  // His lift (G, a vector): what holds his path against his weight, plus the turn; within his G.
-  const hold = perp3(Z, u); // 1 G's share square to his path
+  // His lift (G, a vector): what holds his path against his weight, the vertical, then the turn; within his G. One pitch
+  // owner (F7): the vertical is given its share first, the steering the rest, so a hard turn never takes the height away.
+  const hold = add3(perp3(Z, u), scale3(perp3(aV, u), 1 / G_FTPS2)); // 1 G's share square to his path, and the vertical
+  const aTurn = perp3(add3(aFf, aP), u);
   const capNormal = Math.min(seen.leadG + W.overLeadG, shakerG(st.kias));
   // The guard pulls past Lead + 1.5 G only while the pass it predicts is still inside 500 ft (flagged), up to what the
   // aircraft gives (Patrick 14 Oct 2026: references, not walls); otherwise it keeps the estimate as the rest of his flying.
@@ -108,17 +177,27 @@ export function stepFwWingman(w, refSt) {
   }
   if (len3(lift) < W.minG) lift = len3(lift) > 1e-9 ? scale3(unit3(lift), W.minG) : scale3(unit3(hold), W.minG);
 
-  // ---- power: off in the guard's miss, else Lead's speed (indicated, from what he sees of Lead's true speed) ----
-  const leadKias = tasToIasKt(len3(seen.lead.v) / KT_TO_FTPS, seen.lead.p.z);
-  const power = guard.on && guard.phase === 'miss' ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : { holdKias: leadKias };
+  // ---- power (slowest; spec 7e.7): off in the guard's miss, else Lead's speed plus the closure the aim can't give, PI,
+  // within 15 KIAS of Lead (power last, but as required) ----
+  const band = W.powerBandKias * KT_TO_FTPS;
+  const missPower = guard.on && guard.phase === 'miss';
+  const P = guard.on ? 0 : residual;
+  // I on the closure he wants against the closure he has, slow (15 s), so a steady shortfall (the outside of a turn, a
+  // climb) is trimmed out, and none builds while it is met
+  const iRaw = w.powerI + (guard.on ? 0 : ((cTarget - cActual) * STEP_SEC) / W.powerSec);
+  const powerI = Math.max(-band, Math.min(band, iRaw)); // held at its limits
+  const wantTas = vL + Math.max(-band, Math.min(band, P + powerI)); // ft/s
+  const wantKias = tasToIasKt(wantTas / KT_TO_FTPS, seen.lead.p.z);
+  const power = missPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : { holdKias: wantKias };
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...power });
   const gAsk = len3(lift);
+  const jobName = guard.on ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
   return {
-    w: { ...w, st: next, sight: mem, guard, aimDir: d, aimTurn, t: w.t + STEP_SEC },
+    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI },
     trace: {
-      t: w.t + STEP_SEC, job: guard.on ? `guard-${guard.phase}` : 'pure', aim: missing ? 'wasLead' : 'lead', predFt: Math.round(guard.predFt),
+      t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
-      gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
+      heightTargetFt: Math.round(dz), wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
     },
   };
 }

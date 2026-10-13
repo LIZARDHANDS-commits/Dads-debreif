@@ -398,6 +398,52 @@ export const FW_WING = Object.freeze({
   vertGPerFtps: 0.02,
   vertMaxG: 1,
   turnPlaneRadps: 0.0175,
+  // ---- T29: the jobs (spec 7e.7, supervisor.js fwJob) ----
+  // Lead's turn: starts once his seen bank passes 10° for 1 s, ends under 5° for 1 s; a reversal is his bank's sign
+  // changing past 10° (spec 7e.7, Fable F4; estimates).
+  turnStartDeg: 10,
+  turnEndDeg: 5,
+  turnHoldSec: 1,
+  // The range he is happy at, slant: 600-650 ft (Patrick 14 Oct 2026); the aim loop aims at its middle, with low P inside
+  // it (a soft zone, not a dead band: Fable F15).
+  happyFt: Object.freeze([600, 650]),
+  happyGain: 0.3, // the share of P inside the happy band (estimate)
+  // The entry case (SMM 12.29 Figs 12.20-12.22): stretched past 700 ft, tight under 560 ft (Patrick 14 Oct 2026: "lead if
+  // more than 700, lag if near 500 (? numbers are a guess)"; 560 an estimate between).
+  stretchedFt: 700,
+  tightFt: 560,
+  // ---- the aim loop (outer, about 0.1 rad/s; spec 7e.7, Fable F3): a wanted closure from the range error, turned into an
+  // offset from Lead's turn circle, inside for lead, outside for lag ----
+  aimSec: 10, // wanted closure = range error / 10 s (75 ft off asks 7.5 ft/s; spec 7e.7)
+  aimMaxFtps: 25, // at most ±25 ft/s (spec 7e.7)
+  aimSlewFtps: 20, // the offset slewed at 20 ft/s (spec 7e.7)
+  aimClosureGain: 1, // the aim loop's D: the offset asks for the wanted closure plus as much again of its shortfall (closing faster than wanted eases it; estimate)
+  routeFt: 120, // the route positions, wing down and wing up, about 120 ft inside and outside Lead's circle: the comfortable amount (spec 7e.7; route 121 ft out, slots.js, TS-181) ...
+  offsetMaxFt: 250, // ... up to about 250 ft (spec 7e.7)
+  minTurnRadps: 0.03, // the offset = wanted closure / Lead's turn rate, never dividing by less than about 1.7°/s (Fable F3); the rest goes to power
+  blendSec: 1.5, // a change of job blends his aim over about 1.5 s (spec 7e.7: 1-2 s; F17); the guard's at once
+  // ---- swept (Lead wings level, straight, climbing or descending): 625 ft at 45°, 50 ft below (Patrick 14 Oct 2026) ----
+  sweptFt: 625,
+  sweptDeg: 45,
+  sweptLookSec: 8, // he steers at his place carried 8 s ahead along Lead's path, so the sideways error closes in about 8 s, gently (estimate, near the aim loop's 0.1 rad/s)
+  // S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): under sTurnFt, or closing faster than
+  // sTurnClosureFtps inside the happy band's far edge, he aims at the cone's other side, swapping each time he gets there,
+  // until happy (estimates).
+  sTurnFt: 550,
+  sTurnClosureFtps: 15,
+  sTurnDoneFt: 600,
+  // ---- the vertical's owners (spec 7e.7, Fable F7: guard > quick fix > stack, never added) ----
+  quickFixFt: 150, // a range error over 150 ft or ...
+  quickFixFtps: 20, // ... closure over 20 ft/s moves the height target to ±150 ft (down to close, up to open: down gains speed, up loses it) ...
+  quickFixHeightFt: 150,
+  quickReleaseFt: 75, // ... held until the range error is under 75 ft and the closure under 10 ft/s (estimates, spec 7e.7)
+  quickReleaseFtps: 10,
+  quickSec: 2, // the height target moves to the quick fix's over about 2 s (estimate)
+  stackReturnSec: 15, // then the target comes back to the stack over about 15 s (spec 7e.7: 15-20 s)
+  heightBandFt: 200, // within 200 ft of Lead's height (TS-80; a reference he is held inside, not a wall: the guard may pass it)
+  // ---- power (slowest, under 0.07 rad/s; spec 7e.7): Lead's speed, plus the closure the aim can't give, PI, slow ----
+  powerSec: 15, // the integral's time constant (spec 7e.7: 15-20 s)
+  powerBandKias: 15, // within 15 KIAS of Lead (Patrick 4 Oct 19:12Z)
   // The separation guard (spec 7e.7; a geometric predictor with priority and hysteresis, F1, F16). 500 ft is slant range
   // (Patrick 14 Oct 2026; TS-208's 500 ft minimum).
   guard: Object.freeze({
