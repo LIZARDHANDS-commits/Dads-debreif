@@ -236,6 +236,29 @@ export function stepFwWingman(w, refSt) {
     offFt = w.offFt + Math.max(-W.aimSlewFtps * STEP_SEC, Math.min(W.aimSlewFtps * STEP_SEC, -w.offFt));
     aimKind = job.sTurn ? 'sTurn' : 'swept';
   }
+  // Lag first on a turn into him (the web research: US Navy CNATRA P-357 section 701, Lead's tail first, then inside; Patrick's
+  // "turn slightly toward Lead's tail", SMM 12.29 Fig 12.20): once Lead's bank passes 10° toward #2's side, his path is
+  // steered lagFirst.deg outward of Lead's circle's local tangent (Fable's steer-behind) for lagFirst.sec, then eased back to
+  // the arc loop's aim over easeSec. Lead's bank leads his turn rate by the roll time, so it beats part of the 0.4 s delay.
+  const LF = W.lagFirst;
+  const bNow = seen.leadBankDeg;
+  const intoNow = Math.abs(bNow) > W.turnStartDeg && Math.sign(bNow) === seen.levelSide;
+  const intoBefore = w.leadBankDeg != null && Math.abs(w.leadBankDeg) > W.turnStartDeg && Math.sign(w.leadBankDeg) === Math.sign(bNow);
+  let lagSec = Math.max(0, (w.lagSec ?? 0) - STEP_SEC);
+  if (LF.on && intoNow && !intoBefore) lagSec = LF.sec + LF.easeSec;
+  if (LF.on && lagSec > 0 && seen.turn.centre && Number.isFinite(seen.turn.radiusFt)) {
+    const axis = unit3(seen.turn.omega);
+    const rIn = perp3(sub3(st.pm, seen.turn.centre), axis);
+    if (len3(rIn) > 1) {
+      const radial = unit3(rIn); // outward, from Lead's centre to him
+      const tangent = unit3(cross3(axis, radial)); // Lead's way round
+      const e = LF.deg * DEG;
+      const lagT = add3(st.pm, scale3(add3(scale3(tangent, Math.cos(e)), scale3(radial, Math.sin(e))), V * W.circleLookSec));
+      const k = Math.min(1, lagSec / LF.easeSec); // 1 while lagging, easing to 0
+      target = add3(scale3(lagT, k), scale3(target, 1 - k));
+      aimKind = 'lagFirst';
+    }
+  }
   // F6's action when it binds (Patrick 14 Oct 2026, his rulings on Fable's questions: never ahead of Lead's 3/9 line; flown
   // hot-turning-rejoin style, "nose pointed behind Lead, banking steeply in and down"): while the wing line is out of reach
   // in Lead's turn he aims at a point behind Lead, where Lead was guard.lagSec ago (about 380 ft back), and goes down, until
@@ -260,7 +283,12 @@ export function stepFwWingman(w, refSt) {
   const at = add3(leadNow, aimOff);
   const dIn = flat(sub3(at, st.pm));
   const d = len3(dIn) > 1e-6 ? unit3(dIn) : u;
-  const aimTurn = ease3(w.aimTurn, scale3(cross3(w.aimDir, sub3(d, w.aimDir)), 1 / STEP_SEC), W.aimTurnSec);
+  const aimTurnRaw = ease3(w.aimTurn, scale3(cross3(w.aimDir, sub3(d, w.aimDir)), 1 / STEP_SEC), W.aimTurnSec);
+  // Round 4: the aim line's turn fed forward is held within 1.5 times Lead's turn rate plus 3°/s (estimates): when his aim
+  // changes (lag first, the nose-behind, a job's blend) the line jumps, and fed forward that jump read as a turn of up to
+  // 115°/s, which the filter then judged held for 3 s.
+  const ffMax = W.aimTurnCap ? W.aimTurnCap.k * len3(omegaL) + W.aimTurnCap.plusDps * DEG : Infinity;
+  const aimTurn = len3(aimTurnRaw) > ffMax ? scale3(unit3(aimTurnRaw), ffMax) : aimTurnRaw;
 
   // ---- steering, in the turn plane: the aim line's turn fed forward, plus P on the angle off it ----
   const uIn = len3(flat(u)) > 1e-6 ? unit3(flat(u)) : u;
@@ -417,7 +445,9 @@ export function stepFwWingman(w, refSt) {
           if (!pick) {
             // Range wins (Fable F6): the wing line is dropped and the pass line kept; the wing line's being out of reach is the
             // high yo-yo's trigger (F8). His aim's own turn clearing the pass line is then left alone.
-            lineShort = true;
+            // Round 4: out of reach means no turn at all keeps him behind the wing line (lineShortAll); a turn that keeps him
+            // behind it but inside the pass line is the pass line's trouble, not the wing line's.
+            lineShort = W.guard.lineShortAll ? !cands.some(lineOk) : true;
             pick = passOk(nom) ? { om: omegaNom, sideK: 0, free: true } : choose(passOk);
           }
           // none clears: the turn that passes widest
@@ -541,7 +571,7 @@ export function stepFwWingman(w, refSt) {
   const gAsk = len3(lift);
   const jobName = filterOn ? 'guard-filter' : guard.on && !W.guard.filter ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
   return {
-    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing, yoyo, owner, lineShort, powerBack, behindOn },
+    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing, yoyo, owner, lineShort, powerBack, behindOn, lagSec, leadBankDeg: bNow },
     trace: {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,

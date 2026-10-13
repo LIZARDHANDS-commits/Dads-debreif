@@ -409,6 +409,9 @@ export const FW_WING = Object.freeze({
   turnFrameDeg: 5, // below 5° of Lead's bank the frame's straight-line limits are used (Fable F10, estimate)
   deadReckon: true, // Lead carried across the 0.4 s delay round his turn before anything uses him (Fable F5)
   aimTurnSec: 0.5, // the aim line's turn read over about 0.5 s (as the line of sight)
+  // ... and fed forward within 1.5 times Lead's turn rate plus 3°/s (round 4, thread, estimates): a change of aim made the line
+  // jump, read as a turn of up to 115°/s; null: not held
+  aimTurnCap: null,
   overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate) ...
   minG: 0.5, // ... and never under 0.5 G, so his lift always has a direction (estimate)
   rollDps: 60, // roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required")
@@ -470,6 +473,10 @@ export const FW_WING = Object.freeze({
   lowFt: 300, // "a few hundred feet" (estimate)
   lowStartKt: 5, // short of energy: more than 5 KIAS slower than Lead (estimate) ...
   lowEndKt: 1, // ... until back within 1 KIAS of him (estimate)
+  // Lag first on a turn into him (round 4; the web research, US Navy CNATRA P-357 section 701; Patrick's "turn slightly
+  // toward Lead's tail"): once Lead's bank passes 10° toward his side, his path 20° outward of Lead's circle (Fable's
+  // steer-behind cap, Q1's working answer) for 2.5 s (the research's 2-3 s, a guess), then eased back over 1 s (estimate)
+  lagFirst: Object.freeze({ on: true, deg: 20, sec: 2.5, easeSec: 1 }),
   // F6's action when the wing line binds (Patrick 14 Oct 2026, rulings on Fable's questions: never ahead of Lead's 3/9 line,
   // "nose pointed BEHIND Lead, banking steeply in and down", hot turning rejoin style): he aims where Lead was guard.lagSec
   // ago and goes down 300 ft (the miss's deepest, estimate) until 200 ft behind the wing line again (estimate). When on,
@@ -522,6 +529,9 @@ export const FW_WING = Object.freeze({
     // line), and the wing line's being out of reach is the high yo-yo's trigger (F8).
     wingLine: true,
     wingLineFt: 100,
+    // the wing line "out of reach" only when no turn at all keeps him behind it; one that does but passes inside the pass line
+    // is the pass line's trouble (round 4, thread): counted as out of reach, the nose-behind ran on while he crossed behind Lead
+    lineShortAll: true,
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
     engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)
