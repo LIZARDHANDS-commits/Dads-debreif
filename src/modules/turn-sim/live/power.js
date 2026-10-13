@@ -166,6 +166,18 @@ export function powerFrom(stage, throttle, kias, altFt = POWER_BLOCK_FT) {
  * The tag's power line: { text, red } or null. MAX at full power; TQ nn% at part power (the torque above); IDLE,
  * IDLE+BOARDS, or TQ nn% + BOARDS (power set and the speed brake out), the last three in red letters.
  */
+/**
+ * The HUD's torque (Patrick 14 Oct 2026: a "TQ" gauge on the HUD "so i can see how th power is modulating as it flies"):
+ * { pct (0 at idle, capped at 100), text (powerWord's words without "TQ"), red }, or null with no power set.
+ */
+export function torqueReadout(power) {
+  const w = powerWord(power);
+  if (!w) return null;
+  const idle = power.stage === 'idle' || power.stage === 'idleBoards';
+  const pct = idle ? 0 : Math.min(100, Math.max(0, torquePct(power.throttle, power.kias, power.altFt ?? POWER_BLOCK_FT)));
+  return { pct, text: w.text.replace(/^TQ /, ''), red: w.red };
+}
+
 export function powerWord(power) {
   if (!power) return null;
   if (power.stage === 'idle') return { text: 'IDLE', red: true };

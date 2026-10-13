@@ -13,6 +13,7 @@ import { createControls } from '../../ui-kit/controls.js';
 import { STEP_SEC, liftBankDeg } from './live/flight.js';
 import { drawnAttitudeBetween, drawnAttitudeOf } from './live/attitude.js';
 import { MANOEUVRES, relativeTo } from './live/manoeuvres.js';
+import { torqueReadout } from './live/power.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, fixedLine } from './live/formation.js';
 import { compassDeg, intoOrAway, labelFor } from './live/formation-words.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
@@ -350,6 +351,7 @@ function mount(root, app) {
       kias: a.kias,
       headingDeg: compassDeg(a.headingRad),
       rangeFt: rangeToLead(a),
+      torque: a.power ? torqueReadout(a.power) : null, // the HUD's TQ row (Patrick 14 Oct 2026)
     };
   }
   /** A wingman's straight-line range to Lead in feet, for the HUD's RANGE (Patrick 12 Oct 2026 01:37Z); null for Lead. */

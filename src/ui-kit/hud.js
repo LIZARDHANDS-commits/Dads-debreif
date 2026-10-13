@@ -90,7 +90,8 @@ export function drawAttitude(ctx, cx, cy, r, pitchDeg, bankDeg) {
 
 /**
  * Draws the HUD at the bottom left of a canvas `size` { width, height } in CSS pixels.
- * hud: { label, pitchDeg (nose up positive), bankDeg (right wing down positive), altFt, g, kias, headingDeg, rangeFt (optional) }.
+ * hud: { label, pitchDeg (nose up positive), bankDeg (right wing down positive), altFt, g, kias, headingDeg, rangeFt (optional),
+ * torque (optional: { pct, text, red }, or null for an aircraft with no power set) }.
  * Any number left out shows as a dash.
  */
 export function drawHud(ctx, size, hud) {
@@ -98,7 +99,10 @@ export function drawHud(ctx, size, hud) {
   // A RANGE row (feet to Lead) only when the simulator passes rangeFt (the Formation Sim: Patrick 12 Oct 2026 01:37Z); the
   // panel grows one row for it, and the other simulators' HUD is unchanged.
   const ranged = 'rangeFt' in hud;
-  const height = HUD.height + (ranged ? 22 : 0);
+  // A TQ row (torque, with a bar from 0 to 100% under it) only when the simulator passes torque (the Formation Sim: Patrick
+  // 14 Oct 2026, "so i can see how th power is modulating as it flies"); the panel grows one row for it.
+  const torqued = 'torque' in hud;
+  const height = HUD.height + (ranged ? 22 : 0) + (torqued ? 26 : 0);
   const x0 = HUD.margin;
   const y0 = size.height - HUD.margin - height;
   ctx.save();
@@ -135,9 +139,31 @@ export function drawHud(ctx, size, hud) {
   row('G', `${num(hud.g, 1)}`, y0 + 60);
   row('KIAS', `${num(hud.kias)}`, y0 + 82);
   if (ranged) row('RANGE', `${num(hud.rangeFt)}`, y0 + 104);
+  if (torqued) {
+    const ty = y0 + (ranged ? 126 : 104);
+    const tq = hud.torque;
+    row('TQ', tq ? (/^\d/.test(tq.text) ? `${tq.text}` : tq.text) : '—', ty);
+    if (tq?.red) {
+      ctx.fillStyle = '#ff6b5b';
+      ctx.font = 'bold 15px ui-monospace, Consolas, monospace';
+      ctx.fillText(tq.text, tx + 34, ty);
+    }
+    // The bar: 0 to 100% across the numbers' width, ticks at 20% steps.
+    const bx = tx;
+    const bw = x0 + HUD.width - 12 - bx;
+    const by = ty + 6;
+    ctx.fillStyle = 'rgba(200, 220, 235, 0.18)';
+    ctx.fillRect(bx, by, bw, 5);
+    if (tq) {
+      ctx.fillStyle = tq.red ? '#ff6b5b' : '#7fd1ff';
+      ctx.fillRect(bx, by, (bw * tq.pct) / 100, 5);
+    }
+    ctx.fillStyle = 'rgba(8, 14, 22, 0.9)';
+    for (let k = 1; k < 5; k++) ctx.fillRect(bx + (bw * k) / 5, by, 1, 5);
+  }
   ctx.fillStyle = 'rgba(200, 220, 235, 0.85)';
   ctx.font = '10px system-ui, sans-serif';
   const hdg = Number.isFinite(hud.headingDeg) ? String(Math.round(((hud.headingDeg % 360) + 360) % 360) || 360).padStart(3, '0') : '—';
-  ctx.fillText(`HDG ${hdg}°  P ${num(pitch)}°  B ${num(Number.isFinite(hud.bankDeg) ? Math.abs(hud.bankDeg) : NaN)}°`, tx, y0 + (ranged ? 124 : 102));
+  ctx.fillText(`HDG ${hdg}°  P ${num(pitch)}°  B ${num(Number.isFinite(hud.bankDeg) ? Math.abs(hud.bankDeg) : NaN)}°`, tx, y0 + 102 + (ranged ? 22 : 0) + (torqued ? 26 : 0));
   ctx.restore();
 }
