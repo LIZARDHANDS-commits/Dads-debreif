@@ -352,7 +352,7 @@ const WINGTIP = Object.freeze({ y: WINGTIP_Y, z: WINGTIP_Z }); // the wing's tip
 // legs down only); no tail light and no beacon light.
 const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge (red and green)
 const WHITE_NAV_X = WING_TIP.le - WING_TIP.chord + 0.01; // the steady white nav light at the tip's trailing edge
-const STROBE_X = NAV_LIGHT_X - 0.035; // the strobe, about 0.55 ft aft of the nav light, still near the leading edge (an estimate: the CFAFM gives no distance)
+const STROBE_X = NAV_LIGHT_X - 0.55 * CT156_UNIT_LENGTH / CT156_LENGTH_FT; // the strobe, 0.55 ft aft of the nav light, still near the leading edge (an estimate: the CFAFM gives no distance)
 // Not drawn since F23 (the CT-156 has no tail light), but kept as a point: CT156_REFERENCE_POINTS.tailLight is a formation
 // reference for ct156-cockpit.js sightAnglesOf and is in the delivered points file.
 const TAIL_LIGHT = Object.freeze([-0.746, 0, -0.058]); // the tail cone's end, under the rudder
