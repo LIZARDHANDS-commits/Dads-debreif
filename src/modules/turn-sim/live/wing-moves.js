@@ -484,6 +484,11 @@ export const FW_WING = Object.freeze({
     passLineSec: 1.4, // ... the 0.4 s he sees late and the 1 s smoothing of closure (Fable F4)
     sharedLift: true, // the filter searches the turn with the vertical demand as a known term and counts its height in the slant (Fable F3, second review)
     shakerBound: true, // the filter's candidate turns stop at the stick-shaker's G at his speed (Fable F2, second review; a physical limit)
+    // The filter's second constraint (Fable F6, second review): over the look he stays at least 100 ft behind Lead's wing line,
+    // along Lead's path (Fable Q6's working answer, estimate), beside the pass line; when both can't hold, range wins (the pass
+    // line), and the wing line's being out of reach is the high yo-yo's trigger (F8).
+    wingLine: true,
+    wingLineFt: 100,
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
     engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)

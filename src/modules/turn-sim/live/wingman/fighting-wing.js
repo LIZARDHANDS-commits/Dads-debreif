@@ -268,6 +268,7 @@ export function stepFwWingman(w, refSt) {
   // (Fig 12.20 step 2): no aim point, no miss and reverse phases to cycle between. ----
   let filterPull = false;
   let filterOn = false;
+  let lineShort = false; // the wing line out of reach this step (Fable F6): the high yo-yo's trigger (F8)
   let filterHold = Math.max(0, (w.filterHold ?? 0) - STEP_SEC);
   let filterSide = w.filterSide ?? 0;
   if (W.guard.filter) {
@@ -277,18 +278,78 @@ export function stepFwWingman(w, refSt) {
     const lp0 = W.deadReckon ? leadNow : seen.lead.p;
     const leadAsIs = { p: lp0, v: leadV, omega: seen.turn.omega };
     const leadTighter = { p: lp0, v: leadV, omega: scale3(seen.turn.omega, W.guard.tighter) };
-    const passFor = (om) => {
+    // For a candidate turn: the least pass (slant) and the least distance behind Lead's wing line over the look, the worse of
+    // Lead as he is and one step tighter.
+    const predFor = (om) => {
       const me = { p: ownP, v: ownV, omega: scale3(out, om) };
       // One lift (Fable F3): the vertical he is asking for is a known term in the pass, its height counted in the slant.
       const extra = W.guard.sharedLift ? { acc: aV, maxFt: Math.abs(errFt) } : null;
-      return Math.min(leastPass(leadAsIs, me, horizon, extra).leastFt, leastPass(leadTighter, me, horizon, extra).leastFt);
+      const a = leastPass(leadAsIs, me, horizon, extra);
+      const b = leastPass(leadTighter, me, horizon, extra);
+      return { pass: Math.min(a.leastFt, b.leastFt), behind: Math.min(a.behindLeastFt, b.behindLeastFt) };
     };
+    const passFor = (om) => predFor(om).pass;
     // The pass line (Fable F4, second review; Q2's working answer, read with Patrick's bubble ruling): 500 ft plus the range
     // the closure he sees covers in the 1.4 s his picture is old (0.4 s late, 1 s smoothing), never under 600 ft.
     const passLine = W.guard.passLine
       ? Math.max(W.guard.engageFt, W.guard.minFt + W.guard.passLineSec * Math.max(0, seen.closure))
       : W.guard.engageFt;
-    if (passFor(omegaNom) < passLine) {
+    // The wing line (Fable F6): at least wingLineFt behind it over the look; off, no second constraint.
+    const lineOk = (p) => !W.guard.wingLine || p.behind >= W.guard.wingLineFt;
+    const nom = predFor(omegaNom);
+    if (W.guard.wingLine) {
+      if (nom.pass < passLine || !lineOk(nom)) {
+        filterOn = true;
+        const gMost = W.guard.shakerBound
+          ? Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)))
+          : Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
+        const gHold = W.guard.sharedLift ? len3(hold) : 1;
+        const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
+        const N = W.guard.filterSteps;
+        const cands = [];
+        for (let k = -N; k <= N; k++) {
+          const om = (omMax * k) / N;
+          cands.push({ om, ...predFor(om) });
+        }
+        // The turn nearest his aim's that meets ok, on the side he chose last step unless only the other side does, refined
+        // between it and its neighbour toward his aim's turn; null when none does.
+        const choose = (ok) => {
+          let best = null;
+          for (const c of cands) {
+            if (!ok(c)) continue;
+            const sideK = Math.sign(c.om - omegaNom) || 1;
+            const cost = Math.abs(c.om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
+            if (!best || cost < best.cost) best = { ...c, cost, sideK };
+          }
+          if (!best) return null;
+          let lo = best.om;
+          let hi = best.om - best.sideK * (omMax / N);
+          for (let r = 0; r < W.guard.filterRefine; r++) {
+            const mid = (lo + hi) / 2;
+            if (ok(predFor(mid))) lo = mid;
+            else hi = mid;
+          }
+          return { om: lo, sideK: best.sideK };
+        };
+        const passOk = (c) => c.pass >= passLine;
+        let pick = choose((c) => passOk(c) && lineOk(c));
+        if (!pick) {
+          // Range wins (Fable F6): the wing line is dropped and the pass line kept; the wing line's being out of reach is the
+          // high yo-yo's trigger (F8). His aim's own turn clearing the pass line is then left alone.
+          lineShort = true;
+          pick = passOk(nom) ? { om: omegaNom, sideK: 0, free: true } : choose(passOk);
+        }
+        // none clears: the turn that passes widest
+        const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
+        if (pick?.free) filterOn = false;
+        else filterSide = pick ? pick.sideK : filterSide;
+        if (filterOn) {
+          aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
+          filterHold = W.guard.filterHoldSec;
+          filterPull = Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG;
+        } else filterSide = 0;
+      } else filterSide = 0;
+    } else if (nom.pass < passLine) {
       filterOn = true;
       // The candidates stop at the stick-shaker's G at his speed now, a physical limit (Fable F2, second review; Q5's working
       // answer: stop at the shaker and use height and power). Before, Lead + 1.5 G could pass it when he was slow.
@@ -380,7 +441,7 @@ export function stepFwWingman(w, refSt) {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
       heightTargetFt: Math.round(dz), wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
-      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null,
+      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null, lineShort,
     },
   };
 }
