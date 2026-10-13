@@ -140,6 +140,13 @@ Screen changes only: nothing in `src/core`, and no default, range or flying beha
 - [x] The wind dial moves in 5° steps, magnetic, dragged or with the arrow keys; Shift with an arrow key gives 1° (Patrick, 4 Oct). DADS v2.10.36.
 - [x] The dial turns with the 3D camera so it is oriented as the screen is, and stays round however the camera tilts (Patrick, 4 Oct: it "doesn't need to change aspect ratio as the camera pans up and down"; v2.10.35 had squashed it with the tilt). DADS v2.10.45. Needs the magnetic variation at Moose Jaw from a source or Patrick's ruling (today the code assumes about 8° East with no page: TR-7 reads 29 as 298° true). The wind setting stays in true underneath, so the flying does not change.
 
+## Step 5c. A CT-102B Astra II pattern beside the CT-156's (Dad's ask; Patrick said go ahead, relayed by Dad, 13 Oct 2026)
+
+Dad's ask and answers are in `future.md` ("A CT-102B Astra II pattern"). Patrick's answers (relayed by Dad, 13 Oct 2026): **same runway, same side, 30° bank angles**. With the CT-156 pattern at 3,500 ft MSL (`PATTERN_ALT_FT`, `airfield.js`), the Astra II's at 3,000 ft MSL sits inside it and 500 ft below. Working values until Patrick rules otherwise or an Astra manual page backs them: 180 KIAS in the pattern, 90 KIAS at the perch and on landing, size fitted to those speeds and the 30° bank.
+
+- [ ] 1. A one-off Fable architecture review (the rule book's allowance; Patrick told through Dad's ask): how a second aircraft type and a second pattern fit Traffic's flying layer, spawns and conflict logic without changing the CT-156's flying; a phased plan for Opus, with the questions for Patrick. Written down before any code.
+- [ ] 2. Onward steps come from the review, once Patrick approves its plan. They depend on the Astra II model's delivery (shared plan Step 3c item 6) and its own performance numbers.
+
 ## Step 6. Check the camera, graphics and scenery work against the code
 
 The three old task folders show about 120 unticked boxes; most are old acceptance lines for work that is built, so the boxes are not live tasks. What is built: the six camera views (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:71`, `src/modules/traffic/camera-views.js:61`), the tower, hangars and airfield ground (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:73`, `src/modules/traffic/scenery3d.js:798`, `src/modules/traffic/airfield-core-ground.js:563`), and the sun, windsock, landmarks and trees (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:75`, `src/modules/traffic/view3d.js:856`, `src/modules/traffic/landmarks3d.js:154`). What is still open:
