@@ -21,9 +21,9 @@ export const VERTICAL_MISS_FT = 300;
 export const CHECK_DEG = 20;
 /** The cross turn's first stage may be flown between these banks to roll out at the spacing ("60/2, or as required", Fig 16.21). */
 export const CROSS_FIRST_BANK_DEG = Object.freeze([20, 75]);
-/** #2's wait before he follows Lead's break (TS-175: Patrick's 5 s; a setting under More). */
-export const BREAK = { delaySec: 5, bankDeg: 60 }; // 60° level is 2 G (1 / cos 60°)
-export const BREAK_DELAY_CHOICES = Object.freeze([3, 4, 5, 6, 8]); // the setting's choices around Patrick's 5 s (estimates)
+/** #2's wait before he follows Lead's break: 3 s (TS-217, Patrick 12 Oct 2026, the SMM's overhead break figure; was TS-175's 5 s); a setting under More. */
+export const BREAK = { delaySec: 3, bankDeg: 60 }; // 60° level is 2 G (1 / cos 60°)
+export const BREAK_DELAY_CHOICES = Object.freeze([3, 4, 5, 6, 8]); // the setting's choices (estimates); 3 s the default (TS-217)
 
 // ---- Lead in fluid manoeuvring (from fluid-lead.js) ------------------------------------------------------------------
 
