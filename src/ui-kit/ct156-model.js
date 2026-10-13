@@ -1,4 +1,4 @@
-// The T-6 as a CT-156 Harvard II (Moose Jaw, RCAF), drawn in code: a lofted fuselage, aerofoil wings and tail, glossy
+// The T-6 as a CT-156 Harvard II (Moose Jaw, RCAF), drawn in code: a lofted fuselage, aerofoil wings and tail, satin
 // paint and small CanvasTexture decals. Fine detail shows up close. From V2.329 the solid parts are swapped for the
 // Blender file built from these same shapes once it loads (ALL-33, "the outside from Blender" below); the code's shapes
 // stay the one source and show whenever the file doesn't. It imports only ui-kit's ct156-blender.js and ct156-pilot.js, and three.js is passed in
@@ -2439,8 +2439,9 @@ function buildKit(THREE) {
 
   const two = THREE.DoubleSide; // both faces lit the right way round, whichever way a part's triangles were wound
   const mat = (params) => keep(new THREE.MeshStandardMaterial({ fog: false, ...params }));
-  // Glossy paint: a clear coat over the colour, as on the real aircraft (Patrick's photos).
-  const gloss = (params) => keep(new THREE.MeshPhysicalMaterial({ fog: false, side: two, clearcoat: 1, clearcoatRoughness: 0.12, envMap: env, ...params }));
+  // Satin paint: a light, soft clear coat over the colour (G19, Patrick 13 Oct 2026, A18 and A16: satin, not the strong
+  // gloss of clear coat 1 and roughness 0.12 it had), read under the app's sky look (ct156-look.js, ALL-41).
+  const gloss = (params) => keep(new THREE.MeshPhysicalMaterial({ fog: false, side: two, clearcoat: 0.4, clearcoatRoughness: 0.3, envMap: env, ...params }));
   const decalMat = (map) => keep(new THREE.MeshStandardMaterial({
     map, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: 0.6, fog: false,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
