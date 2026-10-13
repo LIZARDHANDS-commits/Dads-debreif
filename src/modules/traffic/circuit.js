@@ -23,7 +23,7 @@
 import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector, wrapDeg360 } from '../../core/angles.js';
 import { turnRateFromBankRadPerSec, turnRadiusFromBankFt, gFromBankDeg, easeRoll } from '../../core/flight-math.js';
-import { excessThrustPerWeight, dragPerWeight, attitudeDegFromClimb } from '../../core/t6-performance.js';
+import { excessThrustPerWeight, attitudeDegFromClimb, T6A_PERFORMANCE } from '../../core/t6-performance.js';
 import { gateRoll } from './envelope.js';
 import { iasToTasKt, tasToIasKt, heightFactor, temperatureKey } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
@@ -86,7 +86,7 @@ export const HOLD_RADIUS_FT = 3000;
 export const PILOT_DT = 0.1;
 const DT = PILOT_DT;
 const RECORD_EVERY = 4; // a path point every 0.4 s (about 90 ft at 220 kt)
-const MAX_STEPS = 20000;
+export const MAX_STEPS = 20000; // the pilot's safety stop: 2,000 s of flying, far past any pattern
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 /** Sink rate at touchdown after the flare, ft/s (an estimate: about 120 ft/min, a firm but normal touchdown). */
@@ -104,7 +104,7 @@ function aimPointOf(th, dep, pastFt = NUMBER_BASE_PAST_THRESHOLD_FT) {
 }
 
 /** Where the wheels touch: TOUCHDOWN_PAST_NUMBERS_FT past the aim point, after the flare (TR-96). The climb-out starts here. */
-const touchdownPointOf = (th, dep) => aimPointOf(th, dep, NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT);
+export const touchdownPointOf = (th, dep) => aimPointOf(th, dep, NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT);
 
 /**
  * 0 to 1 with a rate that builds up over the first share `a`, holds, and changes
@@ -307,7 +307,9 @@ function timeToTurnOnto(line, s, wind, bankMax, trackDeg, radiusFt, groundSpeedF
  * ground velocity, and records the path. `step` takes the wanted bank and the
  * climb rate and acceleration (true airspeed, ft/s per s) for this moment.
  * Fields in `s.rec` go into every recorded point (the PFL's decision and
- * configuration, pfl.js).
+ * configuration, pfl.js). `start.perf` is the aircraft's performance set (core
+ * aircraft-performance.js), the T-6A's when left out: the envelope gate holds
+ * the roll inside that aircraft's stall line (plan Step 5c Phase 2b).
  */
 export function makePilot(start, wind) {
   const w = windVectorFtps(wind.windFromDeg, wind.windKt);
@@ -334,7 +336,7 @@ export function makePilot(start, wind) {
   };
   function step(targetBank, climbFtps, accelFtps2, roll = s.rollLimits ?? ROLL) {
     const tasFtps = ktToFtps(tasKt());
-    const rolled = gateRoll(s.bank, s.rollRate, targetBank, DT, roll, tasFtps, s.ias);
+    const rolled = gateRoll(s.bank, s.rollRate, targetBank, DT, roll, tasFtps, s.ias, s.perf);
     s.bank = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
     s.rollRate = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
     const v = tasFtps;
@@ -361,15 +363,15 @@ function leadRadiusFt(tasKt, bankDeg) {
   return turnRadiusFromBankFt(ktToFtps(tasKt), bankDeg);
 }
 
-/** Full-power level acceleration and climb, as true airspeed rate (ft/s²) for a climb rate, at this G. */
-export function accelFor(ias, alt, g, climbFtps) {
+/** Full-power level acceleration and climb, as true airspeed rate (ft/s²) for a climb rate, at this G. `perf`: the aircraft's set, the T-6A's unless given. */
+export function accelFor(ias, alt, g, climbFtps, perf = T6A_PERFORMANCE) {
   const tas = ktToFtps(iasToTasKt(ias, alt));
-  return G_FTPS2 * (excessThrustPerWeight(ias, alt, g) - climbFtps / tas);
+  return G_FTPS2 * (perf.excessThrustPerWeight(ias, alt, g) - climbFtps / tas);
 }
 
 /** Idle deceleration (drag only, ft/s²): includes induced drag at G, but no prop drag at idle , so it underestimates the drag (an estimate). */
-export function idleDecel(ias, alt, g) {
-  return -G_FTPS2 * dragPerWeight(ias, alt, g);
+export function idleDecel(ias, alt, g, perf = T6A_PERFORMANCE) {
+  return -G_FTPS2 * perf.dragPerWeight(ias, alt, g);
 }
 
 /**
@@ -378,27 +380,29 @@ export function idleDecel(ias, alt, g) {
  * power comes back, down to idle, to slow toward it; below `kias` it climbs at half the full-power rate
  * while it speeds up. The climb comes from excess thrust at the turn's real G (spec item 16). Used by
  * the climb to High Key and the closed pattern. Returns { climb, accel, climbMax } (ft/s, ft/s², ft/s).
+ * The pilot's own performance set (makePilot's start.perf, the T-6A's when it has none) gives the thrust and drag.
  */
 export function powerClimb(pilot, kias, toAltFt) {
   const { s } = pilot;
+  const perf = s.perf ?? T6A_PERFORMANCE;
   const g = gFromBankDeg(s.bank);
   const v = ktToFtps(pilot.tasKt());
   const levelCap = Math.max(0, (toAltFt - s.alt) / LEVEL_OFF_SEC);
-  const climbMax = Math.max(0, excessThrustPerWeight(s.ias, s.alt, g)) * v;
+  const climbMax = Math.max(0, perf.excessThrustPerWeight(s.ias, s.alt, g)) * v;
   let climb, accel;
   if (s.ias > kias + 0.5) {
     const decel = -(s.ias - kias) * KT_TO_FTPS / ZOOM_SEC;
-    climb = Math.min(v * (excessThrustPerWeight(s.ias, s.alt, g) - decel / G_FTPS2), levelCap);
+    climb = Math.min(v * (perf.excessThrustPerWeight(s.ias, s.alt, g) - decel / G_FTPS2), levelCap);
     const toTarget = (ktToFtps(iasToTasKt(kias, s.alt)) - v) / DT;
-    accel = Math.min(accelFor(s.ias, s.alt, g, climb), Math.max(idleDecel(s.ias, s.alt, g), toTarget));
+    accel = Math.min(accelFor(s.ias, s.alt, g, climb, perf), Math.max(idleDecel(s.ias, s.alt, g, perf), toTarget));
   } else if (s.ias < kias - 0.5) {
     climb = Math.min(levelCap, climbMax * 0.5);
-    accel = accelFor(s.ias, s.alt, g, climb);
+    accel = accelFor(s.ias, s.alt, g, climb, perf);
   } else {
     climb = Math.min(levelCap, climbMax);
     // Holding the speed takes power; in a turn too hard for full power to hold it (no excess thrust at this G, as a
     // breakout at up to 80° bank), it bleeds (standard aerodynamics: drag at G above full-power thrust).
-    accel = Math.min(0, accelFor(s.ias, s.alt, g, climb));
+    accel = Math.min(0, accelFor(s.ias, s.alt, g, climb, perf));
   }
   return { climb, accel, climbMax };
 }
@@ -408,34 +412,61 @@ export function powerClimb(pilot, kias, toAltFt) {
  * 220 × e^(−0.452 u), about 140 at the end (Traffic spec 3.7, "Break deceleration
  * (preserved)"). Patrick: the rollout downwind is about 140 (08:43Z, 4 Oct).
  * Idle drag alone rolls out near 160 KIAS because the drag model has no prop
- * drag at idle, so it does not replace this curve yet.
+ * drag at idle, so it does not replace this curve yet. `fromKias` is the speed
+ * the break starts at: the CT-156's 220 unless given; the CT-102B Astra II's
+ * 180 slows on the same curve to about 115 (spec 4.19 item 2).
+ * @param {number} turnedDeg @param {number} [fromKias]
  */
-function breakKias(turnedDeg) {
-  return CIRCUIT.patternKias * Math.exp(-0.452 * clamp(turnedDeg / 180, 0, 1));
+export function breakKias(turnedDeg, fromKias = CIRCUIT.patternKias) {
+  return fromKias * Math.exp(-0.452 * clamp(turnedDeg / 180, 0, 1));
 }
 
-/** Seconds the break's 180° turn takes in calm air, flown the same way as in the circuit. */
-let breakSecCache = null; // { temp, sec }: true airspeeds, so redone when the temperature changes
-function breakTurnSec() {
-  if (breakSecCache?.temp === temperatureKey()) return breakSecCache.sec;
+/**
+ * The numbers the break, the downwind, the final turn and the final are flown with (flyInner): the CT-156's, each
+ * CIRCUIT's or airfield.js's with its source there. The CT-102B Astra II passes its own (astra-circuit.js). `src`
+ * numbers the route points the pieces start at (Pattern 1's 9 to 12); `downwindLine` false: the break rolls out
+ * aiming at the perch and the downwind flies at it (the CT-156's way).
+ * @typedef {{ patternAltFt: number, patternKias: number, breakBankDeg: number, finalTurnKias: number, finalTurnBankDeg: number,
+ *   thresholdKias: number, perf?: any, downwindLine: boolean, src: { break: number, downwind: number, perch: number, window: number } }} PatternNumbers
+ * @type {Readonly<PatternNumbers>}
+ */
+export const CT156_INNER = Object.freeze({
+  patternAltFt: PATTERN_ALT_FT,
+  patternKias: CIRCUIT.patternKias,
+  breakBankDeg: CIRCUIT.patternBankDeg,
+  finalTurnKias: CIRCUIT.finalTurnKias,
+  finalTurnBankDeg: CIRCUIT.finalTurnBankDeg,
+  thresholdKias: CIRCUIT.thresholdKias,
+  perf: undefined,
+  downwindLine: false,
+  src: Object.freeze({ break: 9, downwind: 10, perch: 11, window: 12 }),
+});
+
+/** Seconds the break's 180° turn takes in calm air, flown the same way as in the circuit, with numbers `k` (CT156_INNER's shape). */
+const turnSecCache = new Map(); // true airspeeds, so redone when the temperature changes
+function breakTurnSec(k = CT156_INNER) {
+  const key = `break|${temperatureKey()}|${k.patternKias}|${k.breakBankDeg}|${k.patternAltFt}`;
+  if (turnSecCache.has(key)) return turnSecCache.get(key);
   let hdg = 0, turned = 0, t = 0;
   while (turned < 180 && t < 120) {
-    const ias = breakKias(turned);
-    const v = ktToFtps(iasToTasKt(ias, PATTERN_ALT_FT));
-    const d = turnRateFromBankRadPerSec(v, CIRCUIT.patternBankDeg) * 180 / Math.PI * DT;
+    const ias = breakKias(turned, k.patternKias);
+    const v = ktToFtps(iasToTasKt(ias, k.patternAltFt));
+    const d = turnRateFromBankRadPerSec(v, k.breakBankDeg) * 180 / Math.PI * DT;
     turned += d; hdg += d; t += DT;
   }
-  breakSecCache = { temp: temperatureKey(), sec: t };
+  if (turnSecCache.size > 50) turnSecCache.clear();
+  turnSecCache.set(key, t);
   return t;
 }
 
-/** Seconds the final turn's 180° takes in calm air at its speed and bank (120 KIAS, 35°), at pattern height. */
-let finalSecCache = null; // { temp, sec }
-function finalTurnSec() {
-  if (finalSecCache?.temp === temperatureKey()) return finalSecCache.sec;
-  const v = ktToFtps(iasToTasKt(CIRCUIT.finalTurnKias, PATTERN_ALT_FT));
-  const sec = Math.PI / turnRateFromBankRadPerSec(v, CIRCUIT.finalTurnBankDeg);
-  finalSecCache = { temp: temperatureKey(), sec };
+/** Seconds the final turn's 180° takes in calm air at its speed and bank (the CT-156's 120 KIAS, 35°), at pattern height. */
+function finalTurnSec(k = CT156_INNER) {
+  const key = `final|${temperatureKey()}|${k.finalTurnKias}|${k.finalTurnBankDeg}|${k.patternAltFt}`;
+  if (turnSecCache.has(key)) return turnSecCache.get(key);
+  const v = ktToFtps(iasToTasKt(k.finalTurnKias, k.patternAltFt));
+  const sec = Math.PI / turnRateFromBankRadPerSec(v, k.finalTurnBankDeg);
+  if (turnSecCache.size > 50) turnSecCache.clear();
+  turnSecCache.set(key, sec);
   return sec;
 }
 
@@ -451,10 +482,12 @@ function finalTurnSec() {
  *    by (headwind − 10 kt) × the time the break and the final turn take together, so
  *    the downwind keeps the length it has at 10 kt instead of being squeezed out as
  *    the final turn drifts back in the headwind.
+ * `k` is the aircraft's numbers (CT156_INNER's shape): the times are its own break and final turn. The CT-102B Astra II
+ * uses this rule with its own times, the working choice until Patrick confirms it (spec 4.19 item 2).
  */
-function breakPointAlongFt(headwindKt, runwayFt = Infinity) {
+export function breakPointAlongFt(headwindKt, runwayFt = Infinity, k = CT156_INNER) {
   const extraKt = headwindKt - CIRCUIT.breakReferenceHeadwindKt;
-  const perKt = KT_TO_FTPS * (extraKt > 0 ? breakTurnSec() + finalTurnSec() : breakTurnSec());
+  const perKt = KT_TO_FTPS * (extraKt > 0 ? breakTurnSec(k) + finalTurnSec(k) : breakTurnSec(k));
   return Math.min(runwayFt, CIRCUIT.breakPastThresholdFt + extraKt * perKt);
 }
 
@@ -476,14 +509,29 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
   // The outer part first: the break starts from exactly where, and how, it reached the break point,
   // so the path has no step or backtrack there (Patrick, 10:05Z: smooth transitions).
   const outer = flyOuter(points, centre, breakAlong, wind);
-  // Each try moves the perch by part of the miss, never more than PERCH_MOST_STEP_FT: in a strong wind a whole
-  // miss overshoots (the break rolls out aiming at the perch, so moving the perch moves the rollout back the
-  // other way), and the tries swung a few hundred feet either side and jumped between winds a knot apart
-  // (Patrick, 5 Oct 08:17Z). The best try is kept.
-  let perch = { x: points[11].x, y: points[11].y };
+  const { perch, inner } = findPerch(points[11], win, (tryPerch, last) => flyInner(points, centre, breakAlong, tryPerch, wind, last?.finalTurnFt, outer.end));
+  // The inner part starts at the outer part's last point. The route reads a point from the leg that
+  // ends at it, so that last point takes the break's phase: an aircraft started "at the break" is in the break.
+  const outerTrack = outer.track.slice();
+  const last = outerTrack.length - 1;
+  if (last >= 0) outerTrack[last] = { ...outerTrack[last], phase: inner.track[0]?.phase ?? outerTrack[last].phase };
+  return { track: [...outerTrack, ...inner.track], perch, breakAlongFt: breakAlong };
+}
+
+/**
+ * The perch search: starting from `perch0`, flies `flyTry(perch, lastTry)` (it returns flyInner's { rollout,
+ * finalTurnFt, ... }) and moves the perch by the miss at the window `win` until the final turn rolls out there.
+ * Each try moves the perch by part of the miss, never more than PERCH_MOST_STEP_FT: in a strong wind a whole
+ * miss overshoots (the break rolls out aiming at the perch, so moving the perch moves the rollout back the
+ * other way), and the tries swung a few hundred feet either side and jumped between winds a knot apart
+ * (Patrick, 5 Oct 08:17Z). The best try is kept: returns { missFt, perch, inner }, inner being that try.
+ * Shared by Pattern 1 and the CT-102B Astra II's pattern (astra-circuit.js).
+ */
+export function findPerch(perch0, win, flyTry) {
+  let perch = { x: perch0.x, y: perch0.y };
   let inner = null, best = null;
   for (let i = 0; i < PERCH_TRIES; i++) {
-    inner = flyInner(points, centre, breakAlong, perch, wind, inner?.finalTurnFt, outer.end);
+    inner = flyTry(perch, inner);
     const miss = { x: win.x - inner.rollout.x, y: win.y - inner.rollout.y };
     const missFt = inner.finalTurnFt != null ? Math.hypot(miss.x, miss.y) : Infinity;
     if (!best || missFt < best.missFt) best = { missFt, perch, inner };
@@ -491,13 +539,7 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
     const k = PERCH_STEP_SHARE * Math.min(1, PERCH_MOST_STEP_FT / Math.max(1, PERCH_STEP_SHARE * Math.hypot(miss.x, miss.y)));
     perch = { x: perch.x + miss.x * k, y: perch.y + miss.y * k };
   }
-  ({ perch, inner } = best);
-  // The inner part starts at the outer part's last point. The route reads a point from the leg that
-  // ends at it, so that last point takes the break's phase: an aircraft started "at the break" is in the break.
-  const outerTrack = outer.track.slice();
-  const last = outerTrack.length - 1;
-  if (last >= 0) outerTrack[last] = { ...outerTrack[last], phase: inner.track[0]?.phase ?? outerTrack[last].phase };
-  return { track: [...outerTrack, ...inner.track], perch, breakAlongFt: breakAlong };
+  return best;
 }
 
 /**
@@ -685,26 +727,35 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
  * `startStage` 'downwind' starts on the downwind instead of in the break;
  * `finalTurnFromAlt` and `finalTurnEndAlt` replace pattern height and the
  * window's height for the final turn's descent; `stopToGoFt` ends the path on
- * final that far from the threshold.
+ * final that far from the threshold. `numbers` is the aircraft's (CT156_INNER,
+ * the CT-156's, unless given; the CT-102B Astra II's from astra-circuit.js) and
+ * `window` the window point (Pattern 1's point 12 unless given). With
+ * numbers.downwindLine the break rolls out on the downwind line, the line
+ * through the perch parallel to the runway, and the downwind holds that line
+ * (spec 4.19 item 2: the final turn sets the line, the break rolls out on it).
  */
-function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = null, from = null, opts = {}) {
+export function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = null, from = null, opts = {}) {
+  const k = opts.numbers ?? CT156_INNER;
+  const win = opts.window ?? points[12];
   const th = points[0];
   const rwyTrack = centre.trackDeg;
   const along = breakAlong;
   const ux = (points[1].x - th.x), uy = (points[1].y - th.y), len = Math.hypot(ux, uy);
   const start = from ?? { x: th.x + ux / len * along, y: th.y + uy / len * along };
-  const pilot = makePilot({ x: start.x, y: start.y, alt: from?.alt ?? PATTERN_ALT_FT, ias: from?.ias ?? CIRCUIT.patternKias, hdg: 0, src: 9, phase: 'break' }, wind);
+  const pilot = makePilot({ x: start.x, y: start.y, alt: from?.alt ?? k.patternAltFt, ias: from?.ias ?? k.patternKias, hdg: 0, src: k.src.break, phase: 'break', perf: k.perf }, wind);
   const { s } = pilot;
   s.hdg = from ? from.hdg : pilot.headingFor(rwyTrack);
   if (from) { s.bank = from.bank ?? 0; s.rollRate = from.rollRate ?? 0; }
   const startStage = opts.startStage ?? 'break';
-  if (startStage === 'downwind') { s.phase = 'downwind'; s.src = 10; }
+  if (startStage === 'downwind') { s.phase = 'downwind'; s.src = k.src.downwind; }
   s.tag = startStage;
   pilot.record();
-  const ftFromAlt = opts.finalTurnFromAlt ?? PATTERN_ALT_FT, ftEndAlt = opts.finalTurnEndAlt ?? points[12].alt;
+  const ftFromAlt = opts.finalTurnFromAlt ?? k.patternAltFt, ftEndAlt = opts.finalTurnEndAlt ?? win.alt;
   // The glide path's slope, feet down per foot over the ground: the window's own (about 3°, SMM 4.7 para 12).
   const aim = aimPointOf(th, points[1]);
-  const glideSlope = Math.max(0, (points[12].alt - THRESHOLD_DATA_ELEV_FT) / Math.max(1, Math.hypot(points[12].x - aim.x, points[12].y - aim.y)));
+  const glideSlope = Math.max(0, (win.alt - THRESHOLD_DATA_ELEV_FT) / Math.max(1, Math.hypot(win.x - aim.x, win.y - aim.y)));
+  // The downwind line (numbers.downwindLine): through the perch, flown opposite to the runway.
+  const downwind = k.downwindLine ? lineOf({ x: perch.x + ux / len * 10000, y: perch.y + uy / len * 10000 }, perch) : null;
   let rolloutSec = null, ftTurned = 0;
   let stage = startStage, turned = 0, ftTotal = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
   const glideStart = { alt: null, dist: null };
@@ -717,32 +768,43 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
     const hdgBefore = s.hdg;
     let bank = 0, climb = 0, accel = 0;
     if (stage === 'break') {
-      const toPerch = compassDegFromVector(perch.x - s.x, perch.y - s.y);
-      bank = bankFor(pilot.headingFor(toPerch), s, CIRCUIT.patternBankDeg, 'left');
+      if (downwind) {
+        // Onto the downwind line at the break's bank: the circle-onto-a-line law at the break's own radius, so it turns
+        // toward the line, and rolls out on it once the turn's radius reaches it (spec 4.19 item 2).
+        const R = leadRadiusFt(pilot.tasKt(), k.breakBankDeg);
+        bank = bankFor(pilot.headingFor(trackForLine(downwind, s, R)), s, k.breakBankDeg, 'left');
+      } else {
+        const toPerch = compassDegFromVector(perch.x - s.x, perch.y - s.y);
+        bank = bankFor(pilot.headingFor(toPerch), s, k.breakBankDeg, 'left');
+      }
       const tas = ktToFtps(pilot.tasKt());
-      const wanted = ktToFtps(iasToTasKt(breakKias(turned), s.alt));
+      const wanted = ktToFtps(iasToTasKt(breakKias(turned, k.patternKias), s.alt));
       accel = (wanted - tas) / DT;
-      if (turned > 90 && Math.abs(bank) < 3 && Math.abs(s.bank) < 3) {
+      const onLine = !downwind || Math.abs(wrapDeg180(downwind.trackDeg - pilot.trackDeg())) < 3;
+      if (turned > 90 && onLine && Math.abs(bank) < 3 && Math.abs(s.bank) < 3) {
         stage = 'downwind';
-        pilot.mark({ src: 10, phase: 'downwind', tag: 'break_rollout' });
+        pilot.mark({ src: k.src.downwind, phase: 'downwind', tag: 'break_rollout' });
         s.tag = 'downwind';
       }
     } else if (stage === 'downwind') {
-      const toPerch = compassDegFromVector(perch.x - s.x, perch.y - s.y);
-      bank = bankFor(pilot.headingFor(toPerch), s, 30);
-      accel = s.ias > CIRCUIT.finalTurnKias ? Math.max(idleDecel(s.ias, s.alt, g), (ktToFtps(iasToTasKt(CIRCUIT.finalTurnKias, s.alt)) - ktToFtps(pilot.tasKt())) / DT) : 0;
+      if (downwind) bank = bankFor(pilot.headingFor(trackForLine(downwind, s, HOLD_RADIUS_FT)), s, 30);
+      else {
+        const toPerch = compassDegFromVector(perch.x - s.x, perch.y - s.y);
+        bank = bankFor(pilot.headingFor(toPerch), s, 30);
+      }
+      accel = s.ias > k.finalTurnKias ? Math.max(idleDecel(s.ias, s.alt, g, s.perf), (ktToFtps(iasToTasKt(k.finalTurnKias, s.alt)) - ktToFtps(pilot.tasKt())) / DT) : 0;
       const ahead = (perch.x - s.x) * Math.sin(s.hdg * Math.PI / 180) + (perch.y - s.y) * Math.cos(s.hdg * Math.PI / 180);
       if (ahead <= 0) {
         stage = 'finalTurn';
-        pilot.mark({ src: 11, phase: 'final_turn', tag: 'perch' });
+        pilot.mark({ src: k.src.perch, phase: 'final_turn', tag: 'perch' });
         s.tag = 'final_turn';
         const finalHdg = pilot.headingFor(rwyTrack);
         ftTotal = ((s.hdg - finalHdg) % 360 + 360) % 360 || 360;
       }
     } else if (stage === 'finalTurn') {
       const finalHdg = pilot.headingFor(rwyTrack);
-      bank = bankFor(finalHdg, s, CIRCUIT.finalTurnBankDeg, 'left');
-      accel = s.ias > CIRCUIT.finalTurnKias ? Math.max(idleDecel(s.ias, s.alt, g), (ktToFtps(iasToTasKt(CIRCUIT.finalTurnKias, s.alt)) - ktToFtps(pilot.tasKt())) / DT) : 0;
+      bank = bankFor(finalHdg, s, k.finalTurnBankDeg, 'left');
+      accel = s.ias > k.finalTurnKias ? Math.max(idleDecel(s.ias, s.alt, g, s.perf), (ktToFtps(iasToTasKt(k.finalTurnKias, s.alt)) - ktToFtps(pilot.tasKt())) / DT) : 0;
       // Height: a steady descent from pattern height to the window over the turn,
       // eased in and out at the ends. Spread over the distance the turn took on the
       // last try (the perch is found by trying again), or over the angle on the first.
@@ -769,7 +831,7 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
         rolloutSec = s.k * DT;
         finalTurnFt = ftDist;
         stage = 'final';
-        pilot.mark({ src: 12, phase: 'final', tag: 'window' });
+        pilot.mark({ src: k.src.window, phase: 'final', tag: 'window' });
         finalFrom = pilot.points.length - 1;
         s.tag = 'final';
         s.src = 0;
@@ -789,7 +851,7 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
   if (stage === 'final') {
     flyFinal(pilot, {
       th, dep: points[1], centre, fromDistFt: glideStart.dist, fromIndex: finalFrom, lastClimb,
-      finalTurnKias: CIRCUIT.finalTurnKias, thresholdKias: CIRCUIT.thresholdKias, stopToGoFt: opts.stopToGoFt, maxSteps: MAX_STEPS - n,
+      finalTurnKias: k.finalTurnKias, thresholdKias: k.thresholdKias, stopToGoFt: opts.stopToGoFt, maxSteps: MAX_STEPS - n,
     });
   }
   return { track: pilot.points, rollout: rollout ?? { x: s.x, y: s.y }, finalTurnFt, rolloutSec, endSec: s.k * DT };

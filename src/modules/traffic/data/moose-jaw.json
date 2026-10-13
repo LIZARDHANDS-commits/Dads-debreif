@@ -60,6 +60,27 @@
       ]
     }
   ],
+  "routesNotYetInSetup": [
+    {
+      "id": "PAT_ASTRA",
+      "name": "Astra pattern (working numbers)",
+      "kind": "pattern",
+      "type": "CT-102B",
+      "flown": "ct102b-overhead",
+      "visible": false,
+      "color": "#ffcc66",
+      "landOdds": 0.2,
+      "points": [
+        {"label":"Threshold / Final","x":2796.0,"y":-2776.0,"alt":1892,"kt":90,"g":2},
+        {"label":"Departure End","x":-3572.0,"y":690.0,"alt":3000,"kt":100,"g":2},
+        {"label":"Downwind","x":-4862.8,"y":-1681.5,"alt":3000,"kt":90,"g":2},
+        {"label":"Perch","x":3106.3,"y":-6018.9,"alt":3000,"kt":90,"g":1.1547},
+        {"label":"Window","x":5282.6,"y":-4129.4,"alt":2051,"kt":90,"g":1.1547},
+        {"label":"Initial","x":13469.6,"y":-8585.5,"alt":3000,"kt":180,"g":2},
+        {"label":"Break","x":1039.3,"y":-1819.9,"alt":3000,"kt":180,"g":2}
+      ]
+    }
+  ],
   "aircraft": [
     {"id":"A1","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":12},
     {"id":"A2","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":137},

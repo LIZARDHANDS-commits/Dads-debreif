@@ -20,6 +20,17 @@ import { iasToTasKt, temperatureKey } from './weather.js';
 import { windVectorFtps } from '../../core/wind.js';
 import { PATTERN_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
+import { buildAstraCircuit, ASTRA_POINT } from './astra-circuit.js';
+
+/**
+ * Routes whose path is flown by the simulated pilot rather than drawn, by the route's `flown` field (plan Step 5c
+ * Phase 2b): the builder, and the fewest points it needs (a route with fewer, a damaged one, is drawn with rounded
+ * corners instead, never flown from points that are not there; spec 4.19 item 8). Pattern 1 has no field and is
+ * found by its id, as it always has been (below), so a setup saved before this keeps flying as before.
+ */
+const FLOWN_BUILDERS = Object.freeze({
+  'ct102b-overhead': Object.freeze({ fewestPoints: Object.keys(ASTRA_POINT).length, build: (route, fromDeg, kt) => buildAstraCircuit(route.points, fromDeg, kt).track }),
+});
 
 /**
  * V6's route options when the boxes are left alone (built-in profile, line 613).
@@ -271,7 +282,10 @@ function buildPath(route, options) {
   let points;
   const isPat1 = route.id === 'PAT1';
   const isCompactPat1 = isPat1 && (route.points?.length ?? 0) < 10;
-  if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
+  const flown = Object.hasOwn(FLOWN_BUILDERS, route.flown ?? '') ? FLOWN_BUILDERS[route.flown] : null;
+  if (flown && options.flyRoundedTurns !== false && (route.points?.length ?? 0) >= flown.fewestPoints) {
+    points = flown.build(route, options.windFromDeg ?? 360, options.windKt ?? 0);
+  } else if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
     points = generateWindAdjustedTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
   } else {
     points = buildRoundedPoints(route, options);
