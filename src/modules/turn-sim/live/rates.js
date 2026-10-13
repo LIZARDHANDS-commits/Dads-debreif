@@ -3,7 +3,8 @@
 // bands.js and moves.js (tuning.js only re-exports them); docs/modules/turn-sim/numbers.md lists every number with its
 // source. Numbers with no manual page or ruling beside them are estimates and say so. Moved unchanged from tuning.js.
 //
-// This file imports only slots.js and core, so any file can read it without an import loop.
+// This file imports only slots.js, handling.js (which imports only core) and core, so any file can read it without an import loop.
+import { ENGINE } from './handling.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { bankDegFromG } from '../../../core/flight-math.js';
@@ -270,9 +271,9 @@ export const CLOSURE = Object.freeze({
  * How fast the engine answers the power lever: torque from 2% to 100% in about 0.25 s (Patrick 5 Oct 06:02Z: "The TQ can
  * change very fast. 2 percent to 100 in .25 seconds."). A power change in the power profile (MAX, the power that holds the
  * rate, IDLE, the power that holds the slot) reaches its new thrust in this long, so the acceleration it gives is there
- * within it, then follows thrust minus drag.
+ * within it, then follows thrust minus drag. Not a number of its own: the engine's quick response (handling.js ENGINE, TS-218).
  */
-export const ENGINE_RESPONSE_SEC = 0.25;
+export const ENGINE_RESPONSE_SEC = ENGINE.quickSec;
 
 /**
  * How long a change of rate takes: the power step is the smallest that reaches the new rate in about this long (an

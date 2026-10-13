@@ -7,14 +7,18 @@ import { FW_BAND, LANE } from './slots.js';
 import { RATE_SETS, G_RULE_BANK_DEG, NO_BANK_CAP_DEG, CLOSE_BANK_DEG, REJOIN_LINE_KIAS, REJOIN_CLOSURE_KT } from './rates.js';
 import { IN_POSITION, STOP_KT } from './bands.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
+import { ENGINE } from './handling.js';
 
 /**
  * How fast the power answers (Patrick 6 Oct 03:17Z: torque 0 to 100% in about 0.2 s; 03:18Z: the speed brakes are instant;
- * TS-108). torqueSec: the torque's full travel. jerkKtps2: the most the acceleration changes per second, so the full
- * torque's span (about 4.5 kt/s from throttle 0 to MAX at 150 KIAS, 3.7 at 200; slow-down.js) is covered in about 0.2 s;
- * the boards' 1-2.5 kt/s then comes in under 0.1 s, as near instant as a 0.05 s step shows (an estimate from those).
+ * TS-108). torqueSec: the torque's full travel, the engine's quick response (handling.js ENGINE.quickSec, 0.25 s, TS-218: one
+ * number; it was 0.2 here until V2.424). jerkKtps2: the most the wingman's hand changes his acceleration per second with the
+ * lever slammed (the Rates lever share scales it): the full torque's span (about 4.5 kt/s from throttle 0 to MAX at 150 KIAS,
+ * 3.7 at 200; slow-down.js) in about 0.2 s, from the 6 Oct words; the boards' 1-2.5 kt/s then comes in under 0.1 s, as
+ * near instant as a 0.05 s step shows (an estimate from those). Since TS-218 the engine (power.js engineStep) also holds a
+ * power rise to its own quick rate and its lag from idle, so the slower of his hand and the engine wins.
  */
-export const POWER = Object.freeze({ torqueSec: 0.2, jerkKtps2: 25 });
+export const POWER = Object.freeze({ torqueSec: ENGINE.quickSec, jerkKtps2: 25 });
 const POWER_JERK_KTPS2 = POWER.jerkKtps2;
 
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
@@ -377,7 +381,6 @@ export const TRACKER = Object.freeze({
   bankLeg: Object.freeze({ refAccelShare: 0.6, refRate: 1.5 }), // a leg with a bank target (targetBankDeg, the close moves of CLOSE_SHAPING) builds the target slot's rate faster, 0.6 of it per second, and closes on it at 1.5/s, in place of refAccelShare and gain.refRate (estimates)
   snapMaxFt: 1.0, // the target slot's snap distance is never more than 1 ft ... (estimate)
   snapTolShare: 0.25, // ... and otherwise a quarter of the leg's advance tolerance (estimate)
-  snapFallbackTolFt: 6, // the advance tolerance the snap and the arrival use for a leg that names none: 6 ft, where phase.advanceTol below gives 3 (a difference to settle; estimates)
   lineOverrunShare: 1.2, // up or down the spinner-wingtip line, he stays on the line's extension up to 20% past its end (estimate)
   snapFt: 0.05, // the target slot snaps onto its place within this many feet (estimate)
   goalTolFt: 2, // a moving goal counts as reached within this many feet, unless the leg says otherwise (estimate)

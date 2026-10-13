@@ -11,6 +11,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | T6A_LIMITS.stallKias | `86, voKias: 227, vmoKias: 316, mmo: 0.67, weightLb: 5168` |  |
 | T6A_ROLL | `Object.freeze({ rollPerKtasDps: 0.58, maxRateDps: 200, fullRateSec: 0.3, onsetSec: 0.2 })` | The T-6A's roll and G onset: the one aircraft limit every module stays under (Patrick 5 Oct 2026 22:01Z, "okay, let's do that"; whole-tool decision with the Docs keeper; Formation's part TS-85). ESTIMATES from standard aerodynamics (Fable's performance audit, 5 Oct 21:59Z-22:01Z): no manual in the project files gives them, so they stay estimates until Patrick corrects them. - full-stick roll rate: |
 | T6A_G_ONSET | `Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 })` | The T-6A's G onset in easeValue's shape (flight-math.js): G per second, and per second². An estimate (T6A_ROLL). |
+| T6A_G_ONSET_CEILING_GPS | `6` | The fastest G ever builds, G per second: the ceiling the envelope gates hold every roll-in under (Formation handling.js, Traffic envelope.js). 6 G/s (ALL-40, Patrick 12 Oct 2026: "make it 6 g/s ceiling"; it was 8, twice T6A_G_ONSET): no pilot source supports more (centrifuge training tops out about 6 G/s; Patrick's recorded pulls peak under 3 G/s). An estimate. |
 | T6A_PITCH |  | Pitch attitude: the angle of attack the wing needs on top of the flight path angle. AoA = aoa180Deg × G × (180 ÷ KIAS)², set so the normal 180 KIAS climb shows about 10-12° nose up and the 140 KIAS best-rate climb about 15°, with this model's full-power climb angles (SMM 3.14 para 35; EFIG p.126). With datumDeg it gives Patrick's attitudes within a fraction of a degree (Patrick, 11 Oct 2026 01:26Z |
 | T6A_PITCH.aoa180Deg | `2.8` |  |
 | T6A_PITCH.datumDeg | `2.6` |  |
@@ -37,13 +38,14 @@ Every number the Formation Sim's planners use, with the source written beside it
 
 | Number | Value | Source and note |
 |---|---|---|
-| G_ONSET_CEILING | `2 * T6A_G_ONSET.maxRateDps` | The fastest the gate lets G build (G per second): twice the T-6A's normal onset (core T6A_G_ONSET, 4 G/s), an estimate. Patrick 5 Oct 23:27Z: "higher than 4 occasionally is fine thats life as a pilot": 4 G/s is the normal pull, not a wall; the gate only stops a pull no pilot could make. (Traffic keeps its own copy in traffic/envelope.js.) |
+| G_ONSET_CEILING | `T6A_G_ONSET_CEILING_GPS` | The fastest the gate lets G build (G per second): core T6A_G_ONSET_CEILING_GPS, 6 G/s (ALL-40; it was 8, twice the normal 4 G/s). Patrick 5 Oct 23:27Z: "higher than 4 occasionally is fine thats life as a pilot": 4 G/s is the normal pull, not a wall; the gate only stops a pull no pilot could make. Traffic reads the same core number. |
 | GATE_G_MAX_BANK_DEG | `85` | Steeper than this the level-turn G (1 / cos bank) is not this model's (a lag roll through the inverted): the gate holds the roll only (flight.js), and the pilot's G shaping leaves it to the roll alone (pilot.js). An estimate. |
 | CLIMB_CATCH_SEC | `0.3` | The time the last of a climb-rate change is closed over (seconds; an estimate), so the pull settles without flickering. Since V2.348 it is 0.3 s, not 0.1, so the G onset's own build (16 G/s²) keeps up and the climb rate comes onto the one wanted without passing it. |
 | LEVEL_OFF_SEC | `1` | A level-off closes its climb rate over this long (seconds; an estimate), and uses at most this pull or push (G either side of 1; an estimate). |
 | LEVEL_OFF_PULL_G | `1` |  |
 | PUSH_MARGIN_DEG | `45` | The push is taken only when its wings are this much nearer than the pull's: positive G is the pilot's way (estimate). |
 | POWER_MAX_FROM | `0.985` | From this share of full power the power is MAX: the tag says MAX from this share of full-power thrust (power.js, so it does not flick between MAX and 99% at full power), and the pilot flies MAX from this share of full power's acceleration (pilot.js). One number for both (they were two copies of 0.985); an estimate. |
+| ENGINE | `Object.freeze({ quickSec: 0.25, idleTorquePct: 5, idleLagSec: 3.5, idleSettleSec: 1 })` | How the engine answers the PCL, every aircraft (TS-218; power.js engineStep is the one model). From 5% torque up the power follows the PCL quickly: the torque's full travel in quickSec, 0.25 s (Patrick 5 Oct 06:02Z: "2 percent to 100 in .25 seconds"; TS-218's words). Once it has sat below idleTorquePct, 5% (Patrick 12 Oct 2026: "if the power is at 5% or more its very responsive, but once you go id |
 | PILOT_SLOW_CAP_KTPS | `7.95` | The fastest the wingman's pilot slows, KIAS per second, whatever the power, the boards and the climb give (pilot.js pilotSpeed). No source was written beside it (it came in with the HTRJ change, 2a37a7c3); an estimate. |
 | MIN_POSITIVE_G | `0.5` | Nobody pushes below this: Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a) and the live wingmen never ask for less on the lift they have. 0.5 G is an estimate. One number for Lead's push (lead-moves.js LEAD.minPushG) and the live wingmen's floor (wing-moves.js FW_LIVE.minG, LIVE.minG); they were three copies. |
 
@@ -104,7 +106,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | CLOSURE.slideBankDeg | `CLOSE_BANK_DEG` | sideways the closure is set and stopped with up to the close move's 60° of bank (Patrick 06:43Z; 30° from 06:16Z until then), the same for every Rates choice (Patrick 06:07Z: "No on bank and g") |
 | CLOSURE.nearGain | `1` | 1/s: inside the last few feet the closure dies away in proportion to the distance, so he settles without hunting; sideways only, fore and aft it is the tracker's own TRACKER.gain.position (V2.23.1) (estimate) |
 | CLOSURE.farGain | `0.1` | ft/s per ft: beyond the hand-over band (odd starts only, the tracker's fallback) the closing speed may grow with range (the old rejoin's kcap) |
-| ENGINE_RESPONSE_SEC | `0.25` | How fast the engine answers the power lever: torque from 2% to 100% in about 0.25 s (Patrick 5 Oct 06:02Z: "The TQ can change very fast. 2 percent to 100 in .25 seconds."). A power change in the power profile (MAX, the power that holds the rate, IDLE, the power that holds the slot) reaches its new thrust in this long, so the acceleration it gives is there within it, then follows thrust minus drag. |
+| ENGINE_RESPONSE_SEC | `ENGINE.quickSec` | How fast the engine answers the power lever: torque from 2% to 100% in about 0.25 s (Patrick 5 Oct 06:02Z: "The TQ can change very fast. 2 percent to 100 in .25 seconds."). A power change in the power profile (MAX, the power that holds the rate, IDLE, the power that holds the slot) reaches its new thrust in this long, so the acceleration it gives is there within it, then follows thrust minus drag. |
 | RATE_SET_SEC | `2` | How long a change of rate takes: the power step is the smallest that reaches the new rate in about this long (an estimate, the thread's default for Patrick's 06:13Z technique: "set 90 or 100 to set it, then reset to 67 to maintain it"). |
 | HAND_OVER_FT | `500` | Where a rejoin's closure gives way to the close-in rate: about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it, card "Lines, then tracker" 05:41Z and 05:44Z: "within 500-1000 feet, dpending on whats going on. becuase we start to see the aspect change and the clusre visually and adjust to that"). Until the kinematic lines were removed it was also where a line handed over to the tracker. choos |
 | WING_BANKS |  | The wingmen's banks, 2-ship (step 2) and 4-ship (step 3) (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate" for a close move's bank cap (the tracker's 25° until step 2); "When the aircraft is kicked off to fighting wing or line abreast they can use unlimited bank to dive away and get in position quickly": no cap there but the G rule. Item 11: "No, unlimitedf": a wingman following in a |
@@ -119,13 +121,14 @@ Every number the Formation Sim's planners use, with the source written beside it
 
 | Number | Value | Source and note |
 |---|---|---|
+| LEAD_POWER | `Object.freeze({ minTorquePct: 20, maxTorquePct: 80 })` | Lead's torque stays between 20% and 80% in formation, every case except fluid manoeuvring (MAX) and line abreast (Patrick 12 Oct 2026, TS-216: "make the min tq for lead 20%, max 80% in call cases (except FM and LAB)"; the 20% from SMM 12.31 and EFIG p.395; the 80% his 12 Oct 08:39Z and 09:17Z rulings, TS-203 and TS-204). So Lead never goes idle in formation and never meets the engine's lag from id |
 | TURN_G | `3` | Line abreast turns: about 70° of bank at 3 G (SMM 16.18 para 50; Figs 16.15-16.21 "70/3"). |
 | TURN_BANK_DEG | `bankDegFromG(TURN_G)` |  |
 | VERTICAL_MISS_FT | `300` | Crossing turns pass at least this far apart vertically (SMM 16.13 para 31; 16.19 paras 61, 64). |
 | CHECK_DEG | `20` | The check turn's angle: the R/T example "check 20" (2 CFFTS Orders B2 ch 8 p.103). Working answer, Patrick to confirm. |
 | CROSS_FIRST_BANK_DEG | `Object.freeze([20, 75])` | The cross turn's first stage may be flown between these banks to roll out at the spacing ("60/2, or as required", Fig 16.21). |
-| BREAK | `{ delaySec: 5, bankDeg: 60 }` | 60° level is 2 G (1 / cos 60°) |
-| BREAK_DELAY_CHOICES | `Object.freeze([3, 4, 5, 6, 8])` | the setting's choices around Patrick's 5 s (estimates) |
+| BREAK | `{ delaySec: 3, bankDeg: 60 }` | 60° level is 2 G (1 / cos 60°) |
+| BREAK_DELAY_CHOICES | `Object.freeze([3, 4, 5, 6, 8])` | the setting's choices (estimates); 3 s the default (TS-217) |
 | LEAD |  | The numbers Lead flies in fluid manoeuvring (moved from fluid-lead.js, 12.2b). Every one has its source; "estimate" where no manual or ruling gives it. |
 | LEAD.gOnset | `T6A_G_ONSET` | G per second and per second²: the T-6A's in core (estimate, design 5.3; TS-85) |
 | LEAD.levelBanks | `Object.freeze({ gentle: 30, medium: 60, steep: 70.5 })` | AFM7 p.17 (30, 60/2); SMM 16.18 para 50 (70/3, estimate as "steep") |
@@ -169,7 +172,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LEAD.climbDamp | `Object.freeze({ holdPerSec: 0.5, pitchPerSec: 0.4, loopDownPerSec: 1.2, exitPerSec: 0.6 })` | how firmly Lead's pull brings the flight path onto the one wanted (core dampedClimbG's omega, per second; estimates): holding a level path or a climb's angle; raising or lowering the nose into a climb and before the loop; the loop's pull-out; the wingover's and barrel roll's exit |
 | LEAD.climbNearFt | `20` | a climb or descent counts as arrived within 20 ft of the new height (an estimate) |
 | LEAD.speedHold | `Object.freeze({ perSec: 0.2, maxKtps: 3 })` | holding a speed (the entry, Terminate): 0.2 kt/s per knot off it, never more than 3 kt/s (estimates) |
-| FW_MOVE | `Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: 80, descentShare: 0.8 })` | climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentShare: 80% of the model's idle descent at Lead's speed (estimate) |
+| FW_MOVE | `Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: LEAD_POWER.maxTorquePct, descentTorquePct: LEAD_POWER.minTorquePct })` | climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentTorquePct: his descent power, 20% torque (TS-216; until V2.424 the descent was 80% of the model's idle descent, an estimate) |
 
 ## Wingmen: the live laws, the close turns' held poses, the fluid exercise, the rolling rejoin (`wing-moves.js`)
 
@@ -321,7 +324,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 
 | Number | Value | Source and note |
 |---|---|---|
-| POWER | `Object.freeze({ torqueSec: 0.2, jerkKtps2: 25 })` | How fast the power answers (Patrick 6 Oct 03:17Z: torque 0 to 100% in about 0.2 s; 03:18Z: the speed brakes are instant; TS-108). torqueSec: the torque's full travel. jerkKtps2: the most the acceleration changes per second, so the full torque's span (about 4.5 kt/s from throttle 0 to MAX at 150 KIAS, 3.7 at 200; slow-down.js) is covered in about 0.2 s; the boards' 1-2.5 kt/s then comes in under 0. |
+| POWER | `Object.freeze({ torqueSec: ENGINE.quickSec, jerkKtps2: 25 })` | How fast the power answers (Patrick 6 Oct 03:17Z: torque 0 to 100% in about 0.2 s; 03:18Z: the speed brakes are instant; TS-108). torqueSec: the torque's full travel, the engine's quick response (handling.js ENGINE.quickSec, 0.25 s, TS-218: one number; it was 0.2 here until V2.424). jerkKtps2: the most the wingman's hand changes his acceleration per second with the lever slammed (the Rates lever s |
 | KIAS_OUTSIDE_LAB | `200` | The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). |
 | KIAS_LAB | `220` |  |
 | REJOIN |  | Defaults for rejoins. |
@@ -517,7 +520,6 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.bankLeg | `Object.freeze({ refAccelShare: 0.6, refRate: 1.5 })` | a leg with a bank target (targetBankDeg, the close moves of CLOSE_SHAPING) builds the target slot's rate faster, 0.6 of it per second, and closes on it at 1.5/s, in place of refAccelShare and gain.refRate (estimates) |
 | TRACKER.snapMaxFt | `1.0` | the target slot's snap distance is never more than 1 ft ... (estimate) |
 | TRACKER.snapTolShare | `0.25` | ... and otherwise a quarter of the leg's advance tolerance (estimate) |
-| TRACKER.snapFallbackTolFt | `6` | the advance tolerance the snap and the arrival use for a leg that names none: 6 ft, where phase.advanceTol below gives 3 (a difference to settle; estimates) |
 | TRACKER.lineOverrunShare | `1.2` | up or down the spinner-wingtip line, he stays on the line's extension up to 20% past its end (estimate) |
 | TRACKER.snapFt | `0.05` | the target slot snaps onto its place within this many feet (estimate) |
 | TRACKER.goalTolFt | `2` | a moving goal counts as reached within this many feet, unless the leg says otherwise (estimate) |

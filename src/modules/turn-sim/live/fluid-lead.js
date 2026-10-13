@@ -5,8 +5,11 @@
 // estimate, design 5.3) and the roll inside the T-6A's ceiling at this speed (TS-85; the ruled 90°/s of TS-37 until then), so nothing jumps. The path is worked
 // out ahead of time and replayed (the planned path drawn is the path flown, spec F1).
 //
-// Power: PCL MAX for the whole exercise (AFM7 brief p.17; SMM 16.17 paras 42-43, both aircraft the same power), except the
-// entry's 30° bank stage and Terminate, where Lead flies a held speed (fighting wing's 200 KIAS, TS-53).
+// Power: PCL MAX for the whole exercise (AFM7 brief p.17; SMM 16.17 paras 42-43, both aircraft the same power), except
+// Terminate and the fighting wing after it, where Lead flies a held speed (fighting wing's 200 KIAS, TS-53) at 20% to 80%
+// torque (TS-216, the band fluid.js asks for). The power is the engine's (TS-218, power.js engineStep): each step the
+// throttle asked (MAX, or what holds the speed) is reached at the engine's quick rate, and from a settled idle only after
+// its lag; the engine rides on the state (st.eng), so Lead and the live wingmen who fly this step all carry it.
 //
 // The baseline's buttons and their sources (page references only, never manual text):
 //  - Level turn: 60/2 at PCL MAX (AFM7 brief p.17, AFM8 brief p.19, Exercise 1); 30° gentle (AFM7 p.17's first stage);
@@ -48,12 +51,12 @@
 //    position (the distance setting, 15° off Lead's tail) during it; then each manoeuvre's own speed set-up leads on.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
-import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { excessFnFor, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
 import { ROLL, WING, LEAD } from './tuning.js';
-import { excessPerWeight } from './slow-down.js';
+import { engineFrom, engineStep, throttleAtTorque } from './power.js';
 
 export { LEAD }; // its home is lead-moves.js (the tuning sheet, TS-214); read from here by older imports
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
@@ -105,6 +108,7 @@ export function leadStateOf(a, blockFt) {
     g: a.g ?? 1,
     gRate: 0,
     blockFt,
+    eng: engineFrom(a.power), // the engine as the aircraft has it (TS-218): unknown when nothing set its power
   };
   return finish(st);
 }
@@ -128,37 +132,47 @@ function finish(st) {
   return st;
 }
 
-/** Excess thrust that holds an indicated speed: what it takes, up to full power, and slowing no faster than the power back gives (slow-down.js, TS-61). */
-function holdSpeedExcess(kiasTarget) {
-  return (ktas, altFt, g) => {
-    const kias = tasToIasKt(ktas, altFt);
-    const wantKtps = Math.min(LEAD.speedHold.maxKtps, LEAD.speedHold.perSec * (kiasTarget - kias));
-    const wantFtps2 = wantKtps * KT_TO_FTPS * (ktas / Math.max(kias, 1));
-    return Math.max(excessPerWeight('power', kias, altFt, g), Math.min(wantFtps2 / G_FTPS2, t6aExcessFn(ktas, altFt, g)));
-  };
+/**
+ * The throttle (share of full-power thrust) that holds an indicated speed: the speed hold's rate (LEAD.speedHold), up to
+ * full power and down to the power floor (slow-down.js, TS-61), or inside a torque band ({ minTorquePct, maxTorquePct }:
+ * Lead's 20-80% in formation, TS-216). Standard energy: thrust less drag gives the rate.
+ */
+function holdThrottle(st, kiasTarget, band = null) {
+  const altFt = st.pm.z;
+  const kias = Math.max(st.kias, 1);
+  const ktas = st.V / KT_TO_FTPS;
+  const wantKtps = Math.min(LEAD.speedHold.maxKtps, LEAD.speedHold.perSec * (kiasTarget - kias));
+  const wantExcess = (wantKtps * KT_TO_FTPS * (ktas / kias)) / G_FTPS2;
+  const thr = (wantExcess + dragPerWeight(kias, altFt, st.g)) / thrustPerWeight(kias, altFt);
+  const lo = band ? throttleAtTorque(band.minTorquePct, kias, altFt) : 0;
+  const hi = band ? throttleAtTorque(band.maxTorquePct, kias, altFt) : 1;
+  return Math.max(lo, Math.min(hi, thr));
 }
 
 /**
- * Lead's power for the tag (power.js, TS-62): PCL MAX (1) through the manoeuvres (SMM 16.17 para 43), and in a stage
- * that holds a speed (the entry's 30° stage, fighting wing, Terminate) the model's throttle for holdSpeedExcess.
+ * Lead's power for the tag (power.js, TS-62): the throttle his engine gives (st.eng, TS-218); without one, PCL MAX (1)
+ * through the manoeuvres (SMM 16.17 para 43), and in a stage that holds a speed the throttle that holds it.
  */
 export function leadThrottle(st, holdKias) {
+  if (st.eng && st.eng.thr !== null && st.eng.thr !== undefined) return st.eng.thr;
   if (!holdKias) return 1;
-  const altFt = st.pm.z;
-  const excess = holdSpeedExcess(holdKias)(st.V / KT_TO_FTPS, altFt, st.g);
-  return Math.min(1, Math.max(0, (excess + dragPerWeight(st.kias, altFt, st.g)) / thrustPerWeight(st.kias, altFt)));
+  return holdThrottle(st, holdKias);
 }
 
 /**
  * One fixed step of Lead (and of the live wingman): G and bank eased toward the pilot's ask ({ g, bank } in degrees, or a
- * lift vector in G along the body up wanted: `lift`), then the point mass (two half steps for accuracy).
+ * lift vector in G along the body up wanted: `lift`), then the point mass (two half steps for accuracy). holdKias: a
+ * speed to hold (else MAX); torqueBand: the torque the hold stays inside (Lead's LEAD_POWER in formation, TS-216).
  * The G ask is held under the stick shaker's line, the one physical limit (core shakerG); published limits are flagged
  * by the card, never held here.
  */
 export function stepLead(st, ask) {
   const half = STEP_SEC / 2;
   let s = st;
-  const excess = ask.holdKias ? holdSpeedExcess(ask.holdKias) : t6aExcessFn;
+  // The engine (TS-218): MAX, or the throttle that holds the speed asked (inside ask.torqueBand when given: Lead's 20-80%,
+  // TS-216), reached as the engine answers; the step flies the thrust it gives.
+  const eng = engineStep(st.eng ?? null, ask.holdKias ? holdThrottle(st, ask.holdKias, ask.torqueBand ?? null) : 1, st.kias, st.pm.z, STEP_SEC);
+  const excess = excessFnFor(eng.thr);
   for (let i = 0; i < 2; i++) {
     // A lift asked for as a vector (the live wingman, TS-194) is read into a G and a bank against the up of this half step,
     // and after the step the bank is re-read against the new up (carryBank), so the wings go where the lift wants and never
@@ -172,7 +186,7 @@ export function stepLead(st, ask) {
     const r = easeValue(s.bank, s.rollRate, target, half, rollLimitAt(s.V, ROLL)); // never faster than the T-6A at this speed (TS-85)
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
     const prev = s;
-    s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
+    s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt, eng });
     if (want) s = carryBank(prev, s);
   }
   return s;

@@ -21,7 +21,7 @@
 import { dragPerWeight, thrustPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { extraDragPerWeight, excessPerWeight } from './slow-down.js';
-import { POWER_MAX_FROM } from './handling.js';
+import { POWER_MAX_FROM, ENGINE } from './handling.js';
 
 /** The block height a power is worked out at when the caller doesn't know it: the formation's default (formation.js, an estimate). */
 export const POWER_BLOCK_FT = 8000;
@@ -60,6 +60,73 @@ export function throttleAtTorque(pct, kias, altFt = POWER_BLOCK_FT) {
   const shp = (pct / 100) * TORQUE.eta * TORQUE.ratedShp;
   const thrustLb = (shp * FT_LB_PER_S_PER_HP) / Math.max(iasToTasKt(k, altFt) * KT_TO_FTPS, 1);
   return thrustLb / (thrustPerWeight(k, altFt) * TORQUE.weightLb);
+}
+
+/**
+ * The indicated-speed rate (KIAS per second) a throttle gives at kias, altFt, load factor g and climb rate climbFtps, on
+ * power (no boards): throttleFor turned round (standard energy, dV/dt = g ((T - D) / W - sin climb)).
+ */
+export function ktpsAtThrottle(throttle, kias, altFt = POWER_BLOCK_FT, g = 1, climbFtps = 0) {
+  const k = Math.max(kias, 1);
+  const ktas = iasToTasKt(k, altFt);
+  const excess = throttle * thrustPerWeight(k, altFt) - dragPerWeight(k, altFt, g) - climbFtps / Math.max(ktas * KT_TO_FTPS, 1);
+  return ((excess * G_FTPS2) / KT_TO_FTPS) * (k / ktas);
+}
+
+// ---- The engine: how the power follows the PCL (TS-218) -------------------------------------------------------------
+//
+// One model for every aircraft (Patrick 12 Oct 2026, TS-218; numbers in handling.js ENGINE). The engine is a state carried
+// from step to step, { thr, lowSec, lagSec }:
+//  - thr: the throttle the engine gives now (the model's share of full-power thrust, as above); null when nothing is
+//    known of it (a fresh aircraft), and then the first throttle asked is taken at once, as before TS-218;
+//  - from 5% torque up, thr follows the throttle asked at the quick rate, the full travel in ENGINE.quickSec (0.25 s),
+//    up or down;
+//  - lowSec: how long the torque has sat below ENGINE.idleTorquePct (5%), i.e. idle. Once it has sat there at least
+//    ENGINE.idleSettleSec (1 s, an estimate: a brief dip is not "gone idle"), the PCL advanced past idle starts the lag:
+//  - lagSec: the lag still to run. For ENGINE.idleLagSec (3.5 s) after the PCL is advanced the power does not rise at all;
+//    then it follows at the quick rate. Delay then rise is chosen over a gentler ramp because Patrick's words are a lag
+//    ("once you go idle and the prop feathers there is lag"; "it's 3-4 seconds"), not a slow climb (an estimate of the
+//    shape). Pulled back to idle during the lag, the advance is off; the next one, still from a settled idle, lags in full.
+// A power reduction is never lagged. Each pilot asks for his throttle; what the engine gives is what the step flies.
+// Formation pilots avoid idle because of the lag (TS-218): Lead keeps 20% or more (TS-216, lead-moves.js LEAD_POWER).
+
+/** The engine of an aircraft from its power now (its tag's power; power.eng when an engine flew it): unknown when none. */
+export function engineFrom(power) {
+  if (power?.eng) return { ...power.eng };
+  if (!power) return { thr: null, lowSec: 0, lagSec: 0 };
+  const idle = power.stage === 'idle' || power.stage === 'idleBoards';
+  return { thr: idle ? 0 : Math.max(0, Math.min(1, power.throttle ?? 0)), lowSec: 0, lagSec: 0 };
+}
+
+/**
+ * One step of the engine (the model above): the engine `eng` with the throttle `wantThr` asked (clamped to 0..1) at kias and
+ * altFt, over dt seconds. Returns the new engine; eng is not changed.
+ */
+export function engineStep(eng, wantThr, kias, altFt, dt) {
+  const want = Math.max(0, Math.min(1, Number.isFinite(wantThr) ? wantThr : 0));
+  if (!eng || eng.thr === null || eng.thr === undefined) return { thr: want, lowSec: 0, lagSec: 0 };
+  const idle = (thr) => torquePct(thr, kias, altFt) < ENGINE.idleTorquePct;
+  let { thr, lowSec, lagSec } = eng;
+  const advanced = want > thr + 1e-9 && !idle(want);
+  if (!advanced) lagSec = 0;
+  else if (lagSec <= 0 && idle(thr) && lowSec >= ENGINE.idleSettleSec - 1e-9) lagSec = ENGINE.idleLagSec;
+  if (lagSec > 0) {
+    lagSec = Math.max(0, lagSec - dt);
+    if (lagSec <= 1e-9) {
+      lagSec = 0;
+      lowSec = 0; // spooled up: from the next step the power rises at the quick rate
+      return { thr, lowSec, lagSec };
+    }
+    return { thr, lowSec: lowSec + dt, lagSec };
+  }
+  const step = dt / ENGINE.quickSec;
+  thr += Math.max(-step, Math.min(step, want - thr));
+  return { thr, lowSec: idle(thr) ? lowSec + dt : 0, lagSec: 0 };
+}
+
+/** A power (powerFrom's) with the engine that flew it, so the next pilot of the aircraft carries it on (engineFrom). */
+export function withEngine(power, eng) {
+  return power && eng ? { ...power, eng } : power;
 }
 
 const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });

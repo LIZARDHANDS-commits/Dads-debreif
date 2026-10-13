@@ -57,6 +57,12 @@ export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKi
 export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.58, maxRateDps: 200, fullRateSec: 0.3, onsetSec: 0.2 });
 /** The T-6A's G onset in easeValue's shape (flight-math.js): G per second, and per second². An estimate (T6A_ROLL). */
 export const T6A_G_ONSET = Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 });
+/**
+ * The fastest G ever builds, G per second: the ceiling the envelope gates hold every roll-in under (Formation handling.js,
+ * Traffic envelope.js). 6 G/s (ALL-40, Patrick 12 Oct 2026: "make it 6 g/s ceiling"; it was 8, twice T6A_G_ONSET): no
+ * pilot source supports more (centrifuge training tops out about 6 G/s; Patrick's recorded pulls peak under 3 G/s). An estimate.
+ */
+export const T6A_G_ONSET_CEILING_GPS = 6;
 
 /** The T-6A's roll limits at a true airspeed (knots), in easeRoll's shape { maxRateDps, maxAccelDps2 }. Estimates (T6A_ROLL). */
 export function rollLimitsAtKtasT6A(ktas) {

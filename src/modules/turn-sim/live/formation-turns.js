@@ -792,11 +792,10 @@ export function fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt = 8000) {
     if (turning) segments = held(nowDir, Math.abs(lead.bankDeg));
     // At what the T-6 holds at Lead's speed (TS-203). The climb at no more than 80% torque (Patrick 12 Oct 2026 08:39Z:
     // "lead sets max 80 percent tq in the climb. formation hard rule"), so #2 has the rest to spare; the descent's steepest
-    // rate a share of the model's idle descent (estimate). Until V2.390 a 15° path, about twice the MAX climb at 200 KIAS.
+    // rate what 20% torque gives (TS-216: Lead never idle in formation; until V2.424 80% of the model's idle descent).
+    // Until V2.390 a 15° path, about twice the MAX climb at 200 KIAS.
     const up = key === 'climb' ? 1 : -1;
-    const perW = up > 0
-      ? throttleAtTorque(FW_MOVE.climbTorquePct, lead.kias, altFt) * thrustPerWeight(lead.kias, altFt) - dragPerWeight(lead.kias, altFt, 1)
-      : FW_MOVE.descentShare * dragPerWeight(lead.kias, altFt, 1);
+    const perW = up * (throttleAtTorque(up > 0 ? FW_MOVE.climbTorquePct : FW_MOVE.descentTorquePct, lead.kias, altFt) * thrustPerWeight(lead.kias, altFt) - dragPerWeight(lead.kias, altFt, 1));
     const peakFtps = Math.min(lead.tasFtps * Math.sin(FW_MOVE.climbDeg * DEG), Math.max(0, perW) * lead.tasFtps);
     const avgFtps = Math.max(1, peakFtps) / SMOOTHER_PEAK;
     profile = [{ t0, t1: t0 + FW_MOVE.climbFt / avgFtps, fromFt: lead.altAboveFt, toFt: lead.altAboveFt + up * FW_MOVE.climbFt }];

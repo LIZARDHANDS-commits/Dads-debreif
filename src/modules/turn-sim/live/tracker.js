@@ -105,7 +105,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
         ref[v] += Math.max(-step, Math.min(step, want - ref[v]));
       }
       ref[axis] += ref[v] * STEP_SEC;
-      const snapDist = Math.max(T.snapFt, Math.min(T.snapMaxFt, (ph.advanceTol ?? T.snapFallbackTolFt) * T.snapTolShare));
+      const snapDist = Math.max(T.snapFt, Math.min(T.snapMaxFt, (ph.advanceTol ?? T.phase.advanceTol) * T.snapTolShare));
       if (Math.abs(target - ref[axis]) < snapDist) {
         ref[axis] = target;
         ref[v] = 0;
@@ -134,7 +134,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
   }
   const arrived = ph.goal
     ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt)
-    : Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? T.snapFallbackTolFt) * T.snapTolShare);
+    : Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? T.phase.advanceTol) * T.snapTolShare);
 
   // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
   // A phase with `refTurn: false` (the fighting wing turn exit) leaves out the ω × r: the place goes with the aircraft flown

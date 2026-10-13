@@ -91,12 +91,12 @@ export function backToSpeed(plans, aircraft, t0, kias = aircraft[0].homeKias ?? 
   // at the original spacing once all are back (with a common start the first to roll out flew slow longest and the line
   // opened about 100 ft, measured V2.405).
   const spanSec = Math.max(0, ...runs.map(({ run }) => {
-    const seg = speedSeg(run.end.kias, kias);
+    const seg = speedSeg(run.end.kias, kias, undefined, { lab: true }); // line abreast: outside Lead's 20-80% (TS-216)
     return Math.abs(kias - run.end.kias) / Math.abs(seg.rateKtps);
   }));
   for (const { a, run } of runs) {
     if (Math.abs(run.end.kias - kias) < 0.5 || spanSec <= 0) continue;
-    const seg = speedSeg(run.end.kias, kias);
+    const seg = speedSeg(run.end.kias, kias, undefined, { lab: true });
     plans[a.id].segments.push({ ...seg, rateKtps: Math.sign(seg.rateKtps || 1) * Math.abs(kias - run.end.kias) / spanSec, background: true });
   }
   return plans;

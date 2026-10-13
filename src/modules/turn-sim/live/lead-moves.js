@@ -10,6 +10,17 @@ import { T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { WING } from './moves.js';
 import { MIN_POSITIVE_G } from './handling.js';
 
+// ---- Lead's power in formation (TS-216) -----------------------------------------------------------------------------
+
+/**
+ * Lead's torque stays between 20% and 80% in formation, every case except fluid manoeuvring (MAX) and line abreast (Patrick
+ * 12 Oct 2026, TS-216: "make the min tq for lead 20%, max 80% in call cases (except FM and LAB)"; the 20% from SMM 12.31
+ * and EFIG p.395; the 80% his 12 Oct 08:39Z and 09:17Z rulings, TS-203 and TS-204). So Lead never goes idle in formation
+ * and never meets the engine's lag from idle (TS-218, handling.js ENGINE): his slow-downs, descents and held speeds use
+ * 20% at least, his speed-ups and climbs 80% at most.
+ */
+export const LEAD_POWER = Object.freeze({ minTorquePct: 20, maxTorquePct: 80 });
+
 // ---- Lead's programme: the line abreast turns and the break (from manoeuvres.js) ------------------------------------
 
 /** Line abreast turns: about 70° of bank at 3 G (SMM 16.18 para 50; Figs 16.15-16.21 "70/3"). */
@@ -82,4 +93,4 @@ export const LEAD = Object.freeze({
 
 /** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
  * pair is; climbs and descents of 2,000 ft, at what the T-6 holds at Lead's speed (TS-203). */
-export const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: 80, descentShare: 0.8 }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentShare: 80% of the model's idle descent at Lead's speed (estimate)
+export const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: LEAD_POWER.maxTorquePct, descentTorquePct: LEAD_POWER.minTorquePct }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentTorquePct: his descent power, 20% torque (TS-216; until V2.424 the descent was 80% of the model's idle descent, an estimate)
