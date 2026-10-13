@@ -12,7 +12,7 @@
 //   const g = createCt156Model(THREE, { color: '#0066ff', number: 1, lengthFt: CT156_UNIT_LENGTH });
 //   ... scene.add(g); ...; disposeCt156Model(g);
 //
-// paint 'harvard' (default): navy scheme, cheat line, chrome spinner, red-tipped
+// paint 'harvard' (default): navy scheme, cheat line, chrome spinner, dark
 //   prop, roundels, Canada wordmark, red triangles, tail leaf/NATO star/flag/serial, position lights (TS-156).
 //   The whole vertical tail is `color` with a light grey leading edge; the ship's number (122 for #1, ct156TailNumber)
 //   is on the nose and under the right wing, the serial (156122) low on the fin, as Patrick's photo of 156102.
@@ -51,6 +51,8 @@ export const CT156_LENGTH_FT = 33 + 4 / 12;
 export const CT156_DATUM_DEG = 2.5;
 
 const NAVY = '#151d31';
+/** The prop's blades, root to tip: dark charcoal (G2, 13 Oct 2026; about #1c1f24 on A18). */
+const PROP_DARK = '#1c1f24';
 const rad = (d) => (d * Math.PI) / 180;
 
 // ---------- the shape ----------
@@ -2262,7 +2264,7 @@ function buildKit(THREE) {
   disc.rotateY(Math.PI / 2);
   disc.translate(0.585, 0, 0);
   geo.disc = disc;
-  // The four blades as one geometry and their red tips as another (Traffic's turning prop hides both: blurProp).
+  // The four blades as one geometry and their tips as another, both dark (G2; Traffic's turning prop hides both: blurProp).
   const blade = (v0, v1, w0, w1) => joinGeometries(THREE, [0, 1, 2, 3].map((k) => {
     const s = new THREE.Shape([[-w0, v0], [w0, v0], [w1, v1], [-w1, v1]].map(([a, b]) => new THREE.Vector2(a, b)));
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.004, bevelEnabled: false });
@@ -2444,10 +2446,13 @@ function buildKit(THREE) {
     // the tinted glass (Patrick, 12 Oct 2026; they were the headboxes' colour). Shade an estimate.
     coaming: mat({ color: '#3a3e44', roughness: 0.4, metalness: 0.1 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
-    tip: mat({ color: '#d2202c', roughness: 0.5 }),
+    // The blades dark charcoal to the tip, no red (G2, Patrick 13 Oct 2026: the red on 156107's prop is fabric tip covers
+    // tied to the intake cover, on the ground only, F22; the blades are dark to the tip on A18). The tips keep their own
+    // geometry (blurProp hides both), the blades' colour.
+    tip: mat({ color: PROP_DARK, roughness: 0.6 }),
     // The turning prop's blades, half see-through so they read as a blur (PROP_TURN).
-    propBlade: mat({ color: '#0a0c10', roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
-    propTip: mat({ color: '#d2202c', roughness: 0.5, transparent: true, opacity: 0.55, depthWrite: false, side: two }),
+    propBlade: mat({ color: PROP_DARK, roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
+    propTip: mat({ color: PROP_DARK, roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
     disc: keep(new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, fog: false })),
     // The landing gear (gearMain's and gearNose's slots): light grey legs, the tyres, the wheels' hubs and the chrome
     // pistons; and the doors' insides, primer grey (colours estimates off Patrick's photos of 104 and 126).
@@ -2465,8 +2470,8 @@ function buildKit(THREE) {
     // The landing and taxi lights' lenses, a warm white (an estimate), and the stopped prop's blades: the same colours as the
     // turning prop's, but solid (a stopped blade is not a blur; setPropStopped).
     lamp: keep(new THREE.MeshBasicMaterial({ color: '#fff6d8', fog: false })),
-    propBladeStill: mat({ color: '#0a0c10', roughness: 0.6, side: two }),
-    propTipStill: mat({ color: '#d2202c', roughness: 0.5, side: two }),
+    propBladeStill: mat({ color: PROP_DARK, roughness: 0.6, side: two }),
+    propTipStill: mat({ color: PROP_DARK, roughness: 0.6, side: two }),
     roundel: decalMat(tex.roundel),
     canada: decalMat(tex.canada),
     tri: decalMat(tex.tri),
