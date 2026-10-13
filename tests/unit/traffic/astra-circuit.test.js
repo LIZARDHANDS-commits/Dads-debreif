@@ -54,7 +54,9 @@ for (const [label, windFromDeg, windKt] of [['calm air', 360, 0], ['15 kt from 2
 
     for (const [name, path, sec] of [['from the initial', astra.fromInitial, astra.fromInitialSec], ['the lap after a touch-and-go', astra.track, astra.lapSec]]) {
       // Lands on the runway: the first point down at the runway's height is inside 29L's length and width, and nothing before it is lower.
-      const down = path.findIndex((p) => p.alt <= THRESHOLD_DATA_ELEV_FT + 1);
+      // The lap after a touch-and-go starts on the runway, so look for the landing only once it has been airborne.
+      const up = path.findIndex((p) => p.alt > THRESHOLD_DATA_ELEV_FT + 50);
+      const down = up < 0 ? -1 : path.findIndex((p, i) => i > up && p.alt <= THRESHOLD_DATA_ELEV_FT + 1);
       assert.ok(down > 0, `${name}: it comes down to the runway`);
       const td = frame(path[down]);
       assert.ok(td.along >= 0 && td.along <= RUNWAY_FT, `${name}: touches down ${td.along.toFixed(0)} ft past the 29L threshold, on a ${RUNWAY_FT.toFixed(0)} ft runway`);
@@ -63,6 +65,8 @@ for (const [label, windFromDeg, windKt] of [['calm air', 360, 0], ['15 kt from 2
 
       for (const p of path.slice(0, down)) {
         assert.ok(p.alt <= ASTRA_PATTERN_FT + TOLERANCES.ALTITUDE_FT, `${name}: ${p.alt} ft in the ${p.phase}, above ${ASTRA_PATTERN_FT} ft`);
+        // The threshold and touchdown markers (circuit.js flyFinal) carry no bank: they are tags on the final, flown wings level.
+        if (p.bankDeg == null) continue;
         const most = (p.phase === 'break' ? BREAK_BANK_DEG : TURN_BANK_DEG) + TOLERANCES.ANGLE_DEG;
         assert.ok(Math.abs(p.bankDeg) <= most, `${name}: ${p.bankDeg}° of bank in the ${p.phase}, more than ${most}°`);
       }
