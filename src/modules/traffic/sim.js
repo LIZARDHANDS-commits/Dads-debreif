@@ -47,7 +47,7 @@ import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, F
 import { legOffsetsFt } from '../../core/geo.js';
 import { closestApproach } from '../../core/closest-approach.js';
 import { iasToTasKt } from './weather.js';
-import { TYPE_FALLBACK_KT } from './types.js'; // the speed flown where a route point gives none
+import { TYPE_FALLBACK_KT, TYPE_COLORS } from './types.js'; // the speed flown where a route point gives none; each type's colour
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
@@ -61,15 +61,8 @@ export const STEP_SEC = 0.05;
  */
 const GROUPS = Object.freeze(['random', 'spacing', 'landing', 'pfl', 'joinOffset', 'sideStep']);
 
-/** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
-export const TYPE_COLORS = Object.freeze({
-  'CT-157': '#a5d6ff',
-  'CT-156': '#7ee787',
-  'CT-102': '#ffcc66',
-  'CT-114': '#ff6b6b',
-  'CT-155': '#d29922',
-  'CF-188': '#56d4dd',
-});
+/** Each aircraft type's colour: the one table in types.js (plan Step 5c Phase 1), kept exported here under its old name. */
+export { TYPE_COLORS };
 
 /** The conflict limits when a setup gives none: red 200 ft and 200 ft, caution 500 ft and 500 ft (the built-in profile's). */
 const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 });
