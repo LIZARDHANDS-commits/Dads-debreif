@@ -23,7 +23,7 @@
 // It changes no flight physics: the point mass, the engine, the roll and G laws are fluid's, unchanged.
 import { bankDegFromG, gFromBankDeg, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { gAtAoaUnits } from '../../../core/t6-performance.js';
-import { DEG } from '../../../core/angles.js';
+import { DEG, wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, angleToGo, headingChangeRollingOut, heightAt, keepRollAccel, outRoll, pitchAboveHorizonDeg, setLeadPilot } from './flight.js';
 import { stepLead, leadStateOf, gForClimb } from './fluid-lead.js';
@@ -84,6 +84,26 @@ function drawnBleed(seg, plan, st) {
 function settledOutRoll(seg, a, st) {
   const r = outRoll(seg, a);
   return r && Math.abs(st.rollAcc ?? 0) <= r.maxAccelDps2 + 1e-9 ? r : null;
+}
+
+/**
+ * How far the heading still turns (radians, unsigned) if he rolls the wings level from now: his roll-out flown ahead on
+ * the point mass (stepLead, the G that holds level flight, the throttle he has), so the G that lags the bank at the T-6A's
+ * onset is in it. The kinematic prediction (flight.js headingChangeRollingOut) assumes the G of the bank at every
+ * moment, and left him about 1.4° short of the heading out of a 70° turn.
+ */
+function rollOutTurnRad(st, roll) {
+  let s = st;
+  let h = Math.atan2(s.vel.y, s.vel.x);
+  let turned = 0;
+  const thr = s.eng?.thr;
+  for (let k = 0; k < 400 && !(Math.abs(s.bank) < WINGS_LEVEL_SNAP_DEG && Math.abs(s.rollRate) < WINGS_LEVEL_SNAP_DEG); k++) {
+    s = stepLead(s, { g: Math.max(LEAD.minPushG, gForClimb(s, 0)), bank: 0, lead: true, roll, ...(Number.isFinite(thr) ? { throttle: thr } : {}) });
+    const h1 = Math.atan2(s.vel.y, s.vel.x);
+    turned += wrapPi(h1 - h);
+    h = h1;
+  }
+  return Math.abs(turned);
 }
 
 /** The height leg flown at time t (heightAt's own rule: the first leg whose span holds t), or null. */
@@ -166,9 +186,11 @@ function flyLead(a, plan, t) {
           }
         } else {
           // Roll out where the wings come level on the heading: the roll-out he flies (his roll, its onset and the
-          // planned stop, TS-223), predicted as fluid Lead's level turns predict it.
+          // planned stop, TS-223), predicted as fluid Lead's level turns predict it; near the roll-out, flown ahead on
+          // the point mass itself (rollOutTurnRad), whose G comes off at its own onset.
           const roll = settledOutRoll(seg, a, st) ?? seg.roll ?? plan.roll ?? a.techRoll;
-          const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, roll, -(st.rollAcc ?? 0), true));
+          let rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, roll, -(st.rollAcc ?? 0), true));
+          if (seg.started && toGo <= 1.5 * rollOutChange + 2 * thisStep) rollOutChange = rollOutTurnRad(st, roll);
           if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
         }
         seg.started = true;
