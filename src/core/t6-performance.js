@@ -41,8 +41,12 @@ export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKi
  * performance audit, 5 Oct 21:59Z-22:01Z): no manual in the project files gives them, so they stay estimates until Patrick
  * corrects them.
  *  - full-stick roll rate: rollPerKtasDps per knot of TRUE airspeed (a roll rate at a fixed helix angle grows with true
- *    airspeed), capped at maxRateDps: about 100°/s at 200 KIAS and 8,000 ft, the cap from about 265 KTAS. The audit's examples
- *    (65°/s at 140 KIAS, 90 at 200, 115 at 250) are the same rule read with KIAS, about 13% lower at 8,000 ft;
+ *    airspeed), capped at maxRateDps: about 131°/s at 200 KIAS and 8,000 ft, the cap from about 345 KTAS (only near VMO at
+ *    height). ALL-39 (Patrick 12 Oct 2026, "agreed"): 0.58 and 200°/s, worked out from the airframe with standard
+ *    aerodynamics (aileron travel 20° up and 11° down, NFM p.1-41 to 1-43; helix angle pb/2V about 0.10, range 0.07-0.14),
+ *    still an estimate until Patrick's measured full-stick 360° roll at about 200 KIAS (about 3.0 s expected). It was 0.45
+ *    and 120°/s (ALL-28, Fable's audit of 5 Oct). Patrick's phase 2 rolls (GoPro telemetry, 2022) reached 83-100°/s at about
+ *    110-140 KTAS, above even this at low speed, so a measured roll may raise it again;
  *  - roll acceleration: full rate in fullRateSec, the acceleration itself built over onsetSec (Patrick's ruling 12 Oct 2026
  *    03:37Z, "let's do .2", from Fable's estimate of a brisk full stick throw; his 02:08Z ask, "the roll rate itself just
  *    needs to be realistic and smoothed (not instant acceleration)"). Only a roll that carries its acceleration uses it
@@ -50,7 +54,7 @@ export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKi
  *  - G onset (T6A_G_ONSET): 4 G per second, building at 16 G/s² (the Formation fluid Lead's number, design 5.3).
  * A module's own gentler rate (a pilot's) is its choice; it never goes past these (rollWithinT6A).
  */
-export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.45, maxRateDps: 120, fullRateSec: 0.3, onsetSec: 0.2 });
+export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.58, maxRateDps: 200, fullRateSec: 0.3, onsetSec: 0.2 });
 /** The T-6A's G onset in easeValue's shape (flight-math.js): G per second, and per second². An estimate (T6A_ROLL). */
 export const T6A_G_ONSET = Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 });
 
