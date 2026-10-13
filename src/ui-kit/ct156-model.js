@@ -2780,6 +2780,7 @@ export function setPropStopped(root, stopped) {
     o.material = o.geometry === d.kit.geo.bladeTip ? tip : blade;
     o.visible = on ? true : (d.bladesShownRunning?.[i] ?? true);
   });
+  if (on) d.prop.rotation.x = rad(PROP_REST_DEG); // at once: turnProp runs after three.js has updated the matrices, so it would show a picture late
   if (d.disc) d.disc.visible = !on;
 }
 
