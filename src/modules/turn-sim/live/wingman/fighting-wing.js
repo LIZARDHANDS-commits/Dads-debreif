@@ -306,6 +306,9 @@ export function stepFwWingman(w, refSt) {
   // he climbs out of Lead's plane to kill the horizontal closure and bleed speed, then comes back down behind him.
   let yoyo = w.yoyo ?? { phase: null, hFt: 0 };
   let yoyoNeedFt = null;
+  // its height: Fable's formula, limited only by the cone's height band (Patrick 14 Oct 2026: "as long as wg stays in the cone
+  // anything is permissable"), FW_WING.heightBandFt (TS-80), unless maxFt is set
+  const yoyoMax = Y.maxFt ?? W.heightBandFt;
   if (Y.on) {
     let slowKt = 0;
     if (job.turning && dFt != null && seen.turn.centre && Number.isFinite(seen.turn.radiusFt)) {
@@ -316,12 +319,16 @@ export function stepFwWingman(w, refSt) {
       slowKt = st.kias - tasToIasKt(vHold / KT_TO_FTPS, st.pm.z);
     }
     // the climb's over: on Lead's circle with the arc error under 150 ft, or well behind his place, or Lead's turn over
-    const done = !job.turning || eArc == null || eArc > Y.exitArcFt || (Math.abs(eArc) < Y.exitArcFt && Math.abs(dFt ?? 0) < Y.onCircleFt);
+    // Round 4: also over once he is no longer closing round the circle (its purpose, killing the closure, met)
+    const done = !job.turning || eArc == null || eArc > Y.exitArcFt || (Math.abs(eArc) < Y.exitArcFt && Math.abs(dFt ?? 0) < Y.onCircleFt) || (Y.excessFtps != null && yoyo.phase === 'up' && closing < 0);
+    // Round 4: the speed trigger only while he is closing round the circle faster than the arc loop wants by excessFtps (it
+    // fired at 554 ft, 13 ft/s, in the turn away and climbed 470 ft, 42 kt lost)
+    const gaining = Y.excessFtps == null || (arcFt != null && closing - Math.max(-W.arcFarFtps, Math.min(W.arcFarFtps, (eArc ?? 0) / W.aimSec)) > Y.excessFtps);
     // the trigger: the wing line out of reach (F6), or the speed that holds his radius more than 10 kt under his own with
     // power already back
-    const trigger = !done && ((Boolean(w.lineShort) && !B.on) || (slowKt > Y.slowKt && Boolean(w.powerBack)));
-    if (yoyo.phase !== 'up' && trigger) yoyo = { phase: 'up', hFt: Math.min(Y.maxFt, Math.max(Y.minFt, yoyoNeedFt ?? 0)) };
-    else if (yoyo.phase === 'up') yoyo = done ? { phase: 'down', hFt: 0 } : { phase: 'up', hFt: Math.min(Y.maxFt, Math.max(yoyo.hFt, yoyoNeedFt ?? 0)) };
+    const trigger = !done && ((Boolean(w.lineShort) && !B.on) || (slowKt > Y.slowKt && Boolean(w.powerBack) && gaining));
+    if (yoyo.phase !== 'up' && trigger) yoyo = { phase: 'up', hFt: Math.min(yoyoMax, Math.max(Y.minFt, yoyoNeedFt ?? 0)) };
+    else if (yoyo.phase === 'up') yoyo = done ? { phase: 'down', hFt: 0 } : { phase: 'up', hFt: Math.min(yoyoMax, Math.max(yoyo.hFt, yoyoNeedFt ?? 0)) };
     else if (yoyo.phase === 'down' && seen.heightFt - job.heightFt < Y.downEndFt) yoyo = { phase: null, hFt: 0 };
   }
   const passClearWanted = W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on;

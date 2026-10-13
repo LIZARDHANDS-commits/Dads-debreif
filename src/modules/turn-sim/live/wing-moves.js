@@ -493,9 +493,13 @@ export const FW_WING = Object.freeze({
     // estimate)
     slowKt: 10,
     powerBackKt: 5,
-    // the size: h = (V^2 - (omega r)^2) / 2g (Fable F8; standard energy), at most 400 ft above Lead (Fable F8, Q4's working
-    // answer, estimate), at least 100 ft when the wing line alone sets it off (estimate)
-    maxFt: 400,
+    // the size: h = (V^2 - (omega r)^2) / 2g (Fable F8; standard energy), no 400 ft cap (Patrick 14 Oct 2026: "as long as wg
+    // stays in the cone anything is permissable"): limited by the cone's height band, heightBandFt (200 ft, TS-80; null here
+    // means that band); at least 100 ft when the wing line alone sets it off (estimate)
+    maxFt: null,
+    // the speed trigger only while he closes round Lead's circle more than 20 ft/s faster than the arc loop wants (round 4,
+    // thread, estimate), and the climb over once he is opening; null: Fable's trigger and exit alone
+    excessFtps: 20,
     minFt: 100,
     // the exit: on Lead's circle (within 150 ft of it, estimate) with the arc error under 150 ft (Fable F8, estimate), or
     // more than 150 ft behind his place; then down to the stack with power back, over once within 50 ft of it (estimate)
