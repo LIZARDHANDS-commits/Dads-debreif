@@ -63,7 +63,7 @@ export function describe(from, to, rejoinKind) {
 
 /**
  * Plans a change of formation for a pair [lead, wing] as they are now.
- * to: 'lab' | 'fw' | 'echelon' | 'route' | 'astern'. options: { side: 'keep' | 'left' | 'right', spacingFt, blockFt,
+ * to: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'corner'. options: { side: 'keep' | 'left' | 'right', spacingFt, blockFt,
  * rejoin: 'into' | 'straight', lastSide (+1/-1, for a pair in line astern) }.
  * Returns { ok, reason?, plans: { id: { segments, profile } }, note, label, from, to, side, rejoinKind, endSec, rejoinPhase, maxBankDeg }.
  * When ok is false nothing should be flown and `reason` says why in one line (spec section 10, "When things go wrong").
@@ -102,7 +102,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const phases = onClosure(legsFor(legsFrom, sCur, to, sTo, spacingFt));
   if (!phases.length) return { ok: false, reason: 'Nothing to change.' };
   // Between close formations the legs' heights are off Lead as he flies (tracker.js slotAltOf; one Lead drifts a few feet).
-  const closeKeys = ['echelon', 'route', 'astern'];
+  const closeKeys = ['echelon', 'route', 'astern', 'corner'];
   if (closeKeys.includes(from.key) && closeKeys.includes(to)) for (const p of phases) if (p.slot) p.leadRelative = true;
   if (options.overtakeKias !== undefined || options.bankCapDeg !== undefined) {
     for (const p of phases) {

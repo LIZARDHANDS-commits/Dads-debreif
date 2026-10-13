@@ -315,6 +315,29 @@ export const CLOSE_WING = Object.freeze({
     smallMove: Object.freeze({ gCap: 0.3, bankCapDeg: 5, torqueCapPct: 10, torquePctps: 10 }),
     largeMove: Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 }),
     outBeforeUp: Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 }),
+    offStation: Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 }), // B3: a change between close places, a large move's sizes (estimate)
+  }),
+  // B3 (spec 7c.3-7c.5, TS-231): a change between the close formations, flown by him as a short list of places in Lead's
+  // frame (supervisor.js stationChange), straight at each in turn at a pace, tapering to stop on the last.
+  offStation: Object.freeze({
+    paceFtps: 8, // at most jogging, 8 ft/s, on every close move for now (Patrick 14 Oct 2026, "Jogging only for now"; spec 7c.4)
+    intoEchelonFtps: 5, // from the corner forward and up into echelon at about 5 ft/s (spec 7c.3, approved 14 Oct 2026; an estimate beside SMM 12.20 paras 45, 47)
+    flowFt: 5, // a place on the way is passed once within 5 ft of it ... (TS-117: corners passed within 5 ft, an estimate)
+    flowKt: 5, // ... and no faster against it than 5 kt (TS-117, Patrick 6 Oct 05:29Z: "can be moving 5 knots thru corners")
+    doneFt: 1.5, // on the last place the change's own list ends within the small move's 1.5 ft (smallFromFt) ...
+    doneFtps: 1.5, // ... moving under a gentle drift (driftBackFtps); he holds it from there as always
+  }),
+  // B3 deconfliction (spec 7c.3: "never within a wingspan of Lead, never ahead of Lead's 3/9 line, no wings overlapping, under
+  // Lead out before up"), each a guard on the place he aims at, with a dead band so it never flickers (estimates):
+  deconflict: Object.freeze({
+    // no wings overlapping (SMM 12.20 para 44 CAUTION: "never overlap the wing of another aircraft"; para 45: nose at least
+    // 10 ft behind Lead's tail, below the prop wash): while his wings overlap Lead's sideways (centres closer than a span, or
+    // will be within lookAheadSec at the rate he is moving across), he goes no further in and goes back to line astern's fore
+    // and aft once more than noseTailDeadFt ahead of it, until back within half that
+    noseTailDeadFt: 2,
+    lookAheadSec: 1, // about what stopping from 8 ft/s across takes with 15° of bank and his 0.3 s reaction (standard kinematics)
+    spanDeadFt: 2, // never within a wingspan (centre to centre): inside span + 2 ft he aims straight away from Lead to span + 4 ft
+    aheadDeadFt: 5, // never ahead of Lead's 3/9 line: further forward than 5 ft behind it he aims 10 ft behind it
   }),
   capsPerSec: Object.freeze({ g: 0.5, bankDeg: 10, torquePct: 30 }), // a new job's pressure sizes are eased in, never stepped (bumpless; estimates)
   // The supervisor's jobs, each with a dead band so it never flickers (spec 7b.6d item 12; estimates): a small move from

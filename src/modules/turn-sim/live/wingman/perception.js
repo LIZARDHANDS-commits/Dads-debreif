@@ -15,7 +15,9 @@
 //    line by the place's offset times the roll's build-up, and pulls it in across the wing line by the offset times the
 //    roll rate squared (rigid-body kinematics). This is the pitch feed-forward: in a telegraphed 45° roll-in his place 43 ft
 //    out accelerates at about 0.14 G while Lead's own G barely moves;
-//  - whether he is under it: below its wing plane and inside its wingtip (7b.6d item 12).
+//  - whether he is under it: below its wing plane, inside its wingtip and not behind its tail (7b.6d item 12; B3: line astern
+//    and the corner, his nose about 10 ft behind Lead's tail and below the wash, are behind Lead, not under him, SMM 12.20
+//    para 45).
 // What he feels now (his own G and throttle) is his own aircraft's, not delayed: the caller reads it from his state.
 //
 // Frames and signs (spec 7b.8): feet, seconds, degrees, G; x east, y north, z up. Bank and roll rate left wing down
@@ -27,7 +29,7 @@
 import { DEG } from '../../../../core/angles.js';
 import { G_FTPS2 } from '../../../../core/units.js';
 import { STEP_SEC } from '../flight.js';
-import { LINE_BACK_PER_OUT, WINGSPAN_FT } from '../slots.js';
+import { LINE_BACK_PER_OUT, WINGSPAN_FT, LENGTH_FT } from '../slots.js';
 import { CLOSE_SEE } from '../wing-moves.js';
 import { sub3, dot3, cross3, unit3, perp3, scale3, add3, len3 } from '../attitude.js';
 
@@ -191,10 +193,26 @@ function seeWith(mem, now, filt) {
     ffForeFtps2: filt.placeAcc ?? 0,
     placeFwdFtps: len3(add3(now.s.ref.v, vPlace)) - len3(now.s.ref.v),
     placeClimbFtps: vPlace.z,
-    under: rel.up < 0 && Math.abs(rel.left) < WINGSPAN_FT / 2,
+    under: rel.up < 0 && Math.abs(rel.left) < WINGSPAN_FT / 2 && rel.fwd > -LENGTH_FT,
     frame: now.f,
     rel,
   };
+}
+
+/**
+ * The memory aiming at another place (B3: the next place of a change, or a guarded one, supervisor.js), on the axes of
+ * `side`: every remembered moment is read against it, so the rates (the picture moving) carry on unchanged; a change of
+ * side turns the smoothed rates onto the new side's axes (line and along are the spinner-to-wingtip line's, mirrored).
+ */
+export function aimAt(mem, place, side) {
+  if (side === mem.side || !mem.filt) return { ...mem, place, side };
+  const k = LINE_BACK_PER_OUT;
+  const n = Math.hypot(1, k);
+  const r = mem.filt.rate;
+  const fwd = (r.line - k * r.along) / n;
+  const left = (mem.side * (k * r.line + r.along)) / n;
+  const rate = { plane: r.plane, line: (fwd + side * k * left) / n, along: (-k * fwd + side * left) / n };
+  return { ...mem, place, side, filt: { ...mem.filt, rate } };
 }
 
 /** What he sees from the memory as it stands (the start's first look), adding nothing. */
