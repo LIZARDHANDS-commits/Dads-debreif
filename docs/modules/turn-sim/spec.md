@@ -501,7 +501,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 **8. Open questions for Patrick** (one at a time):
 1. ~~Paces~~: answered, jogging only for now (section 4).
 2. ~~Route's tolerance in a turn~~: answered, about 3x echelon (section 2).
-3. The corner for the crossunder: still 10 ft behind Lead's tail at line astern's height, stabilized flowing through (TS-117)?
+3. ~~The corner~~: answered, as today (Patrick 14 Oct 2026, "Yes, as today"): TS-117 unchanged.
 4. Opening out from a close formation to line abreast: on the live wingman here, or with the line abreast rung?
 5. Route to route on the other side: through the corner as echelon, or another way?
 
