@@ -411,7 +411,7 @@ export const FW_WING = Object.freeze({
   aimTurnSec: 0.5, // the aim line's turn read over about 0.5 s (as the line of sight)
   // ... and fed forward within 1.5 times Lead's turn rate plus 3°/s (round 4, thread, estimates): a change of aim made the line
   // jump, read as a turn of up to 115°/s; null: not held
-  aimTurnCap: null,
+  aimTurnCap: Object.freeze({ k: 1.5, plusDps: 3 }),
   overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate) ...
   minG: 0.5, // ... and never under 0.5 G, so his lift always has a direction (estimate)
   rollDps: 60, // roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required")
