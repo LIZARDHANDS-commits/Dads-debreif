@@ -8,9 +8,9 @@ import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, planDone } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { judge } from './judge.js';
-import { refsFor } from './slots.js';
+import { refsFor, pairSlot } from './slots.js';
 import { leadTurnPlan } from './formation-turns.js';
-import { REJOIN, STEADY, KIAS_LAB, KIAS_OUTSIDE_LAB } from './tuning.js';
+import { REJOIN, STEADY, KIAS_LAB, KIAS_OUTSIDE_LAB, CLOSE_WING } from './tuning.js';
 
 /**
  * The picture breaking (spec F1): Lead or #2 this far from where the plan has him at this moment plans the change again from
@@ -135,6 +135,7 @@ export function createEvents({ state, startChange, labelFor }) {
     const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, upFt) / dtSec;
     if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
     if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
+    if (c.change.liveHand) return liveHandOver(c, rel, closureFtps);
     const targetKias = c.change.to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
     if (Math.abs(wing.kias - targetKias) > 0.5) return false;
     if (c.change.to !== 'fw' && Math.abs(wing.climbFtps ?? 0) > 1.0) return false;
@@ -142,6 +143,24 @@ export function createEvents({ state, startChange, labelFor }) {
     const side = c.change.side ?? 0;
     if (side !== 0 && Math.sign(rel.left) !== side) return false;
     return judge(state.aircraft, { key: c.change.to, side }, { spacingFt: state.spacingFt }).inBand;
+  }
+
+  /**
+   * A change into echelon with the live close-in wingman (B1; spec 7b.6d item 3): done once #2 is in his band, closing under
+   * 5 kt with his bank within 10 deg of Lead's (checked above), without the tracker's 0.5 kt speed and 1 ft/s climb gates, and
+   * only once he can stop on his place from there: after his reaction, braking at the power floor's rate (the T4 probe:
+   * handed over 5 ft out at 8 ft/s he passed his place by 3.9 ft with boards flagged; stopping from 8 ft/s needs about 8.6 ft).
+   */
+  function liveHandOver(c, rel, closureFtps) {
+    const [lead, wing] = state.aircraft;
+    const side = c.change.side || Math.sign(rel.left) || -1;
+    const place = pairSlot('echelon', side);
+    const toGoFt = Math.hypot(rel.fwd - place.fwd, rel.left - place.left, wing.altAboveFt - lead.altAboveFt - place.alt);
+    const b = CLOSE_WING.handOverBrakeKtps * KT_TO_FTPS;
+    const r = CLOSE_WING.handOverReactSec;
+    const canStopFtps = b * (Math.sqrt(r * r + (2 * toGoFt) / b) - r); // v r + v^2 / 2b = the distance to go
+    if (closureFtps > canStopFtps) return false;
+    return judge(state.aircraft, { key: 'echelon', side }, { spacingFt: state.spacingFt }).inBand;
   }
 
   /**

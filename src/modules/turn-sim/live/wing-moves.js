@@ -297,6 +297,11 @@ export const CLOSE_WING = Object.freeze({
   // Below 10% torque he would use the boards before idle (Patrick 13 Oct 2026, "sure 10% tq for boards"; TS-61's order).
   // The live step has no boards' drag, so B1 flags it and holds 10%: never needed in a straight-and-level hold.
   boardsBelowPct: 10,
+  // The hand-over from a change into echelon (events.js liveHandOver; spec 7b.6d items 2 and 3): he is handed over only
+  // closing slowly enough to stop on his place after his reaction, braking at the power floor's rate (spec 7b.6d item 13: at
+  // 20% torque about 1.3 kt/s at 200 KIAS and 8,000 ft; the reaction TS-211's 0.3 s, as CLOSE_SEE.delaySec).
+  handOverBrakeKtps: 1.3,
+  handOverReactSec: 0.3,
   // The pilot's hand (spec 7b.4 and 7b.6d item 6; estimates), by job: the most G off what Lead's motion needs, the most bank
   // off Lead's, the most torque off the holding setting (100: the floor to MAX), and how fast his torque may move (about
   // 10%/s on station; a move's set and catch quicker, 20%/s, the top of 7b.6d's 15-20%/s). On station and small moves the
