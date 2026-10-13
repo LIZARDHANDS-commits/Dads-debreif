@@ -521,7 +521,7 @@ How it was built, beyond 1-8 (each an estimate until Patrick says otherwise):
 - **Rough spots, for Checkpoint E:** in route turns the torque swings 10-100% with up to 17 reversals; on corner and station-change legs his roll reaches 86°/s with up to 17° of bank off Lead's; route to route swings 10-100% with 14 reversals. Fixed 14 Oct 2026: after a Held change #2 drifted when the tracker ended 2 kt or more off Lead (once 232 ft in a minute, through Lead); Held #2 idle in a close formation now holds his place fore and aft (0.1 kt a foot, at most 2 kt) and sideways (a fraction of a degree of heading), within 30 ft of it (estimates).
 - **After Patrick's first look (14 Oct 2026):** line astern and the corner 3 ft lower (11 ft below Lead), then 6 ft more (17 ft, his setting on the Corner buttons; to polish with the redone model, future.md); Corner Fwd / Back and Up / Down buttons, 1 ft a step, 10 ft each way, for him to set the corner by its references (the station change's corner moves with it); the seat's lean now shows Lead's spinner, exhaust stacks and wingtips, not only his middle, so it moves whenever the bow hides them; route turns: Lead would rarely turn 60° in route, so its larger out-of-picture is accepted (Patrick: "thats fine").
 
-## 7e. Fighting wing on the live wingman (B5; DRAFT 2, awaiting Patrick's approval)
+## 7e. Fighting wing on the live wingman (B5; DRAFT 2, questions answered 14 Oct 2026, awaiting Patrick's approval)
 
 Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 Oct 2026, kept in `docs/references/figures/smm-12-29-*` and `smm-12-30-*`), and Patrick's own technique (14 Oct 2026, quoted). The manual's words are paraphrased with their paragraph; Patrick's are quoted. Numbers marked "estimate" or "guess" wait for his ruling.
 
@@ -586,7 +586,7 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 2. The ranges: **answered**, "happy" (back to pure) 600-650 ft, lead pursuit beyond about 700 ft, lag near 500 ft (Patrick 14 Oct 2026).
 3. The swept position and the stack: **answered**, 625 ft at 45° of sweep, 50 ft below Lead (Patrick 14 Oct 2026; it replaces TS-195's 750 ft for the 2-ship once 7e is approved).
 4. Moving out from close formation into fighting wing: **answered**, in this rung, flown by the live wingman (Patrick 14 Oct 2026).
-5. The opening check turn from fighting wing to line abreast (T5): here, or with the line abreast rung?
+5. The opening check turn from fighting wing to line abreast (T5): **answered**, with the line abreast rung (Patrick 14 Oct 2026).
 
 ## 8. Fighting wing
 
