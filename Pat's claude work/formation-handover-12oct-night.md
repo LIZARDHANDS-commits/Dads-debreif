@@ -10,6 +10,8 @@ For the next Formation session, and for this thread after compaction. Read `AGEN
 - Phase A research running in the thread, read-only, writing to its scratch folder (not durable: copy what is checked into `Pat's claude work/formation-review-12oct/` before the session ends): the manuals; public flight-test and flying-qualities data; JSBSim's T-6; Patrick's phase 2 GoPro telemetry (three chapters of one HERO7 recording on his PC; roll and onset a lower bound, loops 3.5 G typical; no latitude or longitude in any output).
 - On the waiting list: 60 EFIG and SMM page images tracked in the public repo (`Pat's claude work/manuals/images/`).
 
+- Later still: #1017 (V2.423) merged and tagged `v2.423-tuning-sheet`. #1018 (V2.424) builds every ruling so far except the loop: roll 0.58°/s per knot at most 200°/s (ALL-39), the 6 G/s ceiling (ALL-40), the engine's 3.5 s idle lag (TS-218), Lead 20-80% torque (TS-216), break 3 s (TS-217), one 3 ft tracker tolerance (TS-219, TS-220). Patrick asked that each ruling be built as it is made. The thrust check found no gap (the GoPro speed-up was flown downwind in a 40 kt wind). The loop design (TS-213, TS-215) is next; its agent stopped at the session limit before writing anything.
+
 ## Where it stands (earlier the same night)
 
 | What | Where |
