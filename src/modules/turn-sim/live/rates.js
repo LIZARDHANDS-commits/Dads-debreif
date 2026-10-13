@@ -76,7 +76,7 @@ export const RATE_SETS = Object.freeze({
  * 18:45Z). A steeper bank rolls faster and builds faster: 30° at 6°/s (4°/s²), 45° at 9°/s (6°/s²), 60° at 12°/s (8°/s²).
  * "It's to quick and suddent right now. this should also make it much easioer for 2 to stay in position."
  */
-export const TELEGRAPH = Object.freeze({ rolledSec: 6.5, easeSec: 1.5 });
+export const TELEGRAPH = Object.freeze({ rolledSec: 8.25, easeSec: 2.0 }); // Patrick 14 Oct 2026: "Slow leads roll rate down about 20 percent, make his telegraph start even slower and last a bit longer" (was 6.5 and 1.5: the steady rate 20% slower, the build-up 2.0 s, an estimate for "a bit longer")
 /** Lead's close formation roll for a turn to bankDeg: { maxRateDps, maxAccelDps2 } (TELEGRAPH). */
 export function telegraphRoll(bankDeg) {
   const rate = Math.abs(bankDeg) / (TELEGRAPH.rolledSec - TELEGRAPH.easeSec);

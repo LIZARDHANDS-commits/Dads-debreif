@@ -71,7 +71,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | RATE_SETS.…roll | `Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 })` |  |
 | RATE_SETS.…frame | `Object.freeze({ foreAftFtps: 80, verticalFtps: 40, nearPerSec: 10, nearMinFtps: 20 })` |  |
 | RATE_SETS.…law | `Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 })` |  |
-| TELEGRAPH | `Object.freeze({ rolledSec: 6.5, easeSec: 1.5 })` | Lead "telegraphs" a close formation turn (Patrick 12 Oct 2026 18:45Z): the roll rate builds smoothly over easeSec, holds steady, and eases back to zero over easeSec, rolledSec from wings level to the bank (and the roll-out the same, his "yes" 18:45Z). A steeper bank rolls faster and builds faster: 30° at 6°/s (4°/s²), 45° at 9°/s (6°/s²), 60° at 12°/s (8°/s²). "It's to quick and suddent right now. |
+| TELEGRAPH | `Object.freeze({ rolledSec: 8.25, easeSec: 2.0 })` | Patrick 14 Oct 2026: "Slow leads roll rate down about 20 percent, make his telegraph start even slower and last a bit longer" (was 6.5 and 1.5: the steady rate 20% slower, the build-up 2.0 s, an estimate for "a bit longer") |
 | CLOSE_SHAPING |  | Nominal shaping targets and soft envelope caps for close-in formation work (SMM 12.4, 12.6, 12.20). Targets, not walls: guidance steers toward the nominal targets, with progressive soft cushion expanding toward the envelope cap if displaced. Scaled so echelon <-> route takes ~10 seconds. |
 | CLOSE_SHAPING.targetBankDeg | `8.0` | Patrick's "small bank, gentle power" is the intent; 8° is an estimate (Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 11) |
 | CLOSE_SHAPING.envelopeBankCapDeg | `15.0` |  |
