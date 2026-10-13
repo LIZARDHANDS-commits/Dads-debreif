@@ -15,7 +15,7 @@
 // labelled "estimate" beside them.
 import { phase, runTracker } from './tracker.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
-import { REJOIN, STOP_KT, FW_FOLLOW, KIAS_OUTSIDE_LAB, KIAS_LAB, TRACKER, CLOSE_SHAPING } from './tuning.js';
+import { REJOIN, STOP_KT, FW_FOLLOW, KIAS_OUTSIDE_LAB, KIAS_LAB, TRACKER, CLOSE_SHAPING, RECIPES } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { fwSwitch } from './fw-switch.js';
@@ -77,9 +77,7 @@ export const cornerBehind = (slot, spacingFt) => {
 export const dropBack = (slot, over = {}) => phase(slot, {
   fwdRate: CLOSE_SHAPING.targetFwdFtps,
   latRate: CLOSE_SHAPING.targetLateralFtps,
-  vrel0: 12,
-  advanceTol: 15,
-  finalTol: 6,
+  ...RECIPES.dropBack,
   targetBankDeg: CLOSE_SHAPING.targetBankDeg,
   bankCapDeg: CLOSE_SHAPING.envelopeBankCapDeg,
   targetUndertakeKt: CLOSE_SHAPING.targetUndertakeKt,
@@ -91,13 +89,13 @@ export const dropBack = (slot, over = {}) => phase(slot, {
  * Echelon, route or line astern to fighting wing, expeditious (Patrick 19:03Z: "take ~7-15 seconds", TS-55): the slot is chased at
  * once with up to 20 KIAS under or over Lead, 45° bank, and the height change over the first 6 s. All the rates are estimates.
  */
-export const sweepOut = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 30, kcap: 0.1, d0: 50, vrelMax: 200, decel: 3, bankCapDeg: 45, overtakeKias: 20, undertakeKias: 20, advanceTol: 25, finalTol: 6, altSec: 6, ...over });
+export const sweepOut = (slot, over = {}) => phase(slot, { ...RECIPES.sweepOut, ...over });
 /** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): 10-20 KIAS overtake, slowing to about 5 kt at route. */
-export const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
+export const closeThrough = (slot, over = {}) => phase(slot, { ...RECIPES.closeThrough, ...over });
 /** The rejoin to a formation (SMM 12.24, 16.20): the slot is chased at once, the closing speed falls with range, bank up to the cap. */
-export const rejoinTo = (slot, over = {}) => phase(slot, { rejoin: true, fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
+export const rejoinTo = (slot, over = {}) => phase(slot, { ...RECIPES.rejoinTo, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, ...over });
 /** Entry to line abreast (SMM 16.18 para 51): #2 turns away 20-40° to open out while Lead holds 220 KIAS. */
-export const openOut = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 150, vrel0: 40, kcap: 0.1, d0: 300, vrelMax: 220, decel: 2, bankCapDeg: 45, overtakeKias: 25, undertakeKias: 15, advanceTol: 30, finalTol: 25, ...over });
+export const openOut = (slot, over = {}) => phase(slot, { ...RECIPES.openOut, ...over });
 
 /** The straight-ahead rejoin's places in feet, in the frame of the aircraft rejoined on (estimates, see straightAhead). */
 export const STRAIGHT_AHEAD = {
@@ -121,13 +119,14 @@ export const STRAIGHT_AHEAD = {
  */
 export function straightAhead(at, route, { endInRoute = false, holdLineUpUntil, ...over } = {}) {
   const A = STRAIGHT_AHEAD;
-  const quick = { rejoin: true, fwdRate: Infinity, latRate: Infinity, decel: 2, undertakeKias: 15, ...over }; // a rejoin up to route (Patrick 06:09Z)
+  const R = RECIPES.straightAhead;
+  const quick = { ...R.quick, ...over }; // a rejoin up to route (Patrick 06:09Z)
   return [
-    phase(at(A.sixFt, 0, A.belowWakeFt), { ...quick, vrel0: 20, kcap: 0.05, d0: 50, vrelMax: 100, bankCapDeg: 30, overtakeKias: 15, advanceTol: 60, ...(holdLineUpUntil !== undefined ? { holdUntil: holdLineUpUntil } : {}) }),
+    phase(at(A.sixFt, 0, A.belowWakeFt), { ...quick, ...R.lineUp, ...(holdLineUpUntil !== undefined ? { holdUntil: holdLineUpUntil } : {}) }),
     // close along the six line at about 21 KIAS overtake, inside EFIG p.371's 20-30, until the vector point
-    phase(at(A.closeTowardFt, 0, A.belowWakeFt), { ...quick, vrel0: 36, kcap: 0, vrelMax: 50, decel: 3, bankCapDeg: 20, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+    phase(at(A.closeTowardFt, 0, A.belowWakeFt), { ...quick, ...R.close, advanceTol: A.vectorAtFt + A.closeTowardFt }),
     // then route, closing level or slightly low (SMM 16.15 para 38) and slowing as it comes in
-    closeThrough(endInRoute ? route : { ...route, alt: route.alt - 25 }, { rejoin: true, overtakeKias: 30, vrel0: 6, kcap: 0.04, decel: 1, advanceTol: 6, ...(endInRoute ? { finalTol: 1.5 } : {}), ...over }),
+    closeThrough(endInRoute ? route : { ...route, alt: route.alt - R.routeLowFt }, { ...R.route, ...(endInRoute ? { finalTol: R.routeFinalTol } : {}), ...over }),
   ];
 }
 
@@ -195,7 +194,7 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     const fw = slot('fw', sTo);
     if (at === 'fw') {
       if (!phases.length) return phases;
-      if (!switched) phases.push(dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 })); // after the switch he settles where he is in the cone
+      if (!switched) phases.push(dropBack(fw, { ...RECIPES.fwSettle })); // after the switch he settles where he is in the cone
     } else {
       // drop back and sweep out in one expeditious move, about 7-15 s to the band (Patrick 19:03Z, TS-55); SMM 16.32 para 92 says
       // "slowly drop back", and Patrick's ruling wins (rule book, What wins). Speed changes stay near 2 kt/s.

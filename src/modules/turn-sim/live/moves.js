@@ -373,6 +373,12 @@ export const TRACKER = Object.freeze({
     ffFilter: 0.2, // how much of the commanded heading's own turn rate is fed forward each step (a smoothing share; estimate)
   }),
   refAccelShare: 0.25, // the target slot builds up to its slide rate over 4 s (a quarter of the rate per second; estimate)
+  // Named in the sheet from tracker.js (12.2b, TS-214), values unchanged:
+  bankLeg: Object.freeze({ refAccelShare: 0.6, refRate: 1.5 }), // a leg with a bank target (targetBankDeg, the close moves of CLOSE_SHAPING) builds the target slot's rate faster, 0.6 of it per second, and closes on it at 1.5/s, in place of refAccelShare and gain.refRate (estimates)
+  snapMaxFt: 1.0, // the target slot's snap distance is never more than 1 ft ... (estimate)
+  snapTolShare: 0.25, // ... and otherwise a quarter of the leg's advance tolerance (estimate)
+  snapFallbackTolFt: 6, // the advance tolerance the snap and the arrival use for a leg that names none: 6 ft, where phase.advanceTol below gives 3 (a difference to settle; estimates)
+  lineOverrunShare: 1.2, // up or down the spinner-wingtip line, he stays on the line's extension up to 20% past its end (estimate)
   snapFt: 0.05, // the target slot snaps onto its place within this many feet (estimate)
   goalTolFt: 2, // a moving goal counts as reached within this many feet, unless the leg says otherwise (estimate)
   settleMinFtps: 1.2, // settled: no faster against the last slot than this, ft/s ...
@@ -562,4 +568,30 @@ export const LAG_ROLL = Object.freeze({
   setUpOvertakeKias: 30, // ... moving at up to this relative to Lead, briskly (estimate)
   fallBackCostFt: 20, // the search's cost per foot of ending behind the slot is 1 per this many feet (was 100; TS-143: end in position; estimate)
   rollMissG: 0.3, // #2's wings roll no faster than the T-6A (TS-85): a path asking more is used only while the lift they don't yet point stays under this (estimate)
+});
+
+// ---- each tracker move's closure settings (from recipes.js) -----------------------------------------------------------
+
+/**
+ * The settings each of the tracker's moves (recipes.js) lays over TRACKER.phase: how fast the target slot slides (fwdRate,
+ * latRate, ft/s), the closing speed near the slot (vrel0, ft/s) and how it grows with range (kcap ft/s per ft beyond d0 ft) up
+ * to vrelMax, the deceleration (decel, ft/s²), the bank cap, the speed band against the aircraft flown off (overtakeKias,
+ * undertakeKias), the tolerances (advanceTol, finalTol, ft) and the height change's time (altSec). Moved unchanged from
+ * recipes.js (12.2b, TS-214); the sources are recipes.js's notes beside each move. All estimates unless said.
+ */
+export const RECIPES = Object.freeze({
+  dropBack: Object.freeze({ vrel0: 12, advanceTol: 15, finalTol: 6 }), // with CLOSE_SHAPING's rates, bank and speed band
+  sweepOut: Object.freeze({ fwdRate: Infinity, latRate: Infinity, vrel0: 30, kcap: 0.1, d0: 50, vrelMax: 200, decel: 3, bankCapDeg: 45, overtakeKias: 20, undertakeKias: 20, advanceTol: 25, finalTol: 6, altSec: 6 }), // Patrick 19:03Z, TS-55: 7-15 s to fighting wing
+  closeThrough: Object.freeze({ fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25 }), // SMM 16.15 para 38; AFM7 p.18
+  rejoinTo: Object.freeze({ rejoin: true, fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10 }), // with REJOIN's bank cap and overtake
+  openOut: Object.freeze({ fwdRate: 40, latRate: 150, vrel0: 40, kcap: 0.1, d0: 300, vrelMax: 220, decel: 2, bankCapDeg: 45, overtakeKias: 25, undertakeKias: 15, advanceTol: 30, finalTol: 25 }), // SMM 16.18 para 51
+  straightAhead: Object.freeze({
+    quick: Object.freeze({ rejoin: true, fwdRate: Infinity, latRate: Infinity, decel: 2, undertakeKias: 15 }), // every leg (Patrick 06:09Z)
+    lineUp: Object.freeze({ vrel0: 20, kcap: 0.05, d0: 50, vrelMax: 100, bankCapDeg: 30, overtakeKias: 15, advanceTol: 60 }), // onto the six, 1,000 ft back
+    close: Object.freeze({ vrel0: 36, kcap: 0, vrelMax: 50, decel: 3, bankCapDeg: 20, overtakeKias: 30 }), // along the six line, about 21 KIAS overtake (EFIG p.371's 20-30)
+    route: Object.freeze({ rejoin: true, overtakeKias: 30, vrel0: 6, kcap: 0.04, decel: 1, advanceTol: 6 }), // into route, slowing (SMM 16.15 para 38)
+    routeFinalTol: 1.5, // ... and settled within 1.5 ft when it ends in route
+    routeLowFt: 25, // ... else aimed 25 ft below route, closing level or slightly low (SMM 16.15 para 38; 25 ft an estimate)
+  }),
+  fwSettle: Object.freeze({ advanceTol: 6, finalTol: 6, vrel0: 16 }), // after the side switch he settles where he is in the cone
 });

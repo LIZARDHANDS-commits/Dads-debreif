@@ -74,7 +74,7 @@ export function scoreFlight(flight, { weights = START_WEIGHTS, mode = null } = {
   const raw = Object.fromEntries(TERMS.map((t) => [t.key, 0]));
   const rejects = [];
   const close = to !== 'fw';
-  const lineDeg = TURNING_REJOIN.lineDeg ?? 45;
+  const lineDeg = TURNING_REJOIN.lineDeg;
   const uF = -Math.cos(lineDeg * DEG);
   const uL = side * Math.sin(lineDeg * DEG);
   let windowSeen = false;

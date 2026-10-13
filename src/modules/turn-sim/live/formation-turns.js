@@ -35,6 +35,9 @@ import { thrustPerWeight, dragPerWeight, iasToTasKt, T6A_LIMITS, T6A_MANOEUVRE }
 import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { throttleAtTorque } from './power.js';
 import { telegraphRoll } from './rates.js';
+import { CLOSE_TURN, CATCH_UP, ROLLED_CAUGHT_DEG, ROLLED_MAX_SEC, ROLLED_BLEND_SEC, SLOT_TOL_FT, ROLL_WITH_DEG, FW_MOVE } from './tuning.js';
+
+export { CLOSE_TURN }; // its home is wing-moves.js (the tuning sheet, TS-214)
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
 export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));
@@ -286,78 +289,7 @@ export function planFluid4Turn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = 
 
 // ---- turns in the close formations ---------------------------------------------------------------
 
-/**
- * The numbers of the close formation turns. Lead's bank: the 2-ship and the 4-ship's finger, box, route and line astern turn
- * at 45° (1.4 G), an estimate inside the close formation limit of 3 G (2 CFFTS Orders B2 ch 8 p.97, para 1a and 1b); the
- * check turn at 30° (gentle, as in fighting wing). The 4-ship's echelon turns at 30°: the Orders normally restrict it to
- * stepped turns away at 30° of bank (para 1b(2)); SMM 16.36 para 101 also has echelon turns normally away from the formation.
- * A turn into a 4-ship echelon is flown and flagged, never refused (the rule book: references, not walls).
- */
-export const CLOSE_TURN = Object.freeze({
-  bankDeg: 45,
-  /** The 2-ship echelon turn: 60° of bank, 2 G (Patrick 5 Oct 20:50Z: "about 4-5 seconds to get to 60/2"; TS-78). */
-  echelonBankDeg: 60,
-  gentleBankDeg: 30,
-  fourEchelonBankDeg: 30,
-  /**
-   * Lead's roll in a close formation turn: up to 30°/s, building at 20°/s², so 45° of bank takes about 3 s (estimates; no
-   * manual gives a roll rate). At the 180°/s every other move may use (Patrick 5 Oct 06:07Z) his wing plane would swing a
-   * wingman's place 30 ft (echelon) to 120 ft (route) up or down in half a second, which no wingman can follow.
-   */
-  leadRoll: RATE_SETS.close.leadRoll,
-  /**
-   * The 2-ship echelon turn's roll: "very slow and smooth, about 4-5 seconds to get to 60/2 ... Echelon is smooth to allow 2
-   * to stay in position in tight formation" (Patrick 20:50Z): up to 30°/s, building at 12°/s², about 4.5 s to 60° (the
-   * Formation thread's dry runs, 5 Oct: past about 15°/s² Lead's roll pushes #2 along his lift line faster than #2 can
-   * follow at 0.3 G or more). Every other formation and move keeps the aircraft's own roll (tuning.js ROLL).
-   */
-  echelonRoll: RATE_SETS.close.echelonRoll,
-  /**
-   * How a close wingman holds his place in Lead's real wing plane through the roll-in, the turn and the roll-out (SMM 12.19
-   * paras 41-43, Fig 12.11; Patrick 5 Oct 19:51Z: "The aircraft should use bank and pitch and roll to stay in position as
-   * lead flies in echelon, from any close formation position"; holdInPlane below). He rolls with Lead, and:
-   *  - pulls or unloads up to followG more or less than Lead's G along Lead's lift line (pitch), so on the outside of a
-   *    roll-in he climbs into the plane and on the inside he descends;
-   *  - banks off Lead's bank to slide in or out along Lead's wing line, as far as it takes (no limit but physics: Patrick's
-   *    "no bank limit in formation"), settling across at sidePerSec so a small gap takes a degree or two;
-   *  - changes speed up to powerG along Lead's heading (about 2 kt/s);
-   *  - builds a change of G at no more than onsetGps, and settles back onto his place at about holdPerSec (critically damped).
-   * All estimates. Where Lead's roll moves his place faster than that (route, the 4-ship's outer wingmen) he is briefly out
-   * of place and back in a few seconds ("initially climbs or descends slightly as bank is changed", para 41).
-   */
-  followG: 0.5,
-  /**
-   * How fast he settles across Lead's wing line, per second (critically damped; estimate). Patrick 10 Oct 23:06Z: "we want
-   * the aircraft to stay in position during turns, 2 uses power, bank, pitch". Until V2.229 his bank was held within 2.5° of
-   * Lead's (10° wings level), too little to follow Lead's roll: in finger #4 slid 170 ft wide in a 90° turn. At 1/s a 1 ft
-   * gap takes about 1° of bank, so in a steady turn he sits within a degree or two of Lead's bank.
-   */
-  sidePerSec: 1,
-  /** How long after Lead's turn he may take to settle back on his place (estimate; it was 30 s, too short after a 60° roll-out). */
-  settleSec: 60,
-  powerG: 0.1,
-  onsetGps: 4,
-  holdPerSec: 2.5,
-  /**
-   * His roll, rate and onset, is Lead's close-turn roll (closeTurnRoll) times this (estimate; Fable's V2.234 flight report,
-   * Patrick 11 Oct 03:40Z: "the target bank angle and roll rate should be proportional to the desired change ... it should
-   * be very smooth in close form"). Until V2.245 only the 4 G/s onset limited his path, a lift-vector swing of about
-   * 230°/s, so his roll snapped 13 to 31 to 13°/s each time Lead's roll started or stopped.
-   */
-  rollMargin: 1.5,
-  /** The most bank off Lead's he uses to slide across Lead's wing line (estimate), the slide in proportion to the gap below it. */
-  sideBankDeg: 15,
-  /** The turn ends with every wingman's bank within this of Lead's (estimate; Fable's V2.331 flight). */
-  endBankDeg: 0.2,
-  /** Handed over from the tracker, how long he takes to ease into the hold's G onset and power (estimate). */
-  handOverEaseSec: 0.5,
-});
 
-/**
- * A close wingman's catch-up roll (estimates): his roll limit (rate and onset) grows smoothly with how far he is behind Lead's
- * bank, to mult times the smooth roll at fullDeg behind (rollFrom).
- */
-const CATCH_UP = Object.freeze({ fullDeg: 15, mult: 3 });
 
 /** A close wingman's roll: Lead's close roll (rate and onset) times CLOSE_TURN.rollMargin. */
 const closeWingRoll = (leadRoll) => ({ maxRateDps: leadRoll.maxRateDps * CLOSE_TURN.rollMargin, maxAccelDps2: leadRoll.maxAccelDps2 * CLOSE_TURN.rollMargin });
@@ -489,19 +421,6 @@ export function heldPoses(leadRec, wing, rel, n, roll = closeWingRoll(CLOSE_TURN
   return poses;
 }
 
-/** How far behind the path's bank his wings may be and still count as having caught it up (degrees; an estimate). */
-const ROLLED_CAUGHT_DEG = 0.1;
-/**
- * The longest roll-in that is re-flown at his rolled bank (an estimate). A rejoin's hand-over lags for well under a second
- * (about 0.7 s, probes 12 Oct 2026); a close turn's roll-in can lag for 5 s or more (#4 in a 4-ship echelon hook), and
- * re-flying that drew him out of position, so a longer lag flies the planned path as before.
- */
-const ROLLED_MAX_SEC = 1;
-/**
- * How long the path flown at his rolled bank takes to blend back onto the planned path (an estimate). Long enough that the
- * blend adds no more than about a degree of bank past the planned path's: at 2 s it added up to 4° (probes, 12 Oct 2026).
- */
-const ROLLED_BLEND_SEC = 6;
 
 /**
  * The start of a held path re-flown at the bank his roll gives (standard aerodynamics: turn rate = g nz tan(bank) / V),
@@ -708,8 +627,6 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined, 
   };
 }
 
-/** How far a wingman may be from his slot at the press and still hold the slot (the classifier's close tolerance, judge.js). */
-const SLOT_TOL_FT = 15;
 
 /**
  * Each wingman's slot in Lead's frame, { [id]: { fwd, left, alt } }: the slot table's place off the aircraft he flies off,
@@ -743,8 +660,6 @@ function closeTurnRoll(base, bodies) {
   return { ...base, maxRateDps: Math.min(base.maxRateDps, rateDps), maxAccelDps2: Math.min(base.maxAccelDps2, accelDps2) };
 }
 
-/** The bank off Lead's that Lead's roll rate leaves his farthest wingman needing to hold his place across Lead's wing line (estimate). */
-const ROLL_WITH_DEG = 5;
 /** How far the 2-ship's #2 is from Lead in echelon, ft (slots.js: 18 ft back, 43 ft out, 3 ft down), the reference for closeTurnRoll. */
 const ECHELON_REF_FT = (() => { const e = slotsFor('echelon', 1)[2]; return Math.hypot(e.fwd, e.left, e.alt); })();
 
@@ -821,9 +736,6 @@ export const FW_MOVES = Object.freeze({
   climb: { label: 'Climb', sided: false },
   descend: { label: 'Descend', sided: false },
 });
-/** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
- * pair is; climbs and descents of 2,000 ft, at what the T-6 holds at Lead's speed (TS-203). */
-const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15, climbTorquePct: 80, descentShare: 0.8 }); // climbTorquePct: Lead's climb power, 80% torque at most (Patrick 12 Oct 2026 08:39Z, a formation hard rule; TS-203); descentShare: 80% of the model's idle descent at Lead's speed (estimate)
 
 /**
  * Lead's plan for one of his fighting wing moves (FW_MOVES) from where he is now: { ok, segments, profile, turning, nowDir }

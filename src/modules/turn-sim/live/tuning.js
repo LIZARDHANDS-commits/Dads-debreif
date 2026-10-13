@@ -6,3 +6,6 @@
 export * from './rates.js';
 export * from './bands.js';
 export * from './moves.js';
+export * from './handling.js';
+export * from './lead-moves.js';
+export * from './wing-moves.js';
