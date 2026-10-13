@@ -223,7 +223,9 @@ export function stepFwWingman(w, refSt) {
     const leadTighter = { p: lp0, v: leadV, omega: scale3(seen.turn.omega, W.guard.tighter) };
     const passFor = (om) => {
       const me = { p: ownP, v: ownV, omega: scale3(out, om) };
-      return Math.min(leastPass(leadAsIs, me, horizon).leastFt, leastPass(leadTighter, me, horizon).leastFt);
+      // One lift (Fable F3): the vertical he is asking for is a known term in the pass, its height counted in the slant.
+      const extra = W.guard.sharedLift ? { acc: aV, maxFt: Math.abs(errFt) } : null;
+      return Math.min(leastPass(leadAsIs, me, horizon, extra).leastFt, leastPass(leadTighter, me, horizon, extra).leastFt);
     };
     if (passFor(omegaNom) < W.guard.engageFt) {
       filterOn = true;
@@ -232,7 +234,10 @@ export function stepFwWingman(w, refSt) {
       const gMost = W.guard.shakerBound
         ? Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)))
         : Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
-      const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - 1))) / V;
+      // The turn the G leaves after what holds him up and the vertical he asks for (Fable F3: one lift for both); before,
+      // 1 G only, so a climb or a pass-clear below took turn away that the filter had counted on.
+      const gHold = W.guard.sharedLift ? len3(hold) : 1;
+      const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
       const N = W.guard.filterSteps;
       let best = null;
       let bestPass = -Infinity;

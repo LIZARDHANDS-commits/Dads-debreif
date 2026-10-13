@@ -307,10 +307,16 @@ export function startFwGuard() {
  * (rad/s, the turn's axis times its rate) for each. Integrated in lookStepSec steps (a turn held: the velocity turned by
  * omega x v, standard kinematics). Returns { leastFt, horizFt (the horizontal range at that moment) }.
  */
-export function leastPass(a, b, horizonSec) {
+export function leastPass(a, b, horizonSec, extra = null) {
   let [pa, va, pb, vb] = [a.p, a.v, b.p, b.v];
   let least = len3(sub3(pa, pb));
   let horiz = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+  // B5 round 3: how far b stays behind a's wing line (along a's path, + behind), the least over the look (Fable F6)
+  let behind = -dot3v(sub3(pb, pa), va) / Math.max(len3(va), 1e-9);
+  // ... and b's vertical demand as a known term (Fable F3): extra = { acc (ft/s², a vector), maxFt (how far it moves him at
+  // most, his height target) }; the height it gives is added to b's place, so the slant counts it.
+  const accLen = extra ? len3(extra.acc) : 0;
+  const accDir = accLen > 1e-9 ? scale3(extra.acc, 1 / accLen) : null;
   const dt = FG.lookStepSec;
   for (let t = dt; t <= horizonSec + 1e-9; t += dt) {
     // half-step turns keep the speed while turning (midpoint)
@@ -322,14 +328,18 @@ export function leastPass(a, b, horizonSec) {
     pb = add3(pb, scale3(add3(vb, scale3(vb2, kb)), dt / 2));
     va = scale3(va2, ka);
     vb = scale3(vb2, kb);
-    const d = len3(sub3(pa, pb));
+    const pbH = accDir ? add3(pb, scale3(accDir, Math.min(extra.maxFt, 0.5 * accLen * t * t))) : pb;
+    const d = len3(sub3(pa, pbH));
     if (d < least) {
       least = d;
-      horiz = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+      horiz = Math.hypot(pa.x - pbH.x, pa.y - pbH.y);
     }
+    behind = Math.min(behind, -dot3v(sub3(pbH, pa), va) / Math.max(len3(va), 1e-9));
   }
-  return { leastFt: least, horizFt: horiz };
+  return { leastFt: least, horizFt: horiz, behindLeastFt: behind };
 }
+
+const dot3v = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 
 /**
  * One step of the guard. g: last step's; seen: perception.js seeFw's; ownOmega: his own turn now (rad/s vector, he feels
