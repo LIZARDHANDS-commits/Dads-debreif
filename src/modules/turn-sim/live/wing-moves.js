@@ -245,6 +245,18 @@ export const SLOT_TOL_FT = 15;
 /** The bank off Lead's that Lead's roll rate leaves his farthest wingman needing to hold his place across Lead's wing line (estimate). */
 export const ROLL_WITH_DEG = 5;
 
+// ---- the close-formation wingman (B1, TS-226; spec 7b) ----------------------------------------------------------------
+
+/**
+ * What the close-formation wingman sees and how (live/wingman/perception.js; spec 7b.3, 7b.6b, 7b.6d). Estimates unless a
+ * source is given.
+ */
+export const CLOSE_SEE = Object.freeze({
+  delaySec: 0.3, // everything he sees reaches his hands about 0.3 s late (TS-211, estimate; Tohidi and Yildiz (2020) measured 0.3 s as a pilot's total delay, decision plus neuromuscular)
+  filterSec: 0.1, // the rates he reads (the picture moving, Lead's roll and its build-up, Lead's G) are smoothed over about 0.1 s, as an eye judges motion over a moment: at most 0.1 s, the plane axis has little phase to spare (spec 7b.6d item 7, the Fable audit)
+  aheadSec: 0.3, // he dead-reckons Lead's bank across his own delay: seen bank + rate x 0.3 + half the build-up x 0.3² (spec 7b.6d item 5)
+});
+
 // ---- the rolling rejoin (from rolling-rejoin.js) -------------------------------------------------------------------
 
 /** The rolling rejoin's search and pursuit (moved from rolling-rejoin.js, 12.2b). Estimates unless a page or ruling is named. */

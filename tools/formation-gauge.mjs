@@ -24,9 +24,10 @@ import { performance } from 'node:perf_hooks';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createFormation } from '../src/modules/turn-sim/live/formation.js';
 import { STEP_SEC, liftBankDeg } from '../src/modules/turn-sim/live/flight.js';
-import { drawnAttitudeOf, drawnTurnDeg, sub3, dot3, cross3 } from '../src/modules/turn-sim/live/attitude.js';
+import { drawnAttitudeOf, drawnTurnDeg } from '../src/modules/turn-sim/live/attitude.js';
 import { leadStateOf } from '../src/modules/turn-sim/live/fluid-lead.js';
-import { pairSlot, LINE_BACK_PER_OUT } from '../src/modules/turn-sim/live/slots.js';
+import { pairSlot } from '../src/modules/turn-sim/live/slots.js';
+import { seenOf, placeDeviation } from '../src/modules/turn-sim/live/wingman/perception.js';
 import { throttleAtTorque } from '../src/modules/turn-sim/live/power.js';
 
 const ROLL_REVERSAL_DPS = 10; // a roll counts once it is faster than this either way (estimate)
@@ -114,23 +115,13 @@ function tally() {
 const AXES = ['plane', 'line', 'along'];
 
 /**
- * A close wingman's deviation from his place (feet) on his three axes, in Lead's frame from Lead's velocity and body up:
- * plane (+ above Lead's wing plane), line (+ ahead of the spinner-to-wingtip line), along (+ out along it, away from Lead).
- * key: the close formation (slots.js); side: #2's side (+1 left of Lead).
+ * A close wingman's deviation from his place (feet) on his three axes, in Lead's frame from Lead's velocity and body up
+ * (the wingman's own perception's geometry, live/wingman/perception.js, undelayed): plane (+ above Lead's wing plane), line
+ * (+ ahead of the spinner-to-wingtip line), along (+ out along it, away from Lead). key: the close formation (slots.js);
+ * side: #2's side (+1 left of Lead).
  */
 function closeDeviation(lead, wing, key, side, blockFt) {
-  const L = leadStateOf(lead, blockFt);
-  const W = leadStateOf(wing, blockFt);
-  const left = cross3(L.bodyUp, L.nose);
-  const r = sub3(W.pm, L.pm);
-  const place = pairSlot(key, side);
-  const d = { fwd: dot3(r, L.nose) - place.fwd, left: dot3(r, left) - place.left, up: dot3(r, L.bodyUp) - place.alt };
-  const n = Math.hypot(1, LINE_BACK_PER_OUT);
-  return {
-    plane: d.up,
-    line: (d.fwd + side * LINE_BACK_PER_OUT * d.left) / n, // toward Lead's nose, square to the line
-    along: (-LINE_BACK_PER_OUT * d.fwd + side * d.left) / n, // out along the line, back as it goes out
-  };
+  return placeDeviation(seenOf(leadStateOf(lead, blockFt)), seenOf(leadStateOf(wing, blockFt)), pairSlot(key, side), side);
 }
 
 /** An aircraft's torque (%) from its power (power.js; throttleAtTorque is linear in the torque), or null with none set. */
