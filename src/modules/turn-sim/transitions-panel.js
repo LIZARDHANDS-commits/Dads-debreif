@@ -516,22 +516,27 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   const fourGrid = h('div', { hidden: true },
     group('Tactical', fourAll.filter((b) => TACTICAL.has(b.key)).map(makeFourButton)),
     group('Close formation', fourAll.filter((b) => !TACTICAL.has(b.key)).map(makeFourButton)));
+  // The Controls panel (Patrick 14 Oct 2026, "Yes, as drawn"): Manoeuvres first (layout.js, with manoeuvreParts below), then
+  // Go to (the formations), How (how to get there: the station side, the rejoin, the position in the band), and a #2 box in
+  // close formation only (Held / Live; the echelon line in echelon only). Each shows only what the formation can use.
+  const twoBar = h('div', { class: 'ts-section-bar' }, h('h3', {}, '#2'));
   const element = h('section', { class: 'ts-change', 'aria-labelledby': 'ts-change-title' },
-    // The FORMATION bar, the two groups, then Side, just above the manoeuvres (Patrick, 5 Oct).
-    h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Formation')),
+    h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Go to')),
     pairGrid,
     fourGrid,
+    refusal,
+    h('div', { class: 'ts-section-bar' }, h('h3', {}, 'How')),
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     rejoinRow,
-    bankRow,
+    positionGroup,
+    floatHeight,
+    twoBar,
     closeWingRow,
     echelonShiftRow,
-    positionGroup,
-    refusal,
-    floatHeight,
-    fluidUi?.element ?? null,
-    fluidUi?.lagElement ?? null, // "#2": the lag roll, in its own small group
   );
+  // What the pair can fly now that lives in this file: the close-turn bank, the fluid and fighting wing moves (fluid-panel.js)
+  // and #2's lag roll; layout.js puts them in the Manoeuvres box.
+  const manoeuvreParts = [bankRow, fluidUi?.element ?? null, fluidUi?.lagElement ?? null].filter(Boolean);
 
   // ---- the card's lines ----
   const nowLine = h('p', { class: 'ts-line ts-now-formation' });
@@ -541,6 +546,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
 
   return {
     element,
+    manoeuvreParts,
     cardElement,
     /** The fluid settings, for the Settings box (fluid-panel.js), or null. */
     fluidSettings: fluidUi?.settingsElement ?? null,
@@ -605,8 +611,9 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
         cancelPick();
       }
       fourGrid.hidden = !four;
-      closeWingRow.hidden = four; // the pair's only in B1
-      echelonShiftRow.hidden = four; // the pair's only (TS-230)
+      closeWingRow.hidden = four; // the pair's only in B1 (update shows it in close formation only)
+      echelonShiftRow.hidden = four; // the pair's only (TS-230; update shows it in echelon only)
+      twoBar.hidden = four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
       if (fluidUi) fluidUi.lagElement.hidden = true; // the pair's lag roll group is shown by update
@@ -639,7 +646,9 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
       // Position: only in a formation it works in, with nothing else flying (or a move in the band, so a new spot can be picked).
       stateNow = state;
       const moving = state.current?.key === `change:${MOVE_IN_BAND_KEY}`;
-      const showPosition = MOVE_IN_BAND_FORMATIONS.includes(where.key) && !where.manoeuvring && (!state.current || moving);
+      // Line abreast and fighting wing only since the menu of 14 Oct 2026 (Patrick, "as drawn"): in the close formations the
+      // Echelon line control and the live wingman place #2; the move in their ±5 ft band stays in move-in-band.js.
+      const showPosition = PLACE_BOX_FORMATIONS.includes(where.key) && MOVE_IN_BAND_FORMATIONS.includes(where.key) && !where.manoeuvring && (!state.current || moving);
       positionGroup.hidden = !showPosition;
       if (!showPosition || !PLACE_BOX_FORMATIONS.includes(where.key)) cancelPick();
       if (showPosition) {
@@ -655,6 +664,9 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
       rejoinRow.hidden = where.key !== 'lab' && where.key !== 'fw' && !(where.key === 'other' && state.trailSide);
       const closeBankVisible = ['echelon', 'route', 'astern', 'trail'].includes(where.key);
       bankRow.hidden = !closeBankVisible;
+      closeWingRow.hidden = !closeBankVisible;
+      echelonShiftRow.hidden = where.key !== 'echelon';
+      twoBar.hidden = closeWingRow.hidden && echelonShiftRow.hidden;
       if (bankSelect.value !== String(closeBankNow())) {
         bankSelect.value = String(closeBankNow());
       }

@@ -117,10 +117,9 @@ export function createFluidUi({ onPress, onSettings, settings }) {
     h('div', { class: 'ts-change-grid' }, leadButtons),
   );
   // "#2": the lag roll, in fighting wing and echelon, the formations it flies from (TS-78). Shown by update().
-  const lagElement = h('div', { class: 'ts-change-group ts-lag-group', hidden: true },
-    h('h4', { class: 'ts-change-subtitle' }, '#2'),
+  // In the Manoeuvres box since the menu of 14 Oct 2026: no "#2" heading (the #2 box is below), its note on hover.
+  const lagElement = h('div', { class: 'ts-change-group ts-lag-group', hidden: true, title: LAG_HINT },
     h('div', { class: 'ts-change-grid' }, lagButtons),
-    h('p', { class: 'ts-hint' }, LAG_HINT),
   );
 
   // ---- the card's lines ----

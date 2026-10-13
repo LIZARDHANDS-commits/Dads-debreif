@@ -129,6 +129,25 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     rowShips.push({ el: row, ships: b.ships ?? [2], key: b.key });
     return row;
   });
+  // The close formation's turns (and the four's in fighting wing) as one row (Patrick 14 Oct 2026, the menu "as drawn"): the
+  // line abreast buttons fly there as turns of their own size (TS-55, spec 10.2), so Check 20, Delayed 45, Delayed 90 and Hook
+  // become "Turn L / R to 20, 45, 90 or 180°" (In place 90 is the same 90° turn there).
+  const TURN_TO = Object.freeze([[20, 'check'], [45, 'delayed45'], [90, 'delayed90'], [180, 'hook']]);
+  const turnToSelect = h('select', { class: 'ts-bank-select', 'aria-label': 'Turn to, degrees' },
+    TURN_TO.map(([deg, key]) => h('option', { value: key, selected: deg === 90 }, `${deg}°`)));
+  const turnSide = (dir, word) => {
+    const hint = h('span', { class: 'ts-move-hint' });
+    sideHints.push({ el: hint, dir });
+    return h('button', {
+      type: 'button',
+      class: 'button ts-move-button',
+      dataset: { move: 'closeTurn', dir: word.toLowerCase() },
+      onclick: () => handlers.press?.(turnToSelect.value, dir),
+    }, h('span', { class: 'visually-hidden' }, 'Turn '), h('span', { 'aria-hidden': 'true' }, word[0]), h('span', { class: 'visually-hidden' }, word), hint);
+  };
+  const closeTurnRow = h('div', { class: 'ts-move ts-move-turn', role: 'group', 'aria-label': 'Turn' },
+    h('span', { class: 'ts-move-name' }, 'Turn'), turnSide(1, 'Left'), turnSide(-1, 'Right'), turnToSelect);
+  rowShips.push({ el: closeTurnRow, ships: [2, 4], key: 'closeTurn' });
   function buttonRow(b) {
     if (!b.sided) {
       return h('div', { class: 'ts-move ts-move-single' },
@@ -167,11 +186,13 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     movesHint.hidden = !any;
   }
   movesPanel.body.append(
-    ...(changeUi ? [changeUi.element] : []),
     movesHint,
     movesNote,
+    closeTurnRow,
     ...rows,
+    ...(changeUi?.manoeuvreParts ?? []),
     queueLine,
+    ...(changeUi ? [changeUi.element] : []),
   );
 
   // ---- Setup: spacing and #2's side ---------------------------------------

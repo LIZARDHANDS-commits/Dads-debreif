@@ -543,9 +543,11 @@ function mount(root, app) {
       // shackle, the cross turn and G-warm stay line abreast moves.
       // Break and rejoin shows in echelon only (TS-175).
       // Wings level and Reversal in the 2-ship close formations.
-      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key) || (key === 'breakRejoin' && ships === 2 && turnKey === 'echelon') || (CLOSE_MOVES[key] && ships === 2 && CLOSE_MOVE_FORMATIONS.includes(turnKey)));
+      // One "Turn to" row stands for the turn buttons there (Patrick 14 Oct 2026, the menu "as drawn").
+      ui.setMovesEnabled(true, (key) => key === 'closeTurn' || (key === 'breakRejoin' && ships === 2 && turnKey === 'echelon') || (CLOSE_MOVES[key] && ships === 2 && CLOSE_MOVE_FORMATIONS.includes(turnKey)));
     } else if (ships === 2) {
-      ui.setMovesEnabled(true, (key) => key !== 'breakRejoin');
+      // Line abreast: its own manoeuvres only, not the close formation's Turn, Wings level, Reversal or Break.
+      ui.setMovesEnabled(true, (key) => key !== 'breakRejoin' && key !== 'closeTurn' && !CLOSE_MOVES[key]);
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;
