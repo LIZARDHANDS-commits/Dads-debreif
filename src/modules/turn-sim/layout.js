@@ -193,6 +193,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       { value: 300, label: '5 min' }, { value: 600, label: '10 min' },
     ] })),
     ...(changeUi?.rejoinSettings ? [changeUi.rejoinSettings] : []),
+    ...(changeUi?.leadSettings ? [changeUi.leadSettings] : []),
     ...(changeUi?.fluidSettings ? [changeUi.fluidSettings] : []),
     h('p', { class: 'ts-fixed' }, fixedLine),
     fourLine,

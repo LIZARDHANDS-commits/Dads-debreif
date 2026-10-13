@@ -7,6 +7,8 @@
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-plan.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
+import { TELEGRAPH, TELEGRAPH_RANGE, setTelegraph, telegraphNow } from './live/rates.js';
+import { KIAS_OUTSIDE_LAB_RULED, KIAS_OUTSIDE_LAB_RANGE, setKiasOutsideLab } from './live/moves.js';
 import { REJOIN, TURNING_REJOIN, G_RULE_BANK_DEG, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow, CLOSE_BANK_CHOICES, DEFAULT_CLOSE_BANK_DEG, setCloseBank, closeBankNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords, FW_BAND } from './live/slots.js';
@@ -274,6 +276,53 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
     h('span', { class: 'ts-hint' }, 'Echelon line'),
     shiftButton('Up', -1, 'Move #2 1 ft up the line, toward Lead'), shiftValue, shiftButton('Down', 1, 'Move #2 1 ft down the line, away from Lead'));
 
+  // Lead behaviours (Patrick 14 Oct 2026: "Can we put all of these things under a 'lead behaviours' settings so i can play with
+  // them while flying?"; his pick: the telegraph's roll time and build-up, and close formation speed). Each box starts at the
+  // ruled value; a change applies from Lead's next press and lasts the session; "Back to the rulings" puts them back.
+  const numberBox = (value, [min, max], step, onChange, label) => {
+    const input = h('input', { type: 'number', class: 'ts-number', value: String(value), min: String(min), max: String(max), step: String(step), 'aria-label': label });
+    input.addEventListener('change', () => onChange(input));
+    return input;
+  };
+  const telegraphWords = () => {
+    const t = telegraphNow();
+    const rate = 60 / (t.rolledSec - t.easeSec);
+    return `60° at ${rate.toFixed(1)}°/s, built over ${t.easeSec.toFixed(1)} s (${(rate / t.easeSec).toFixed(1)}°/s²)`;
+  };
+  const telegraphLine = h('span', { class: 'ts-hint' }, telegraphWords());
+  const rolledBox = numberBox(TELEGRAPH.rolledSec, TELEGRAPH_RANGE.rolledSec, 0.25, (el) => {
+    el.value = String(setTelegraph({ rolledSec: el.value }).rolledSec);
+    easeBox.value = String(telegraphNow().easeSec);
+    telegraphLine.textContent = telegraphWords();
+  }, "Lead's close-turn roll, wings level to bank, seconds");
+  const easeBox = numberBox(TELEGRAPH.easeSec, TELEGRAPH_RANGE.easeSec, 0.25, (el) => {
+    el.value = String(setTelegraph({ easeSec: el.value }).easeSec);
+    telegraphLine.textContent = telegraphWords();
+  }, "Lead's telegraph build-up and ease, seconds");
+  const kiasBox = numberBox(KIAS_OUTSIDE_LAB_RULED, KIAS_OUTSIDE_LAB_RANGE, 5, (el) => {
+    el.value = String(setKiasOutsideLab(el.value));
+  }, 'Close formation speed, KIAS');
+  const leadSettings = h('details', { class: 'ts-more ts-lead-behaviours' },
+    h('summary', {}, 'Lead behaviours'),
+    h('label', { class: 'ts-field', title: "TS-209: wings level to his bank in a close turn; the roll-out the same. Ruled 8.25 s." }, h('span', { class: 'ts-hint' }, 'Close-turn roll, wings level to bank (s)'), rolledBox),
+    h('label', { class: 'ts-field', title: 'TS-209: how long his roll rate takes to build (the telegraph) and to ease off. Ruled 2.0 s.' }, h('span', { class: 'ts-hint' }, 'Telegraph build-up and ease (s)'), easeBox),
+    telegraphLine,
+    h('label', { class: 'ts-field', title: 'The speed outside line abreast: the close formations, fighting wing and the rejoins (SMM 12.23 para 53; ruled 200 KIAS). 190 to 230 KIAS: below 190 the rejoins (tuned at 200) end wide; above 230 Lead at 80% torque cannot hold it.' }, h('span', { class: 'ts-hint' }, 'Close formation speed (KIAS)'), kiasBox),
+    h('p', { class: 'ts-hint' }, "Changes apply from Lead's next press and last until you reload."),
+    h('button', {
+      type: 'button',
+      class: 'button',
+      onclick: () => {
+        setTelegraph(TELEGRAPH);
+        setKiasOutsideLab(KIAS_OUTSIDE_LAB_RULED);
+        rolledBox.value = String(TELEGRAPH.rolledSec);
+        easeBox.value = String(TELEGRAPH.easeSec);
+        kiasBox.value = String(KIAS_OUTSIDE_LAB_RULED);
+        telegraphLine.textContent = telegraphWords();
+      },
+    }, 'Back to the rulings'),
+  );
+
   const handlers = {};
 
   // Position (TS-98, TS-104; Patrick 5 Oct 23:54Z, 6 Oct 02:14Z, wording confirmed 02:54Z): #2's place against Lead, and in
@@ -501,6 +550,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
     fluidSettings: fluidUi?.settingsElement ?? null,
     /** The rejoin choice and its note, for the Settings box. */
     rejoinSettings,
+    leadSettings, // "Lead behaviours" (Patrick 14 Oct 2026), in Settings
     onSideChanged: (fn) => (handlers.sideChanged = fn),
     /** Called when Change position starts, a spot is picked, or it ends (the picture redraws the box). */
     onPickChanged: (fn) => (handlers.pickChanged = fn),

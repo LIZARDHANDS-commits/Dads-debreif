@@ -72,6 +72,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | RATE_SETS.…frame | `Object.freeze({ foreAftFtps: 80, verticalFtps: 40, nearPerSec: 10, nearMinFtps: 20 })` |  |
 | RATE_SETS.…law | `Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 })` |  |
 | TELEGRAPH | `Object.freeze({ rolledSec: 8.25, easeSec: 2.0 })` | Patrick 14 Oct 2026: "Slow leads roll rate down about 20 percent, make his telegraph start even slower and last a bit longer" (was 6.5 and 1.5: the steady rate 20% slower, the build-up 2.0 s, an estimate for "a bit longer") |
+| TELEGRAPH_RANGE | `Object.freeze({ rolledSec: Object.freeze([4, 15]), easeSec: Object.freeze([0.5, 4]) })` | The telegraph as flown (Patrick 14 Oct 2026, "Lead behaviours": "so i can play with them while flying"): TELEGRAPH's ruled numbers by default; rolledSec from 4 to 15 s and easeSec from 0.5 s to half of rolledSec (estimates: the rate builds and eases inside the roll). Read when Lead's turn is planned, at the press. Not remembered. |
 | CLOSE_SHAPING |  | Nominal shaping targets and soft envelope caps for close-in formation work (SMM 12.4, 12.6, 12.20). Targets, not walls: guidance steers toward the nominal targets, with progressive soft cushion expanding toward the envelope cap if displaced. Scaled so echelon <-> route takes ~10 seconds. |
 | CLOSE_SHAPING.targetBankDeg | `8.0` | Patrick's "small bank, gentle power" is the intent; 8° is an estimate (Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 11) |
 | CLOSE_SHAPING.envelopeBankCapDeg | `15.0` |  |
@@ -383,8 +384,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | Number | Value | Source and note |
 |---|---|---|
 | POWER | `Object.freeze({ torqueSec: ENGINE.quickSec, jerkKtps2: 25 })` | How fast the power answers (Patrick 6 Oct 03:17Z: torque 0 to 100% in about 0.2 s; 03:18Z: the speed brakes are instant; TS-108). torqueSec: the torque's full travel, the engine's quick response (handling.js ENGINE.quickSec, 0.25 s, TS-218: one number; it was 0.2 here until V2.424). jerkKtps2: the most the wingman's hand changes his acceleration per second with the lever slammed (the Rates lever s |
-| KIAS_OUTSIDE_LAB | `200` | The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). |
-| KIAS_LAB | `220` |  |
+| KIAS_OUTSIDE_LAB_RULED | `200` | The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). |
+| KIAS_OUTSIDE_LAB_RANGE | `Object.freeze([190, 230])` | The speed outside line abreast as flown: the close formations, fighting wing and the rejoins' target (Patrick 14 Oct 2026, "Lead behaviours": close formation speed to play with while flying). KIAS_OUTSIDE_LAB_RULED by default; from 190 to 230 KIAS, read at each press (a live binding: every reader sees it). Measured 14 Oct 2026: at 180 the rejoin into echelon ended WIDE (its numbers were tuned at 2 |
+| KIAS_LAB | `220` | Sets the speed outside line abreast, whole knots, clamped to KIAS_OUTSIDE_LAB_RANGE; returns it as set. |
 | REJOIN |  | Defaults for rejoins. |
 | REJOIN.overtakeKias | `15` | the middle of EFIG p.374's 10 to 20 KIAS for a turning rejoin |
 | REJOIN.bankCapDeg | `NO_BANK_CAP_DEG` | #2 in a rejoin: no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; the G rule, about 78° level, from V2.59 until V2.116, TS-67; 60°, an estimate, until then) |

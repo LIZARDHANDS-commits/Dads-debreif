@@ -37,6 +37,7 @@ import { KT_TO_FTPS, G_FTPS2 } from '../../../../core/units.js';
 import { STEP_SEC } from '../flight.js';
 import { powerFor, throttleAtTorque, ktpsAtThrottle } from '../power.js';
 import { LINE_BACK_PER_OUT, FOUR_FORMATIONS } from '../slots.js';
+import { KIAS_OUTSIDE_LAB } from '../moves.js';
 import { CLOSE_WING, CLOSE_SEE } from '../wing-moves.js';
 import { add3, scale3, perp3, unit3, cross3, len3 } from '../attitude.js';
 import { bankOf } from './perception.js';
@@ -48,9 +49,9 @@ export function torqueFromThrottle(throttle, kias, altFt) {
   return throttle / throttleAtTorque(1, kias, altFt);
 }
 
-/** The formation's briefed speed, KIAS (slots.js: echelon 200; spec 7b.6d item 13). */
-export function briefedKias(key) {
-  return FOUR_FORMATIONS[key]?.kias ?? FOUR_FORMATIONS.echelon.kias;
+/** The formation's briefed speed, KIAS: the speed outside line abreast as flown (moves.js; 200 ruled, spec 7b.6d item 13). */
+export function briefedKias(_key) {
+  return KIAS_OUTSIDE_LAB;
 }
 
 /** The technique's memory at the start: each loop's trim at zero (spec 7b.6c: the trim starts at zero). */
