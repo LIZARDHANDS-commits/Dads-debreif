@@ -400,25 +400,27 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
     // The SI pattern's conflicts come in on the SI Rejoin (its base and final); any other choice is its own route.
     const routeId = siChosen ? 'ENT2' : spawnRouteId(settings.get().spawnRoute, flownRoutes());
-    say(`Working out where an aircraft on ${routeName(routeId)} meets ${targetId}…`);
+    // The messages name the type that is added (spec 4.19 item 6: either type onto either route; plan Step 5c Phase 4).
+    const type = conflictType(routeId);
+    say(`Working out where a ${type} on ${routeName(routeId)} meets ${targetId}…`);
     // A moment later, so the line above shows while it works (it flies everyone ahead on a copy of the run).
     timers.after(0, () => {
       let plan = null;
       try {
-        plan = conflictSpawnPlan(sim, setup, targetId, routeId, { type: conflictType(routeId) });
+        plan = conflictSpawnPlan(sim, setup, targetId, routeId, { type });
       } catch (err) {
         console.error('Spawn a conflict failed:', err);
       }
-      if (!plan) return say(`No start on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
+      if (!plan) return say(`No start for a ${type} on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
       try {
         // Anywhere along the route (TR-66), not only at its spots (Patrick, 4 Oct).
-        const id = sim.spawn({ type: conflictType(routeId), routeId, startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
+        const id = sim.spawn({ type, routeId, startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
         const route = setup.routes.find((r) => r.id === routeId);
         const after = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;
         const nm = (plan.backFt / FT_PER_NM).toFixed(1);
         const toEnd = routeId === 'ENT2' ? 'from the threshold' : routeId === 'ENT1' ? 'back from the Merge' : 'before the end of the route';
         const when = plan.delaySec > 0 ? `in ${Math.round(plan.delaySec)} s` : 'now';
-        say(`Added ${id} on ${routeName(routeId)}, ${nm} NM ${toEnd} (past ${after}), ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
+        say(`Added ${id}, a ${type}, on ${routeName(routeId)}, ${nm} NM ${toEnd} (past ${after}), ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
       } catch (err) {
         if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);
         say(engineProblem(err));

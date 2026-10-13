@@ -84,7 +84,17 @@ export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-15
     others.push(flying.map((a) => ({ x: a.x, y: a.y, alt: a.alt })));
   }
   const lap = trackOf(setup, { type, routeId, startIndex: 0 }, CONFLICT_LAP_SEC);
-  const endFt = pointDistFt(route, route.points.length - 1, setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS);
+  // The route's length in today's wind, with the options the sim flies it with (sim.js routeOptions): a route the pilot
+  // flies (the Astra pattern, route.js `flown`) is built for the wind, so its length changes with it, and `backFt` is
+  // measured back from its end by the sim the same way (plan Step 5c Phase 4; before, the calm-air length was used,
+  // which put an Astra spawned in wind somewhere else along its lap than the plan had flown).
+  const opt = {
+    ...DEFAULT_ROUTE_OPTIONS,
+    ...(setup.routeOptions ?? {}),
+    windKt: setup.windKt ?? setup.routeOptions?.windKt ?? 0,
+    windFromDeg: setup.windFromDeg ?? setup.routeOptions?.windFromDeg ?? 360,
+  };
+  const endFt = pointDistFt(route, route.points.length - 1, opt);
   const lead = Math.ceil(CONFLICT_LEAD_SEC / SAMPLE_SEC) - 1;
   const meets = (o, b) => o && b && Math.abs(o.alt - b.alt) < HEIGHT_FT && Math.hypot(o.x - b.x, o.y - b.y) < HEIGHT_FT;
   // The starts on the route's first lap: while it is still on this route, before its end.
@@ -104,7 +114,9 @@ export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-15
       if (others[k].some((o) => Math.abs(o.alt - first.alt) < CONFLICT_SPAWN_GAP_HEIGHT_FT && Math.hypot(o.x - first.x, o.y - first.y) < CONFLICT_SPAWN_GAP_FT)) continue;
       for (let i = Math.max(k, lead); i < targetAt.length; i++) {
         if (best && i >= best.i) break; // not sooner
-        const b = lap[j + i - k];
+        // Started at lap[j] after a delay of k samples, it has flown i + 1 - k samples by targetAt[i] (both are
+        // sampled from SAMPLE_SEC after their start).
+        const b = lap[j + i + 1 - k];
         if (!b) break;
         if (meets(targetAt[i], b)) {
           best = { i, j, closestFt: Math.hypot(targetAt[i].x - b.x, targetAt[i].y - b.y) };

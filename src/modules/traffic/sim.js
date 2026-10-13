@@ -531,8 +531,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * entry's line into the Entry Gate (Patrick's card, Q7); at the end it joins that route (goAroundEnded).
    */
   function startBreakout(a, toAvoidCollision = false) {
-    // The breakout is the CT-156's (ENT1's line at 3,500 ft and 220 KIAS); a type with its own pattern (the Astra) is not
-    // given it and goes around in its own pattern instead (spec 4.19 item 6; Phase 4 sets the moves by type).
+    // The breakout is the CT-156's (ENT1's line at 3,500 ft and 220 KIAS); a type with its own pattern (the Astra) is
+    // never given it (deconflict.js MOVES_BY_TYPE, spec 4.19 item 6). Should anything still ask, it goes around in its own
+    // pattern instead: a guard, kept from Phase 3.
     if (!fliesPattern1(a)) { startGoAround(a); return; }
     const from = routeOf(a);
     // With no ENT1 in the setup it flies ENT1's line all the same and then joins Pattern 1 where it is nearest.
@@ -697,9 +698,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         flight = extendFt <= own.limitFt ? own.extend(stateOf(f), extendFt) : null;
       }
       if (!flight) {
-        // No room to extend: the CT-156 breaks out; an Astra goes around in its own pattern (startBreakout gives it that).
-        startBreakout(f);
+        // No room to extend: the CT-156 breaks out; an Astra goes around in its own pattern (its moves, deconflict.js
+        // MOVES_BY_TYPE: the CT-156's breakout is not given to it).
         const move = fliesPattern1(f) ? 'breakout' : 'go_around';
+        if (move === 'breakout') startBreakout(f);
+        else startGoAround(f);
         groupOf(f, 'spacing').deconflict = { move, layer: 'rules', rule: 'spacing on final: no room to extend', with: leader.a.id, label: deconflictLabel(move, 'rules') };
         continue;
       }
@@ -809,9 +812,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     return route ? { route, options: routeOptions() } : null;
   }
 
-  /** A move for a type with its own pattern (the Astra): its go-around for the CT-156's moves, the bank away for the flinch. */
-  const ownPatternMove = (move) => (move === 'flinch' ? 'bank_away' : move === 'bank_away' || move === 'go_around' || move === 'extend_downwind' ? move : 'go_around');
-
   /**
    * Automatic deconfliction (deconflict.js; Patrick, 4 Oct 09:40Z to 11:26Z): every 0.5 s, decided from all the
    * aircraft as they were before anyone moves this step, then each move started the way its button starts it.
@@ -830,13 +830,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const limits = setup.conflictLimits ?? DEFAULT_CONFLICT_LIMITS;
     const frozen = freeze(aircraft.filter((a) => t >= a.startsAt), pathOf, routeOf);
     const activeDecisions = decide(frozen, limits);
-    for (const decided of activeDecisions) {
-      const a = aircraft.find((ac) => ac.id === decided.id);
+    for (const d of activeDecisions) {
+      const a = aircraft.find((ac) => ac.id === d.id);
       if (!a) continue;
-      // The CT-156's own moves (breakout, climb ahead, move-over, fly-through) are not given to a type with its own
-      // pattern: it goes around in its pattern, and its flinch is the bank away (spec 4.19 item 6; Phase 4 sets the
-      // moves by type in the deconfliction itself). A CT-156's move is unchanged.
-      const d = fliesPattern1(a) ? decided : { ...decided, move: ownPatternMove(decided.move) };
+      // The move comes by type (deconflict.js MOVES_BY_TYPE; spec 4.19 item 6; TR-159): an Astra is only ever given its
+      // own go-around (startGoAround flies the Astra pattern's) or the bank away, never the CT-156's breakout, climb
+      // ahead, move-over or fly-through.
       const other = aircraft.find((ac) => ac.id === d.with) ?? a;
       if (flownOf(a, 'move') && d.move === 'breakout') { delete a.flown; delete a.joinOffset; }
       if (d.move === 'breakout') startBreakout(a, d.layer === 'skill');
