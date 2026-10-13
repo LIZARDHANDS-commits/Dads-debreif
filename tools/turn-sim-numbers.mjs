@@ -54,12 +54,12 @@ function rows(text) {
       depth += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
       const field = line.match(/^\s{2}(\w+): (.*?),?\s*(\/\/\s?(.*))?$/);
       if (field && depth >= 1 && !/^\s{4}/.test(line)) {
-        out.push([`${block}.${field[1]}`, cell(field[2].replace(/,$/, '')), cell(field[4] ?? lead).slice(0, 400)]);
+        out.push([`${block}.${field[1]}`, cell(field[2].replace(/,$/, '')), (field[4] !== undefined ? cell(field[4]) : cell(lead).slice(0, 400))]);
         afterField = true;
       }
       else if (/^\s{4}\w+: /.test(line) && depth >= 2) {
         const f = line.match(/^\s{4}(\w+): (.*?),?\s*(\/\/\s?(.*))?$/);
-        if (f) out.push([`${block}.…${f[1]}`, cell(f[2].replace(/,$/, '')), cell(f[4] ?? lead).slice(0, 400)]);
+        if (f) out.push([`${block}.…${f[1]}`, cell(f[2].replace(/,$/, '')), (f[4] !== undefined ? cell(f[4]) : cell(lead).slice(0, 400))]);
         afterField = true;
       }
       if (depth <= 0) {
