@@ -397,7 +397,12 @@ export const FW_WING = Object.freeze({
   arcNearFt: 300, // the wanted closure at most ... (Fable F1, estimate)
   arcNearFtps: 25, // ... 25 ft/s within 300 ft of the target arc (Fable F1, estimate) ...
   arcFarFtps: 60, // ... and 60 ft/s beyond (Fable F1, estimate)
-  arcOffsetMaxFt: 400, // d within ±400 ft (Fable F1, estimate)
+  arcOffsetMaxFt: 400, // d within ±400 ft (Fable F1, estimate); R - d stays well positive (Lead's radius about 2,600 ft at 60°/2 G)
+  // The arc loop's wanted closure fed forward, its shortfall corrected at kc 0.5 (round 4, the web research's "half-gain
+  // trap", formation-control-research-14oct.md sections 2 and 5; kc a guess): without it d = d_ss + (wanted - closing)/omega
+  // settles at half the closure it asks for
+  arcFeedForward: true,
+  arcKc: 0.5,
   arcSlewFtps: 60, // d slewed at 60 ft/s (Fable F1, F11, estimate)
   powerArcSec: 15, // power on the same arc error, about 0.067 rad/s, under the 0.07 its loop sits at (Fable F1, F6, estimate)
   arcFrame: true, // the turn's range as (s, d) in Lead's turn-centre frame, continuous through wings level, closure from velocities (Fable F10)

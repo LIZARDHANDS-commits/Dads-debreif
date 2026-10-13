@@ -179,7 +179,12 @@ export function stepFwWingman(w, refSt) {
       const eArc = arcFt - W.arcTargetFt;
       const lim = Math.abs(eArc) < W.arcNearFt ? W.arcNearFtps : W.arcFarFtps;
       const cArc = Math.max(-lim, Math.min(lim, eArc / W.aimSec));
-      const want = Math.max(-W.arcOffsetMaxFt, Math.min(W.arcOffsetMaxFt, dss + (cArc - closing) / omega));
+      // Round 4 (the web research, its "half-gain trap"; checked here): on the circle closing is about omega (d - d_ss), so
+      // d = d_ss + (wanted - closing) / omega settles at half the wanted closure. With arcFeedForward the wanted closure is
+      // fed forward and the shortfall corrected at arcKc: d = d_ss + wanted / omega + kc (wanted - closing) / omega, which
+      // settles at the wanted closure.
+      const dRaw = W.arcFeedForward ? dss + cArc / omega + (W.arcKc * (cArc - closing)) / omega : dss + (cArc - closing) / omega;
+      const want = Math.max(-W.arcOffsetMaxFt, Math.min(W.arcOffsetMaxFt, dRaw));
       offFt = w.offFt + Math.max(-W.arcSlewFtps * STEP_SEC, Math.min(W.arcSlewFtps * STEP_SEC, want - w.offFt));
       residual = Math.max(-W.powerBandKias * KT_TO_FTPS, Math.min(W.powerBandKias * KT_TO_FTPS, eArc / W.powerArcSec));
       cTarget = cArc;
