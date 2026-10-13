@@ -404,6 +404,12 @@ export const FW_WING = Object.freeze({
   arcFeedForward: true,
   arcKc: 0.5,
   arcSlewFtps: 60, // d slewed at 60 ft/s (Fable F1, F11, estimate)
+  // In a turn the speed that holds station at his offset inside Lead's circle, V_L (1 - d / R), fed forward to the power loop,
+  // its change from Lead's speed smoothly within 15 kt (round 4; the web research, P-357 section 310 and Wang et al. 2023;
+  // 15 kt the power band's, Patrick 4 Oct 19:12Z). OFF: it cost speed where he is already short
+  // (into stretched -28 kt, was -18; away in position -18, was -15; gauge r4sf) for no gain in range or aspect
+  speedFf: false,
+  speedFfKt: 15,
   powerArcSec: 15, // power on the same arc error, about 0.067 rad/s, under the 0.07 its loop sits at (Fable F1, F6, estimate)
   arcFrame: true, // the turn's range as (s, d) in Lead's turn-centre frame, continuous through wings level, closure from velocities (Fable F10)
   turnFrameDeg: 5, // below 5° of Lead's bank the frame's straight-line limits are used (Fable F10, estimate)

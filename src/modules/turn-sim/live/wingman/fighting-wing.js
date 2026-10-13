@@ -187,6 +187,14 @@ export function stepFwWingman(w, refSt) {
       const want = Math.max(-W.arcOffsetMaxFt, Math.min(W.arcOffsetMaxFt, dRaw));
       offFt = w.offFt + Math.max(-W.arcSlewFtps * STEP_SEC, Math.min(W.arcSlewFtps * STEP_SEC, want - w.offFt));
       residual = Math.max(-W.powerBandKias * KT_TO_FTPS, Math.min(W.powerBandKias * KT_TO_FTPS, eArc / W.powerArcSec));
+      if (W.speedFf && !straight && dFt != null) {
+        // Round 4 (the web research: US Navy CNATRA P-357 section 310, power back a little first in a turn into him, on again
+        // at the roll-out): the speed that holds station at his offset, V_L (1 - d / R), fed forward, its change from Lead's
+        // smoothly held within speedFfKt (arctan saturation, as Wang et al. 2023)
+        const Lff = W.speedFfKt * KT_TO_FTPS;
+        const x = (-len3(leadV) * dFt) / seen.turn.radiusFt;
+        residual += ((2 * Lff) / Math.PI) * Math.atan((Math.PI * x) / (2 * Lff));
+      }
       cTarget = cArc;
     } else {
       const want = Math.max(-W.offsetMaxFt, Math.min(W.offsetMaxFt, (cWant + W.aimClosureGain * (cWant - closing)) / omega));
