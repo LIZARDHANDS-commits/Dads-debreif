@@ -21,7 +21,7 @@ import { gFromBankDeg } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
-import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
+import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT, lengthRatioFor } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
@@ -1007,11 +1007,14 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
       const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
-      applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: drawHeadingOf(ac), bankRad, pitchRad }, lengthFt);
+      // Each type at its own length against the T-6's (types.js lengthFt): the CT-102B Astra II's stand-in at 27.6 ft
+      // against 33.4 (plan Step 5c Phase 3; spec 4.19 item 8), in its own colour, until its model is delivered.
+      const acLengthFt = lengthFt * lengthRatioFor(ac.type);
+      applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: drawHeadingOf(ac), bankRad, pitchRad }, acLengthFt);
       const z = altToZ(ac.alt, ALT_SCALE);
       // Drawn at its true height, on its route line; raised only where its wheels would go under the runway (Patrick,
       // 5 Oct: the aircraft flew "above the line" when the wheel lift was added in the air too).
-      mesh.position.z = Math.max(z, floor + wheelLiftFt(lengthFt));
+      mesh.position.z = Math.max(z, floor + wheelLiftFt(acLengthFt));
       const groundZ = Math.min(floor, z);
       dropAt.setXYZ(n * 2, ac.x, ac.y, z);
       dropAt.setXYZ(n * 2 + 1, ac.x, ac.y, groundZ);
