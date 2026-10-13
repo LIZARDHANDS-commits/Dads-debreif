@@ -1,6 +1,6 @@
 # CT-102B Astra II model: plan (approved)
 
-> **Status:** approved. Dad asked on 13 Oct 2026 ("Can you start the same process and plan for the CT-102 Astra"), picked the **CT-102B Astra II, the turboprop Grob G 120TP**, and said "use blender". Patrick approved (relayed by Dad, 13 Oct 2026). It is Step 3c of `plan.md`. The process is the CT-156's (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). Question 1 below is answered: (b). Questions 2 and 3 run on their working answers. Where the master file lives waits on `3d-work` access (waiting list in `../../PLAN.md`); until then the build script and sources table live in `tools/blender/ct102b/`.
+> **Status:** approved. Dad asked on 13 Oct 2026 ("Can you start the same process and plan for the CT-102 Astra"), picked the **CT-102B Astra II, the turboprop Grob G 120TP**, and said "use blender". Patrick approved (relayed by Dad, 13 Oct 2026). It is Step 3c of `plan.md`. The process is the CT-156's (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). Question 1 below is answered: (b). Questions 2 and 3 run on their working answers. Where the master file lives waits on `3d-work` access (waiting list in `../../PLAN.md`); Dad chose to work without `3d-work` (13 Oct 2026: "We will just work without 3D work"), so the build script and sources table live in `tools/blender/ct102b/`; Patrick can still ask for them to move under ALL-38.
 
 ## What it would be
 
