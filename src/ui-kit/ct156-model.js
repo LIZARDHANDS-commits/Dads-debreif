@@ -448,11 +448,14 @@ const MARKER_PLATE = Object.freeze({ x0: 0.66 - 24.3 / 23.148, x1: 0.66 - 25.6 /
 const BEACON = Object.freeze([0.66 - 21.1 / 23.148, 0.024, 0.012, 0.012]);
 // A pitot probe on each wing's leading edge, about two thirds of the way out, its L-shaped tube reaching about 0.45 ft
 // ahead of the leading edge (Patrick's photo of 156115 from below, 11 Oct 2026; place and size estimates off the photo).
-const PITOT = Object.freeze({ s: 0.5, reach: 0.45 / 23.148, drop: 0.12 / 23.148, r: 0.04 / 23.148 });
+// F06 (3d-work chunk 3; Patrick, 13 Oct 2026: "Move it out"): the pitot's mast 13.05 ft from the centreline (was 11.53), station 0.5669 (was 0.5) -
+// an estimate off F06 with the roundel as the scale, about +-0.5 ft (ct156/build/refs_f06.py).
+const PITOT = Object.freeze({ s: 0.5669, reach: 0.45 / 23.148, drop: 0.12 / 23.148, r: 0.04 / 23.148 });
 // Beside each pitot under the wing (Patrick, 11 Oct 2026: "the tie downs and pitot covers under the wings"; the 156115
 // photo): a white disc with a red middle at the probe's foot, about 0.2 ft across, and a yellow one about 0.12 ft across
 // a little further aft. Sizes and places estimates off the photo.
-const UNDERWING_MARKS = Object.freeze({ x: 0.06, size: 0.7 / 23.148 }); // x: the patch's middle aft of the leading edge, chord fraction
+// s: the marks stay at station 0.5, where they sat beside the pitot before F06 moved it 1.5 ft further out (Patrick's call: leave them).
+const UNDERWING_MARKS = Object.freeze({ s: 0.5, x: 0.06, size: 0.7 / 23.148 }); // x: the patch's middle aft of the leading edge, chord fraction
 // The roundel under the right wing and the ship's number on top of it, as on Patrick's photos of 156102 (the roundel
 // under the right wing) and 156115 (the number on the right wing's top, along the chord, the digits' tops inboard), at
 // the upper roundel's place (was the number under the right wing). [x middle, station], units.
@@ -462,7 +465,9 @@ const WING_MARK = Object.freeze([0.068, 0.42]);
 // out (SMM Fig 12.13's near wing, a camera fitted to the picture and the ring's ray met with the wing's underside; the
 // same camera puts the roundel within 0.7 ft of WING_MARK, and the far wing's ring in Fig 12.12 and 12.13 fits within
 // 5 px; about +-0.5 ft). Ring 0.3 ft across, its bar 0.04 ft (estimates). [x, station], units.
-const TIE_DOWN = Object.freeze({ x: 0.66 - 12.8 / 23.148, s: 0.36, r: 0.15 / 23.148, bar: 0.02 / 23.148, block: 0.1 / 23.148 });
+// F06 (3d-work chunk 3; Patrick, 13 Oct 2026: "Move to F06's spot"): 13.03 ft behind the tip (was 12.8) and 7.90 ft from the centreline (was 8.35), an
+// estimate off F06, about +-0.3 ft; the station 0.3403 follows the old 0.36 for 8.352 ft (ct156/build/refs_f06.py).
+const TIE_DOWN = Object.freeze({ x: 0.66 - 13.03 / 23.148, s: 0.3403, r: 0.15 / 23.148, bar: 0.02 / 23.148, block: 0.1 / 23.148 });
 // The speed brake: one plate under the fuselage between the flaps, hinged at its front, opening to 70°,
 // perforated with round holes, three across and four along. Its size and place are
 // estimates (no page gives them): hinged 16.0 ft behind the spinner's tip, where the flaps start, 2.3 ft long and 1.8
@@ -2371,8 +2376,8 @@ function buildKit(THREE) {
     wingNum: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], 0.24, 0.08, [1, 0], [0, 1], 1),
     // Under each wing beside the pitot (UNDERWING_MARKS): along the chord, the white disc forward.
     marks: both((side) => {
-      const sec = sectionOf(WING, PITOT.s);
-      return wingPatch(THREE, sec.le - UNDERWING_MARKS.x * sec.chord - UNDERWING_MARKS.size / 2 + 0.004, side * (PITOT.s - 0.006), UNDERWING_MARKS.size, UNDERWING_MARKS.size, [1, 0], [0, 1], -1);
+      const sec = sectionOf(WING, UNDERWING_MARKS.s);
+      return wingPatch(THREE, sec.le - UNDERWING_MARKS.x * sec.chord - UNDERWING_MARKS.size / 2 + 0.004, side * (UNDERWING_MARKS.s - 0.006), UNDERWING_MARKS.size, UNDERWING_MARKS.size, [1, 0], [0, 1], -1);
     }),
   };
   for (const v of Object.values(decalGeo)) {
