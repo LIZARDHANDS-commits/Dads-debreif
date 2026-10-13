@@ -16,7 +16,7 @@ Done means Patrick flies it from the default start and it looks and feels like c
 
 ## 2. The loop, every step
 
-Lead flies (one Lead, TS-225) → **perception**: what #2 sees and feels, about 0.3 s late → **supervisor**: picks the job (B1 and B2: on station only) → **close-formation technique**: the correction on each axis → **command shaper**: pressure-sized, smooth inputs → **#2's aircraft**: the same point mass as Lead → his new position goes back into what he sees.
+Lead flies (one Lead, TS-225) → **perception**: what #2 sees and feels, about 0.3 s late → **supervisor**: picks the job (B1 and B2: on station, a small move or a large move back to it, and one safety rule: under Lead he moves out before he comes up) → **close-formation technique**: the correction on each axis → **command shaper**: pressure-sized, smooth inputs → **#2's aircraft**: the same point mass as Lead → his new position goes back into what he sees.
 
 ## 3. Sensors: what #2 knows
 
@@ -32,7 +32,12 @@ Lead flies (one Lead, TS-225) → **perception**: what #2 sees and feels, about 
 
 Everything he sees reaches his hands about 0.3 s late (TS-211, estimate; the same 0.3 s that Tohidi and Yildiz (2020) measured as a pilot's total delay, decision plus neuromuscular).
 
-**The crosscheck: plane, line, hinge** (Patrick, 12 Oct 2026: "In close formation, we correct PLANE-LINE-HINGE"). The order he fixes things in. The words are not in the SMM text (12.4, 12.18, 12.19 give the references, the deviation terms and the turns); the reading below is the thread's, for Patrick to confirm: **plane** first, in Lead's wing plane (up and down, with pitch); then **line**, on the spinner-to-wingtip line (in and out, with bank); then **hinge**, abeam the rudder hinge line (forward and back, with power). The order also runs fastest control to slowest, which is how pilots close nested loops (MIT 16.400 lecture 10, multi-axis control). Fighting wing and rejoins use a different crosscheck; those come at rungs B4 and B5.
+**The crosscheck: plane, then line, then hinge** (Patrick, 12 Oct 2026: "In close formation, we correct PLANE-LINE-HINGE"; "you get on plane first, then you move forward to the line (or back), then power and bank moves you up and down the line. it helps make the corrections more 1/2 dimensional, and its safer"). The words are not in the SMM text, which gives the references themselves (12.4 para 11).
+1. **Plane:** up or down into Lead's wing plane, with pitch.
+2. **Line:** forward or back onto the spinner-to-wingtip line, with power.
+3. **Hinge:** along the line, in toward Lead or out away from him, with power and bank together, until abeam the rudder hinge line. Route sits on the same line further out (spec section 10, TS-181).
+
+So #2 reads his deviation in the line's own frame (off the plane, off the line, along the line), not as Lead's fore, aft and side, and fixes one or two at a time. **Exception (Patrick):** "if you are underneath lead, you wouldn't correct plane first": under Lead, coming up into his plane is the collision risk, so the supervisor moves #2 out first (section 2). Fighting wing and rejoins use a different crosscheck; those come at rungs B4 and B5.
 
 ## 4. Inputs: his controls
 
@@ -44,7 +49,7 @@ Everything he sees reaches his hands about 0.3 s late (TS-211, estimate; the sam
 | Rudder | Not modelled: the point mass flies balanced | - |
 | Speed brakes | Not used in close formation (assumption) | - |
 
-Pressures are small, continuous and smooth, never the full-stick moves of tactical flying (the technique share, C1). The throttle above 5% torque answers in about 0.25 s (TS-218).
+Pressures are small, continuous and smooth, never the full-stick moves of tactical flying (the technique share, C1). Patrick, 12 Oct 2026: "When station keeping in S+L or once steady in a turn, the roll pressure and power are extremely small. tenths of a degree to start, but as required." So on station a correction starts at tenths of a degree of bank off Lead's, and grows only as the deviation needs it. The throttle above 5% torque answers in about 0.25 s (TS-218).
 
 ## 5. Outputs: what the aircraft does
 
@@ -77,6 +82,13 @@ torque = trim.power    + kLead * seen.leadRollDps * outside                 // p
 The gains come from two pilot numbers per axis: how firm a pressure a 1 ft deviation gets, and how fast he settles back without overshooting. The 0.3 s reaction limits how firm he can be before he starts to chase (section 6b).
 
 **The SMM agrees** (12.18 para 40; 12.19 paras 42-43): adjustments are made as soon as the need is seen, so they stay small; with experience they become pressures; the PCL's lag is anticipated; on the outside of a turn torque goes up on the roll-in and down on the roll-out, and the opposite on the inside, small changes whose rate and amount a proficient wingman anticipates; the commonest fault is lagging Lead's roll rate, which slides him wide stepped up and toward Lead stepped down.
+
+**Power, two ways** (Patrick, 12 Oct 2026):
+- **A small move (about 5 to 10 ft):** "i increase/decrease the power until theres a gentle movement into the spot i want to go to, then reset it to the setting that keeps me stable in that position." Power is the holding setting plus a small offset while he drifts, then back to the holding setting.
+- **A large move:** "i walk the throttle forward until I see the motion I want, then i bring it back some to 'catch' that rate (usually a jogging/running pace relative to lead, depending on how far out of position I am). then, as I approach the spot, i walk the throttle back until I stop, then 'catch' the position with the power that keeps me stable there." Four phases: walk the power up until the closure shows, catch the closure at a pace set by the distance, walk the power back to stop, catch the position with the holding setting.
+- **The holding setting** is remembered: the power that keeps him in place. It is the "how long it's been there" part of the correction, kept as a pilot keeps it, a known setting he returns to and updates whenever he is steady.
+
+In control terms the large move is a cascade: the distance picks a closure pace, the pace picks the power, and the holding setting is the base under both. The supervisor's two jobs map onto the two ways: on station is the small move, off station the large one.
 
 ## 6b. The pilot model behind the numbers
 
@@ -134,7 +146,8 @@ One test for the rung (AGENTS.md): echelon straight and level, then one telegrap
 
 ## 12. Open questions for Patrick
 
-1. ~~The sensors in section 3~~: answered (no look inside; the telegraph's build-up is read). Still to confirm: plane, line, hinge as read in section 3.
+1. ~~The sensors in section 3~~: answered (no look inside; the telegraph's build-up is read; plane, then line, then hinge, with the exception under Lead).
+1b. The jogging and running pace relative to Lead, in knots or feet per second, and where small turns into large (about 10 ft?).
 2. The size of the pressures (section 4).
 3. How much power he leads with, and when (section 6).
 4. The speed brakes in close formation.
