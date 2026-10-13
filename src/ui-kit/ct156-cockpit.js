@@ -39,8 +39,13 @@
 import { addLookProbe } from './ct156-look.js';
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_X, CT156_HELMET_Z, CT156_SEAT_BACK_FT, ct156SeatRakeFt, ct156SeatRaiseFt, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
-  CT156_TUB_FLOOR_FT, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
+  CT156_TUB_FLOOR_FT, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView, CT156_DATUM_DEG,
 } from './ct156-model.js';
+const DATUM_RAD = (CT156_DATUM_DEG * Math.PI) / 180; // the model sits this far nose-down inside a ship's root (ct156-model.js)
+/** A point in the model's frame (nose +X, from the spinner axis) as a point in the ship root's frame (the EADI's): the model is turned nose-down inside the root. */
+const intoRootFrame = ({ x, y, z }) => Object.freeze({ x: x * Math.cos(DATUM_RAD) + z * Math.sin(DATUM_RAD), y, z: z * Math.cos(DATUM_RAD) - x * Math.sin(DATUM_RAD) });
+/** The same the other way: a point in the root's frame as a point in the model's. */
+const fromRootFrame = ({ x, y, z }) => ({ x: x * Math.cos(DATUM_RAD) - z * Math.sin(DATUM_RAD), y, z: z * Math.cos(DATUM_RAD) + x * Math.sin(DATUM_RAD) });
 import { drawAttitude } from './hud.js';
 import { attachCockpitModel } from './ct156-cockpit-model.js';
 import { paintGrain } from './ct156-blender.js';
@@ -91,10 +96,15 @@ export const REAR_SEAT_RAISE_FT = 0.5 / 12;
  * its helmet's eye raised REAR_SEAT_RAISE_FT (2.66 ft up until 12 Oct 2026; was 3.0 ft aft and 2.29 ft up until V2.238, then the view's
  * until V2.279).
  */
-export const EYES_FT = Object.freeze({
+export const EYES_MODEL_FT = Object.freeze({
   front: EYE_FT,
   rear: Object.freeze({ x: CT156_HELMET_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F + EYE_ABOVE_HELMET_FT + REAR_SEAT_RAISE_FT }),
 });
+/**
+ * The same eyes in the ship root's frame, feet (what a module sets from EYES_FT with root.localToWorld): the model is drawn CT156_DATUM_DEG nose-down inside the
+ * root, which a module sets to the EADI's attitude, so each eye is turned with it (ct156-model.js). EYES_MODEL_FT is the model's own frame, for the geometry here.
+ */
+export const EYES_FT = Object.freeze({ front: intoRootFrame(EYES_MODEL_FT.front), rear: intoRootFrame(EYES_MODEL_FT.rear) });
 /**
  * The seat stations SEAT_FT and the seats' parts are drawn for (model units: the front seat's until V2.234), and how
  * far each seat's parts move from there, feet: the front seat about 0.57 ft forward to the side view's (ALL-31),
@@ -440,13 +450,18 @@ function frameMatrix({ headingRad = 0, pitchRad = 0, bankRad = 0 }) {
  *   elevation above the eye's level line (the wings' plane) positive.
  */
 export function sightAnglesOf(eyeFt, eyeFrame, pointFt, pointFrame) {
+  // The model's axes are the frame's (the EADI's attitude) turned CT156_DATUM_DEG nose-down.
+  const modelMatrix = (f) => {
+    const m = frameMatrix(f), c = Math.cos(DATUM_RAD), s = Math.sin(DATUM_RAD); // times Ry(+datum)
+    return m.map(([a, b, d]) => [a * c - d * s, b, a * s + d * c]);
+  };
   const toWorld = (f, v) => {
-    const m = frameMatrix(f);
+    const m = modelMatrix(f);
     return [0, 1, 2].map((i) => [f.x, f.y, f.z][i] + m[i][0] * v.x + m[i][1] * v.y + m[i][2] * v.z);
   };
   const eye = toWorld(eyeFrame, eyeFt), pt = toWorld(pointFrame, pointFt);
   const d = [pt[0] - eye[0], pt[1] - eye[1], pt[2] - eye[2]];
-  const m = frameMatrix(eyeFrame);
+  const m = modelMatrix(eyeFrame);
   const [bx, by, bz] = [0, 1, 2].map((j) => m[0][j] * d[0] + m[1][j] * d[1] + m[2][j] * d[2]); // world to body: the transpose
   return { azimuthDeg: deg(Math.atan2(-by, bx)), elevationDeg: deg(Math.atan2(bz, Math.hypot(bx, by))), rangeFt: Math.hypot(bx, by, bz) };
 }
@@ -617,11 +632,11 @@ export function createEyeLean() {
       if (!on || !targetFt) want = { dy: 0, dz: 0 };
       else if (tSec - lastLook >= EYE_LEAN.everyS || tSec < lastLook) {
         lastLook = tSec;
-        want = eyeLeanFor(eyeFt, targetFt, seat, want);
+        want = eyeLeanFor(fromRootFrame(eyeFt), fromRootFrame(targetFt), seat, want); // the module's eye and target are in the root's frame, the obstructions' in the model's
       }
       const k = 1 - Math.exp(-EYE_LEAN.easePerS * dt);
       now = { dy: now.dy + (want.dy - now.dy) * k, dz: now.dz + (want.dz - now.dz) * k };
-      return now;
+      return { dy: now.dy, dz: now.dz * Math.cos(DATUM_RAD) }; // up in the model's frame, as the root's z (the root's x moves 0.04 of it, left to the module)
     },
   };
 }
@@ -2674,6 +2689,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const group = new THREE.Group();
   addLookProbe(THREE, group); // the shared look of the model (ct156-look.js)
   group.name = 'ct156-cockpit';
+  group.rotation.y = DATUM_RAD; // nose-down with the model it goes into (CT156_DATUM_DEG): everything here is in the model's frame
   group.scale.setScalar(1 / F); // built in feet, drawn in the model's units
   const textures = [];
   const canvases = [];
@@ -2743,8 +2759,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const shadeMat = own(new THREE.MeshBasicMaterial({ map: shade.texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false }));
 
   const seats = [
-    { dx: FRONT_DX, front: true, p: PANEL_FT, h: GLARESHIELD_FT, eye: EYES_FT.front, width: 2048 },
-    { dx: REAR_DX, front: false, p: REAR_PANEL_FT, h: REAR_HUMP_FT, eye: EYES_FT.rear, width: 1024 },
+    { dx: FRONT_DX, front: true, p: PANEL_FT, h: GLARESHIELD_FT, eye: EYES_MODEL_FT.front, width: 2048 },
+    { dx: REAR_DX, front: false, p: REAR_PANEL_FT, h: REAR_HUMP_FT, eye: EYES_MODEL_FT.rear, width: 1024 },
   ];
   const solidParts = [], striped = [], consoleTops = [], lowerFaces = [], liveQuads = [], cards = [];
   const engineQuads = [], lampQuads = []; // liveEngine only: the engine displays' and caution panel's quads, and each lamp's [quad, colour when lit]
