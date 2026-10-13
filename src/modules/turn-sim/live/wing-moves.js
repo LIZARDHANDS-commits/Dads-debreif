@@ -386,6 +386,12 @@ export const FW_WING = Object.freeze({
   // "So can lead and 2 follows").
   gPerDeg: 0.05, // about 0.05 G per degree, 1 G per 20° (spec 7e.7)
   // ---- the cone in Lead's turns, rebuilt on Fable's second review (14 Oct 2026, fable-cone-turn-report-14oct.md) ----
+  // The path law's angle off the local tangent capped (Fable F7) ... OFF: with the caps the cases that start far behind or
+  // outside the circle could not close (the -12° inward cap against an offset of up to 400 ft inside): into stretched ended the
+  // turn 3,797 ft back (2,215 without), away tight 3,023 (1,276), outside the cone 3,170 (670). Kept for the thread (gauge r7-F7).
+  pathCaps: false,
+  pathOutDeg: 20, // ... +20° outward, the steer-behind (lag) cap (Fable F7, Q1's working answer, estimate) ...
+  pathInDeg: 12, // ... -12° inward, the steer-ahead (lead) cap (Fable F7, estimate)
   arcLoop: true, // the turn's arc loop: d = R (1 - V2/V_L) + (wanted - actual closure) / Lead's turn rate (Fable F1)
   arcTargetFt: 650, // s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft)
   arcNearFt: 300, // the wanted closure at most ... (Fable F1, estimate)

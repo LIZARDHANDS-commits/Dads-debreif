@@ -205,6 +205,15 @@ export function stepFwWingman(w, refSt) {
       const rT = Math.max(W.circleLeastFt, seen.turn.radiusFt - offFt);
       const ang = Math.min(Math.PI / 2, (V * W.circleLookSec) / rT);
       target = add3(c, add3(scale3(radial, rT * Math.cos(ang)), scale3(tangent, rT * Math.sin(ang))));
+      if (W.pathCaps) {
+        // The path law's caps (Fable F7, second review; Q1's working answer): the angle of his line to that point off the
+        // local tangent, at most +20° outward (lag: "slightly toward Lead's tail") and -12° inward (lead).
+        const toT = perp3(sub3(target, st.pm), axis);
+        const dist = Math.max(len3(toT), 1);
+        const a = Math.atan2(dot3(toT, radial), dot3(toT, tangent));
+        const ac = Math.max(-W.pathInDeg * DEG, Math.min(W.pathOutDeg * DEG, a));
+        target = add3(st.pm, scale3(add3(scale3(tangent, Math.cos(ac)), scale3(radial, Math.sin(ac))), dist));
+      }
     }
     aimKind = offFt > W.routeFt / 4 ? 'lead' : offFt < -W.routeFt / 4 ? 'lag' : 'pure';
   } else {
