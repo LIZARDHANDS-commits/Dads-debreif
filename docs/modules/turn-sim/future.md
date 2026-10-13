@@ -37,6 +37,8 @@ The second wave of live mode (rejoins, fighting wing and fluid manoeuvring, old 
 
 ## Power, speed and the aircraft
 
+- **Planning in a Web Worker** (was plan Step 12.1e; Patrick 12 Oct 2026: "goes to future feature, we wont do that now"): run a press's planning on a background thread so the picture never stalls. The gauge's "press ms" shows the cost on main at V2.422: a change to fighting wing about 240 ms, a turning rejoin to echelon about 150 ms. V2.422 already pauses the picture instead of lurching after a slow press (J2).
+
 - A torque curve from the reference data (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
 - Power on the tags for the tracker's rejoin and the other planned lines (they set no power, so none shows).
 - Speed and block height: a low or mid block choice (220 or 200 KIAS, TS-R6), the real low block height (8,000 ft is an estimate, TS-38), and a simple speed bleed in 3 G turns (constant for now, TS-38).

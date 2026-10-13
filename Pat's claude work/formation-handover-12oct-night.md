@@ -51,7 +51,7 @@ Also kept: the `wip-turn-sim` stash (from `fix-four-ship-offset-box`, 9 Oct) Pat
 ## Next
 
 1. Merge #1014 and #1013 once green.
-2. Step 12.1e: planning in a Web Worker, so a press never stalls the picture.
+2. ~~Step 12.1e: planning in a Web Worker~~: moved to `future.md` (Patrick, 12 Oct 2026).
 3. Step 12.2: the pilot review, with the gauge's numbers and the plot page.
 4. Step 12.3: fluid smoothing to TS-213 (the analysis has five slices; their remaining rulings: wingover and barrel roll exit speeds, Lead's roll rate 90 or about 120°/s, the G onset time, feed-forward of Lead's plan for #2).
 
