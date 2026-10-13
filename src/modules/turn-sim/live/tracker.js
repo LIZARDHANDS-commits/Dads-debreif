@@ -85,11 +85,11 @@ function aimOf(ph, L, Lprev, ref, W, t) {
       ref[v] = 0;
     } else {
       const dist = target - ref[axis];
-      const accelShare = ph.refAccelShare ?? (ph.targetBankDeg != null ? 0.6 : T.refAccelShare);
+      const accelShare = ph.refAccelShare ?? (ph.targetBankDeg != null ? T.bankLeg.refAccelShare : T.refAccelShare);
       const accel = rate * accelShare;
       // Along the line he starts taking the rate off alongLagSec early, as a pilot leads the power (it answers late).
       const maxV = Math.sqrt(Math.max(0, 2 * accel * (Math.abs(dist) - (ph.alongFrom ? (ph.alongLagSec ?? 0) * Math.abs(ref[v]) : 0))));
-      const wantRaw = Math.sign(dist) * Math.min(rate, Math.abs(dist) * (ph.targetBankDeg != null ? 1.5 : GAIN.refRate));
+      const wantRaw = Math.sign(dist) * Math.min(rate, Math.abs(dist) * (ph.targetBankDeg != null ? T.bankLeg.refRate : GAIN.refRate));
       const want = Math.sign(dist) * Math.min(Math.abs(wantRaw), maxV);
       const step = accel * STEP_SEC;
       if (ph.refJerkFtps3) {
@@ -105,7 +105,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
         ref[v] += Math.max(-step, Math.min(step, want - ref[v]));
       }
       ref[axis] += ref[v] * STEP_SEC;
-      const snapDist = Math.max(T.snapFt, Math.min(1.0, (ph.advanceTol ?? 6) * 0.25));
+      const snapDist = Math.max(T.snapFt, Math.min(T.snapMaxFt, (ph.advanceTol ?? T.snapFallbackTolFt) * T.snapTolShare));
       if (Math.abs(target - ref[axis]) < snapDist) {
         ref[axis] = target;
         ref[v] = 0;
@@ -126,15 +126,15 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     const span = slot[lead[0]] - a[lead[0]];
     const slope = Math.abs(span) > 1e-6 ? (slot[other[0]] - a[other[0]]) / span : 0;
     // A little past the end he stays on the line's extension, so a small overrun comes back along it with no snap across.
-    const k = Math.abs(span) > 1e-6 ? Math.max(0, Math.min(1.2, (rel[lead[0]] - a[lead[0]]) / span)) : 1;
+    const k = Math.abs(span) > 1e-6 ? Math.max(0, Math.min(T.lineOverrunShare, (rel[lead[0]] - a[lead[0]]) / span)) : 1;
     const dh = W.headingRad - L.headingRad;
     const own = lead[0] === 'fwd' ? W.tasFtps * Math.cos(dh) - L.tasFtps : W.tasFtps * Math.sin(dh);
     ref[other[1]] = a[other[0]] + k * (slot[other[0]] - a[other[0]]);
-    ref[other[2]] = k > 0 && k < 1.2 ? slope * own : 0;
+    ref[other[2]] = k > 0 && k < T.lineOverrunShare ? slope * own : 0;
   }
   const arrived = ph.goal
     ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt)
-    : Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? 6) * 0.25);
+    : Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? T.snapFallbackTolFt) * T.snapTolShare);
 
   // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
   // A phase with `refTurn: false` (the fighting wing turn exit) leaves out the ω × r: the place goes with the aircraft flown

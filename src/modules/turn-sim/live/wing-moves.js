@@ -11,6 +11,7 @@ import { HOLD, WING } from './moves.js';
 import { FW_BAND, FW4 } from './slots.js';
 import { RATE_SETS } from './rates.js';
 import { MIN_POSITIVE_G } from './handling.js';
+import { LEAD } from './lead-moves.js';
 
 /**
  * What both live laws do the same way (they were copies): power flies his place, 1 kt per 12.5 ft behind it less 0.6 kt
@@ -243,3 +244,21 @@ export const SLOT_TOL_FT = 15;
 
 /** The bank off Lead's that Lead's roll rate leaves his farthest wingman needing to hold his place across Lead's wing line (estimate). */
 export const ROLL_WITH_DEG = 5;
+
+// ---- the rolling rejoin (from rolling-rejoin.js) -------------------------------------------------------------------
+
+/** The rolling rejoin's search and pursuit (moved from rolling-rejoin.js, 12.2b). Estimates unless a page or ruling is named. */
+export const ROLLING_REJOIN = Object.freeze({
+  turnDeg: Object.freeze([30, 60, 90, 120]), // how far his heading swings the way Lead turns over the roll (estimates)
+  pitchDeg: Object.freeze([20, 40, 60]), // the nose's highest and lowest (estimates; 45° is the barrel roll's, SMM 14.8 para 19)
+  barrelOffDeg: 45, // the barrel roll's nose circles a point this far off his heading (SMM 14.8 para 19: 45° off)
+  pullG: Object.freeze([3, 4]), // the pull: the barrel roll's 3 G entry (SMM Table 14.1, Fig 14.1) and 4 G (the top of SMM Table 7.1's 3-4 G; estimate choice)
+  maxRollSec: 60, // a guard: a roll still going after this long is dropped (estimate)
+  pathSteps: 800, // the nose path's table (fluid-lead.js nosePath; search effort only)
+  fullSearches: 6, // how many of the most promising roll-outs get the turning rejoin's full search after them (search effort only)
+  patience: 2, // ...stopping once this many in a row after the best so far bring nothing quicker (search effort only)
+  aheadU: 0.08, // he steers toward the point 8% further along the nose path (estimate; named from rolling-rejoin.js flyRoll, 12.2b)
+  aimGain: 1.0, // ... at the pursuit gain of core liftTowardAim (estimate)
+  noseAccelDps2: LEAD.noseAccelDps2, // his nose rate changes along the path as Lead's does (8°/s², lead-moves.js; was a copy)
+  noseEndDps2: LEAD.noseEndDps2, // ... and eases onto the end of it as Lead's (3°/s²; was a copy)
+});

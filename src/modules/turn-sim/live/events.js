@@ -10,7 +10,7 @@ import { relativeTo } from './manoeuvres.js';
 import { judge } from './judge.js';
 import { refsFor } from './slots.js';
 import { leadTurnPlan } from './formation-turns.js';
-import { REJOIN, STEADY } from './tuning.js';
+import { REJOIN, STEADY, KIAS_LAB, KIAS_OUTSIDE_LAB } from './tuning.js';
 
 /**
  * The picture breaking (spec F1): Lead or #2 this far from where the plan has him at this moment plans the change again from
@@ -135,7 +135,7 @@ export function createEvents({ state, startChange, labelFor }) {
     const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, upFt) / dtSec;
     if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
     if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
-    const targetKias = c.change.to === 'lab' ? 220 : 200;
+    const targetKias = c.change.to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
     if (Math.abs(wing.kias - targetKias) > 0.5) return false;
     if (c.change.to !== 'fw' && Math.abs(wing.climbFtps ?? 0) > 1.0) return false;
     // The judge's band is sideless for the pair: a change of side is done only on the new side.
