@@ -485,7 +485,9 @@ export function stepFwWingman(w, refSt) {
   // within 15 KIAS of Lead (power last, but as required) ----
   const band = W.powerBandKias * KT_TO_FTPS;
   // With the filter, power is off (and the miss's height flown) while it is changing his turn and filterHoldSec after.
-  const missPower = W.guard.filter ? filterHold > 0 : guard.on && guard.phase === 'miss';
+  // Round 4: only while he is closing (round Lead's circle in a turn, else on the slant); opening, power is the power loop's,
+  // so a filter held on all the turn no longer takes the speed with it (r4f8: -59 kt in the turn into him).
+  const missPower = W.guard.filter ? filterHold > 0 && (!W.guard.offClosingOnly || closing > 0) : guard.on && guard.phase === 'miss';
   const P = missPower ? 0 : residual;
   // I on the closure he wants against the closure he has, slow (15 s), so a steady shortfall (the outside of a turn, a
   // climb) is trimmed out, and none builds while it is met

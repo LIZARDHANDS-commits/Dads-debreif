@@ -521,6 +521,9 @@ export const FW_WING = Object.freeze({
     aboveFt: 20, // "above only if already above": more than 20 ft above Lead when the guard engages (estimate), else the miss is below
     missFt: [50, 300], // the miss below Lead (above only if already above): enough height to make the slant 600 ft over the predicted pass's horizontal, from his 50 ft stack to 300 ft (estimates; a slow tail chase needs little, a pass across Lead's nose a lot)
     missSlantFt: 600,
+    // power off only while he is closing (round Lead's circle in a turn, else on the slant): opening, the power loop has it
+    // (round 4, thread; r4f8 held power off all the turn into him, -59 kt)
+    offClosingOnly: true,
     torquePct: 20, // "power off": 20% torque, well back but not idle, so the engine answers at once when he wants it back (estimate; TS-218, idle's spool-up lag)
     // The reversal onto Lead's circle: a definite increase in the line of sight (SMM 16.20 para 65b(2)), more than losRiseDps
     // over its least since the guard engaged, with Lead behind his 3/9 line (aspect under 90°: never across Lead's nose).
