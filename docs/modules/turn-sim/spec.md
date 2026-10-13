@@ -490,7 +490,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 - The station change, echelon to echelon on the other side: the first half then the second half, through the corner and across behind Lead.
 - Route to route on the other side, and route to line astern: the same corner, from route's place (to confirm).
 
-**4. Paces.** B1 and B2 move him at most at a jogging 8 ft/s (Patrick 13 Oct 2026). Patrick: "Instructors will 'run' from route to echelon", 13 ft/s. The Rates setting (TS-65) times route to echelon at 10, 5 and 2.5 s (Student, Instructor, AI): about 10, 20 and 40 ft/s on average over route's 100 ft, past both paces. To reconcile (question 1).
+**4. Paces.** B1 and B2 move him at most at a jogging 8 ft/s (Patrick 13 Oct 2026). Patrick: "Instructors will 'run' from route to echelon", 13 ft/s. The Rates setting (TS-65) times route to echelon at 10, 5 and 2.5 s (Student, Instructor, AI): about 10, 20 and 40 ft/s on average over route's 100 ft, past both paces. **Answered** (Patrick 14 Oct 2026, "Jogging only for now"): every close move on the live wingman at most 8 ft/s, tapering to stop on the place; running (13 ft/s) and the Rates choice come later. The Rates times stay for Held.
 
 **5. Done and judged.** As 7b: in band, closing under 5 kt, bank within 10°, and on the live wingman settled on his place. The judge's bands (`judge.js`) unchanged.
 
@@ -499,7 +499,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 **7. Boundaries.** Held flies as today, checked on the gauge against the run saved before B3. Fighting wing, the rejoins, opening out to line abreast and the 4-ship stay on today's flying until their rungs. No number without its source or "estimate".
 
 **8. Open questions for Patrick** (one at a time):
-1. Paces: does the live wingman move at your paces (8 ft/s jogging, 13 running) with the Rates setting choosing between them, or keep the Rates times (10, 5, 2.5 s)?
+1. ~~Paces~~: answered, jogging only for now (section 4).
 2. Route's tolerance in a turn: how far out of his picture may he be in route while Lead rolls (echelon: 2-3 ft at 45°, a few feet at 60°)?
 3. The corner for the crossunder: still 10 ft behind Lead's tail at line astern's height, stabilized flowing through (TS-117)?
 4. Opening out from a close formation to line abreast: on the live wingman here, or with the line abreast rung?
