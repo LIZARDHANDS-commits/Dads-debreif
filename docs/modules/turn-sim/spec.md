@@ -401,6 +401,24 @@ Three small loops, one per control, run every step in Lead's wing frame: pitch (
 
 `fighting-wing.js` joins at B5, from `fw-live.js`. The aircraft is Lead's point mass (`fluid-lead.js` stepLead, TS-225). Numbers go in the tuning sheet (`wing-moves.js`), each with its source or marked as an estimate. Existing maths is used first: `holdInPlane` (`formation-turns.js`) already holds this place with error and rate on Lead's plan; `easeValue`, `softMin` and `softMax` (`src/core/flight-math.js`). Plain JavaScript, a header on each file in the repo's style. Behind a setting: the held poses stay until Patrick has flown the new wingman.
 
+**The pattern to follow: `fluid-wing-live.js`** (TS-194). It is already a live #2 on the same point mass: each step a pilot law reads the picture and asks `stepLead` for a lift, a roll and a power, as a pilot does. The close-formation wingman is wired the same way; what is new is what he reads (his references, 0.3 s late), the supervisor and the PID loops. `fw-live.js` (fighting wing's live law, TS-208) becomes B5's second technique.
+
+**Inputs and outputs** (13 Oct 2026; the drawn code map is in the working doc "Close-In Wingman Spec"). Every step is 0.05 s; feet, feet per second, degrees, G, torque percent. Signs: off the plane + above Lead's wing plane, off the line + ahead of it, along the line + out away from Lead; bank + left wing down.
+
+| File | New? | In | Out |
+|---|---|---|---|
+| lead-pilot.js (Lead) | exists | His plan from the planners | Lead's state: position and height, heading, KIAS and true speed, bank, roll rate, roll build-up (the telegraph), G, flight-path angle |
+| slots.js | exists | The formation and his side | His place in Lead's wing plane (18 ft back, 43 ft out, 3 ft down); the spinner-to-wingtip line (12.3 ft back for every 16.7 ft out) |
+| perception.js | new | Lead's state and his own over the last 0.3 s, his place | What he sees as it was 0.3 s ago: off the plane, off the line, along the line, and their rates (lightly smoothed); Lead's bank, G, roll rate and build-up; the bank and rate Lead is rolling to. What he feels now: his G and throttle |
+| supervisor.js | new | What he sees; the job he is in and for how long | The job (on station, small move, large move, out before up; a dead band so it never flickers); the plane-line-hinge step; the pace limit (8 ft/s in B1) |
+| close-formation.js | new | What he sees, the job, his memory (trims, holding power); tuning (wing-moves.js); holding power (power.js powerFor) | The G, bank and torque he wants; his memory updated (never changed in place) |
+| shaper.js | new | What he wants; his last inputs; the job's pressure sizes; the T-6A's onsets | This step's G, bank and throttle: pressure-sized, smooth, starting from his last inputs when the job changes |
+| wingman.js | new | Lead's state, #2's aircraft, the setting Held / Live | #2's aircraft fields as lead-pilot.js writes Lead's, so the 3D view, judge and card read him as today; a trace for the gauge |
+| fluid-lead.js stepLead (#2's aircraft) | exists | His state; G, bank, throttle, his roll | His next state |
+| formation.js, 3D view, judge, card, gauge | exist | #2's aircraft fields; the gauge also reads the trace | The picture, "in position", the card, the gauge's deviation per axis, G, bank and torque against Lead |
+
+**Kept and still used:** `holdInPlane` and the held poses (what B1 replaces behind the setting, and the start of the new hold: it holds the same place with P and D on Lead's plan); `tracker.js` (station changes and rejoins until B3 and B4); `fw-live.js` and `fluid-wing-live.js` (unchanged in B1); `lead-pilot.js` and `stepLead` (the aircraft); `power.js` powerFor; `slots.js`; `judge.js` and `bands.js` (in position); the gauge.
+
 #### 9. Commands
 
 - Build check: `npm run build`
