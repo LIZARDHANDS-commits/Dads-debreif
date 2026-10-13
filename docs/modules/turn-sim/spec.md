@@ -481,7 +481,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 | Route | 75 back, 121 out, 3 down: 3 wingspans further out along the same line; judged in from 1 to 3 wingspans | SMM 12.6 para 15, Fig 12.7; TS-181 |
 | Line astern | 43 back (nose to tail about 10 ft), on Lead's centreline, 8 down, below the prop wash | SMM 12.5 para 13; the 8 ft an estimate |
 
-**2. Holding route and line astern.** The same law as echelon at the new place. Route sits three times further out, so Lead's roll moves his place about three times as much: at the slowed telegraph (TS-209) a 60° roll-in swings route's place at about 0.3 G and some 20 ft/s at its quickest (121 ft out x 4.8°/s² and 9.6°/s; to be measured), so route is flown looser and its picture is allowed to move more in the roll. Lead still rolls no faster than the wingman furthest out can follow (TS-209). Line astern's place is on Lead's centreline, so Lead's roll barely moves it; there the job is height (below the wash) and fore and aft.
+**2. Holding route and line astern.** The same law as echelon at the new place. Route sits three times further out, so Lead's roll moves his place about three times as much: at the slowed telegraph (TS-209) a 60° roll-in swings route's place at about 0.3 G and some 20 ft/s at its quickest (121 ft out x 4.8°/s² and 9.6°/s; to be measured), so route is flown looser and its picture is allowed to move more in the roll: **answered** (Patrick 14 Oct 2026, "About 3x echelon"): roughly 5-10 ft out of his picture during Lead's roll, back in it as the turn steadies; B3's checks keep route's judged band (1 to 3 wingspans) rather than echelon's 5 ft. Lead still rolls no faster than the wingman furthest out can follow (TS-209). Line astern's place is on Lead's centreline, so Lead's roll barely moves it; there the job is height (below the wash) and fore and aft.
 
 **3. The changes between close formations** (SMM 12.20 paras 44-47, Figs 12.12-12.13; TS-117 for the corner). The supervisor gains two jobs: off station (flying from one place to another) and deconfliction (never within a wingspan of Lead, never ahead of Lead's 3/9 line, no wings overlapping, under Lead out before up as in B1). A change is flown as a short list of places in Lead's frame that he moves through at a pace, not a planned track:
 - Echelon to route and back: straight along the spinner-to-wingtip line, bank and power together ("power and bank together", 7b.3), the pace cascade of B1 tapering to stop on the new place.
@@ -500,7 +500,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 
 **8. Open questions for Patrick** (one at a time):
 1. ~~Paces~~: answered, jogging only for now (section 4).
-2. Route's tolerance in a turn: how far out of his picture may he be in route while Lead rolls (echelon: 2-3 ft at 45°, a few feet at 60°)?
+2. ~~Route's tolerance in a turn~~: answered, about 3x echelon (section 2).
 3. The corner for the crossunder: still 10 ft behind Lead's tail at line astern's height, stabilized flowing through (TS-117)?
 4. Opening out from a close formation to line abreast: on the live wingman here, or with the line abreast rung?
 5. Route to route on the other side: through the corner as echelon, or another way?
