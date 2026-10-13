@@ -42,8 +42,21 @@ Units as published. Feet are worked out at 0.3048 m per foot.
 |---|---|---|---|
 | Main gear | Retractable tricycle; mains retract inwards into wing wells, nose leg backwards (P5, P6) | Gear **down** (on the ground), with hinge points for all three legs | Two sources agree; still to see on a photo (leg positions, doors, track) |
 | Propeller | 5 blades, 2.10 m diameter, MT-Propeller (P2a, P5) | 5 blades, 6.89 ft diameter | Two sources agree; blade shape, twist and spinner size are estimates (E20 to E23) |
-| Seating | Side by side (P3 type certificate sheet, P4 Grob) | Side by side: two eye points, left and right seat | Two sources agree; eye height and position are estimates (E30) |
+| Seating | Side by side (P3 type certificate sheet, P4 Grob) | Side by side: two eye points, left and right seat | **Seen on Dad's photos (D1)**, with a centre stick each; eye height and position are estimates (E30) |
 | Canopy | Large bubble canopy that slides aft (P6, two flight tests) | One bubble, no frame drawn, closed | Shape is an estimate (E5 to E7); the frame, the bow and where it slides to are not drawn yet |
+
+## Dad's photos (13 Oct 2026; kept out of the repo)
+
+Two cockpit photos of a CT-102B on the ramp, sent by Dad. They're family photos, so they stay out of the repo and nothing is copied from them; only what they show about the aircraft is written here. The canopy is open in both, and there is no square-on view, so nothing is measured off them yet.
+
+| Row | What they show | Used for |
+|---|---|---|
+| D1 | Two seats side by side, each with its own centre stick between the knees | Confirms the seating (P3, P4) and sticks, not yokes; cockpit, Step 3c item 5 |
+| D2 | A centre console between the seats, with the power lever and other controls on it | Cockpit layout, item 5 (no control is named here until a manual or Patrick confirms it) |
+| D3 | Grey seat shells with mesh cushions, and tall dark headrest frames behind both seats | Cockpit, and what shows through the canopy from outside |
+| D4 | Paint: yellow overall, with dark blue winglets and dark blue and red trim; RCAF roundel on the wing's upper surface; the number 207 on the upper surface behind the cockpit | Paint at delivery (item 6); confirms upswept, swept-back winglets (P5, P6) |
+| D5 | A yellow canopy frame with a chrome grab handle, standing up beside the seats with the canopy open | The canopy frame exists; how it opens (slides aft, P6, or lifts) is still to confirm from a photo with it part-open or closed |
+| D6 | An adult seated in the right seat | A rough check of cockpit width later; too oblique to measure from now |
 
 ## Size checks (first pass, 13 Oct 2026)
 
