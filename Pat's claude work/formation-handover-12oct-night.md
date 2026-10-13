@@ -144,3 +144,60 @@ Also kept: the `wip-turn-sim` stash (from `fix-four-ship-offset-box`, 9 Oct) Pat
 
 - Nothing was run locally as tests (CI is the check). Every "measured" number is a Node dry run (the probes, the gauge).
 - The cap after a slow press was seen only on a fast PC; narrow windows with the minimise buttons were not looked at.
+
+## 14 Oct 2026, late: B5 fighting wing in turns, handed over before the context reset
+
+**Where it stands.**
+- `formation-close-wingman-b2` holds V2.432 (#1031): the "#2 in fighting wing: Old / Live" switch with T27-T28 merged, Checkpoint E passed, and spec 7d (rejoins from fighting wing) drafted with all three of Patrick's answers. **7d is waiting for his approval.**
+- `formation-fighting-wing-b5` is at b60a4a2b: the thread's T29a work in progress, not merged, not for flying.
+- Tuning notes: `formation-review-12oct/b5-t29a-tuning-14oct.md`.
+- Fable's second review: brief `fable-cone-turn-brief-14oct.md`, report `fable-cone-turn-report-14oct.md`.
+- Gauge helpers (run them with node from the b5 worktree's root):
+  - `b5-gauge-summary.cjs <dir> <tags...>`
+  - `b5-gauge-aspect.cjs <dir> <tag>`
+  - `b5-gauge-dump.cjs <file> <t0> <t1>`
+
+  Make a run with `node tools/formation-gauge.mjs --only b5- --fw live --tag <name>`.
+
+**Patrick's rulings today, all in TS-233:**
+- Low inside at MAX when short of energy in the turn.
+- The high yo-yo when gaining on Lead inside his turn.
+- A kiss of the 500 ft bubble while correcting firmly is fine.
+- From fighting wing the rejoins are all live, with no tracker.
+- The overshoot below one span with more than 10 kt of closure.
+- Overtake 15 kt on TRJ, 25 kt on SARJ.
+- No recorded formation flying yet; the sight pictures wait.
+
+**The thread's first check of Fable's findings against the code:**
+- **F2 holds.** The filter's most G is max(Lead + 1.5, aircraft limit), so at a slow speed it can pass the shaker.
+- **F3 holds.** The vertical takes its share of lift before the turn, and the filter predicts as if he got the whole turn.
+- **F5 is half done.** `leadNow` is dead-reckoned 0.4 s, but straight, not round Lead's turn.
+- **F1 and F11 are as described.** The aim loop's ±25 ft/s and 20 ft/s slew are in `FW_WING`.
+
+**Next, in order:**
+1. Patrick rules on Fable's questions 1-7. Recommended:
+   - Q1: the 20° steer-behind cap.
+   - Q2: yes, the pass line is 500 ft + 1.4 s × closure, floor 600 ft, read with his bubble ruling.
+   - Q3: 100 ft low at the end of the turn.
+   - Q4: 400 ft climb; "already high" is 100 ft.
+   - Q5: yes, stop at the shaker (a physical limit).
+   - Q6: 100 ft behind the wing line.
+   - Q7: yes, log (d, s).
+2. **After the reset (Patrick: "once it resets at 1650 we will send that agent")**, send a Sonnet web researcher (read-only). Topics:
+   - The trail-cone technique in other trainers' public manuals (US Navy T-6B formation, "cruise"; USAF T-6 formation), background only, never above Patrick or the SMM.
+   - Formation control with a turning leader, following a circle, and collision-avoidance filters, aimed at Fable's findings 1-4 and 6-10.
+   - The output is one reference file with sources, checked by the thread before anything goes into the spec.
+3. The thread (or the B5 agent, with this list) builds Fable's structure on the b5 branch, one change per gauge run, in this order:
+   1. F5, dead-reckon Lead round his turn.
+   2. F2, G bounded by the shaker.
+   3. F3, the filter shares one lift command with the vertical.
+   4. F4, the pass line with the closure allowance.
+   5. F10, the (s, d) pair, with closure from velocities.
+   6. F1, d_ss plus the arc loop with closure feedback, ±400 ft, 60 ft/s.
+   7. F7, the outward and inward caps.
+   8. F6, the along-track floor.
+   9. F8 and F9, the climb out of plane and the pitch owners.
+
+   Acceptance: the turn cases end 500-900 ft back and within 15 KIAS, the most aspect stays under 90°, least slant 500 ft (a brief kiss allowed), and job switches are 3 or fewer.
+4. Re-run the keep-unchanged checks before any merge: Held and close-formation traces byte-identical, the B1-B3 probes, the 4-ship hash, and the Old law's b5 entries.
+5. Then T29b (wings level and the swept place), T29c (entry, exit and S-turns), T30 (stretch), T31 (test), Checkpoint G.

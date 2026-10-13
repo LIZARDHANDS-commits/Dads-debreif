@@ -580,7 +580,7 @@ Patrick's order (14 Oct 2026): fighting wing first (B5), then "TRJ and SARJ from
 **8. Questions for Patrick.**
 (a) **Answered** (Patrick 14 Oct 2026, card "All live, no tracker"): from fighting wing the live wingman flies the whole rejoin, with no tracker.
 (b) **Answered** (Patrick 14 Oct 2026, card "1 span, >10 kt"): he overshoots when the pass is predicted closer than one wingspan (33.4 ft) with more than 10 kt of closure, or his closure isn't stable (under 20 kt) by 100 ft (TS-110). An estimate he picked.
-(c) The overtake middles: 15 KIAS on TRJ, 25 on SARJ.
+(c) **Answered** (Patrick 14 Oct 2026, "Agree with your questions"): he aims for 15 KIAS of overtake on TRJ and 25 on SARJ, the middles of the manuals' ranges.
 
 ## 7e. Fighting wing on the live wingman (B5; approved by Patrick 14 Oct 2026, TS-233: "Approved"; draft 3, with the Fable audit and his answers)
 
@@ -643,6 +643,8 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 - Reaction: 0.4 s after he sees Lead's bank and nose start (his pick, 14 Oct 2026; TS-211's 0.3-0.5 s).
 
 **7. Ruling, 14 Oct 2026 (TS-233):** in Lead's level turn, when #2 on the inside can't hold Lead's speed at his higher G (60°/2 G at 200 KIAS), he drops low inside, a few hundred feet (estimate), at MAX, and climbs back to the stack on the roll-out (Patrick, card "Drop low inside, MAX"). The vertical loop owns this; power is at MAX, not the slow PI.
+
+**7. Ruling, 14 Oct 2026 (TS-233):** inside Lead's turn after the miss, when #2 gains on Lead round the turn (he would end ahead of Lead's 3/9 line), he flies a high yo-yo: a climbing turn out of Lead's plane to kill the horizontal closure and bleed speed, then back down onto Lead's circle behind him, ending stacked low (Patrick, card "High yo-yo, then back down"). The miss itself stays below.
 
 **7. The design: one wingman, a fighting wing technique of its own** (draft 3: the Fable audit of 14 Oct 2026, `Pat's claude work/formation-review-12oct/fable-fighting-wing-audit-14oct.md`, its findings F1-F19 cited below, and Patrick's answers). The live wingman of 7b (perception, supervisor, technique, shaper, the point mass) gains a second technique beside close formation's, with its own quantities, loops and tuning tables (`FW_SEE` and `FW_WING` beside `CLOSE_SEE` and `CLOSE_WING`, `wing-moves.js`), chosen explicitly by formation (F18). Close formation holds a point in Lead's wing plane; fighting wing holds a region and a picture, so its loops close on different quantities, and only the shaper and the aircraft are shared. Nothing new is shared with the 4-ship's old law.
 
