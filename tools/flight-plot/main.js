@@ -12,6 +12,12 @@ const CHARTS = [
   { key: 'climbDeg', title: 'Flight path angle', unit: '°' },
   { key: 'kias', title: 'Airspeed', unit: 'KIAS' },
   { key: 'rangeFt', title: 'Range to the aircraft he flies off', unit: 'ft' },
+  // The close wingman's own (B1, B2; only in the close-formation scenarios): how far off his place on each of Patrick's
+  // axes (plane + above Lead's wing plane, line + ahead of the spinner-to-wingtip line, along + out), and his torque.
+  { key: 'planeFt', title: 'Close wingman: off the plane (+ above)', unit: 'ft' },
+  { key: 'lineFt', title: 'Close wingman: off the line (+ ahead)', unit: 'ft' },
+  { key: 'alongFt', title: 'Close wingman: along the line (+ out)', unit: 'ft' },
+  { key: 'torquePct', title: 'Torque', unit: '%' },
 ];
 const COLOURS = ['#4fc3f7', '#ffb74d', '#81c784', '#e57373'];
 
@@ -61,13 +67,14 @@ function show(trace) {
   const t = trace.aircraft[names[0]].t;
   const width = Math.max(320, chartsEl.clientWidth - 16);
   for (const c of CHARTS) {
+    if (!names.some((n) => trace.aircraft[n][c.key])) continue; // a chart this scenario has no data for
     const box = document.createElement('section');
     box.className = 'chart';
     const h = document.createElement('h2');
     h.textContent = `${c.title} (${c.unit})`;
     box.append(h);
     chartsEl.append(box);
-    const data = [t, ...names.map((n) => trace.aircraft[n][c.key])];
+    const data = [t, ...names.map((n) => trace.aircraft[n][c.key] ?? t.map(() => null))];
     const series = [{ label: 's' }, ...names.map((n, i) => ({ label: n, stroke: COLOURS[i % COLOURS.length], width: 1.5, spanGaps: false }))];
     plots.push(new uPlot({
       width,

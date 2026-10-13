@@ -42,10 +42,13 @@ export function shape(mem, want, job, gRef) {
   const upCorrG = clamp(want.upCorrG, -caps.gCap, caps.gCap);
   const sideCap = Math.max(gRef, 0.5) * Math.sin(caps.bankCapDeg * DEG);
   const leftCorrG = clamp(want.leftCorrG, -sideCap, sideCap);
-  const sized = clamp(want.torquePct, want.holdPct - caps.torqueCapPct, want.holdPct + caps.torqueCapPct);
+  // His corrections are sized around the setting the turn needs (the holding power and the power lead, B2), not around the
+  // holding power alone: the lead is what he puts in for the turn he sees coming, not a correction.
+  const base = want.basePct ?? want.holdPct;
+  const sized = clamp(want.torquePct, base - caps.torqueCapPct, base + caps.torqueCapPct);
   const flags = { outOfPower: want.torquePct > 100 || want.torquePct < C.boardsBelowPct, boards: sized < C.boardsBelowPct };
   const aim = clamp(sized, C.boardsBelowPct, 100);
-  const torquePct = toward(mem.torquePct, aim, j.torquePctps);
+  const torquePct = toward(mem.torquePct, aim, want.telegraph ? Math.max(j.torquePctps, C.telegraphTorquePctps) : j.torquePctps);
   const held = {
     plane: upCorrG !== want.upCorrG,
     side: leftCorrG !== want.leftCorrG,

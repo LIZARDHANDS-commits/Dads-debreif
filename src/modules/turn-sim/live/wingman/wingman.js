@@ -27,7 +27,7 @@ import { poseOf3d } from '../attitude.js';
 import { pairSlot } from '../slots.js';
 import { throttleAtTorque, powerFrom, withEngine } from '../power.js';
 import { STEP_SEC } from '../flight.js';
-import { startPerception, perceive, look, seenOf } from './perception.js';
+import { startPerception, perceive, look, seenOf, placeDeviation } from './perception.js';
 import { startJob, supervise } from './supervisor.js';
 import { startLaw, holdingTorque, closeLaw, liftFor, torqueFromThrottle } from './close-formation.js';
 import { startHand, shape } from './shaper.js';
@@ -74,6 +74,16 @@ export function stepWingman(w, refSt) {
       torquePct: hand.mem.torquePct, holdPct, flags: hand.flags,
     },
   };
+}
+
+/**
+ * Whether he is settled on his place against the aircraft he flies off as it is now (refSt): within about 1 ft on every
+ * axis and closing under about 1 ft/s (spec 7b.7's "within about 1 ft"; the gauge's settle; B2's end of a live close turn).
+ */
+export function settledOn(w, refSt) {
+  const d = placeDeviation(seenOf(refSt), seenOf(w.st), w.place, w.side);
+  const r = w.per.filt.rate;
+  return Math.max(Math.abs(d.plane), Math.abs(d.line), Math.abs(d.along)) <= 1 && Math.max(Math.abs(r.plane), Math.abs(r.line), Math.abs(r.along)) <= 1;
 }
 
 /** The inputs he holds now (for the next technique to start from, B5): { upCorrG, leftCorrG, torquePct }. */

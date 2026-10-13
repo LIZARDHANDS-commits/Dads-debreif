@@ -154,11 +154,14 @@ export function closeLaw(mem, seen, job, { st, side, key, holdPct, held }) {
   const up = pilotAxis(mem.plane, ePlane, seen.rate.plane, STEP_SEC, { ...C.plane, ...soft, hold: held.plane });
   const out = pilotAxis(mem.side, eOut, rOut, STEP_SEC, { ...roll, ...soft, hold: held.side });
   const pwr = pilotAxis(mem.fore, eFwd, rFwd, STEP_SEC, { ...fore, ...soft, hold: held.fore });
+  const lead = powerLeadPct(seen, st, key, holdPct);
   // Under Lead he does not come up until he is out (supervisor.js upOk): no correction upward.
   const upCorrG = job.upOk ? up.out : Math.min(0, up.out);
   return {
     mem: { plane: up.mem, side: out.mem, fore: pwr.mem },
-    want: { upCorrG, leftCorrG: side * out.out, torquePct: holdPct + powerLeadPct(seen, st, key, holdPct) + pwr.out, holdPct },
+    // basePct: the setting the turn needs now, the holding power and the power lead (what the shaper sizes his corrections
+    // around); telegraph: he sees Lead rolling, so his hand moves the throttle at the telegraph's rate (B2).
+    want: { upCorrG, leftCorrG: side * out.out, torquePct: holdPct + lead + pwr.out, holdPct, basePct: holdPct + lead, telegraph: Math.abs(seen.rollDps) > 1 },
   };
 }
 
