@@ -10,6 +10,8 @@ import { relativeTo } from './manoeuvres.js';
 import { judge } from './judge.js';
 import { refsFor, pairSlot } from './slots.js';
 import { leadTurnPlan } from './formation-turns.js';
+import { leadPointMassOf } from './lead-pilot.js';
+import { settledOn } from './wingman/wingman.js';
 import { REJOIN, STEADY, KIAS_LAB, KIAS_OUTSIDE_LAB, CLOSE_WING } from './tuning.js';
 
 /**
@@ -188,6 +190,9 @@ export function createEvents({ state, startChange, labelFor }) {
     if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
     const side = c.change.side ?? 0;
     if (side !== 0 && Math.sign(rel.left) !== side) return false;
+    // ... and settled on his place, within 1 ft and 1 ft/s, as the path drawn ahead ends (spec 7c.5: "on the live wingman
+    // settled on his place"; in band alone ended the station change about 5 ft short, still closing on it).
+    if (!settledOn(w, leadPointMassOf(lead, w.blockFt))) return false;
     return judge(state.aircraft, { key: c.change.to, side }, { spacingFt: state.spacingFt }).inBand;
   }
 
