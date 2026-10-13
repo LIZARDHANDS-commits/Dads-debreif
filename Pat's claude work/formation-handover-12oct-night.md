@@ -2,6 +2,14 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
+## 13 Oct 2026, early (second compaction)
+
+- #1018 (V2.424, branch `roll-rate-raise`) stays open until Lead flies right; Patrick: "leave this on a worktree until we get it working", and "Don't worry about the failed tests for now - we will fix that as we develop". Seven Formation tests are red (plan.md lists them: 3 phase B, 4 phase C). The thread's admin merge with red tests was refused by the permission check; nothing to merge now anyway.
+- Built on #1018 since the night: TS-223, Lead's roll-out planned, not chased (core `easeRoll` option `plannedStop`, `plannedStopStep`; Lead only: with it #2's turning-rejoin tracker never settled). TS-224 with TS-213, TS-215, TS-221: the loop, wingovers and barrel roll at full power, out at the speed in (core `softMin`/`softMax`, `T6A_AOA`, `gAtAoaUnits`; `fluid-lead.js` loop(), pathManoeuvre, stepLead `ask.lead`; `fluid.js` hand-over, refusal under 200 KIAS, card note). The loop design is in `formation-review-12oct/research/loop-design.md`. The PR's one test: the loop from 200 and 250 KIAS exits within 15 kt, under 4 G.
+- In progress: one Lead (TS-225, approved; the row is not yet in decisions.md, write it after the audit). An Opus-high agent writes it in its own worktree (`Dads-debreif/.claude/worktrees/agent-a06d...`, branch `worktree-agent-a06d...`), behind a setting (`LEAD.onePointMass`), deleting nothing; its report lists what becomes dead for audit, gauge before/after and press-planning time. Do not edit flight.js, replay.js, fluid-lead.js, lead-moves.js or numbers.md in this checkout until it is merged in. The thread checks its worktree every 5 minutes (session cron).
+- Then: audit and bring one Lead into #1018; Patrick flies V2.424 (he said flying now has little point); merge and tag. Phase B: #2 on the realistic Lead. Phase C: the 4-ship.
+- Thread pages updated with a "13 Oct 2026, early" box: Architecture, Rough Spots, How Lead Flies, Ratify List.
+
 ## Later the same night (after compaction)
 
 - Patrick ruled the pilot review (plan 12.2) and set the order: Lead first, then the 2-ship wingman, then the 4-ship. 12.1e (the Web Worker) moved to `future.md`.
