@@ -37,7 +37,7 @@ Everything he sees reaches his hands about 0.3 s late (TS-211, estimate; the sam
 2. **Line:** forward or back onto the spinner-to-wingtip line, with power.
 3. **Hinge:** along the line, in toward Lead or out away from him, with power and bank together, until abeam the rudder hinge line. Route sits on the same line further out (spec section 10, TS-181).
 
-So #2 reads his deviation in the line's own frame (off the plane, off the line, along the line), not as Lead's fore, aft and side, and fixes one or two at a time. **Exception (Patrick):** "if you are underneath lead, you wouldn't correct plane first": under Lead, coming up into his plane is the collision risk, so the supervisor moves #2 out first (section 2). Fighting wing and rejoins use a different crosscheck; those come at rungs B4 and B5.
+So #2 reads his deviation in the line's own frame (off the plane, off the line, along the line), not as Lead's fore, aft and side. **Plane, line, hinge is the order for correcting an error**, a move back onto his place, one or two at a time. **Staying in position is different:** all the controls together, coordinated, all the time (Patrick, 12 Oct 2026: "PLH is the order we correct errors. you stay in position by using coordination of all of the controls at once"). **Exception (Patrick):** "if you are underneath lead, you wouldn't correct plane first": under Lead, coming up into his plane is the collision risk, so the supervisor moves #2 out first (section 2). Fighting wing and rejoins use a different crosscheck; those come at rungs B4 and B5.
 
 ## 4. Inputs: his controls
 
@@ -61,7 +61,7 @@ Patrick, 12 Oct 2026: "My input size would be driven based on how big the error 
 
 So each input has two parts:
 1. **Reacting to Lead (the main part):** what he sees Lead do, matched smoothly: Lead's bank, Lead's pull, and a roll starting, met with power before it is needed. In control terms this is feed-forward: acting on the cause before the deviation appears.
-2. **Staying in position:** the deviation from his place, sized mainly by how big it is and how fast it is growing, and to a lesser degree by how long it has been there. In control terms this is feedback, mostly proportional and rate (PD), with a weak integral.
+2. **Staying in position:** all the controls together, coordinated, on the deviation from his place, sized mainly by how big it is and how fast it is growing, and to a lesser degree by how long it has been there. In control terms this is feedback, mostly proportional and rate (PD), with a weak integral.
 
 | Axis | Corrected with | What he sees Lead do first |
 |---|---|---|
