@@ -246,155 +246,219 @@ export function stepFwWingman(w, refSt) {
   const n = len3(toward) > 1e-9 ? unit3(toward) : { x: 0, y: 0, z: 0 };
   const aFf = scale3(cross3(aimTurn, u), V); // his speed x the aim line's turn
   const aP = scale3(n, G_FTPS2 * W.gPerDeg * angleDeg);
-  // ---- the vertical, square to the turn plane: one pitch owner (F7), the guard's miss, else the jobs' height target (the
-  // quick fix's or his stack 50 ft below), PD (spec 7e.7) ----
-  const passClearOwns = W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on;
-  const dz = passClearOwns ? guard.vert * guard.missFt : job.heightFt;
-  // who has pitch this step, for the trace (Fable Q7's working answer: log it)
-  const pitchOwner = passClearOwns ? 'passClear' : job.low ? 'lowInside' : job.quick ? 'quickFix' : 'stack';
-  const errFt = dot3(sub3(add3(leadNow, scale3(Z, dz)), st.pm), out); // + he has to go toward the normal (up)
-  const errRate = -dot3(sub3(st.vel, leadV), out);
-  const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
-  const aV = scale3(out, vertG * G_FTPS2);
-  // His lift (G, a vector): what holds his path against his weight, the vertical, then the turn; within his G. One pitch
-  // owner (F7): the vertical is given its share first, the steering the rest, so a hard turn never takes the height away.
-  const hold = add3(perp3(Z, u), scale3(perp3(aV, u), 1 / G_FTPS2)); // 1 G's share square to his path, and the vertical
-  let aTurn = perp3(add3(aFf, aP), u);
+  // ---- the vertical, square to the turn plane, PD (spec 7e.7): one pitch owner (F7). Fable F9 (second review): pass-clear
+  // (below, above if already more than 100 ft high), then the high yo-yo (F8), then the stack's family (low inside, the
+  // quick fix, the stack 50 ft below); an owner keeps pitch at least 2 s unless pass-clear takes it. ----
+  const Y = W.yoyo;
+  const eArc = arcFt == null ? null : arcFt - W.arcTargetFt;
+  // The high yo-yo (Fable F8; Patrick 14 Oct 2026, card "High yo-yo, then back down"): inside Lead's turn and gaining on him,
+  // he climbs out of Lead's plane to kill the horizontal closure and bleed speed, then comes back down behind him.
+  let yoyo = w.yoyo ?? { phase: null, hFt: 0 };
+  let yoyoNeedFt = null;
+  if (Y.on) {
+    let slowKt = 0;
+    if (job.turning && dFt != null && seen.turn.centre && Number.isFinite(seen.turn.radiusFt)) {
+      // the speed that holds his radius round Lead's centre at Lead's turn rate, and the height whose speed loss cancels
+      // the rest: h = (V^2 - (omega r)^2) / 2g (Fable F8; standard energy)
+      const vHold = len3(omegaL) * Math.max(0, seen.turn.radiusFt - dFt);
+      yoyoNeedFt = (V * V - vHold * vHold) / (2 * G_FTPS2);
+      slowKt = st.kias - tasToIasKt(vHold / KT_TO_FTPS, st.pm.z);
+    }
+    // the climb's over: on Lead's circle with the arc error under 150 ft, or well behind his place, or Lead's turn over
+    const done = !job.turning || eArc == null || eArc > Y.exitArcFt || (Math.abs(eArc) < Y.exitArcFt && Math.abs(dFt ?? 0) < Y.onCircleFt);
+    // the trigger: the wing line out of reach (F6), or the speed that holds his radius more than 10 kt under his own with
+    // power already back
+    const trigger = !done && (Boolean(w.lineShort) || (slowKt > Y.slowKt && Boolean(w.powerBack)));
+    if (yoyo.phase !== 'up' && trigger) yoyo = { phase: 'up', hFt: Math.min(Y.maxFt, Math.max(Y.minFt, yoyoNeedFt ?? 0)) };
+    else if (yoyo.phase === 'up') yoyo = done ? { phase: 'down', hFt: 0 } : { phase: 'up', hFt: Math.min(Y.maxFt, Math.max(yoyo.hFt, yoyoNeedFt ?? 0)) };
+    else if (yoyo.phase === 'down' && seen.heightFt - job.heightFt < Y.downEndFt) yoyo = { phase: null, hFt: 0 };
+  }
+  const passClearWanted = W.guard.filter ? guard.on && (w.filterHold ?? 0) > 0 : guard.on;
+  let owner = w.owner ?? { name: 'stack', sec: 0, vert: -1 };
+  let want = Y.on && yoyo.phase ? 'yoyo' : passClearWanted ? 'passClear' : 'stack';
+  // 2 s between owners (Fable F9, estimate); pass-clear takes pitch at once
+  if (Y.on && want !== owner.name && owner.sec < Y.ownerHoldSec && want !== 'passClear') want = owner.name;
+  const takeOwner = (name) =>
+    name === owner.name
+      ? { ...owner, sec: owner.sec + STEP_SEC }
+      : { name, sec: 0, vert: Y.on ? (seen.heightFt > Y.highFt ? 1 : -1) : guard.vert };
+  owner = takeOwner(want);
+  const dzOf = (o) =>
+    o.name === 'passClear'
+      ? o.vert * (guard.on ? guard.missFt : W.guard.missFt[0])
+      : o.name === 'yoyo' && yoyo.phase === 'up'
+        ? yoyo.hFt
+        : job.heightFt;
+  const vertFor = (dz) => {
+    const errFt = dot3(sub3(add3(leadNow, scale3(Z, dz)), st.pm), out); // + he has to go toward the normal (up)
+    const errRate = -dot3(sub3(st.vel, leadV), out);
+    const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
+    const aV = scale3(out, vertG * G_FTPS2);
+    // His lift (G, a vector): what holds his path against his weight, the vertical, then the turn; within his G. One pitch
+    // owner (F7): the vertical is given its share first, the steering the rest, so a hard turn never takes the height away.
+    const hold = add3(perp3(Z, u), scale3(perp3(aV, u), 1 / G_FTPS2)); // 1 G's share square to his path, and the vertical
+    return { dz, errFt, aV, hold };
+  };
+  const aTurn0 = perp3(add3(aFf, aP), u);
   // ---- the separation filter (thread, 14 Oct 2026; spec 7e.7's guard as a predictor with priority, Fable F1, F16, F17): his
   // aim's turn is flown unless the pass it predicts (him holding that turn, Lead holding his and one step tighter, over the
   // guard's look) comes inside engageFt; then the turn nearest to it that keeps the pass outside engageFt. Lead turning into
   // him from in position, that is a slight turn toward Lead's tail ("collapse to the 6 by turning slightly toward lead",
   // SMM 12.29 Fig 12.20), and the reversal onto Lead's circle comes by itself as soon as his aim's turn keeps the pass clear
   // (Fig 12.20 step 2): no aim point, no miss and reverse phases to cycle between. ----
-  let filterPull = false;
-  let filterOn = false;
-  let lineShort = false; // the wing line out of reach this step (Fable F6): the high yo-yo's trigger (F8)
-  let filterHold = Math.max(0, (w.filterHold ?? 0) - STEP_SEC);
-  let filterSide = w.filterSide ?? 0;
-  if (W.guard.filter) {
-    const side = unit3(cross3(out, u)); // his left in the turn plane
-    const omegaNom = dot3(aTurn, side) / V; // rad/s, + turning left
-    const horizon = W.guard.lookSec + (W.deadReckon ? 0 : FW_SEE.delaySec);
-    const lp0 = W.deadReckon ? leadNow : seen.lead.p;
-    const leadAsIs = { p: lp0, v: leadV, omega: seen.turn.omega };
-    const leadTighter = { p: lp0, v: leadV, omega: scale3(seen.turn.omega, W.guard.tighter) };
-    // For a candidate turn: the least pass (slant) and the least distance behind Lead's wing line over the look, the worse of
-    // Lead as he is and one step tighter.
-    const predFor = (om) => {
-      const me = { p: ownP, v: ownV, omega: scale3(out, om) };
-      // One lift (Fable F3): the vertical he is asking for is a known term in the pass, its height counted in the slant.
-      const extra = W.guard.sharedLift ? { acc: aV, maxFt: Math.abs(errFt) } : null;
-      const a = leastPass(leadAsIs, me, horizon, extra);
-      const b = leastPass(leadTighter, me, horizon, extra);
-      return { pass: Math.min(a.leastFt, b.leastFt), behind: Math.min(a.behindLeastFt, b.behindLeastFt) };
-    };
-    const passFor = (om) => predFor(om).pass;
-    // The pass line (Fable F4, second review; Q2's working answer, read with Patrick's bubble ruling): 500 ft plus the range
-    // the closure he sees covers in the 1.4 s his picture is old (0.4 s late, 1 s smoothing), never under 600 ft.
-    const passLine = W.guard.passLine
-      ? Math.max(W.guard.engageFt, W.guard.minFt + W.guard.passLineSec * Math.max(0, seen.closure))
-      : W.guard.engageFt;
-    // The wing line (Fable F6): at least wingLineFt behind it over the look; off, no second constraint.
-    const lineOk = (p) => !W.guard.wingLine || p.behind >= W.guard.wingLineFt;
-    const nom = predFor(omegaNom);
-    if (W.guard.wingLine) {
-      if (nom.pass < passLine || !lineOk(nom)) {
+  const runFilter = ({ errFt, aV, hold }) => {
+    let aTurn = aTurn0;
+    let filterPull = false;
+    let filterOn = false;
+    let lineShort = false; // the wing line out of reach this step (Fable F6): the high yo-yo's trigger (F8)
+    let filterHold = Math.max(0, (w.filterHold ?? 0) - STEP_SEC);
+    let filterSide = w.filterSide ?? 0;
+    let passShort = false; // his aim's own turn passes inside the pass line
+    let cleared = true; // a turn was found that keeps the pass outside it
+    let passFt = null;
+    if (W.guard.filter) {
+      const side = unit3(cross3(out, u)); // his left in the turn plane
+      const omegaNom = dot3(aTurn, side) / V; // rad/s, + turning left
+      const horizon = W.guard.lookSec + (W.deadReckon ? 0 : FW_SEE.delaySec);
+      const lp0 = W.deadReckon ? leadNow : seen.lead.p;
+      const leadAsIs = { p: lp0, v: leadV, omega: seen.turn.omega };
+      const leadTighter = { p: lp0, v: leadV, omega: scale3(seen.turn.omega, W.guard.tighter) };
+      // For a candidate turn: the least pass (slant) and the least distance behind Lead's wing line over the look, the worse of
+      // Lead as he is and one step tighter.
+      const predFor = (om) => {
+        const me = { p: ownP, v: ownV, omega: scale3(out, om) };
+        // One lift (Fable F3): the vertical he is asking for is a known term in the pass, its height counted in the slant.
+        const extra = W.guard.sharedLift ? { acc: aV, maxFt: Math.abs(errFt) } : null;
+        const a = leastPass(leadAsIs, me, horizon, extra);
+        const b = leastPass(leadTighter, me, horizon, extra);
+        return { pass: Math.min(a.leastFt, b.leastFt), behind: Math.min(a.behindLeastFt, b.behindLeastFt) };
+      };
+      const passFor = (om) => predFor(om).pass;
+      // The pass line (Fable F4, second review; Q2's working answer, read with Patrick's bubble ruling): 500 ft plus the range
+      // the closure he sees covers in the 1.4 s his picture is old (0.4 s late, 1 s smoothing), never under 600 ft.
+      const passLine = W.guard.passLine
+        ? Math.max(W.guard.engageFt, W.guard.minFt + W.guard.passLineSec * Math.max(0, seen.closure))
+        : W.guard.engageFt;
+      // The wing line (Fable F6): at least wingLineFt behind it over the look; off, no second constraint.
+      const lineOk = (p) => !W.guard.wingLine || p.behind >= W.guard.wingLineFt;
+      const nom = predFor(omegaNom);
+      passFt = nom.pass;
+      passShort = nom.pass < passLine;
+      if (W.guard.wingLine) {
+        if (nom.pass < passLine || !lineOk(nom)) {
+          filterOn = true;
+          const gMost = W.guard.shakerBound
+            ? Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)))
+            : Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
+          const gHold = W.guard.sharedLift ? len3(hold) : 1;
+          const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
+          const N = W.guard.filterSteps;
+          const cands = [];
+          for (let k = -N; k <= N; k++) {
+            const om = (omMax * k) / N;
+            cands.push({ om, ...predFor(om) });
+          }
+          // The turn nearest his aim's that meets ok, on the side he chose last step unless only the other side does, refined
+          // between it and its neighbour toward his aim's turn; null when none does.
+          const choose = (ok) => {
+            let best = null;
+            for (const c of cands) {
+              if (!ok(c)) continue;
+              const sideK = Math.sign(c.om - omegaNom) || 1;
+              const cost = Math.abs(c.om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
+              if (!best || cost < best.cost) best = { ...c, cost, sideK };
+            }
+            if (!best) return null;
+            let lo = best.om;
+            let hi = best.om - best.sideK * (omMax / N);
+            for (let r = 0; r < W.guard.filterRefine; r++) {
+              const mid = (lo + hi) / 2;
+              if (ok(predFor(mid))) lo = mid;
+              else hi = mid;
+            }
+            return { om: lo, sideK: best.sideK };
+          };
+          const passOk = (c) => c.pass >= passLine;
+          let pick = choose((c) => passOk(c) && lineOk(c));
+          if (!pick) {
+            // Range wins (Fable F6): the wing line is dropped and the pass line kept; the wing line's being out of reach is the
+            // high yo-yo's trigger (F8). His aim's own turn clearing the pass line is then left alone.
+            lineShort = true;
+            pick = passOk(nom) ? { om: omegaNom, sideK: 0, free: true } : choose(passOk);
+          }
+          // none clears: the turn that passes widest
+          cleared = Boolean(pick);
+          const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
+          if (pick?.free) filterOn = false;
+          else filterSide = pick ? pick.sideK : filterSide;
+          if (filterOn) {
+            aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
+            filterHold = W.guard.filterHoldSec;
+            filterPull = Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG;
+          } else filterSide = 0;
+        } else filterSide = 0;
+      } else if (nom.pass < passLine) {
         filterOn = true;
+        // The candidates stop at the stick-shaker's G at his speed now, a physical limit (Fable F2, second review; Q5's working
+        // answer: stop at the shaker and use height and power). Before, Lead + 1.5 G could pass it when he was slow.
         const gMost = W.guard.shakerBound
           ? Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)))
           : Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
+        // The turn the G leaves after what holds him up and the vertical he asks for (Fable F3: one lift for both); before,
+        // 1 G only, so a climb or a pass-clear below took turn away that the filter had counted on.
         const gHold = W.guard.sharedLift ? len3(hold) : 1;
         const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
         const N = W.guard.filterSteps;
-        const cands = [];
+        let best = null;
+        let bestPass = -Infinity;
+        let bestOm = omegaNom;
         for (let k = -N; k <= N; k++) {
           const om = (omMax * k) / N;
-          cands.push({ om, ...predFor(om) });
-        }
-        // The turn nearest his aim's that meets ok, on the side he chose last step unless only the other side does, refined
-        // between it and its neighbour toward his aim's turn; null when none does.
-        const choose = (ok) => {
-          let best = null;
-          for (const c of cands) {
-            if (!ok(c)) continue;
-            const sideK = Math.sign(c.om - omegaNom) || 1;
-            const cost = Math.abs(c.om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
-            if (!best || cost < best.cost) best = { ...c, cost, sideK };
+          const pass = passFor(om);
+          if (pass > bestPass) {
+            bestPass = pass;
+            bestOm = om;
           }
-          if (!best) return null;
+          if (pass < passLine) continue;
+          // nearest to his aim's turn; on the side he chose last step unless only the other side clears (no flip-flop)
+          const sideK = Math.sign(om - omegaNom) || 1;
+          const cost = Math.abs(om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
+          if (!best || cost < best.cost) best = { om, cost, sideK };
+        }
+        let om = bestOm; // nothing clears: the turn that passes widest
+        cleared = Boolean(best);
+        if (best) {
+          // refine between the clearing turn and its neighbour toward his aim's turn
           let lo = best.om;
           let hi = best.om - best.sideK * (omMax / N);
           for (let r = 0; r < W.guard.filterRefine; r++) {
             const mid = (lo + hi) / 2;
-            if (ok(predFor(mid))) lo = mid;
+            if (passFor(mid) >= passLine) lo = mid;
             else hi = mid;
           }
-          return { om: lo, sideK: best.sideK };
-        };
-        const passOk = (c) => c.pass >= passLine;
-        let pick = choose((c) => passOk(c) && lineOk(c));
-        if (!pick) {
-          // Range wins (Fable F6): the wing line is dropped and the pass line kept; the wing line's being out of reach is the
-          // high yo-yo's trigger (F8). His aim's own turn clearing the pass line is then left alone.
-          lineShort = true;
-          pick = passOk(nom) ? { om: omegaNom, sideK: 0, free: true } : choose(passOk);
+          om = lo;
+          filterSide = best.sideK;
         }
-        // none clears: the turn that passes widest
-        const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
-        if (pick?.free) filterOn = false;
-        else filterSide = pick ? pick.sideK : filterSide;
-        if (filterOn) {
-          aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
-          filterHold = W.guard.filterHoldSec;
-          filterPull = Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG;
-        } else filterSide = 0;
+        aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
+        filterHold = W.guard.filterHoldSec;
+        filterPull = (Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG);
       } else filterSide = 0;
-    } else if (nom.pass < passLine) {
-      filterOn = true;
-      // The candidates stop at the stick-shaker's G at his speed now, a physical limit (Fable F2, second review; Q5's working
-      // answer: stop at the shaker and use height and power). Before, Lead + 1.5 G could pass it when he was slow.
-      const gMost = W.guard.shakerBound
-        ? Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)))
-        : Math.max(seen.leadG + W.overLeadG, Math.min(availableG(st.kias), shakerG(st.kias)));
-      // The turn the G leaves after what holds him up and the vertical he asks for (Fable F3: one lift for both); before,
-      // 1 G only, so a climb or a pass-clear below took turn away that the filter had counted on.
-      const gHold = W.guard.sharedLift ? len3(hold) : 1;
-      const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
-      const N = W.guard.filterSteps;
-      let best = null;
-      let bestPass = -Infinity;
-      let bestOm = omegaNom;
-      for (let k = -N; k <= N; k++) {
-        const om = (omMax * k) / N;
-        const pass = passFor(om);
-        if (pass > bestPass) {
-          bestPass = pass;
-          bestOm = om;
-        }
-        if (pass < passLine) continue;
-        // nearest to his aim's turn; on the side he chose last step unless only the other side clears (no flip-flop)
-        const sideK = Math.sign(om - omegaNom) || 1;
-        const cost = Math.abs(om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0);
-        if (!best || cost < best.cost) best = { om, cost, sideK };
-      }
-      let om = bestOm; // nothing clears: the turn that passes widest
-      if (best) {
-        // refine between the clearing turn and its neighbour toward his aim's turn
-        let lo = best.om;
-        let hi = best.om - best.sideK * (omMax / N);
-        for (let r = 0; r < W.guard.filterRefine; r++) {
-          const mid = (lo + hi) / 2;
-          if (passFor(mid) >= passLine) lo = mid;
-          else hi = mid;
-        }
-        om = lo;
-        filterSide = best.sideK;
-      }
-      aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
-      filterHold = W.guard.filterHoldSec;
-      filterPull = (Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG);
-    } else filterSide = 0;
+    }
+    return { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passShort, cleared, passFt };
+  };
+  let vert = vertFor(dzOf(owner));
+  let flt = runFilter(vert);
+  if (Y.on && owner.name === 'yoyo' && yoyo.phase === 'up' && flt.passShort && !flt.cleared) {
+    // the climb can't keep the pass outside the line: pass-clear has pitch (Fable F9)
+    owner = takeOwner('passClear');
+    vert = vertFor(dzOf(owner));
+    flt = runFilter(vert);
   }
+  const { dz, errFt, aV, hold } = vert;
+  const { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passFt } = flt;
+  // who has pitch this step, for the trace (Fable Q7's working answer: log it)
+  const pitchOwner =
+    owner.name === 'passClear' ? 'passClear' : owner.name === 'yoyo' && yoyo.phase === 'up' ? 'highYoYo' : owner.name === 'yoyo' && yoyo.phase === 'down' ? 'yoyoDown' : job.low ? 'lowInside' : job.quick ? 'quickFix' : 'stack';
   const capNormal = Math.min(seen.leadG + W.overLeadG, shakerG(st.kias));
   // The guard pulls past Lead + 1.5 G only while the pass it predicts is still inside 500 ft (flagged), up to what the
   // aircraft gives (Patrick 14 Oct 2026: references, not walls); otherwise it keeps the estimate as the rest of his flying.
@@ -431,17 +495,21 @@ export function stepFwWingman(w, refSt) {
   const wantTas = vL + Math.max(-band, Math.min(band, P + powerI)); // ft/s
   const wantKias = tasToIasKt(wantTas / KT_TO_FTPS, seen.lead.p.z);
   // Low inside, at MAX (the ruling): short of energy in the turn, power is MAX, not the slow PI.
-  const power = missPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : !missPower && job.low ? { throttle: 1 } : { holdKias: wantKias };
+  // The yo-yo's way down (Fable F8): power back while he is faster than Lead, so drag bleeds off what the descent gives back.
+  const downPower = Y.on && pitchOwner === 'yoyoDown' && st.kias > leadKias;
+  const lowMax = job.low && (!Y.on || owner.name === 'stack');
+  const power = missPower || downPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : lowMax ? { throttle: 1 } : { holdKias: wantKias };
+  const powerBack = missPower || downPower || wantKias < leadKias - Y.powerBackKt;
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...power });
   const gAsk = len3(lift);
   const jobName = filterOn ? 'guard-filter' : guard.on && !W.guard.filter ? `guard-${guard.phase}` : job.turning ? `turn-${job.entry ? `${job.entry.into ? 'into' : 'away'}-${job.entry.range}` : 'on'}` : job.sTurn ? 'sTurn' : 'swept';
   return {
-    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing },
+    w: { ...w, st: next, sight: mem, guard, job, aimDir: d, aimTurn, t: w.t + STEP_SEC, offFt, aimOff, powerI, filterSide, filterHold, arcFt, arcClosure: arcFt == null ? null : closing, yoyo, owner, lineShort, powerBack },
     trace: {
       t: w.t + STEP_SEC, job: jobName, aim: aimKind, offFt: Math.round(offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
       heightTargetFt: Math.round(dz), wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
-      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null, lineShort,
+      cWantFtps: guard.on ? null : cTarget, cActualFtps: cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt), pitchOwner: pitchOwner ?? null, lineShort, passFt: passFt == null ? null : Math.round(passFt), yoyoFt: yoyo.phase === 'up' ? Math.round(yoyo.hFt) : null,
     },
   };
 }

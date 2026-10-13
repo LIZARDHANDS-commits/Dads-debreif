@@ -465,6 +465,27 @@ export const FW_WING = Object.freeze({
   lowFt: 300, // "a few hundred feet" (estimate)
   lowStartKt: 5, // short of energy: more than 5 KIAS slower than Lead (estimate) ...
   lowEndKt: 1, // ... until back within 1 KIAS of him (estimate)
+  // The high yo-yo inside Lead's turn (Patrick 14 Oct 2026, card "High yo-yo, then back down"; TS-233 addendum; Fable F8)
+  // and the pitch owners' order (Fable F9): pass-clear, then the climb, then the stack's family.
+  yoyo: Object.freeze({
+    on: true,
+    // the trigger: the filter's wing line out of reach (F6), or the speed that holds his radius round Lead's centre more
+    // than 10 kt under his own (Fable F8, estimate) with power already back (asking at least 5 KIAS under Lead's, or off;
+    // estimate)
+    slowKt: 10,
+    powerBackKt: 5,
+    // the size: h = (V^2 - (omega r)^2) / 2g (Fable F8; standard energy), at most 400 ft above Lead (Fable F8, Q4's working
+    // answer, estimate), at least 100 ft when the wing line alone sets it off (estimate)
+    maxFt: 400,
+    minFt: 100,
+    // the exit: on Lead's circle (within 150 ft of it, estimate) with the arc error under 150 ft (Fable F8, estimate), or
+    // more than 150 ft behind his place; then down to the stack with power back, over once within 50 ft of it (estimate)
+    exitArcFt: 150,
+    onCircleFt: 150,
+    downEndFt: 50,
+    highFt: 100, // "already high": more than 100 ft above Lead, pass-clear goes above (Fable F9, Q4's working answer, estimate)
+    ownerHoldSec: 2, // 2 s between pitch owners; pass-clear takes it at once (Fable F9, estimate)
+  }),
   // Unload, roll, pull: with his wings more than pullWithinDeg off where the lift is wanted he pulls only its share along
   // them (estimate; fw-live.js does the same: "while he rolls he pulls only the G that keeps the height he wants").
   pullWithinDeg: 20,

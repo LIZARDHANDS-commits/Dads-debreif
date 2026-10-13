@@ -344,7 +344,7 @@ function fwStep(c, lead, two, tr, liveTrace) {
     ['losDps', +pic.losDps.toFixed(2)], ['aim', aim], ['job', job], ['heightFt', Math.round(pic.height)],
     ['predFt', lt?.predFt ?? null], ['offFt', lt?.offFt ?? null], ['heightTargetFt', lt?.heightTargetFt ?? null],
     ['cWantFtps', r1(lt?.cWantFtps)], ['cActualFtps', r1(lt?.cActualFtps)], ['fwTorquePct', tq === null ? null : +tq.toFixed(1)],
-    ['fwLow', lt ? (lt.low ? 1 : 0) : null], ['sFt', lt?.sFt ?? null], ['dFt', lt?.dFt ?? null], ['pitchOwner', lt?.pitchOwner ?? null], ['lineShort', lt ? (lt.lineShort ? 1 : 0) : null],
+    ['fwLow', lt ? (lt.low ? 1 : 0) : null], ['sFt', lt?.sFt ?? null], ['dFt', lt?.dFt ?? null], ['pitchOwner', lt?.pitchOwner ?? null], ['lineShort', lt ? (lt.lineShort ? 1 : 0) : null], ['passFt', lt?.passFt ?? null], ['yoyoFt', lt?.yoyoFt ?? null],
   ]) (tr[key] ??= []).push(v);
 }
 
