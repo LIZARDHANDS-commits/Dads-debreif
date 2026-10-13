@@ -551,7 +551,7 @@ Patrick's order (14 Oct 2026): fighting wing first (B5), then "TRJ and SARJ from
 - Overtake: TRJ 10-20 KIAS (SMM 12.24 para 56); SARJ 20-30 KIAS (EFIG p.371).
 - The line: 35° off Lead's tail (TS-181), Lead 4° up (estimate, TS-181).
 - The window: 250-100 ft, closure under 20 kt (TS-110).
-- **The close minimum: Patrick to rule.** Working answer: never predicted closer than one wingspan (33.4 ft, `slots.js`) to Lead with more than 10 kt of closure.
+- **The close minimum** (Patrick 14 Oct 2026, 8(b)): never predicted closer than one wingspan (33.4 ft, `slots.js`) to Lead with more than 10 kt of closure, an estimate.
 - The capture's hand-over: the close-formation technique's own numbers (7b, 7c).
 - Lead's TRJ turn: 30° at 200 KIAS until #2 is in (6.3, TS-87).
 
@@ -579,7 +579,7 @@ Patrick's order (14 Oct 2026): fighting wing first (B5), then "TRJ and SARJ from
 
 **8. Questions for Patrick.**
 (a) **Answered** (Patrick 14 Oct 2026, card "All live, no tracker"): from fighting wing the live wingman flies the whole rejoin, with no tracker.
-(b) The close minimum and its closure.
+(b) **Answered** (Patrick 14 Oct 2026, card "1 span, >10 kt"): he overshoots when the pass is predicted closer than one wingspan (33.4 ft) with more than 10 kt of closure, or his closure isn't stable (under 20 kt) by 100 ft (TS-110). An estimate he picked.
 (c) The overtake middles: 15 KIAS on TRJ, 25 on SARJ.
 
 ## 7e. Fighting wing on the live wingman (B5; approved by Patrick 14 Oct 2026, TS-233: "Approved"; draft 3, with the Fable audit and his answers)
