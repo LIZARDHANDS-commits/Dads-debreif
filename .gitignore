@@ -8,3 +8,6 @@ playwright-report/
 .agents/
 
 tmp/
+
+# The design kit's Python environment, one per PC (tools/flight-design/README.md)
+tools/flight-design/.venv/

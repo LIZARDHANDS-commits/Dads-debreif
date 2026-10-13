@@ -1,0 +1,190 @@
+// The Formation smoothness gauge (Formation plan Step 12.1b; Patrick's yes, 12 Oct 2026). A measuring script, not a test:
+// it flies a fixed set of 2-ship presses from the default start, headless, through the real session (live/formation.js),
+// and prints for each aircraft what a pilot would see as rough: roll reversals, peak roll acceleration, the G range and
+// the fastest G change, G reversals, the drawn aircraft's biggest one-step turn (the 3D view's attitude), and the least
+// range to the aircraft he flies off. It compares against the stored baseline and writes each run's traces for the
+// flight-data plot page (tools/flight-plot/).
+//
+//   node tools/formation-gauge.mjs            run, compare with tools/formation-gauge/baseline.json
+//   node tools/formation-gauge.mjs --save     run and store the results as the new baseline
+//   node tools/formation-gauge.mjs --only fluid-loop   one scenario (any part of its name)
+//
+// Traces: tmp/gauge/<scenario>.json and tmp/gauge/index.json (tmp/ is not in git). The thresholds that count a reversal
+// are estimates, chosen to ignore numerical noise; they are not rules for the flight code.
+import { performance } from 'node:perf_hooks';
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { createFormation } from '../src/modules/turn-sim/live/formation.js';
+import { STEP_SEC, liftBankDeg } from '../src/modules/turn-sim/live/flight.js';
+import { drawnAttitudeOf, drawnTurnDeg } from '../src/modules/turn-sim/live/attitude.js';
+
+const ROLL_REVERSAL_DPS = 10; // a roll counts once it is faster than this either way (estimate)
+const G_REVERSAL_GPS = 0.3; // a G change counts once it is faster than this either way (estimate)
+const BASELINE = 'tools/formation-gauge/baseline.json';
+const TRACES = 'tmp/gauge';
+
+const args = process.argv.slice(2);
+const save = args.includes('--save');
+const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
+
+const wings = (a) => a.attitudeDeg ?? liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
+const steps = (sec) => Math.round(sec / STEP_SEC);
+
+/** Flies until the change or move in hand is finished (or capSec). */
+function settle(f, capSec = 300) {
+  for (let i = 0; i < steps(capSec) && f.state.current; i++) f.step();
+}
+
+/**
+ * The press set, 2-ship (Formation plan 12.1b). Each scenario: a set-up flown first and not measured, then the measured
+ * presses, each { label, press(f) -> 'started' | ..., sec } where sec is how long it is measured (a settle when 'done').
+ */
+const SCENARIOS = [
+  { name: 'lab-to-fw', setup: () => {}, presses: [{ label: 'Change to fighting wing (turning rejoin)', press: (f) => f.change('fw'), sec: 'done' }] },
+  {
+    name: 'fw-moves', setup: (f) => { f.change('fw'); settle(f); },
+    presses: [
+      { label: 'Level turn into #2', press: (f) => f.pressFw('levelTurn', -1), sec: 25 },
+      { label: 'Reversal', press: (f) => f.pressFw('reversal'), sec: 25 },
+      { label: 'Wings level', press: (f) => f.pressFw('wingsLevel'), sec: 30 },
+    ],
+  },
+  { name: 'fw-to-echelon', setup: (f) => { f.change('fw'); settle(f); }, presses: [{ label: 'Fighting wing to echelon', press: (f) => f.change('echelon'), sec: 'done' }] },
+  { name: 'echelon-to-lab', setup: (f) => { f.change('echelon'); settle(f); }, presses: [{ label: 'Echelon to line abreast', press: (f) => f.change('lab'), sec: 'done' }] },
+  { name: 'sarj-echelon', setup: () => {}, presses: [{ label: 'Straight-ahead rejoin to echelon', press: (f) => f.change('echelon', { rejoin: 'straight' }), sec: 'done' }] },
+  { name: 'trj-echelon', setup: () => {}, presses: [{ label: 'Turning rejoin to echelon', press: (f) => f.change('echelon'), sec: 'done' }] },
+  { name: 'echelon-close-turn', setup: (f) => { f.change('echelon'); settle(f); }, presses: [{ label: 'Close turn in echelon (telegraphed)', press: (f) => f.press('delayed90', 1), sec: 'done' }] },
+  {
+    name: 'fluid-loop', setup: (f) => { f.change('fw'); settle(f); },
+    presses: [
+      { label: 'Fluid entry', press: (f) => f.change('fluid'), sec: 40 },
+      { label: 'Loop', press: (f) => f.pressFluid('loop'), sec: 60 },
+    ],
+  },
+  { name: 'fluid-sequence-L', setup: (f) => { f.change('fw'); settle(f); f.change('fluid'); settle(f, 40); }, presses: [{ label: 'Standard sequence L', press: (f) => f.pressFluid('sequence', 1), sec: 160 }] },
+  { name: 'fluid-sequence-R', setup: (f) => { f.change('fw'); settle(f); f.change('fluid'); settle(f, 40); }, presses: [{ label: 'Standard sequence R', press: (f) => f.pressFluid('sequence', -1), sec: 160 }] },
+  {
+    name: 'fluid-terminate', setup: (f) => { f.change('fw'); settle(f); f.change('fluid'); settle(f, 40); },
+    presses: [
+      { label: 'Level turn left', press: (f) => f.pressFluid('levelTurn', 1), sec: 15 },
+      { label: 'Terminate', press: (f) => f.pressFluid('terminate'), sec: 40 },
+    ],
+  },
+];
+
+/** One aircraft's running numbers. */
+function tally() {
+  return { gMin: Infinity, gMax: -Infinity, gRateMax: 0, gReversals: 0, rollMax: 0, rollAccMax: 0, rollReversals: 0, drawnMax: 0, rangeMin: Infinity, lastRoll: 0, lastGRate: 0 };
+}
+
+function runScenario(sc) {
+  const f = createFormation({ ships: 2 });
+  sc.setup(f);
+  const results = [];
+  const trace = { name: sc.name, stepSec: STEP_SEC, presses: [], aircraft: {} };
+  let t = 0;
+  for (const p of sc.presses) {
+    const t0 = performance.now();
+    const how = p.press(f);
+    const pressMs = performance.now() - t0;
+    trace.presses.push({ t, label: p.label, how });
+    const per = new Map();
+    let prev = new Map(f.state.aircraft.map((a) => [a.id, { ...a }]));
+    let stepMsMax = 0;
+    const n = p.sec === 'done' ? steps(300) : steps(p.sec);
+    for (let i = 0; i < n; i++) {
+      if (p.sec === 'done' && !f.state.current) break;
+      const s0 = performance.now();
+      f.step();
+      stepMsMax = Math.max(stepMsMax, performance.now() - s0);
+      t += STEP_SEC;
+      const byId = new Map(f.state.aircraft.map((a) => [a.id, a]));
+      for (const a of f.state.aircraft) {
+        const b = prev.get(a.id);
+        if (!b) continue;
+        const name = a.name ?? String(a.id);
+        if (!per.has(name)) per.set(name, tally());
+        const q = per.get(name);
+        const gRate = (a.g - b.g) / STEP_SEC;
+        const roll = a.rollRateDps ?? 0;
+        const rollAcc = (roll - (b.rollRateDps ?? 0)) / STEP_SEC;
+        const drawn = drawnTurnDeg(drawnAttitudeOf(b, wings(b)), drawnAttitudeOf(a, wings(a))) / STEP_SEC;
+        q.gMin = Math.min(q.gMin, a.g);
+        q.gMax = Math.max(q.gMax, a.g);
+        q.gRateMax = Math.max(q.gRateMax, Math.abs(gRate));
+        if (Math.abs(gRate) > G_REVERSAL_GPS) { if (q.lastGRate && Math.sign(gRate) !== Math.sign(q.lastGRate)) q.gReversals++; q.lastGRate = gRate; }
+        q.rollMax = Math.max(q.rollMax, Math.abs(roll));
+        q.rollAccMax = Math.max(q.rollAccMax, Math.abs(rollAcc));
+        if (Math.abs(roll) > ROLL_REVERSAL_DPS) { if (q.lastRoll && Math.sign(roll) !== Math.sign(q.lastRoll)) q.rollReversals++; q.lastRoll = roll; }
+        q.drawnMax = Math.max(q.drawnMax, drawn);
+        const ref = byId.get(a.ref);
+        let range = null;
+        if (ref && ref !== a) {
+          range = Math.hypot(a.xFt - ref.xFt, a.yFt - ref.yFt, (a.altAboveFt ?? 0) - (ref.altAboveFt ?? 0));
+          q.rangeMin = Math.min(q.rangeMin, range);
+        }
+        const tr = (trace.aircraft[name] ??= { t: [], g: [], gRate: [], bank: [], roll: [], drawnDps: [], climbDeg: [], kias: [], rangeFt: [] });
+        tr.t.push(+t.toFixed(2));
+        tr.g.push(+a.g.toFixed(3));
+        tr.gRate.push(+gRate.toFixed(2));
+        tr.bank.push(+wings(a).toFixed(1));
+        tr.roll.push(+roll.toFixed(1));
+        tr.drawnDps.push(+drawn.toFixed(1));
+        tr.climbDeg.push(+((Math.asin(Math.max(-1, Math.min(1, (a.climbFtps ?? 0) / Math.max(a.tasFtps ?? 1, 1)))) * 180) / Math.PI).toFixed(1));
+        tr.kias.push(+(a.kias ?? 0).toFixed(1));
+        tr.rangeFt.push(range === null ? null : Math.round(range));
+      }
+      prev = new Map(f.state.aircraft.map((a) => [a.id, { ...a }]));
+    }
+    const aircraft = {};
+    for (const [name, q] of per) {
+      aircraft[name] = {
+        g: [+q.gMin.toFixed(2), +q.gMax.toFixed(2)], gRateMax: +q.gRateMax.toFixed(2), gReversals: q.gReversals,
+        rollMax: Math.round(q.rollMax), rollAccMax: Math.round(q.rollAccMax), rollReversals: q.rollReversals,
+        drawnMax: Math.round(q.drawnMax), rangeMin: Number.isFinite(q.rangeMin) ? Math.round(q.rangeMin) : null,
+      };
+    }
+    results.push({ label: p.label, how, pressMs: Math.round(pressMs), stepMsMax: +stepMsMax.toFixed(2), aircraft });
+  }
+  return { results, trace };
+}
+
+const fmt = (v, b, lowerBetter = true) => {
+  if (b === undefined || b === null || v === null) return String(v);
+  const d = Array.isArray(v) ? null : v - b;
+  if (!d) return String(v);
+  const worse = lowerBetter ? d > 0 : d < 0;
+  return `${v} (${d > 0 ? '+' : ''}${+d.toFixed(2)}${worse ? ' worse' : ' better'})`;
+};
+
+const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : null;
+const out = {};
+mkdirSync(TRACES, { recursive: true });
+const index = [];
+for (const sc of SCENARIOS) {
+  if (only && !sc.name.includes(only)) continue;
+  const { results, trace } = runScenario(sc);
+  out[sc.name] = results;
+  writeFileSync(`${TRACES}/${sc.name}.json`, JSON.stringify(trace));
+  index.push({ name: sc.name, file: `${sc.name}.json`, presses: trace.presses });
+  console.log(`\n## ${sc.name}`);
+  results.forEach((r, i) => {
+    const b = baseline?.[sc.name]?.[i];
+    console.log(`  ${r.label}: ${r.how} | press ${r.pressMs} ms, step max ${r.stepMsMax} ms`);
+    for (const [name, a] of Object.entries(r.aircraft)) {
+      const ba = b?.aircraft?.[name] ?? {};
+      console.log(`    ${name.padEnd(5)} G ${a.g[0]}..${a.g[1]} | G rate max ${fmt(a.gRateMax, ba.gRateMax)} G/s, G reversals ${fmt(a.gReversals, ba.gReversals)} | roll max ${fmt(a.rollMax, ba.rollMax)}°/s, roll acc max ${fmt(a.rollAccMax, ba.rollAccMax)}°/s², roll reversals ${fmt(a.rollReversals, ba.rollReversals)} | drawn max ${fmt(a.drawnMax, ba.drawnMax)}°/s | least range ${fmt(a.rangeMin, ba.rangeMin, false)} ft`);
+    }
+  });
+}
+writeFileSync(`${TRACES}/index.json`, JSON.stringify(index));
+if (save) {
+  mkdirSync('tools/formation-gauge', { recursive: true });
+  const stored = baseline && only ? { ...baseline, ...out } : out;
+  // Timings depend on the PC: kept out of the baseline.
+  for (const list of Object.values(stored)) for (const r of list) { delete r.pressMs; delete r.stepMsMax; }
+  writeFileSync(BASELINE, `${JSON.stringify(stored, null, 1)}\n`);
+  console.log(`\nBaseline saved: ${BASELINE}`);
+} else if (!baseline) {
+  console.log('\nNo baseline yet: run with --save to store one.');
+}
+console.log(`Traces: ${TRACES}/ (open tools/flight-plot/ on the dev server)`);

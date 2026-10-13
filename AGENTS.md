@@ -2,6 +2,10 @@
 
 This is the one rule book for everyone who works on this repo: Claude Code, Antigravity, and every agent they start. `CLAUDE.md` only points here. If another file disagrees with this one, this one wins and the other file gets fixed.
 
+## The project and its repos
+
+Dad's OODA LOOP debrief tool lives in two repos. `Dads-debreif` (public) is the app; its rule book is this file, and it governs both repos. `3d-work` (private) holds the 3D models: Blender owns the CT-156's shape (ALL-38), and its own `AGENTS.md` adds its rules and points here. The live site is `lizardhands-commits.github.io/Dads-debreif`, published by hand; a push to main does not publish it. Project files (`/mnt/project-files/` in cloud sessions) hold only what can't go in a repo: the manuals, Patrick's session logs, a copy of Dad's V6 file and the archive; their `README.md` is the index.
+
 ## Why these rules
 
 They come from what went wrong before the October 2026 reset (the top 10 lessons Patrick approved on 3 Oct 2026).
@@ -40,6 +44,7 @@ For flying numbers: Patrick's practice first, then the 15 Wing Moose Jaw manuals
 - **One source of truth:** when a decision changes a rule, the module's spec, requirements and decisions change in the same piece of work.
 - **Repo is master.** Project notes, plans and handovers live in the repo (`docs/` and `Pat's claude work/`). Project files hold only the manuals, Patrick's private files and the archive. When a note changes, change the repo copy. (Patrick, 10 Oct 2026 19:45Z)
 - **Questions for Dad** live in `docs/questions-for-dad.md`. Each has a working answer in the tool until he replies.
+- **Long runs:** run anything longer than a minute in the background and keep working; never stop with work left unless waiting on Patrick, and say what for.
 
 **Every brief** for an agent or a new piece of work says: the task from `plan.md` and the files it may touch; the model and effort; "read `AGENTS.md` and the module's folder first"; "search for existing flight math before writing new"; the testing lines under Testing below, copied in full; and what to report (what was done, what is untested or unseen, what was unsure).
 
@@ -63,6 +68,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 - **Speeds name their kind** (indicated, true, ground speed or Mach) and are only compared like with like, using the shared helpers.
 - **Manuals:** the master copy is in the project files (`/mnt/project-files/manuals/`). New manuals go there first, and Patrick's copy on his computer is refreshed from it. Manual text and images never go in the repo, the site or anything public; cite the page only.
 - **Manuals:** use only the manuals in the project files. Checklists, boldface and performance charts are never shipped.
+- **The CFAFM is a controlled document.** It never goes in a repo or in project files.
 - **Patrick's track logs** are fine to use in the repo as example flights or test data.
 
 ## Building
@@ -71,6 +77,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 - **Plain JavaScript** (ES modules), no framework, one folder per module with a short README, so the code stays readable to a non-developer. Code that several modules use belongs in core or a shared folder. That is the aim, not a wall: a module may import another module's file when moving it isn't worth it (Patrick, 11 Oct 2026).
 - **A link in a normal browser.** Anyone should be able to open the tool from a link. Nothing to install is a goal, not an absolute rule: a feature may need an install if it clearly makes the project better, and where it can, a light mode keeps working without it.
 - **No new libraries or plugins** without Patrick's yes.
+- **Third-party skills, plugins and connectors** go in only after they are read and scanned, pinned to a version, and without hooks (Patrick, 12 Oct 2026).
 - **Simple screens:** every setting starts with a default; a module opens with only its essentials showing, and extras sit behind a switch or a "More".
 - **Before deleting or rewriting code,** list what it did, then check the new code on the module's default start.
 - **Version label:** the version on screen changes with every published change.

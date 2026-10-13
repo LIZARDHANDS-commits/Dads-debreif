@@ -8,7 +8,38 @@ Read this first, then `tools/blender/README.md` (how to rebuild the model files)
 
 *Left: V2.232 (10 Oct), the code-drawn model. Right: today's model, built in Blender from the same code tables. Outside front, side, top and iso, then the front seat straight ahead and looking 45° left.*
 
+## 0. What the CT-156 code does, and where each part goes (ALL-38, 12 Oct 2026)
+
+The rule book asks for a list of what code did before it is rewritten or retired. Six modules use the CT-156 code:
+Debrief, EP Tabletop, SOF, Traffic, Turn Fight and Formation.
+
+| What the code does | Where it goes under ALL-38 |
+|---|---|
+| The shape: fuselage, wing, tail, canopy, gear, cockpit structure, panel shell, seats (about 4,000 of the 6,000 lines in `ct156-model.js` and `ct156-cockpit.js`) | Blender: the master file `ct156/ct156.blend` in `3d-work` |
+| Every size's source (comments beside the numbers) | `ct156/sources.md` in `3d-work`, one row per size, moved over as parts are edited |
+| Eye points (ALL-31), bow and nose positions | Named points in the master file; ALL-31's numbers, with the later 11 in move forward, become size checks |
+| Reference points: wingtip lights, exhausts, stab and fin tips, bow crests (Debrief uses them) | Named points in the master file, also delivered as a small data file so the code can read them before the model loads |
+| Live instruments: EADI, gauges, annunciators, master lamps (EP Tabletop drives them) | Stays code, drawn onto the instrument faces the master file names |
+| Head lean to see Lead past the bow; camera, field of view, zoom | Stays code; it uses the bow's blocking shapes (the occluders) from the file |
+| Gear sequence (6 s), aileron, elevator, rudder, flap and speed-brake travel (ALL-34, ALL-35), prop spin | Stays code; the hinges come from the file |
+| Paint schemes, ship numbers and serials | Stays code |
+| Lights, canopy glass | Stays code |
+| Pilots | Blender (in the master since 12 Oct 2026, collection Pilots) |
+| Fingerprints | Replaced by a version and delivery check |
+| The light Harvard for distant aircraft | Unchanged |
+
+In the master file (plan Step 3b item 3.3, done 12 Oct 2026): the outside's 17 parts and the mirrored right aileron and
+flaps, the gear (down), the cockpit, 14 named points, 19 hinges and the 10 instrument faces; and the parts the code drew
+itself: the speed brake and its well, the gear and flap wells, the prop blades, the exhaust stacks, the cockpit floor
+and coamings seen from outside, the tub seen from the seats, and the two pilots. Still drawn by the code, as the table
+says: the canopy glass, lights, cheat line, decals and ship numbers, and the prop's blur disc.
+
 ## 1. How the model is made
+
+**Changed by ALL-38 (12 Oct 2026):** Blender now owns the shape, in master files in the private repo `3d-work`, and
+the app takes finished, checked files. This section describes the model as built up to V2.418, from the code tables;
+the move is plan Step 3b in `docs/modules/shared/plan.md`, and the next handover is
+`Pat's claude work/graphics-handover-12oct-night.md`.
 
 The code is the one source of the aircraft's shape. Blender never invents a shape: it takes the code's own pieces, rounds them, bakes their soft shadows and panel lines, and writes model files the app swaps in.
 

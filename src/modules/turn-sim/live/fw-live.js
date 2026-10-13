@@ -1,5 +1,6 @@
-// The wingmen in Lead's fighting wing moves on the live law (TS-202, TS-206, TS-208). Behind the "#2 in fighting wing"
-// setting (Tracker / Live, Tracker the default); the 4-ship's fighting wing moves fly only on it.
+// The wingmen in Lead's fighting wing moves on the live law (TS-202, TS-206, TS-208), 2-ship and 4-ship. The only law for
+// these moves since Patrick flew it (12 Oct 2026: "Live fighting wing is fine. make it the default and get rid of it"); the
+// "#2 in fighting wing" Tracker / Live setting is gone.
 //
 // TS-208 (Patrick 12 Oct 2026 16:49Z: "everyone just needs to maintain 500 foot minimum from the plane ahead of them and
 // more or less capture and fly leads turn circle using lead lag and pure"; 17:16Z: on a turn into him "swap sides or use the
