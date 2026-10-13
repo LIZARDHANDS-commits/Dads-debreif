@@ -83,7 +83,6 @@ import { airportsFor, AIRPORTS, RUNWAY_ENDS_SOURCES } from '../../airfields/airp
 import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from '../../airfields/airspace/model.js';
 import { airspaceInSquare } from './airspace-square.js';
 import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
-import { lookOnFirstDraw } from '../../ui-kit/ct156-look.js';
 import { airspaceOf, loadAirspaceFor, AIRSPACE_LOADING_WORDS, AIRSPACE_FAILED_WORDS } from '../../airfields/airspace/load.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
@@ -2358,11 +2357,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     // stronger than the Debrief's, because these small aircraft must read against a dark ground. Estimates for readability, SOF-39.
     const sun = new THREE.DirectionalLight('#fff3dd', 2.6);
     sun.position.set(-0.5, -0.7, 1).normalize().multiplyScalar(1000);
-    const hemisphere = new THREE.HemisphereLight('#e4eeff', '#8296a8', 2.4);
-    scene.add(hemisphere, sun, sun.target);
-    // The shared look (ct156-look.js): tone mapping and the sky in the CT-156's paint; the scene keeps its own lights and the 2.4 hemisphere
-    // (readability over a dark ground, SOF-39), which only points up now.
-    lookOnFirstDraw(THREE, scene, { sun, hemisphere, sceneLighting: false, hemisphereIntensity: 2.4 });
+    scene.add(new THREE.HemisphereLight('#e4eeff', '#8296a8', 2.4), sun, sun.target);
     // Real-time sun shadows on a CT-156 (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"; ui-kit aircraft-shadows.js): on only while a T-6 is picked,
     // as the others are icon-sized over a wide area; the shadow box follows the picked one.
     const shadows = createAircraftShadows(THREE, renderer, sun, { enabled: false });

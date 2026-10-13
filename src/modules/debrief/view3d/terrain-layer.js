@@ -83,7 +83,7 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 8;
-    const material = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true, toneMapped: false }); // the picture's own colours, not the shared look's tone mapping (ct156-look.js)
+    const material = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'debrief-field-patch';
     mesh.frustumCulled = false;

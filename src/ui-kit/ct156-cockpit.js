@@ -36,6 +36,7 @@
 // still that manual's wide light band with its ring of round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from
 // the manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's
 // own panel may differ.
+import { addLookProbe } from './ct156-look.js';
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_X, CT156_HELMET_Z, CT156_SEAT_BACK_FT, ct156SeatRakeFt, ct156SeatRaiseFt, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
   CT156_TUB_FLOOR_FT, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView,
@@ -2671,6 +2672,7 @@ export const cockpitPiecesHash = ct156PiecesHash;
 
 export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPieces = false, liveEngine = false } = {}) {
   const group = new THREE.Group();
+  addLookProbe(THREE, group); // the shared look of the model (ct156-look.js)
   group.name = 'ct156-cockpit';
   group.scale.setScalar(1 / F); // built in feet, drawn in the model's units
   const textures = [];

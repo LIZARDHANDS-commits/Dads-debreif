@@ -28,7 +28,7 @@
 // needs a document (a browser).
 
 import { aoShaded, CT156_FILES, loadAo, loadDelivered, paintGrain } from './ct156-blender.js';
-import { getCt156Sky } from './ct156-look.js';
+import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
 /** The paint setting every module offers: Paint: Harvard / Ship colours, Harvard the default. */
@@ -2064,10 +2064,7 @@ function buildKit(THREE) {
   // as the 3D views' sky (ui-kit/sky-clouds.js), with the sun's bright patch. Auto-converted by the renderer.
   // A soft sun with a glow round it, a few fair-weather clouds and haze at the horizon, so the gloss and the glass show
   // the sky's shapes and not one bright patch (all by eye).
-  // Since the shared look (ct156-look.js) a view's own sky picture (HDR, with the sun) is used when there is one; this small
-  // picture is what a view without it draws, and what the model draws until the look is applied.
-  const sharedSky = getCt156Sky();
-  const env = sharedSky ?? keep(canvasTexture(THREE, 256, 128, (ctx, w, h) => {
+  const env = keep(canvasTexture(THREE, 256, 128, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, '#2f6aa8'); g.addColorStop(0.3, '#6f9fd2'); g.addColorStop(0.47, '#cfe0ee'); g.addColorStop(0.5, '#e8eef2');
     g.addColorStop(0.52, '#8a8a62'); g.addColorStop(0.7, '#5d6440'); g.addColorStop(1, '#2c3220');
@@ -2081,10 +2078,8 @@ function buildKit(THREE) {
       ctx.fillStyle = c; ctx.fillRect(0, 0, w, h * 0.5);
     }
   }));
-  if (!sharedSky) {
-    env.mapping = THREE.EquirectangularReflectionMapping;
-    env.userData.ct156Env = true; // ct156-look.js swaps it for the shared sky when the look is applied after this model was made
-  }
+  env.mapping = THREE.EquirectangularReflectionMapping;
+  env.userData.ct156Env = true; // ct156-look.js swaps it for its sky when the model is first drawn
 
   // The fuselage with the painted fairing behind the canopy.
   geo.fuselage = joinGeometries(THREE, [{ geometry: fuselageGeometry(THREE), materials: [0] }, { geometry: fairingGeometry(THREE), materials: [0] }, { geometry: noseFairingGeometry(THREE), materials: [0] }, { geometry: chinIntake(), materials: [0] }]);
@@ -2490,6 +2485,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const g = new THREE.Group(); // scaled to lengthFt
   g.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
   root.add(g);
+  addLookProbe(THREE, root); // the shared look of the model (ct156-look.js): its materials get the sky and the Neutral curve when first drawn
   const detail = new THREE.Group(); // the fine detail, shown only up close (near and far, above)
   g.add(detail);
   const add = (geometry, material, parent = g) => {
