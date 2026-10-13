@@ -20,6 +20,11 @@
 // the largest and the typical (root mean square); the settle time (from the press until he stays within SETTLE_FT on every
 // axis); the most bank and G off Lead's; his torque's range and reversals; and the lag of his roll start behind Lead's.
 // Lead's frame is his velocity and body up (fluid-lead.js leadStateOf), his place the slot table's (slots.js pairSlot).
+//
+// B3 (plan 12.4, T15; spec 7c): the scenarios named b3-… fly route, line astern and the changes between the close
+// formations with Live; each press is measured against the place it ends in, and adds how far forward #2 came (+ ahead of
+// Lead's 3/9 line) and for how long, and his fastest move against Lead (the pace, spec 7c.4). The least range to Lead is
+// the line above it. `--only b3-` runs them alone (and with --save stores only them).
 import { performance } from 'node:perf_hooks';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createFormation } from '../src/modules/turn-sim/live/formation.js';
@@ -27,7 +32,7 @@ import { STEP_SEC, liftBankDeg } from '../src/modules/turn-sim/live/flight.js';
 import { drawnAttitudeOf, drawnTurnDeg } from '../src/modules/turn-sim/live/attitude.js';
 import { leadStateOf } from '../src/modules/turn-sim/live/fluid-lead.js';
 import { pairSlot } from '../src/modules/turn-sim/live/slots.js';
-import { seenOf, placeDeviation } from '../src/modules/turn-sim/live/wingman/perception.js';
+import { seenOf, placeDeviation, frameOf } from '../src/modules/turn-sim/live/wingman/perception.js';
 import { torqueFromThrottle } from '../src/modules/turn-sim/live/wingman/close-formation.js';
 import { setCloseBank, DEFAULT_CLOSE_BANK_DEG } from '../src/modules/turn-sim/live/tuning.js';
 
@@ -96,6 +101,57 @@ function echelonTurns(bankDeg) {
 }
 
 /**
+ * B3 (plan 12.4, T15; spec 7c): route, line astern, the corner and the changes between the close formations, all with "#2
+ * in close formation: Live". #2 starts on Lead's right (the default start). Each press measures #2 against the place it
+ * ends in (`close`, `side`: +1 left, -1 right, 0 line astern; a station change is measured against the new place from the
+ * press). The set-up flies the first formation from the default start (a rejoin, the tracker's, handed over at its end).
+ * --nudge puts #2 NUDGE_FT above his place at the end of the set-up, as for echelon (the known-bad case).
+ */
+function b3(name, first, presses) {
+  const setup = (f) => {
+    f.change(first.to, first.options ?? {});
+    settle(f);
+    if (nudge) nudgeTwo(f);
+  };
+  return { name: `b3-${name}`, b3: true, close: first.to, options: { closeWing: 'live' }, setup, presses };
+}
+const steady = (sec, close, side) => ({ label: `Steady after it, ${sec} s`, press: () => 'held', sec, close, side });
+const B3 = [
+  b3('route-hold', { to: 'route' }, [{ label: `Route hold, 60 s straight and level${nudge ? ` (#2 nudged ${NUDGE_FT} ft up)` : ''}`, press: () => 'held', sec: 60, close: 'route', side: -1 }]),
+  b3('route-turns', { to: 'route' }, [
+    { label: 'Close turn 60° into #2 in route', press: (f) => f.press('delayed90', -1), sec: 'done', close: 'route', side: -1 },
+    steady(10, 'route', -1),
+    { label: 'Close turn 60° away from #2 in route', press: (f) => f.press('delayed90', 1), sec: 'done', close: 'route', side: -1 },
+    steady(10, 'route', -1),
+  ]),
+  b3('astern-hold-turn', { to: 'astern' }, [
+    { label: 'Line astern hold, 30 s straight and level', press: () => 'held', sec: 30, close: 'astern', side: 0 },
+    { label: 'Close turn 60° right in line astern', press: (f) => f.press('delayed90', -1), sec: 'done', close: 'astern', side: 0 },
+    steady(10, 'astern', 0),
+  ]),
+  b3('echelon-route-echelon', { to: 'echelon' }, [
+    { label: 'Echelon to route', press: (f) => f.change('route'), sec: 'done', close: 'route', side: -1 },
+    steady(10, 'route', -1),
+    { label: 'Route to echelon', press: (f) => f.change('echelon'), sec: 'done', close: 'echelon', side: -1 },
+    steady(10, 'echelon', -1),
+  ]),
+  b3('echelon-astern-echelon', { to: 'echelon' }, [
+    { label: 'Echelon to line astern', press: (f) => f.change('astern'), sec: 'done', close: 'astern', side: 0 },
+    steady(10, 'astern', 0),
+    { label: 'Line astern to echelon', press: (f) => f.change('echelon', { side: 'right' }), sec: 'done', close: 'echelon', side: -1 },
+    steady(10, 'echelon', -1),
+  ]),
+  b3('station-change', { to: 'echelon' }, [
+    { label: 'Echelon right to echelon left (the station change)', press: (f) => f.change('echelon', { side: 'left' }), sec: 'done', close: 'echelon', side: 1 },
+    steady(10, 'echelon', 1),
+  ]),
+  b3('route-route', { to: 'route' }, [
+    { label: 'Route right to route left', press: (f) => f.change('route', { side: 'left' }), sec: 'done', close: 'route', side: 1 },
+    steady(10, 'route', 1),
+  ]),
+];
+
+/**
  * The press set, 2-ship (Formation plan 12.1b). Each scenario: a set-up flown first and not measured, then the measured
  * presses, each { label, press(f) -> 'started' | ..., sec } where sec is how long it is measured (a settle when 'done').
  */
@@ -145,6 +201,7 @@ const SCENARIOS = [
       { label: 'Terminate', press: (f) => f.pressFluid('terminate'), sec: 40 },
     ],
   },
+  ...B3,
 ];
 
 /** One aircraft's running numbers. */
@@ -161,7 +218,19 @@ const AXES = ['plane', 'line', 'along'];
  * side: #2's side (+1 left of Lead).
  */
 function closeDeviation(lead, wing, key, side, blockFt) {
-  return placeDeviation(seenOf(leadStateOf(lead, blockFt)), seenOf(leadStateOf(wing, blockFt)), pairSlot(key, side), side);
+  // Line astern has no side: its place is on Lead's centreline, read on the axes of #2's last side (any side reads the same place).
+  const s = side || -1;
+  return placeDeviation(seenOf(leadStateOf(lead, blockFt)), seenOf(leadStateOf(wing, blockFt)), pairSlot(key, s), s);
+}
+
+/** Where a wingman is in Lead's frame (velocity and body up, as the wingman sees him): { fwd, left, up }, feet (B3). */
+function relInLead(lead, wing, blockFt) {
+  const L = seenOf(leadStateOf(lead, blockFt));
+  const W = seenOf(leadStateOf(wing, blockFt));
+  const f = frameOf(L);
+  const r = { x: W.p.x - L.p.x, y: W.p.y - L.p.y, z: W.p.z - L.p.z };
+  const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+  return { fwd: dot(r, f.nose), left: dot(r, f.left), up: dot(r, f.up) };
 }
 
 /** An aircraft's torque (%) from its power (power.js, through the wingman's own conversion), or null with none set. */
@@ -178,6 +247,7 @@ function closeTally() {
     n: 0, max: { plane: 0, line: 0, along: 0 }, sq: { plane: 0, line: 0, along: 0 }, lastOut: null, outAtEnd: false,
     bankOffMax: 0, gOffMax: 0, tqMin: Infinity, tqMax: -Infinity, lastTq: null, lastTqRate: 0, tqReversals: 0,
     leadRollT: null, leadRollSign: 0, rollT: null,
+    aheadMax: -Infinity, aheadSec: 0, paceMax: 0, lastRel: null, // B3: furthest forward of Lead's 3/9 line, time ahead of it, fastest move against Lead
   };
 }
 
@@ -194,7 +264,9 @@ function runScenario(sc) {
     const pressMs = performance.now() - t0;
     trace.presses.push({ t, label: p.label, how });
     const tPress = t;
-    const closeSide = sc.close ? f.where().side : null;
+    // The place he is measured against: the press's own (B3: the place a change ends in), else the scenario's, on his side now.
+    const closeKey = p.close ?? sc.close;
+    const closeSide = closeKey ? (p.side ?? f.where().side) : null;
     const closePer = new Map();
     const per = new Map();
     let prev = new Map(f.state.aircraft.map((a) => [a.id, { ...a }]));
@@ -242,10 +314,18 @@ function runScenario(sc) {
         tr.kias.push(+(a.kias ?? 0).toFixed(1));
         tr.rangeFt.push(range === null ? null : Math.round(range));
         // The close wingman's measures (B1), each wingman flying off Lead.
-        if (sc.close && ref && ref !== a && ref.id === 1) {
+        if (closeKey && ref && ref !== a && ref.id === 1) {
           if (!closePer.has(name)) closePer.set(name, closeTally());
           const c = closePer.get(name);
-          const dev = closeDeviation(ref, a, sc.close, closeSide, blockFt);
+          const dev = closeDeviation(ref, a, closeKey, closeSide, blockFt);
+          if (sc.b3) {
+            // B3's measures: ahead of Lead's 3/9 line (spec 7c.3, deconfliction), and the pace of a move against Lead (7c.4).
+            const rel = relInLead(ref, a, blockFt);
+            c.aheadMax = Math.max(c.aheadMax, rel.fwd);
+            if (rel.fwd > 0) c.aheadSec += STEP_SEC;
+            if (c.lastRel) c.paceMax = Math.max(c.paceMax, Math.hypot(rel.fwd - c.lastRel.fwd, rel.left - c.lastRel.left, rel.up - c.lastRel.up) / STEP_SEC);
+            c.lastRel = rel;
+          }
           const tRel = t - tPress;
           c.n++;
           let out = false;
@@ -301,6 +381,7 @@ function runScenario(sc) {
           bankOffMaxDeg: r2(c.bankOffMax), gOffMax: r2(c.gOffMax),
           torquePct: Number.isFinite(c.tqMin) ? [+c.tqMin.toFixed(1), +c.tqMax.toFixed(1)] : null, torqueReversals: c.tqReversals,
           rollLagSec: c.leadRollT === null || c.rollT === null ? null : r2(c.rollT - c.leadRollT), // null: Lead never rolled (or #2 didn't follow)
+          ...(sc.b3 ? { aheadMaxFt: r2(c.aheadMax), aheadSec: r2(c.aheadSec), paceMaxFtps: r2(c.paceMax) } : {}),
         };
       }
     }
@@ -341,6 +422,7 @@ for (const sc of SCENARIOS) {
         const axes = AXES.map((ax) => `${ax} ${fmt(c.maxFt[ax], bc.maxFt?.[ax])} (rms ${fmt(c.rmsFt[ax], bc.rmsFt?.[ax])})`).join(', ');
         console.log(`          off his place, largest: ${axes} ft | settled ${c.settleSec === null ? 'never (outside 1 ft at the end)' : `${fmt(c.settleSec, bc.settleSec)} s`}`);
         console.log(`          bank off Lead max ${fmt(c.bankOffMaxDeg, bc.bankOffMaxDeg)}°, G off Lead max ${fmt(c.gOffMax, bc.gOffMax)} | torque ${c.torquePct ? `${c.torquePct[0]}..${c.torquePct[1]}%` : 'not set'}, reversals ${fmt(c.torqueReversals, bc.torqueReversals)} | roll-start lag ${c.rollLagSec === null ? 'none (Lead did not roll)' : `${fmt(c.rollLagSec, bc.rollLagSec)} s`}`);
+        if (c.aheadMaxFt !== undefined) console.log(`          furthest forward ${fmt(c.aheadMaxFt, bc.aheadMaxFt)} ft (+ ahead of Lead's 3/9 line), ${fmt(c.aheadSec, bc.aheadSec)} s ahead of it | fastest against Lead ${fmt(c.paceMaxFtps, bc.paceMaxFtps)} ft/s`);
       }
     }
   });
