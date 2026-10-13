@@ -386,6 +386,14 @@ export const FW_WING = Object.freeze({
   // "So can lead and 2 follows").
   gPerDeg: 0.05, // about 0.05 G per degree, 1 G per 20° (spec 7e.7)
   // ---- the cone in Lead's turns, rebuilt on Fable's second review (14 Oct 2026, fable-cone-turn-report-14oct.md) ----
+  arcLoop: true, // the turn's arc loop: d = R (1 - V2/V_L) + (wanted - actual closure) / Lead's turn rate (Fable F1)
+  arcTargetFt: 650, // s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft)
+  arcNearFt: 300, // the wanted closure at most ... (Fable F1, estimate)
+  arcNearFtps: 25, // ... 25 ft/s within 300 ft of the target arc (Fable F1, estimate) ...
+  arcFarFtps: 60, // ... and 60 ft/s beyond (Fable F1, estimate)
+  arcOffsetMaxFt: 400, // d within ±400 ft (Fable F1, estimate)
+  arcSlewFtps: 60, // d slewed at 60 ft/s (Fable F1, F11, estimate)
+  powerArcSec: 15, // power on the same arc error, about 0.067 rad/s, under the 0.07 its loop sits at (Fable F1, F6, estimate)
   arcFrame: true, // the turn's range as (s, d) in Lead's turn-centre frame, continuous through wings level, closure from velocities (Fable F10)
   turnFrameDeg: 5, // below 5° of Lead's bank the frame's straight-line limits are used (Fable F10, estimate)
   deadReckon: true, // Lead carried across the 0.4 s delay round his turn before anything uses him (Fable F5)

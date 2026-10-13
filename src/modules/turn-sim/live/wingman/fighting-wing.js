@@ -169,10 +169,26 @@ export function stepFwWingman(w, refSt) {
     const omega = Math.max(len3(omegaL), W.minTurnRadps);
     // PD: the wanted closure (P on the range error), and the closure he has against it (D), so closing faster than he
     // wants already eases the lead toward pure or lag
-    const want = Math.max(-W.offsetMaxFt, Math.min(W.offsetMaxFt, (cWant + W.aimClosureGain * (cWant - closing)) / omega));
-    offFt = w.offFt + Math.max(-W.aimSlewFtps * STEP_SEC, Math.min(W.aimSlewFtps * STEP_SEC, want - w.offFt));
-    residual = cWant - len3(omegaL) * offFt;
-    cTarget = cWant;
+    if (W.arcLoop && arcFt != null) {
+      // The arc loop (Fable F1, second review): the offset where his own speed holds station, d_ss = R (1 - V2 / V_L) (slow
+      // is answered by flying inside: Patrick's low inside), plus what the wanted closure lacks of the closure he has, over
+      // Lead's turn rate. Wanted closure = (s - 650 ft) / 10 s, at most 25 ft/s within 300 ft of the target arc, 60 ft/s
+      // beyond; d within ±400 ft, slewed 60 ft/s. Power works on the same arc error, slower (powerArcSec).
+      const straight = !seen.turn.centre || Math.abs(seen.leadBankDeg) < W.turnFrameDeg;
+      const dss = straight ? 0 : seen.turn.radiusFt * (1 - V / Math.max(len3(leadV), 1));
+      const eArc = arcFt - W.arcTargetFt;
+      const lim = Math.abs(eArc) < W.arcNearFt ? W.arcNearFtps : W.arcFarFtps;
+      const cArc = Math.max(-lim, Math.min(lim, eArc / W.aimSec));
+      const want = Math.max(-W.arcOffsetMaxFt, Math.min(W.arcOffsetMaxFt, dss + (cArc - closing) / omega));
+      offFt = w.offFt + Math.max(-W.arcSlewFtps * STEP_SEC, Math.min(W.arcSlewFtps * STEP_SEC, want - w.offFt));
+      residual = Math.max(-W.powerBandKias * KT_TO_FTPS, Math.min(W.powerBandKias * KT_TO_FTPS, eArc / W.powerArcSec));
+      cTarget = cArc;
+    } else {
+      const want = Math.max(-W.offsetMaxFt, Math.min(W.offsetMaxFt, (cWant + W.aimClosureGain * (cWant - closing)) / omega));
+      offFt = w.offFt + Math.max(-W.aimSlewFtps * STEP_SEC, Math.min(W.aimSlewFtps * STEP_SEC, want - w.offFt));
+      residual = cWant - len3(omegaL) * offFt;
+      cTarget = cWant;
+    }
     const inward = seen.turn.centre ? unit3(seen.turn.aPerp) : scale3(cone.left, job.dir || 1);
     target = add3(leadNow, scale3(inward, offFt));
     if (W.followCircle && seen.turn.centre) {
