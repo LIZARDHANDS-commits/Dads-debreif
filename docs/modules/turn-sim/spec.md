@@ -4,7 +4,7 @@ This file has two parts. **Part 1** is how Pat's Formation Simulator works now (
 
 Patrick approved the first version's spec on 4 Oct 2026 at 10:03Z (decision card "Approve the Turn Sim first-version spec and screen as drafted?"). Everything since grew from his rulings. **Nothing since V2.91 has been flown by Patrick yet (true as of 6 Oct 2026), and the sign-off in `testing.md` is still open.** Where a later decision changed an earlier rule, Part 1 states the later one.
 
-Reading notes. Numbers with no manual page or ruling beside them are **estimates**. Speeds are indicated (KIAS) unless they say otherwise. Page references only: manual text never goes in the repo. Every number and its source is also in the numbers register (section 15, `numbers.md`).
+Reading notes. Numbers with no manual page or ruling beside them are **estimates**. Speeds are indicated (KIAS) unless they say otherwise. Manual text and figures are quoted with their page where they help; the CFAFM never goes in the repo (ALL-41). Every number and its source is also in the numbers register (section 15, `numbers.md`).
 
 # Part 1. The Formation Simulator now
 
@@ -242,6 +242,35 @@ Lead flies (one Lead, TS-225) → **perception**: what #2 sees and feels, about 
 | Not used | His own instruments: no look inside at all; Lead's plan, Lead's speed or power | Patrick 13 Oct 2026 ("we dont look inside at all"); TS-211 |
 
 Everything he sees reaches his hands about 0.3 s late (TS-211, estimate; the same 0.3 s that Tohidi and Yildiz (2020) measured as a pilot's total delay, decision plus neuromuscular).
+
+**The SMM's words** (SMM, Aug 2024; Patrick asked for them in the spec, 13 Oct 2026; ALL-41):
+
+![SMM Figure 12.3: Front Seat Echelon References](../../references/figures/smm-fig-12-3-front-seat-echelon.jpg)
+
+*SMM Figure 12.3, Front Seat Echelon References (p.197): Lead's spinner circled, his rudder hinge line boxed; the inset shows the line from Lead's spinner through his wingtip to #2, and #2 abeam the hinge.*
+
+> **12.4 Echelon left and right.** 11. In the echelon left position, number two (also referred to in this publication as the wingman) is on the left wing of the lead aircraft. The proper position for echelon left is illustrated in Figures 12.3 and 12.4 and the references are as follows:
+> a. Lateral. The wingman lines up the leading edge of the lead's wing tip with the propeller spinner of the lead's aircraft.
+> b. Longitudinal. The wingman aligns abeam the rudder hinge line of the lead's aircraft.
+> c. Vertical. The wing-tip on the spinner provides a good vertical reference.
+>
+> 12. In the echelon right position, number two is on the right wing of the lead aircraft. The references are the same as echelon left.
+
+> **12.6 Route.** 15. Route formation is flown on the extended wing-tip reference line at a distance of one to three wingspans (Figures 12.7 and 12.8).
+
+> **12.18 Station keeping.** 39. To help you maintain station, standard terms to correct errors in position will be used. They are:
+> a. Longitudinal: "Forward" or "Back"
+> b. Vertical: "Up" or "Down"
+> c. Lateral: "In" or "Out"
+> d. Line Astern: "Right" or "Left"
+>
+> 40. In essence, formation flying is station keeping. As you know, the Harvard II is a stable aircraft which, when properly trimmed, will remain in a given attitude without deviation. (Note: due to wing tip vortices, a lateral trim change will be felt when moving in or out of echelon. Also, longitudinal trim will vary when in line astern.) Remember that there is a slight lag between a PCL movement and the corresponding aircraft response; therefore, you must anticipate this lag. Initially, you will likely find that you will be making almost continuous torque changes to maintain position on the lead. As you become more experienced, you will be able to anticipate many of the lead's movements and you will find yourself making small adjustments to maintain position. Make all adjustments as soon as you detect the need, so that the change will be small; the longer the delay, the greater the amount of adjustment, thus the longer the time to regain position. Once you are in the correct position, no control movements are necessary, and with experience the control movements will become control pressures. Pay close attention to the tips your instructor will give you regarding station keeping. If you are in doubt about any point, ask questions.
+
+> **12.19 Turns.** 41. When the lead turns away from the wingman while in echelon formation, the turn is "stepped up". When the direction of turn is into the wingman, the turn is "stepped down". While maintaining position relative to the lead, the wingman initially climbs or descends slightly as bank is changed.
+>
+> 42. When your aircraft is on the outside of a turn (stepped up), an increase in torque is required on the entry, and a decrease in torque will be necessary on the rollout. Conversely, on the inside of a turn (stepped down) you must decrease torque on the roll-in and increase it on the rollout. These PCL changes are normally quite small, and as your proficiency increases, you will be able to anticipate both the rate and amount of adjustment required.
+>
+> 43. The most common error during a turn is failing to match the lead's rate of roll. In almost all cases, the wingman lags behind the lead's rate of roll, and therefore tends to slide wide during a stepped up turn, and to slide towards the lead during a stepped down turn.
 
 **The crosscheck: plane, then line, then hinge** (Patrick, 13 Oct 2026: "In close formation, we correct PLANE-LINE-HINGE"; "you get on plane first, then you move forward to the line (or back), then power and bank moves you up and down the line. it helps make the corrections more 1/2 dimensional, and its safer"). The words are not in the SMM text, which gives the references themselves (12.4 para 11).
 1. **Plane:** up or down into Lead's wing plane, with pitch.

@@ -1,6 +1,6 @@
 # References
 
-Notes that point to manual pages. Page references only: manual text and images never go here. The manuals themselves are private, in the project files.
+Notes that point to manual pages, and extracts from them (text and figures), each with its page. The CFAFM never goes here (ALL-41). The manuals themselves are kept in the project files.
 
 | File | What it is |
 |---|---|
