@@ -41,6 +41,14 @@ export const PAINT_OPTIONS = Object.freeze([
 export const CT156_UNIT_LENGTH = 1.44; // x from -0.78 (tail) to 0.66 (spinner tip)
 /** The real length those units stand for: the T-6A's 33 ft 4 in, nose to tail (the scale of Patrick's photo, below). */
 export const CT156_LENGTH_FT = 33 + 4 / 12;
+/**
+ * The EADI's datum above the spinner axis, degrees (ALL-34; Patrick measured it at work, 13 Oct 2026: the canopy sill 2 degrees nose-down against the
+ * ground, so the spinner axis about level on the ground, and the EADI about 2.7 degrees on level ground; "Yes, offset 2.5"). A module sets a ship's
+ * root to the attitude the EADI reads; the model inside is drawn this far nose-down from it (the wheels sit flat at the 2.5 degrees on the gear),
+ * so the spinner axis, and everything in the model's frame (nose +X), lies this far below the root's x axis. The cockpit group
+ * (ct156-cockpit.js) and the light Harvard turn with it; EYES_FT is given in the root's frame.
+ */
+export const CT156_DATUM_DEG = 2.5;
 
 const NAVY = '#151d31';
 const rad = (d) => (d * Math.PI) / 180;
@@ -2588,6 +2596,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const root = new THREE.Group();
   const g = new THREE.Group(); // scaled to lengthFt
   g.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
+  g.rotation.y = rad(CT156_DATUM_DEG); // nose-down inside the root, which is set to the EADI's attitude (CT156_DATUM_DEG)
   root.add(g);
   addLookProbe(THREE, root); // the shared look of the model (ct156-look.js): its materials get the sky and the Neutral curve when first drawn
   const detail = new THREE.Group(); // the fine detail, shown only up close (near and far, above)
