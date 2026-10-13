@@ -622,6 +622,10 @@ export function createFormation(options = {}) {
     for (const a of state.aircraft.slice(1)) {
       if (state.liveWing && a.id === 2) continue; // the live close-in wingman holds his own place (B1)
       if (a.bankDeg !== 0 || !planDoneBut(a, state.plans[a.id])) continue;
+      if (holdCloseSide(lead, a)) {
+        if (planDone(lead, state.plans[lead.id]) && planDone(a, state.plans[a.id])) holdCloseFore(lead, a);
+        continue;
+      }
       const off = Math.atan2(Math.sin(a.headingRad - lead.headingRad), Math.cos(a.headingRad - lead.headingRad));
       if (Math.abs(off) > IDLE_TRIM.offRad) continue;
       const trim = IDLE_TRIM.rateRad * STEP_SEC;
@@ -630,8 +634,52 @@ export function createFormation(options = {}) {
       const dk = a.kias - lead.kias;
       const kTrim = IDLE_TRIM.ktps * STEP_SEC;
       if (!planDone(lead, state.plans[lead.id]) || !planDone(a, state.plans[a.id])) continue;
+      if (holdCloseFore(lead, a)) continue;
       if (dk !== 0 && Math.abs(dk) <= IDLE_TRIM.offKt) setKias(a, Math.abs(dk) <= kTrim ? lead.kias : a.kias - Math.sign(dk) * kTrim);
     }
+  }
+
+  /**
+   * Held #2 idle in a close formation (the pair): he holds his place fore and aft as well as Lead's speed, at any speed
+   * difference. The tracker can end a Held change 2 kt fast, in band and steady by its own test, and the speed trim
+   * above acted only within 2 kt and never on where he was: at 1.95 kt he crept 18 ft forward, nose over Lead's tail in
+   * line astern, and at 2.03 kt he never stopped (232 ft in a minute, through Lead; found in B3, 14 Oct 2026). His speed
+   * eases toward Lead's plus CLOSE_HOLD.ktPerFt for each foot he is behind his place (at most CLOSE_HOLD.maxKt), at
+   * CLOSE_HOLD.ktps. Returns true when it held him (the plain trim then stays out).
+   */
+  function holdCloseFore(lead, a) {
+    if (state.aircraft.length !== 2) return false;
+    const where = whereNow();
+    if (!LIVE_CLOSE.includes(where.key)) return false;
+    const place = pairSlot(where.key, where.side || sideOfTwo());
+    const behindFt = place.fwd - relativeTo(lead, a).fwd; // + when he is behind his place
+    if (Math.abs(behindFt) > CLOSE_HOLD.withinFt) return false;
+    const want = lead.kias + Math.max(-CLOSE_HOLD.maxKt, Math.min(CLOSE_HOLD.maxKt, CLOSE_HOLD.ktPerFt * behindFt));
+    const step = CLOSE_HOLD.ktps * STEP_SEC;
+    const d = want - a.kias;
+    if (d !== 0) setKias(a, Math.abs(d) <= step ? want : a.kias + Math.sign(d) * step);
+    return true;
+  }
+
+  /**
+   * Held #2 idle in a close formation, sideways (with holdCloseFore): his heading eases toward Lead's plus a fraction of a
+   * degree toward his place, CLOSE_HOLD.radPerFt for each foot out of it (at most CLOSE_HOLD.maxRad), at the idle trim's
+   * rate. A change ended a fraction of a degree off Lead's heading and the trim, slow to keep it unseen, let him creep
+   * 19 ft across in a minute from line astern (B3, 14 Oct 2026). Returns true when it held him.
+   */
+  function holdCloseSide(lead, a) {
+    if (state.aircraft.length !== 2) return false;
+    const where = whereNow();
+    if (!LIVE_CLOSE.includes(where.key)) return false;
+    const place = pairSlot(where.key, where.side || sideOfTwo());
+    const rel = relativeTo(lead, a);
+    if (Math.hypot(place.fwd - rel.fwd, place.left - rel.left) > CLOSE_HOLD.withinFt) return false;
+    // further left (+) wanted: a heading left of Lead's (headingRad counts anticlockwise, manoeuvres.js unit)
+    const want = lead.headingRad + Math.max(-CLOSE_HOLD.maxRad, Math.min(CLOSE_HOLD.maxRad, CLOSE_HOLD.radPerFt * (place.left - rel.left)));
+    const d = Math.atan2(Math.sin(want - a.headingRad), Math.cos(want - a.headingRad));
+    const step = IDLE_TRIM.rateRad * STEP_SEC;
+    a.headingRad = Math.abs(d) <= step ? want : a.headingRad + Math.sign(d) * step;
+    return true;
   }
 
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
@@ -931,6 +979,14 @@ const LIVE_TURN_SETTLE_CAP_SEC = 15;
 
 /** An idle wingman within offRad of Lead's heading and offKt of his speed eases onto them at rateRad and ktps a second (holdStationIdle; estimates). */
 const IDLE_TRIM = Object.freeze({ offRad: 1 * DEG, rateRad: 0.1 * DEG, offKt: 2, ktps: 0.2 });
+/**
+ * Held #2's fore and aft hold in the pair's close formations (holdCloseFore; estimates): 0.1 kt for each foot behind his place
+ * (16 ft off asks 1.6 kt, about 2.7 ft/s back), at most 2 kt, his speed moving 0.5 kt a second; within 30 ft of the place (a Held change can be called done with the tracker still
+ * rolling out, which once carried him 16 ft across line astern).
+ */
+const CLOSE_HOLD = Object.freeze({ ktPerFt: 0.1, maxKt: 2, ktps: 0.5, withinFt: 30,
+  // sideways: about 0.1 ft/s of drift back for each foot out at 200 KIAS (0.1 / 340 ft/s a radian per foot), at most 0.3°
+  radPerFt: 0.1 / 340, maxRad: 0.3 * DEG });
 
 /** The formations the manoeuvre buttons fly from: line abreast, or a picture that is none of the close ones (after an in-place turn). */
 const MOVES_FROM = ['lab', 'other'];
