@@ -400,6 +400,10 @@ function planeSlot(ph, L, slot) {
 
 function slotAltOf(ph, L, W) {
   const alt = ph.slot?.alt;
+  // A 2-ship change between close formations (transitions.js planGoTo marks its legs leadRelative) aims for the slot's height
+  // off Lead as he is, not off the block: since one Lead (TS-225) he drifts a few feet in turns, and aimed off the block a
+  // change ended outside its band and was refused (Patrick 14 Oct 2026: "it wont let me go in to route from echelon").
+  if (ph.leadRelative && !ph.wingPlane && alt != null && L) return (L.altAboveFt ?? 0) + alt;
   if (!ph.wingPlane || alt == null || !L || !W) return alt;
   const phi = (L.bankDeg ?? 0) * DEG;
   const leadAlt = L.altAboveFt ?? 0;

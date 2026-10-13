@@ -101,6 +101,9 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const legsFrom = options.trailSide && from.key === 'other' && to !== 'lab' && to !== 'fw' ? 'fw' : from.key;
   const phases = onClosure(legsFor(legsFrom, sCur, to, sTo, spacingFt));
   if (!phases.length) return { ok: false, reason: 'Nothing to change.' };
+  // Between close formations the legs' heights are off Lead as he flies (tracker.js slotAltOf; one Lead drifts a few feet).
+  const closeKeys = ['echelon', 'route', 'astern'];
+  if (closeKeys.includes(from.key) && closeKeys.includes(to)) for (const p of phases) if (p.slot) p.leadRelative = true;
   if (options.overtakeKias !== undefined || options.bankCapDeg !== undefined) {
     for (const p of phases) {
       if (p.bankCapDeg === REJOIN.bankCapDeg && options.bankCapDeg !== undefined) p.bankCapDeg = options.bankCapDeg;
