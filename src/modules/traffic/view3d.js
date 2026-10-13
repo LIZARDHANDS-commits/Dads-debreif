@@ -48,6 +48,7 @@ import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHeadingOf, drawBankOf } from './path-follower.js';
 import { loadBatching } from './batch3d.js';
 import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
+import { lookOnFirstDraw } from '../../ui-kit/ct156-look.js';
 
 /** The viewpoints worked out from an aircraft each frame, rather than framed once. */
 const POV_VIEWS = new Set(['cockpit', 'padlock']);
@@ -241,6 +242,7 @@ export function wheelLiftFt(lengthFt) {
  */
 export const PHOTO_GRADE = Object.freeze({ contrast: 1.18, saturation: 1.35, gamma: 0.92 });
 function gradePhoto(material) {
+  material.toneMapped = false; // the graded photo's own colours, not the shared look's tone mapping (ct156-look.js)
   const { contrast, saturation, gamma } = PHOTO_GRADE;
   if (contrast === 1 && saturation === 1 && gamma === 1) return material;
   const f = (n) => n.toFixed(3);
@@ -1444,6 +1446,9 @@ export function addTrafficLights(THREE, scene) {
   const az = SUN_AZIMUTH_DEG * Math.PI / 180, el = SUN_ELEVATION_DEG * Math.PI / 180;
   sun.position.set(Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el)).multiplyScalar(1000);
   scene.add(hemisphere, sun, sun.target);
+  // The shared look (ct156-look.js). The sky lights the CT-156s only, not the hundreds of buildings and the other furniture: with it scene-wide the
+  // shade side filled in (Patrick, 5 Oct: "I don't see any shade from the sun"), and the hemisphere keeps its 0.45.
+  lookOnFirstDraw(THREE, scene, { sun, hemisphere, sceneLighting: false, hemisphereIntensity: 0.45 });
   return {
     hemisphere,
     sun,

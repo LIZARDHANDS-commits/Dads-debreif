@@ -13,6 +13,7 @@
 // model itself is not scaled by it.
 
 import { disposeCt156Model } from './ct156-model.js';
+import { lookOnFirstDraw } from './ct156-look.js';
 
 /**
  * Distance from the camera to its target, in feet. The camera is orthographic, so it only
@@ -273,12 +274,13 @@ export function worldToScreen(THREE, camera, point, width, height) {
   return { x: ((v.x + 1) / 2) * width, y: ((1 - v.y) / 2) * height };
 }
 
-/** The Debrief's lighting: a sky-and-ground hemisphere light plus a warm sun from the south-west. Returns { hemisphere, sun }. */
+/** The Debrief's lighting: a sky-and-ground hemisphere light plus a warm sun from the south-west, and the shared look once drawn. Returns { hemisphere, sun }. */
 export function addLights(THREE, scene) {
   const hemisphere = new THREE.HemisphereLight('#b8d0ff', '#12301a', 0.8);
   const sun = new THREE.DirectionalLight('#fff3dd', 3);
   sun.position.set(-0.5, -0.7, 1).normalize().multiplyScalar(1000);
   scene.add(hemisphere, sun, sun.target);
+  lookOnFirstDraw(THREE, scene, { sun, hemisphere }); // the shared look (ct156-look.js): tone mapping, the sky light, the hemisphere turned up
   return { hemisphere, sun };
 }
 

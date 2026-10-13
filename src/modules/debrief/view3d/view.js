@@ -288,9 +288,9 @@ function material(gl, THREE, kind, color, extra = {}) {
   const key = `${kind}|${color}|${JSON.stringify(extra)}`;
   let m = gl.materials.get(key);
   if (!m) {
-    if (kind === 'basic') m = new THREE.MeshBasicMaterial({ color, fog: false, ...extra });
-    else if (kind === 'line') m = new THREE.LineBasicMaterial({ color, transparent: true, fog: false, ...extra });
-    else if (kind === 'dashed') m = new THREE.LineDashedMaterial({ color, transparent: true, fog: false, ...extra });
+    if (kind === 'basic') m = new THREE.MeshBasicMaterial({ color, fog: false, toneMapped: false, ...extra });
+    else if (kind === 'line') m = new THREE.LineBasicMaterial({ color, transparent: true, fog: false, toneMapped: false, ...extra });
+    else if (kind === 'dashed') m = new THREE.LineDashedMaterial({ color, transparent: true, fog: false, toneMapped: false, ...extra });
     else m = new THREE.MeshStandardMaterial({ color, ...extra });
     gl.materials.set(key, m);
   }

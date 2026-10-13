@@ -90,7 +90,7 @@ export function createDrapedGround({ T, timers, doc, onChange, plan, imagery: ti
     geometry.setAttribute('uv', new T.BufferAttribute(uvs, 2));
     geometry.setAttribute('color', new T.BufferAttribute(new Float32Array(n * n * 3).fill(1), 3));
     geometry.setIndex(new T.BufferAttribute(new Uint32Array(index), 1));
-    const material = new T.MeshBasicMaterial({ map, vertexColors: true, ...(polygonOffset ? { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 } : {}) });
+    const material = new T.MeshBasicMaterial({ map, vertexColors: true, toneMapped: false, ...(polygonOffset ? { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 } : {}) });
     const mesh = new T.Mesh(geometry, material);
     mesh.renderOrder = order;
     mesh.frustumCulled = false; // the heights move its bounds, and it is always in view

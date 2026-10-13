@@ -79,6 +79,7 @@ export function loadAo(THREE, file) {
   if (!aoTextures.has(file)) {
     const t = new THREE.TextureLoader().load(modelsUrl(file));
     t.flipY = false; // as glTF's own pictures: its UV maps run top down
+    t.anisotropy = 16; // sharp at a shallow angle (panel lines, rivets, soft shadows along the wing); three.js holds it to what the card allows
     aoTextures.set(file, t);
   }
   return aoTextures.get(file);
