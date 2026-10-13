@@ -21,13 +21,12 @@
 import { dragPerWeight, thrustPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { extraDragPerWeight, excessPerWeight } from './slow-down.js';
+import { POWER_MAX_FROM } from './handling.js';
 
 /** The block height a power is worked out at when the caller doesn't know it: the formation's default (formation.js, an estimate). */
 export const POWER_BLOCK_FT = 8000;
 /** The torque reading's numbers (Patrick 02:05Z): 1,100 shp flat rating (reference); eta and the weight are estimates. */
 export const TORQUE = Object.freeze({ ratedShp: 1100, eta: 0.81, weightLb: 6000 });
-/** From this share of full-power thrust up the tag says MAX (so it does not flick between MAX and 99% at full power; an estimate). */
-const MAX_FROM = 0.985;
 const FT_LB_PER_S_PER_HP = 550;
 
 /**
@@ -105,7 +104,7 @@ export function powerWord(power) {
   if (power.stage === 'idle') return { text: 'IDLE', red: true };
   if (power.stage === 'idleBoards') return { text: 'IDLE+BOARDS', red: true };
   const tq = Math.round(torquePct(power.throttle, power.kias, power.altFt ?? POWER_BLOCK_FT));
-  const set = power.throttle >= MAX_FROM || tq >= 100 ? 'MAX' : `TQ ${tq}%`;
+  const set = power.throttle >= POWER_MAX_FROM || tq >= 100 ? 'MAX' : `TQ ${tq}%`;
   if (power.stage === 'boards') return { text: `${set} + BOARDS`, red: true };
   return { text: set, red: false };
 }

@@ -28,7 +28,7 @@ import { recordFlight, speedSeg } from './replay.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot, LANE, sideFor } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, LAG_ROLL, G_RULE_BANK_DEG } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, LAG_ROLL, G_RULE_BANK_DEG, ROLLING_REJOIN } from './tuning.js';
 import { fromStep, wingFromPose } from './closures.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin } from './turning-rejoin.js';
@@ -43,17 +43,6 @@ const dt = STEP_SEC;
 /** The Rejoin kind (transitions-panel.js's switch, chooser.js) that asks for a roll. */
 export const ROLLING_REJOIN_KIND = 'roll';
 
-/** The rolling rejoin's search. Estimates unless a page or ruling is named. */
-const ROLLING_REJOIN = Object.freeze({
-  turnDeg: Object.freeze([30, 60, 90, 120]), // how far his heading swings the way Lead turns over the roll (estimates)
-  pitchDeg: Object.freeze([20, 40, 60]), // the nose's highest and lowest (estimates; 45° is the barrel roll's, SMM 14.8 para 19)
-  barrelOffDeg: 45, // the barrel roll's nose circles a point this far off his heading (SMM 14.8 para 19: 45° off)
-  pullG: Object.freeze([3, 4]), // the pull: the barrel roll's 3 G entry (SMM Table 14.1, Fig 14.1) and 4 G (the top of SMM Table 7.1's 3-4 G; estimate choice)
-  maxRollSec: 60, // a guard: a roll still going after this long is dropped (estimate)
-  pathSteps: 800, // the nose path's table (fluid-lead.js nosePath; search effort only)
-  fullSearches: 6, // how many of the most promising roll-outs get the turning rejoin's full search after them (search effort only)
-  patience: 2, // ...stopping once this many in a row after the best so far bring nothing quicker (search effort only)
-});
 
 const SHAPES = Object.freeze({ barrel: 'barrel roll', yoyo: 'high yo-yo' });
 
@@ -97,10 +86,10 @@ function flyRoll(c, wing, rec, s, blockFt) {
 
   let posS = 0;
   let rate = 0;
-  const lookahead = 0.08;
-  const gain = 1.0;
-  const noseAccel = 8 * DEG;
-  const noseEnd = 3 * DEG;
+  const lookahead = ROLLING_REJOIN.aheadU;
+  const gain = ROLLING_REJOIN.aimGain;
+  const noseAccel = ROLLING_REJOIN.noseAccelDps2 * DEG;
+  const noseEnd = ROLLING_REJOIN.noseEndDps2 * DEG;
 
   for (let n = 1; n <= Math.round(R.maxRollSec / dt); n++) {
     const u = posS / path.total;
