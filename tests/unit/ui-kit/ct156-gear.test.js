@@ -1,8 +1,9 @@
-// Checks: with the gear down and the aircraft sitting with its spinner axis level, all three wheels touch level ground and
-//   nothing else on the aircraft reaches lower than the wheels.
+// Checks: with the gear down and the ship's root set to the EADI's 2.5° on the gear, all three wheels touch level ground and
+//   nothing else on the aircraft reaches lower than the wheels (the model is drawn 2.5° nose-down inside its root, so its spinner axis is level).
 // Serves: ALL-34 (the CT-156's landing gear).
-// Expected values: the spinner axis level on the gear (Patrick, 13 Oct 2026, fix row A2: "spinner axis level"; it was 2.5° nose up,
-//   12 Oct 2026); the ground is the lowest wheel's bottom, so the test needs no number from the code.
+// Expected values: 2.5° on the EADI on the gear on level ground (Patrick, 12 Oct 2026, core performance onGearDeg) with the spinner axis level
+//   (fix row A2) and the EADI's datum 2.5° above it (Patrick, 13 Oct 2026: "Yes, offset 2.5"); the ground is the lowest wheel's bottom, so the test
+//   needs no number from the code.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -26,11 +27,11 @@ function lowestFt(obj) {
   return min;
 }
 
-test('gear down, spinner axis level: all three wheels on the ground and nothing lower', () => {
+test('gear down with the root at 2.5° on the gear: all three wheels on the ground and nothing lower', () => {
   const ship = createCt156Model(THREE, { color: '#c03030', number: 1, lengthFt: CT156_LENGTH_FT });
   setGear(ship, 1);
   ship.rotation.order = 'ZYX';
-  ship.rotation.set(0, 0, 0); // the spinner axis level (A2)
+  ship.rotation.set(0, -(2.5 * Math.PI) / 180, 0); // the root at the EADI's 2.5° nose up; the model inside is 2.5° nose-down
   ship.updateMatrixWorld(true);
   const gear = ship.userData.ct156.gear;
   const wheels = { left: lowestFt(gear.sides[0].leg), right: lowestFt(gear.sides[1].leg), nose: lowestFt(gear.nose) };
