@@ -42,7 +42,9 @@ Blender 6.0; it still works.
 - **Blender connector (optional).** The official Blender Lab MCP server (Blender 5.1 or newer) lets a Claude session
   drive an open Blender: the add-on from `https://lab.blender.org/`, the server registered with Claude Code. Blender's
   own page warns that it runs AI-written code in Blender with no guards: open only project files while it runs, and
-  stop it when not in use. The build scripts never need it.
+  stop it when not in use. The build scripts never need it. Register the server's path with forward slashes
+  (`C:/Users/.../blender-mcp.exe`): written through a shell, backslashes turn into escape codes (`\t`, `\v`) and every
+  session shows "Connection closed". With the add-on's Auto Start on, open Blender before starting the session.
 
 To look at the result, the render scripts in `render/` take pictures from the seats and outside, and from past versions (see `render/README.md`).
 

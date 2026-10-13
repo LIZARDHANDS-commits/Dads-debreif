@@ -1,13 +1,31 @@
 # Graphics handover: CT-156 model work, 12 Oct 2026 night
 
-For whoever picks up the graphics session next (folder `Dads-debreif-graphics`, branch `graphics`). Read `AGENTS.md`, then
-`docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md` (the model's history) and
-`tools/blender/README.md` (how to build it).
+For whoever picks up the graphics session next: a Claude Code session in `Documents/antigravity/3d-work`, with an app
+worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the old `Dads-debreif-graphics` worktree is
+gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
+(the model's history) and `tools/blender/README.md` (how to build it).
 
-## Where we are
+## Latest (12 Oct 2026, late evening)
+
+- **3.3 done** (`3d-work` #4, merged): the parts the code drew itself are in the master: speed brake and well, five gear
+  wells, four flap wells, prop blades (19th hinge, `hinge.prop`), exhaust stacks, floor and coamings seen from outside,
+  the tub seen from the seats, and both pilots (collection Pilots). Each part marks which view shows it (`ct156_shown`),
+  as the app's `setCockpitView`. Size checks unchanged; mesh checks pass on 55 parts.
+- **Item 3 done:** the Blender connector works end to end. It had failed with "Connection closed" because its path in
+  `~/.claude.json` had been written through a shell, which turned the backslashes into escape codes; now forward
+  slashes (backup `~/.claude.json.bak-blender-path-fix`). The same fault had put control characters into this note's
+  paths; fixed.
+- **Item 4, how (Patrick):** "for the fix list we will look at a full blender render of th outside and inside cockpits
+  and work from that". `3d-work` `ct156/build/render_views.py` renders ten views from the master with Cycles: both
+  quarters, below, side, front and top over a 1 ft grid, the front seat forward and down at the panel, the rear seat,
+  and both cockpits from above. Plain colours: paint, instruments and glass are the app's. Next: Patrick reads them and
+  says what is wrong; each item becomes a numbered row.
+- **Next after the fix list starts:** 3.4, the delivery command.
+
+## Where we were earlier the same night
 
 - **Decision ALL-38 (Patrick, 12 Oct 2026):** Blender owns the CT-156's shape. The master file is
-  `ct156/ct156.blend` in the private repo `LIZARDHANDS-commits/3d-work` (on this PC `Documentsntigravityd-work`,
+  `ct156/ct156.blend` in the private repo `LIZARDHANDS-commits/3d-work` (on this PC `Documents/antigravity/3d-work`,
   which is already the local clone). The app takes finished, checked files and keeps in code what moves in flight.
   What the code does and where each part goes: `docs/modules/shared/graphics-handover/README.md` section 0.
 - **Plan Step 3b:** done 1, 2, 3.1, 3.2, 3.6; 3 done except the connector check; **3.3 started**: the master file in
@@ -37,14 +55,14 @@ For whoever picks up the graphics session next (folder `Dads-debreif-graphics`, 
 |---|---|---|
 | 1 | Measure the three model files | Done |
 | 2 | Blender 5.2 check | Done |
-| 3 | Set up Blender for our work | Done except the connector check |
+| 3 | Set up Blender for our work | Done |
 | 3.1 | Decision ALL-38 written, related rows and spec changed | Done |
 | 3.2 | Private repo `3d-work` | Done |
-| 3.3 | Master Blender file with named points, sources table; nothing changes on screen | **Started**; code-only parts still to bring in |
+| 3.3 | Master Blender file with named points, sources table; nothing changes on screen | Done (`3d-work` #4) |
 | 3.4 | Delivery command in `3d-work`; `npm run models:import` in the app | |
 | 3.5 | App reads named points, one module at a time | |
 | 3.6 | Our own skill `ct156-model-pipeline` in `3d-work` | Done (first version) |
-| 4 | Fix list from Patrick (outside and inside), made in Blender; first row: height on its wheels | Waiting on how he gives it |
+| 4 | Fix list from Patrick (outside and inside), made in Blender; first row: height on its wheels | Renders made; waiting on Patrick's read of them |
 | 5 | Refine | |
 | 6 | High and Performance from the same master file | |
 | 7 | Compress at delivery (Meshopt) | |
@@ -102,11 +120,9 @@ same pictures (mean difference 0.03 of 255). `CT156_BAKE_DEVICE=CPU` forces the 
 ## Waiting on Patrick
 
 1. Paste the pointer text into the cloud project's instructions (it is in the rule book's new first section's spirit:
-   read `AGENTS.md` first). App #1015 merges when CI is green.
-2. The Blender connector checked end to end: Blender open, its MCP server started, then a new session.
-3. How to give the fix list (item 4): walk-through renders to mark up, his photos or scaled diagrams from the
-   internet, or flying it in the app.
-4. Carried over: sill height (from scaled pictures until tape measurements), the rear seat after V2.403, paint grain,
+   read `AGENTS.md` first). App #1015 merged.
+2. Read the ten full renders (item 4) and say what is wrong outside and in each cockpit; each item becomes a row.
+3. Carried over: sill height (from scaled pictures until tape measurements), the rear seat after V2.403, paint grain,
    the dark left wall (lighting, its own yes), and tags `v2.385` to `v2.417` to push.
 
 ## Untested or unseen
@@ -117,7 +133,7 @@ same pictures (mean difference 0.03 of 255). `CT156_BAKE_DEVICE=CPU` forces the 
 
 ## To resume
 
-1. Model work: a Claude Code session in `Documentsntigravityd-work`, with the app's `Dads-debreif-graphics`
+1. Model work: a Claude Code session in `Documents/antigravity/3d-work`, with the app's `Dads-debreif-graphics`
    folder added as a second folder, so one session can open pull requests in both repos. Read `3d-work/AGENTS.md`
    and the `ct156-model-pipeline` skill.
 2. App-side work (items 3.4 app half, 3.5, 8): the same session, in the `Dads-debreif-graphics` folder; run `/sync`
