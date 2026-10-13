@@ -2790,8 +2790,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     const tailNumber = ct156TailNumber(number);
     // The wing numbers plain white, no outline, their digits about 2.5 ft tall in their 2.55 ft patch (G4, G20).
     const wingTex = own(canvasTexture(THREE, 380, 220, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.97), 2));
-    // The nose number plain white, narrow digits filling their patch (G10; was a heavy outlined number).
-    const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.9, 0.96), 2));
+    // The nose number plain white, narrow digits about 0.37 ft tall, 0.64 of the 0.58 ft patch (G10, the row's target: "the
+    // app's about right"; the old outlined number's digits were about 0.4 ft).
+    const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.64, 0.96), 2));
     const decal = (tx) => own(new THREE.MeshStandardMaterial({
       map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: tx, emissiveIntensity: 0.6, fog: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
