@@ -2,6 +2,13 @@
 
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
+## 14 Oct 2026, early: B2 built (V2.427, stacked on #1018)
+
+- **Branch `formation-close-wingman-b2`**, worked in the physics folder (the dev server there now runs it). T9 gauge scenarios `echelon-turns-60` and `-45` (Live); T10 perception reads the other aircraft's whole turning (frame angular velocity and its change), feeds forward his place's motion, predicts Lead's G 0.3 s ahead from its rate, power lead = rate his place's speed changes; T11 `formation.js` `liveTurn()` (Lead's plan only, #2 flown ahead at the press, `wingman.js` `settledOn` ends the turn); the shaper sizes torque around holding + lead and moves it at `telegraphTorquePctps` 20 while he sees Lead roll; T12 the 60° turn test in `close-wingman.test.js`.
+- **Tried and dropped (spec 7b's B2 status):** the trim on (wound up, slower); Lead's G read off the dead-reckoned bank (60° away settled in 12 s); a 1.5 s telegraph read for power, six ways (worse at 60° away: 3.9-4.9 ft against 2.8). The plot page (`tools/flight-plot/`, now with plane, line, along and torque) found the real cause of the 60° hunt.
+- **Patrick's rulings this session:** no threshold (TS-228); "no power anticipation until we see a telegraph, and that telegraph would scale the anticipation ... wing doesnt do anything until he starts to see movement" (TS-229, wording to confirm); "it's fine to be a little out of position and then catch up and stabilize once the turn is going ... its never perfect all the time".
+- **Next:** CI on the B2 pull request; Patrick flies V2.427 (Checkpoint D); then B3. Open: the roll-start lag (0.65-1.2 s against about 0.3 s), the 0.3-0.4 G bump at Lead's roll start and stop.
+
 ## 13 Oct 2026, late night: B1 built (#1029, V2.426)
 
 - **#1029** (base `roll-rate-raise`, head `formation-close-wingman-b1`) holds B1: T1-T4 from the Opus agent (built in `Dads-debreif/.claude/worktrees/agent-a921760de2c654d1c`, which the thread then used for T5-T8 so the physics folder's dev server stayed on V2.424 for Patrick), T5-T8 by the thread. Checkpoint A shown; Patrick ruled TS-228 (no threshold).
