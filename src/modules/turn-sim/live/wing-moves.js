@@ -532,6 +532,10 @@ export const FW_WING = Object.freeze({
     // the wing line "out of reach" only when no turn at all keeps him behind it; one that does but passes inside the pass line
     // is the pass line's trouble (round 4, thread): counted as out of reach, the nose-behind ran on while he crossed behind Lead
     lineShortAll: true,
+    // Once engaged the filter stays engaged until his aim's own turn clears the pass line and the wing line by 50 ft (Fable F12's
+    // 50 ft margin) for 1 s (estimate); holdsPower: power off (while closing) and pass-clear's pitch held all the engagement
+    // (round 4, thread). null: engaged only while his aim's turn fails.
+    engage: Object.freeze({ marginFt: 50, releaseSec: 1, holdsPower: false }),
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
     engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)
