@@ -1,6 +1,6 @@
 # Traffic: a CT-102B Astra II pattern beside the CT-156's. Architecture review and phased plan
 
-> **Status:** the one-off architecture review for plan Step 5c (Patrick's go-ahead, relayed by Dad, 13 Oct 2026). Its questions Q1 to Q6 wait on Patrick, one at a time, on the waiting list in `../../PLAN.md`. Nothing here is built until Patrick approves the plan. Where this file and `spec.md` or `decisions.md` disagree, those win.
+> **Status:** Patrick approved this plan and a 60° break (relayed by Dad, 13 Oct 2026); Dad chose an overhead with a break (Q1). Q2 to Q6 run on their recommended answers (TR-157 to TR-161). **Where this review was written for a plain circuit (sections 2.2, 2.3, Finding 1, section 4's "no Astra initial or break", and Phase 2b), spec section 4.19 wins:** the Astra flies an initial at 180 KIAS and a 60° break, so Phase 2b builds an initial and a break (phase names `initial` and `break`) and its bank check reads 60° + 5° in the break and 30° + 5° elsewhere. Where this file and `spec.md` or `decisions.md` disagree, those win.
 
 Fable review, 13 Oct 2026, for Traffic plan Step 5c item 1 (Dad's ask; Patrick's go-ahead relayed by Dad). Read-only: nothing in any repo was changed. Code read at worktree `trafficwt` (main at c7dabbee). The plan is written for an Opus executor; Sonnet for the screen and docs phases.
 
