@@ -572,7 +572,7 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 - **Shaper:** as 7b, his hands eased, never stepped, at the T-6A's onsets (stepLead).
 - **Hand-overs:** the supervisor's change of technique (close formation to fighting wing, and fighting wing to the rejoin's capture later) starts the incoming technique from his bank, G and aim, and blends (bumpless, 7b.6d item 2). Moving out from close formation into the cone is flown by him (an off-station move into the swept position).
 
-**8. Numbers for Patrick to rule (guesses until he does).** Lead pursuit beyond about 700 ft and lag near 500 ft (Patrick's guesses), so "happy" about 550-700 ft; the swept position when Lead is level (today 750 ft at 45°, TS-195); the stack (today 50-100 ft below, Patrick 12 Oct 2026, now "slightly", below by default); the quick-fix threshold for the vertical; his G at most Lead's plus 1.5 G and the G rule's 5 G; roll up to 60°/s.
+**8. Numbers for Patrick to rule (guesses until he does).** Lead pursuit beyond about 700 ft and lag near 500 ft (Patrick's guesses), "happy" 600-650 ft (his pick, 14 Oct 2026); the swept position when Lead is level (today 750 ft at 45°, TS-195); the stack (today 50-100 ft below, Patrick 12 Oct 2026, now "slightly", below by default); the quick-fix threshold for the vertical; his G at most Lead's plus 1.5 G and the G rule's 5 G; roll up to 60°/s.
 
 **9. Boundaries.** The 4-ship's fighting wing stays on today's law until the 4-ship rung. Fluid manoeuvring and the lag roll are unchanged. The rejoins from fighting wing (TRJ, SARJ) are the next rung. Close formation (7b, 7c) unchanged, checked on the gauge against the run before B5.
 
@@ -582,7 +582,7 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 
 **12. Open questions for Patrick** (one at a time):
 1. Reaction time: **answered**, 0.4 s.
-2. The ranges: lead pursuit beyond 700 ft, lag near 500, "happy" between: what range is "happy" (the middle, say 600-650 ft)?
+2. The ranges: **answered**, "happy" (back to pure) 600-650 ft, lead pursuit beyond about 700 ft, lag near 500 ft (Patrick 14 Oct 2026).
 3. The swept position when Lead is level, and how far below for "slightly" stacked.
 4. Moving out from close formation into fighting wing: in this rung (recommended), or with the rejoins?
 5. The opening check turn from fighting wing to line abreast (T5): here, or with the line abreast rung?
