@@ -5,7 +5,22 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (12 Oct 2026, about 21:30): all but two areas analysed
+## Latest (13 Oct 2026, about 04:20Z): first batch approved and verified
+
+- **Read `3d-work` `ct156/fix-list.md` first:** its "Resume here" block, the decisions log, the **fix-it plan** (how to
+  fix each approved row: targets, code lines, master parts, checks), the verified rows and M1 to M40.
+- **Rule (Patrick):** an agent's finding is verified by the thread itself before it goes on the fix list; unverified
+  ones wait in `ct156/agent-findings.md` (85 rows, areas B to H). Verifying changed several: two approved rows did not
+  hold on the drawing and went back to Patrick.
+- **Approved:** A2, A3, B2, B3, C2, C3 (12 deg), C4 (1.5 in at 14 deg), C7 (17.5 deg), F26 (stopped prop feathered), F36
+  (grooves in High only); C3, C4, C7 provisional until M22.
+- **Shown in Blender:** `3d-work` `ct156/build/review_drawing.py` puts the official side view behind the model, never
+  saved; Patrick wants each question drawn that way, centred on it.
+- **New pictures:** `A19` (profile art, low), `A20` and `B03` (near-abeam canopy photos), `C04`, `C05`, `F05`.
+- **Merged:** `3d-work` #10, #11; app #1021. Patrick has authorized merging this work's pull requests.
+- **Next:** verify B4, C1, then D and E, putting each verified row to Patrick in Blender; then the fixes.
+
+## Earlier (12 Oct 2026, about 21:30): all but two areas analysed
 
 - **Read `3d-work` `ct156/fix-list.md` first:** its "Resume here" block, the step table, the decisions log, every
   row (candidates unless marked), and the measurements M1 to M25 for Patrick's next day at work.
