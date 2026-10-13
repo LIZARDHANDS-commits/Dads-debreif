@@ -108,3 +108,35 @@ test('the live close-in wingman holds echelon through the 60° close turn, into 
     assert.equal(f.state.current, null, `the close turn ${words} finished within ${TURN_LIMIT_SEC} s`);
   }
 });
+
+// B3 (TS-231; spec 7c): with Live, the station change from echelon to echelon on the other side (the crossunder, SMM 12.20
+// paras 44-47): back and down into the corner, across behind Lead, then up into echelon on the other side. What a pilot would
+// recognise: he never comes within a wingspan of Lead (the T-6A's 33.4 ft), never ahead of Lead's 3/9 line, and ends in his
+// echelon place on the new side within 5 ft (TS-80, TS-230's place), the change finishing within a generous 2 minutes (it
+// takes about half a minute at the jogging 8 ft/s, Patrick 14 Oct 2026).
+const CROSS_LIMIT_SEC = 120;
+
+test('the live close-in wingman flies the station change, echelon to echelon on the other side', () => {
+  const f = createFormation({ ships: 2, closeWing: 'live' });
+  f.change('echelon');
+  for (let t = 0; f.state.current && t < CHANGE_LIMIT_SEC; t += STEP_SEC) f.step();
+  assert.equal(f.state.current, null, 'Change to echelon finished');
+  const [lead, two] = f.state.aircraft;
+  const sideBefore = Math.sign(relativeTo(lead, two).left) || -1; // +1 on Lead's left
+  const to = sideBefore > 0 ? 'right' : 'left';
+  assert.equal(f.change('echelon', { side: to }), 'started');
+  let t = 0;
+  for (; f.state.current && t < CROSS_LIMIT_SEC; t += STEP_SEC) {
+    f.step();
+    const r = relativeTo(lead, two);
+    const up = two.altAboveFt - lead.altAboveFt;
+    assert.ok(Math.hypot(r.fwd, r.left, up) > WINGSPAN_FT, `${t.toFixed(2)} s into the station change: #2 within a wingspan of Lead`);
+    assert.ok(r.fwd < 0, `${t.toFixed(2)} s into the station change: #2 ahead of Lead's 3/9 line (${r.fwd.toFixed(1)} ft)`);
+  }
+  assert.equal(f.state.current, null, `the station change finished within ${CROSS_LIMIT_SEC} s`);
+  const r = relativeTo(lead, two);
+  const place = { fwd: -ECHELON.back, left: -sideBefore * ECHELON.out, up: -ECHELON.down };
+  const off = Math.hypot(r.fwd - place.fwd, r.left - place.left, two.altAboveFt - lead.altAboveFt - place.up);
+  assert.ok(Math.sign(r.left) === -sideBefore, '#2 ends on the other side');
+  assert.ok(off <= IN_POSITION_FT, `#2 ends ${off.toFixed(1)} ft from his echelon place on the new side`);
+});
