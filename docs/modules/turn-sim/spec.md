@@ -585,7 +585,7 @@ Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 O
 1. Reaction time: **answered**, 0.4 s.
 2. The ranges: **answered**, "happy" (back to pure) 600-650 ft, lead pursuit beyond about 700 ft, lag near 500 ft (Patrick 14 Oct 2026).
 3. The swept position and the stack: **answered**, 625 ft at 45° of sweep, 50 ft below Lead (Patrick 14 Oct 2026; it replaces TS-195's 750 ft for the 2-ship once 7e is approved).
-4. Moving out from close formation into fighting wing: in this rung (recommended), or with the rejoins?
+4. Moving out from close formation into fighting wing: **answered**, in this rung, flown by the live wingman (Patrick 14 Oct 2026).
 5. The opening check turn from fighting wing to line abreast (T5): here, or with the line abreast rung?
 
 ## 8. Fighting wing
