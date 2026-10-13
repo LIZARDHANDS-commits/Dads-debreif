@@ -213,6 +213,17 @@ for (const f of sheet.files) {
 }
 const { problems, notes, ...kept } = sheet;
 writeFileSync(join(STAGE, 'delivery.json'), `${JSON.stringify({ ...kept, notes, imported: new Date().toISOString() }, null, 1)}\n`);
-rmSync(DEST, { recursive: true, force: true });
-renameSync(STAGE, DEST);
+// Swap the folders so a failure leaves the old delivery in place: on Windows a running dev server can hold the folder
+// and refuse the rename (seen 13 Oct 2026), so stop it and import again.
+const OLD = `${DEST}.previous`;
+rmSync(OLD, { recursive: true, force: true });
+try {
+  if (existsSync(DEST)) renameSync(DEST, OLD);
+  renameSync(STAGE, DEST);
+} catch (e) {
+  if (!existsSync(DEST) && existsSync(OLD)) renameSync(OLD, DEST);
+  rmSync(STAGE, { recursive: true, force: true });
+  refuse(`the files could not be put in place (${e.code}): close the dev server or anything else using public/models/ct156, and import again.`);
+}
+rmSync(OLD, { recursive: true, force: true });
 console.log(`Copied into ${relative(ROOT, DEST)}. The version on screen must change in this pull request (rule book).`);
