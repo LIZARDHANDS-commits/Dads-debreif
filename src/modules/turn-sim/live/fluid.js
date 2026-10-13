@@ -304,7 +304,7 @@ function steady() {
   return {
     key: 'steady', label: 'Fighting wing', interruptible: true,
     init: () => ({}),
-    step: (st) => ({ g: Math.max(0, Math.cos(st.gammaRad) - (st.V / G_FTPS2) * 0.5 * st.gammaRad), bank: 0, holdKias: LEAD.fwKias, phase: 'fighting wing', cue: { mode: 'pure', latDeg: 15, blend: 0 }, done: false }),
+    step: (st) => ({ g: Math.max(0, Math.cos(st.gammaRad) - (st.V / G_FTPS2) * 0.5 * st.gammaRad), bank: 0, holdKias: LEAD.fwKias, phase: 'fighting wing', cue: { mode: 'pure', latDeg: LEAD.cueOffTailDeg, blend: 0 }, done: false }),
   };
 }
 const wrapDeg = (d) => (((d + 180) % 360) + 360) % 360 - 180;

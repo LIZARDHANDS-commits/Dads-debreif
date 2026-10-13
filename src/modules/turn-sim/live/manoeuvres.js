@@ -12,16 +12,11 @@ import { bankDegFromG } from '../../../core/flight-math.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 import { speedSeg } from './replay.js';
+import { TURN_G, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG, CROSS_FIRST_BANK_DEG, BREAK, BREAK_DELAY_CHOICES } from './tuning.js';
 
-/** Line abreast turns: about 70° of bank at 3 G (SMM 16.18 para 50; Figs 16.15-16.21 "70/3"). */
-export const TURN_G = 3;
-export const TURN_BANK_DEG = bankDegFromG(TURN_G);
-/** Crossing turns pass at least this far apart vertically (SMM 16.13 para 31; 16.19 paras 61, 64). */
-export const VERTICAL_MISS_FT = 300;
-/** The check turn's angle: the R/T example "check 20" (2 CFFTS Orders B2 ch 8 p.103). Working answer, Patrick to confirm. */
-export const CHECK_DEG = 20;
-/** The cross turn's first stage may be flown between these banks to roll out at the spacing ("60/2, or as required", Fig 16.21). */
-const CROSS_FIRST_BANK_DEG = Object.freeze([20, 75]);
+// The line abreast numbers (TURN_G, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG, CROSS_FIRST_BANK_DEG) and the break's (BREAK,
+// BREAK_DELAY_CHOICES) live in lead-moves.js, the tuning sheet (TS-214); re-exported here for older imports.
+export { TURN_G, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG, BREAK, BREAK_DELAY_CHOICES };
 
 /**
  * The buttons. `turn` is degrees of heading change; `kind` picks the builder;
@@ -180,9 +175,6 @@ function delayed(pair, m, dir, t0, kias) {
   return { plans, firstId: first.id, note: `${first.id === lead.id ? 'Lead' : '#2'} goes first (outside of the turn); the other waits ${wait.toFixed(1)} s and rolls out abeam.` };
 }
 
-/** #2's wait before he follows Lead's break (TS-175: Patrick's 5 s; a setting under More). */
-export const BREAK = { delaySec: 5, bankDeg: 60 }; // 60° level is 2 G (1 / cos 60°)
-export const BREAK_DELAY_CHOICES = Object.freeze([3, 4, 5, 6, 8]); // the setting's choices around Patrick's 5 s (estimates)
 /** The break's delay setting (seconds). */
 export function setBreakDelaySec(sec) {
   if (BREAK_DELAY_CHOICES.includes(sec)) BREAK.delaySec = sec;

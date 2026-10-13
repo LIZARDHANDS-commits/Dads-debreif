@@ -17,7 +17,7 @@ import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
-import { ROLL } from './tuning.js';
+import { ROLL, G_ONSET_CEILING, GATE_G_MAX_BANK_DEG, CLIMB_CATCH_SEC, LEVEL_OFF_SEC, LEVEL_OFF_PULL_G, PUSH_MARGIN_DEG } from './tuning.js';
 
 
 /** Roll limits (tuning.js ROLL), still read from here by the tests. */
@@ -47,14 +47,9 @@ export function keepRollAccel(a, accelDps2) {
   a.rollAccelForRateDps = a.rollRateDps ?? 0;
 }
 
-/**
- * The fastest the gate lets G build (G per second): twice the T-6A's normal onset (core T6A_G_ONSET, 4 G/s), an estimate.
- * Patrick 5 Oct 23:27Z: "higher than 4 occasionally is fine thats life as a pilot": 4 G/s is the normal pull, not a wall;
- * the gate only stops a pull no pilot could make.
- */
-export const G_ONSET_CEILING = 2 * T6A_G_ONSET.maxRateDps;
-/** Steeper than this the level-turn G (1 / cos bank) is not this model's (a lag roll through the inverted): the gate holds the roll only. */
-const GATE_G_MAX_BANK_DEG = 85;
+// The gate's numbers (G_ONSET_CEILING, GATE_G_MAX_BANK_DEG), the climb catch, the level-off and the push margin live in
+// handling.js, the tuning sheet (TS-214).
+export { G_ONSET_CEILING };
 
 /**
  * The envelope gate (refactor PR 1, Fable's plan 23:20Z; ALL-28, Patrick's ruling 22:01Z; TS-93): one step of the wings
@@ -122,16 +117,6 @@ export function holdToEnvelope(a, seg, p, bank0, rate0) {
 
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
-
-/**
- * The time the last of a climb-rate change is closed over (seconds; an estimate), so the pull settles without flickering. Since
- * V2.348 it is 0.3 s, not 0.1, so the G onset's own build (16 G/s²) keeps up and the climb rate comes onto the one wanted
- * without passing it.
- */
-const CLIMB_CATCH_SEC = 0.3;
-/** A level-off closes its climb rate over this long (seconds; an estimate), and uses at most this pull or push (G either side of 1; an estimate). */
-const LEVEL_OFF_SEC = 1;
-const LEVEL_OFF_PULL_G = 1;
 
 /**
  * How long a vertical pull of acc (ft/s², either way) takes to build up from none, or to ease back off to none, at the T-6A's
@@ -224,9 +209,6 @@ export function liftBankDeg(bankDeg, nz = 1) {
   if (!bankDeg || nz * Math.cos(b) + side * Math.sin(b) < 0) return bankDeg;
   return (Math.sign(bankDeg) * Math.atan2(side, nz) * 180) / Math.PI;
 }
-
-/** The push is taken only when its wings are this much nearer than the pull's: positive G is the pilot's way (estimate). */
-const PUSH_MARGIN_DEG = 45;
 
 /**
  * The wings' attitude, drawn and read out (a.attitudeDeg): where the lift points (liftBankDeg, TS-108), flown as a roll.
