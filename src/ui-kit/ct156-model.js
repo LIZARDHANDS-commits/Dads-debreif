@@ -2054,7 +2054,7 @@ function wingPatch(THREE, x, y, w, h, ax, ay, side) {
 function cheatLine(THREE) {
   const pos = [], idx = [];
   const runs = [
-    { x0: 0.363, x1: -0.715, N: 48, half: 0.0032, z: cheatZ },
+    { x0: 0.363, x1: -0.715, N: 48, half: 0.0041, z: cheatZ }, // 0.19 ft thick (G13, Patrick 13 Oct 2026; was 0.0032, 0.15 ft)
     { x0: 0.552, x1: 0.463, N: 8, half: 0.0016, z: () => cheatZ() - 0.006 },
   ];
   for (const { x0, x1, N, half, z: zOf } of runs) {
@@ -2378,15 +2378,10 @@ function buildKit(THREE) {
     ctx.fillStyle = '#d2202c'; ctx.beginPath(); ctx.moveTo(15, 17); ctx.lineTo(49, 17); ctx.lineTo(32, 47); ctx.closePath(); ctx.fill();
   }, 4));
 
-  // The small yellow stencils on the fuselage's side (web photo research, 11 Oct 2026, RCAF CT-156 photos): a yellow
-  // panel with a black arrow by the wing root under the rear canopy, and a yellow dot each aft of the roundel and at the
-  // wing root. On US Navy T-6As the like marks are STEP and RESCUE stencils; what they say on the CT-156 is a guess, so
-  // no words. Places and sizes estimates off the photos.
-  tex.stencil = keep(canvasTexture(THREE, 64, 48, (ctx, w, h) => {
-    ctx.fillStyle = '#e8c21c'; ctx.fillRect(2, 2, w - 4, h - 4);
-    ctx.strokeStyle = '#111111'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(w * 0.25, h * 0.78); ctx.lineTo(w * 0.7, h * 0.3); ctx.stroke();
-    ctx.fillStyle = '#111111'; ctx.beginPath(); ctx.moveTo(w * 0.8, h * 0.18); ctx.lineTo(w * 0.52, h * 0.26); ctx.lineTo(w * 0.72, h * 0.48); ctx.closePath(); ctx.fill();
-  }, 4));
+  // The small yellow dots on the fuselage's side (web photo research, 11 Oct 2026, RCAF CT-156 photos), one aft of the
+  // roundel and one at the wing root. Places and sizes estimates off the photos. The yellow rescue stencil (a yellow
+  // panel with a black arrow under the rear canopy) is left out (G7, Patrick 13 Oct 2026: "we got rid of that. do not
+  // include the yellow rescue").
   tex.dot = keep(canvasTexture(THREE, 32, 32, (ctx, w) => {
     ctx.fillStyle = '#e8c21c'; ctx.beginPath(); ctx.arc(w / 2, w / 2, w * 0.42, 0, 7); ctx.fill();
   }, 4));
@@ -2395,15 +2390,18 @@ function buildKit(THREE) {
   const decalGeo = {
     roundelSide: both((side) => patch(THREE, -0.333, cheatZ(-0.333), 0.05, 0.05, side, fuseSurf)),
     // "Canada" and the rescue triangles just under the canopy's rail, as on Patrick's photo of 156102 (were 0.4 ft lower).
-    canada: both((side) => patch(THREE, 0.194, 0, 0.085, 0.024, side, fuseSurf)),
-    triA: both((side) => patch(THREE, 0.082, 0, 0.022, 0.022, side, fuseSurf)),
-    triB: both((side) => patch(THREE, -0.151, 0, 0.022, 0.022, side, fuseSurf)),
+    // "Canada" about 1.75 ft long (G9, A18; the patch was 0.085 by 0.024 units, the text about 1.3 ft).
+    canada: both((side) => patch(THREE, 0.194, 0, 0.115, 0.032, side, fuseSurf)),
+    // The triangles (each 7/8 of its patch) about 0.63 ft (forward), 0.55 ft (aft) and 0.32 ft (middle) wide on A18
+    // (G8, Patrick 13 Oct 2026; the forward and aft patches were 0.022 units, 0.45 ft triangles).
+    triA: both((side) => patch(THREE, 0.082, 0, 0.031, 0.031, side, fuseSurf)),
+    triB: both((side) => patch(THREE, -0.151, 0, 0.027, 0.027, side, fuseSurf)),
     triC: both((side) => patch(THREE, -0.033, 0, 0.015, 0.015, side, fuseSurf)),
-    stencil: both((side) => patch(THREE, -0.17, -0.072, 0.013, 0.01, side, fuseSurf)),
     dotAft: both((side) => patch(THREE, -0.385, cheatZ(-0.385) - 0.012, 0.005, 0.005, side, fuseSurf)),
     dotRoot: both((side) => patch(THREE, -0.1, -0.085, 0.005, 0.005, side, fuseSurf)),
-    // The nose number on the cheat line between its two runs (the photo; was one digit, 0.02 units further forward).
-    nose: both((side) => patch(THREE, 0.406, cheatZ(0.406) - 0.002, 0.05, 0.025, side, fuseSurf)),
+    // The nose number on the cheat line between its two runs (the photo; was one digit, 0.02 units further forward), its
+    // middle 5.5 ft behind the spinner's tip and 0.1 ft lower than before (G10, Patrick 13 Oct 2026, A24; was x 0.406).
+    nose: both((side) => patch(THREE, 0.424, cheatZ(0.424) - 0.006, 0.05, 0.025, side, fuseSurf)),
     // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
     // the fin above the tail cone (Patrick, 11 Oct 2026: "central on the vertical stab, not right on the edge"; was 0.03
     // units aft, at the trailing edge).
@@ -2516,7 +2514,6 @@ function buildKit(THREE) {
     canada: decalMat(tex.canada),
     tri: decalMat(tex.tri),
     marks: decalMat(tex.marks),
-    stencil: decalMat(tex.stencil),
     dot: decalMat(tex.dot),
   };
   const kit = { THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, dispose: () => ((kit.disposed = true), own.forEach((o) => o.dispose())) };
@@ -2787,7 +2784,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     const tailNumber = ct156TailNumber(number);
     // The wing numbers plain white, no outline, their digits about 2.5 ft tall in their 2.55 ft patch (G4, G20).
     const wingTex = own(canvasTexture(THREE, 380, 220, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.97), 2));
-    const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => outlinedText(ctx, tailNumber, w / 2, h / 2, h * 1.0, 3), 2));
+    // The nose number plain white, narrow digits filling their patch (G10; was a heavy outlined number).
+    const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.9, 0.96), 2));
     const decal = (tx) => own(new THREE.MeshStandardMaterial({
       map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: tx, emissiveIntensity: 0.6, fog: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
@@ -2821,7 +2819,6 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(decalGeo.triC[s], mats.tri, detail);
       add(decalGeo.marks[s], mats.marks, detail);
       add(decalGeo.marksTop[s], mats.marks, detail);
-      add(decalGeo.stencil[s], mats.stencil, detail);
       add(decalGeo.dotAft[s], mats.dot, detail);
       add(decalGeo.dotRoot[s], mats.dot, detail);
     }
