@@ -28,8 +28,9 @@ import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn } from './formation-turns.js';
-import { planFwMoveLive } from './fw-live.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn, fwLeadPlan, fwMoveWords } from './formation-turns.js';
+import { planFwMoveLive, FW_LIVE } from './fw-live.js';
+import { startFwWing, stepFwWingman } from './wingman/fighting-wing.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
@@ -50,6 +51,10 @@ export const LIVE_DEFAULTS = Object.freeze({
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
+  // #2 in Lead's fighting wing moves, 2-ship (B5, TS-233, spec 7e): 'law', today's live law (fw-live.js, TS-208), or 'live',
+  // the live wingman's fighting wing technique (wingman/fighting-wing.js). Today's law until Patrick has flown the new one
+  // (spec 7e.11, T28); the 4-ship always flies today's.
+  fwWing: /** @type {'law' | 'live'} */ ('law'),
   closeWing: /** @type {'held' | 'live'} */ ('live'), // #2 in close formation: live (the close-in wingman, TS-226; the default since Patrick 14 Oct 2026, "yes live default", TS-232) or held (the planned poses and the tracker); read at each press
 });
 
@@ -119,6 +124,8 @@ export function createFormation(options = {}) {
     closeWing: opts.closeWing, // the close-formation wingman setting as read at the last press (Held or Live)
     liveWing: null, // the live close-in wingman flying #2 while nothing is being flown (wingman.js state, B1), else null
     liveTrace: null, // what he saw and did on the last step (wingman.js trace), for the gauge and the plot page
+    fwWing: null, // the live wingman flying #2 in a fighting wing move with fwWing 'live' (wingman/fighting-wing.js, B5), else null
+    fwTrace: null, // what he saw and did on the last step (fighting-wing.js trace), for the gauge
   };
   let record = [];
   // The events of a change in flight: the decision point, the picture breaking, a turn pressed mid-change, done (events.js).
@@ -445,6 +452,57 @@ export function createFormation(options = {}) {
     state.judged = null;
     state.errorOutcome = null;
     return true;
+  }
+
+  /**
+   * One of Lead's fighting wing moves with #2 on the live wingman's fighting wing technique (B5, TS-233; spec 7e): Lead flies
+   * his plan (formation-turns.js fwLeadPlan, as today), #2 flies off what he sees of Lead each step (fighting-wing.js), and
+   * Lead never waits for him (spec 7e.10). The path drawn ahead is flown ahead at the press with the same law (drawn =
+   * flown, as liveTurn). A press during a move carries his live state on. The move ends FW_LIVE.settleSec after Lead's
+   * plan, as today's; after it #2 flies on as he is (the swept place is T29). c: the move being flown, if any.
+   */
+  function pressFwLive(key, dir, c, refuse) {
+    const [lead, wing] = state.aircraft;
+    const bankDeg = bankDegFor(opts.fluidBank);
+    const lp = fwLeadPlan(lead, key, dir, state.tSec, bankDeg, opts.blockFt);
+    if (!lp.ok) return refuse(lp.reason);
+    const leadPlan = { segments: lp.segments.map((x) => ({ ...x })), profile: lp.profile, roll: lp.roll };
+    const w0 = c?.fwLiveWing && state.fwWing ? state.fwWing : startFwWing(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt });
+    // The path ahead, flown ahead: Lead's plan and #2's law together on copies.
+    const a = copyAircraft(lead);
+    const p = { segments: leadPlan.segments.map((x) => ({ ...x })), profile: leadPlan.profile, roll: leadPlan.roll };
+    let w = w0;
+    let t = state.tSec;
+    let doneAt = null;
+    const profileEnd = Math.max(state.tSec, ...(lp.profile ?? []).map((leg) => leg.t1));
+    const every = Math.round(0.25 / STEP_SEC);
+    const pts = [[t, wing.xFt, wing.yFt, wing.altAboveFt]];
+    for (let i = 1; t - state.tSec < FW_LIVE.maxSec; i++) {
+      const refSt = leadPointMassOf(a, opts.blockFt);
+      flyStep(a, p, t);
+      w = stepFwWingman(w, refSt).w;
+      t += STEP_SEC;
+      if (i % every === 0) pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+      if (doneAt === null && planDone(a, p) && t >= profileEnd) doneAt = t;
+      if (doneAt !== null && t - doneAt >= FW_LIVE.settleSec) break;
+    }
+    pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+    state.fwWing = w0;
+    state.fwTrace = null;
+    state.plans = { [lead.id]: leadPlan, [wing.id]: { segments: [] } };
+    state.planned = { [lead.id]: dryRunT(lead, { segments: leadPlan.segments.map((x) => ({ ...x })), profile: leadPlan.profile, roll: leadPlan.roll }, state.tSec).points, [wing.id]: pts };
+    const label = `${FW_MOVES[key].label}${FW_MOVES[key].sided ? (dir > 0 ? ' left' : ' right') : ''}`;
+    state.current = {
+      key: `fw:${key}`, dir: FW_MOVES[key].sided ? dir : 0, label,
+      note: `Fighting wing: Lead flies ${fwMoveWords(key, dir, bankDeg)}. #2 flies it live (spec 7e): he reads Lead 0.4 s late, aims at Lead, and his guard keeps him outside 500 ft slant, making the miss below Lead (above only if already above) and reversing onto Lead's circle when the line of sight rises. Lead never waits.`,
+      firstId: null, shape: 'formation', formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, fwLive: null, fwLiveWing: true,
+      flag: null, startSec: state.tSec, endSec: t, errorRun: null, gWarm: null,
+    };
+    state.queued = null;
+    state.judged = null;
+    state.refusal = null;
+    state.errorOutcome = null;
+    return 'started';
   }
 
   /**
@@ -833,6 +891,8 @@ export function createFormation(options = {}) {
       // The wingmen on the live law (fw-live.js, TS-202, TS-206, TS-208), carrying on their live states from the move being
       // flown when there is one. The only law for these moves since Patrick flew it (12 Oct 2026: "Live fighting wing is
       // fine. make it the default and get rid of it"); the tracker's (formation-turns.js planFwMove) is no longer called.
+      // B5 (spec 7e, TS-233): the 2-ship with fwWing 'live' flies #2 on the live wingman's fighting wing technique.
+      if (state.aircraft.length === 2 && opts.fwWing === 'live') return pressFwLive(key, dir, c, refuse);
       const ws0 = c?.fwLive ? c.fwLive[Math.round((state.tSec - c.startSec) / STEP_SEC) - 1] ?? null : null;
       const plan = planFwMoveLive(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank), ws0 });
       if (!plan.ok) return refuse(plan.reason);
@@ -947,7 +1007,21 @@ export function createFormation(options = {}) {
         state.liveWing = null;
         state.liveTrace = null;
       }
-      if (state.liveWing) {
+      // The live fighting wing wingman (B5) flies only his own moves; anything else hands #2 back.
+      if (state.fwWing && !state.current?.fwLiveWing) {
+        state.fwWing = null;
+        state.fwTrace = null;
+      }
+      if (state.fwWing) {
+        // The live fighting wing wingman (B5): Lead flies his step; #2 flies off what he saw of Lead before it.
+        const [lead, wing] = state.aircraft;
+        const refSt = leadPointMassOf(lead, opts.blockFt);
+        flyStep(lead, state.plans[lead.id] ?? (state.plans[lead.id] = { segments: [] }), state.tSec, ctx);
+        const r = stepFwWingman(state.fwWing, refSt);
+        state.fwWing = r.w;
+        state.fwTrace = r.trace;
+        applyTo(wing, r.w);
+      } else if (state.liveWing) {
         // The live close-in wingman (B1): Lead flies his step; #2 flies off what he saw of Lead before it (wingman.js).
         const [lead, wing] = state.aircraft;
         const refSt = leadPointMassOf(lead, opts.blockFt);
@@ -972,7 +1046,7 @@ export function createFormation(options = {}) {
       const rejudge = state.errorOutcome?.rejudge;
       if (rejudge && state.aircraft.every((a) => planDone(a, state.plans[a.id]))) state.errorOutcome = outcomeOf(rejudge.run, state.aircraft[0], state.aircraft[1], rejudge.label);
       // In a live close turn #2 has no plan: his end is the fly-ahead's, settled on his place (liveTurn, B2).
-      const flownOut = (a) => ((state.current.liveTurn || state.current.liveChange) && a.id === 2) || planDoneBut(a, state.plans[a.id]);
+      const flownOut = (a) => ((state.current.liveTurn || state.current.liveChange || state.current.fwLiveWing) && a.id === 2) || planDoneBut(a, state.plans[a.id]);
       if (state.current && state.aircraft.every((a) => flownOut(a) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
       else if (state.current && inBandAndSteady()) finish();
       else if (state.current) replanAtEvents();

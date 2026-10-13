@@ -35,6 +35,7 @@ import { pairSlot } from '../src/modules/turn-sim/live/slots.js';
 import { seenOf, placeDeviation, frameOf } from '../src/modules/turn-sim/live/wingman/perception.js';
 import { torqueFromThrottle } from '../src/modules/turn-sim/live/wingman/close-formation.js';
 import { setCloseBank, DEFAULT_CLOSE_BANK_DEG } from '../src/modules/turn-sim/live/tuning.js';
+import { relativeTo } from '../src/modules/turn-sim/live/manoeuvres.js';
 
 const ROLL_REVERSAL_DPS = 10; // a roll counts once it is faster than this either way (estimate)
 const G_REVERSAL_GPS = 0.3; // a G change counts once it is faster than this either way (estimate)
@@ -49,6 +50,10 @@ const args = process.argv.slice(2);
 const save = args.includes('--save');
 const nudge = args.includes('--nudge');
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
+// B5: which law flies #2 in Lead's fighting wing moves in the b5- scenarios: 'law' (today's fw-live.js, the baseline's
+// and the known-bad case) or 'live' (the live wingman's fighting wing technique, spec 7e). --fw live flies the new one
+// against the baseline.
+const fwArg = args.includes('--fw') ? args[args.indexOf('--fw') + 1] : 'law';
 if (save && nudge) throw new Error('--nudge is a known-bad case for checking the comparison: never --save it');
 
 const wings = (a) => a.attitudeDeg ?? liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
@@ -152,6 +157,49 @@ const B3 = [
 ];
 
 /**
+ * B5 (plan 12.4, T27; spec 7e.11): fighting wing. From the default start the set-up changes to fighting wing (the turning
+ * rejoin) and lets #2 settle in the cone; `at` then puts #2 where the case needs him, at his own height and speed, keeping
+ * his bearing from Lead: in position (as the rejoin leaves him), stretched (950 ft), tight (520 ft) or outside the cone
+ * (1,300 ft) (estimates for the manual's in position, stretched and tight, SMM 12.29 Figs 12.20-12.22). #2 starts on Lead's
+ * right, so a turn right (dir -1) is into him. Each turn is held 30 s, then Wings level and 30 s more. The fighting wing
+ * measures (fwTally) are kept for every press.
+ */
+function b5(name, at, presses, first = 'fw') {
+  const setup = (f) => {
+    f.change(first);
+    settle(f);
+    if (at) {
+      const [L, two] = f.state.aircraft;
+      const dx = two.xFt - L.xFt;
+      const dy = two.yFt - L.yFt;
+      const k = at / Math.hypot(dx, dy);
+      two.xFt = L.xFt + dx * k;
+      two.yFt = L.yFt + dy * k;
+    }
+  };
+  return { name: `b5-${name}`, b5: true, options: { fwWing: fwArg }, setup, presses };
+}
+const wingsLevel = { label: 'Wings level, 30 s', press: (f) => f.pressFw('wingsLevel'), sec: 30 };
+const turnFw = (dir, label) => ({ label, press: (f) => f.pressFw('levelTurn', dir), sec: 30 });
+const B5 = [
+  b5('into-in-position', null, [turnFw(-1, 'Level turn into #2, in position, 30 s'), wingsLevel]),
+  b5('away-in-position', null, [turnFw(1, 'Level turn away from #2, in position, 30 s'), wingsLevel]),
+  b5('into-stretched', 950, [turnFw(-1, 'Level turn into #2, stretched (950 ft), 30 s'), wingsLevel]),
+  b5('away-stretched', 950, [turnFw(1, 'Level turn away from #2, stretched (950 ft), 30 s'), wingsLevel]),
+  b5('into-tight', 520, [turnFw(-1, 'Level turn into #2, tight (520 ft), 30 s'), wingsLevel]),
+  b5('away-tight', 520, [turnFw(1, 'Level turn away from #2, tight (520 ft), 30 s'), wingsLevel]),
+  b5('reversal-mid-entry', null, [
+    { label: 'Level turn away from #2, 3 s of it', press: (f) => f.pressFw('levelTurn', 1), sec: 3 },
+    { label: 'Reversal mid-entry (now into #2), 30 s', press: (f) => f.pressFw('reversal'), sec: 30 },
+    wingsLevel,
+  ]),
+  b5('climb', null, [{ label: 'Straight climb, 40 s', press: (f) => f.pressFw('climb'), sec: 40 }, { label: 'Descend, 40 s', press: (f) => f.pressFw('descend'), sec: 40 }]),
+  b5('turn-button', null, [{ label: 'Turn button: 90° into #2 in fighting wing', press: (f) => f.press('delayed90', -1), sec: 'done' }]),
+  b5('outside-cone', 1300, [turnFw(-1, 'Level turn into #2 from outside the cone (1,300 ft), 30 s'), wingsLevel]),
+  b5('echelon-to-fw', null, [{ label: 'Echelon to fighting wing', press: (f) => f.change('fw'), sec: 'done' }], 'echelon'),
+];
+
+/**
  * The press set, 2-ship (Formation plan 12.1b). Each scenario: a set-up flown first and not measured, then the measured
  * presses, each { label, press(f) -> 'started' | ..., sec } where sec is how long it is measured (a settle when 'done').
  */
@@ -202,7 +250,99 @@ const SCENARIOS = [
     ],
   },
   ...B3,
+  ...B5,
 ];
+
+// ---- B5: the fighting wing measures (spec 7e.11) --------------------------------------------------------------------
+// G and roll reversals for fighting wing are counted on smoothed rates (a pilot sees the trend, not a step's twitch): the
+// G and the roll rate each smoothed first-order over FW_SMOOTH_SEC, then a reversal is the smoothed G rate changing sign
+// while faster than G_REVERSAL_GPS (0.3 G/s), or the smoothed roll rate changing sign while faster than ROLL_REVERSAL_DPS
+// (10°/s), as the raw counts above. All estimates, chosen to ignore numerical noise.
+const FW_SMOOTH_SEC = 0.5;
+
+/** An aircraft's velocity (ft/s; x east, y north, z up) from its heading, true speed and climb. */
+function velOf(a) {
+  const v = a.tasFtps ?? 0;
+  const vz = a.climbFtps ?? 0;
+  const vh = Math.sqrt(Math.max(0, v * v - vz * vz));
+  return { x: vh * Math.cos(a.headingRad), y: vh * Math.sin(a.headingRad), z: vz };
+}
+const dot3v = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+const len3v = (a) => Math.sqrt(dot3v(a, a));
+const angDeg = (a, b) => (Math.acos(Math.max(-1, Math.min(1, dot3v(a, b) / Math.max(len3v(a) * len3v(b), 1e-9)))) * 180) / Math.PI;
+
+/**
+ * The fighting wing picture of #2 against Lead, as a pilot names it (SMM 12.2 paras 5-9; 16.16 para 40b): slant and
+ * horizontal range, closure (+ closing), aspect (0° at Lead's tail), HCA (between the two flight paths), the line of sight
+ * (the direction from #2 to Lead, 3D unit), sweep (back from Lead's wing line, level), height and speed against Lead.
+ */
+function fwPicture(lead, two, prevPic) {
+  const r = { x: two.xFt - lead.xFt, y: two.yFt - lead.yFt, z: (two.altAboveFt ?? 0) - (lead.altAboveFt ?? 0) };
+  const slant = len3v(r);
+  const vL = velOf(lead);
+  const vW = velOf(two);
+  const los = { x: -r.x / slant, y: -r.y / slant, z: -r.z / slant };
+  const rel = relativeTo(lead, two);
+  return {
+    slant,
+    horiz: Math.hypot(r.x, r.y),
+    closure: prevPic ? (prevPic.slant - slant) / STEP_SEC : 0,
+    aspect: angDeg({ x: -vL.x, y: -vL.y, z: -vL.z }, r),
+    hca: angDeg(vL, vW),
+    losDps: prevPic ? angDeg(prevPic.los, los) / STEP_SEC : 0,
+    los,
+    sweep: (Math.atan2(-rel.fwd, Math.abs(rel.left)) * 180) / Math.PI,
+    height: r.z,
+    dKias: (two.kias ?? 0) - (lead.kias ?? 0),
+  };
+}
+
+function fwTally() {
+  return {
+    slantMin: Infinity, horizMin: Infinity, in500: 0, in600: 0, gMax: -Infinity, rollMax: 0,
+    gS: null, gRateS: 0, lastGRateS: 0, gRev: 0, rollS: null, lastRollS: 0, rollRev: 0,
+    pic: null, aimLast: null, aimSwitches: 0, jobLast: null, jobSwitches: 0,
+  };
+}
+
+/** One step of the fighting wing tally: #2 (two) against Lead; trace: his trace arrays (added to). */
+function fwStep(c, lead, two, tr, liveTrace) {
+  const pic = fwPicture(lead, two, c.pic);
+  c.pic = pic;
+  c.slantMin = Math.min(c.slantMin, pic.slant);
+  c.horizMin = Math.min(c.horizMin, pic.horiz);
+  if (pic.slant < 500) c.in500 += STEP_SEC;
+  if (pic.slant < 600) c.in600 += STEP_SEC;
+  c.gMax = Math.max(c.gMax, two.g);
+  c.rollMax = Math.max(c.rollMax, Math.abs(two.rollRateDps ?? 0));
+  const k = Math.min(1, STEP_SEC / FW_SMOOTH_SEC);
+  const gPrev = c.gS;
+  c.gS = gPrev === null ? two.g : gPrev + (two.g - gPrev) * k;
+  const gRateS = gPrev === null ? 0 : (c.gS - gPrev) / STEP_SEC;
+  if (Math.abs(gRateS) > G_REVERSAL_GPS) { if (c.lastGRateS && Math.sign(gRateS) !== Math.sign(c.lastGRateS)) c.gRev++; c.lastGRateS = gRateS; }
+  const roll = two.rollRateDps ?? 0;
+  c.rollS = c.rollS === null ? roll : c.rollS + (roll - c.rollS) * k;
+  if (Math.abs(c.rollS) > ROLL_REVERSAL_DPS) { if (c.lastRollS && Math.sign(c.rollS) !== Math.sign(c.lastRollS)) c.rollRev++; c.lastRollS = c.rollS; }
+  // The live technique's aim and job when it flies him (spec 7e; null under today's law, which has neither).
+  const aim = liveTrace?.aim ?? null;
+  const job = liveTrace?.job ?? null;
+  if (aim !== c.aimLast && c.aimLast !== null && aim !== null) c.aimSwitches++;
+  if (job !== c.jobLast && c.jobLast !== null && job !== null) c.jobSwitches++;
+  c.aimLast = aim ?? c.aimLast;
+  c.jobLast = job ?? c.jobLast;
+  for (const [key, v] of [['slantFt', Math.round(pic.slant)], ['closureFtps', +pic.closure.toFixed(1)], ['aspectDeg', +pic.aspect.toFixed(1)], ['hcaDeg', +pic.hca.toFixed(1)], ['losDps', +pic.losDps.toFixed(2)], ['aim', aim], ['job', job]]) (tr[key] ??= []).push(v);
+}
+
+function fwResult(c, lead, two) {
+  const r1 = (x) => +x.toFixed(1);
+  const pic = c.pic ?? fwPicture(lead, two, null);
+  return {
+    slantMinFt: Math.round(c.slantMin), horizMinFt: Math.round(c.horizMin), in500Sec: r1(c.in500), in600Sec: r1(c.in600),
+    gMax: +c.gMax.toFixed(2), rollMaxDps: Math.round(c.rollMax), gReversalsSmoothed: c.gRev, rollReversalsSmoothed: c.rollRev,
+    aimSwitches: c.aimSwitches, jobSwitches: c.jobSwitches,
+    end: { slantFt: Math.round(pic.slant), sweepDeg: r1(pic.sweep), heightFt: Math.round(pic.height), dKias: r1(pic.dKias) },
+  };
+}
 
 /** One aircraft's running numbers. */
 function tally() {
@@ -269,6 +409,7 @@ function runScenario(sc) {
     const closeKey = p.close ?? sc.close;
     const closeSide = closeKey ? (p.side ?? f.where().side) : null;
     const closePer = new Map();
+    const fwPer = new Map();
     const per = new Map();
     let prev = new Map(f.state.aircraft.map((a) => [a.id, { ...a }]));
     let stepMsMax = 0;
@@ -314,6 +455,11 @@ function runScenario(sc) {
         tr.climbDeg.push(+((Math.asin(Math.max(-1, Math.min(1, (a.climbFtps ?? 0) / Math.max(a.tasFtps ?? 1, 1)))) * 180) / Math.PI).toFixed(1));
         tr.kias.push(+(a.kias ?? 0).toFixed(1));
         tr.rangeFt.push(range === null ? null : Math.round(range));
+        // The fighting wing measures (B5), each wingman flying off Lead.
+        if (sc.b5 && ref && ref !== a && ref.id === 1) {
+          if (!fwPer.has(name)) fwPer.set(name, fwTally());
+          fwStep(fwPer.get(name), ref, a, tr, f.state.fwTrace ?? null);
+        }
         // The close wingman's measures (B1), each wingman flying off Lead.
         if (closeKey && ref && ref !== a && ref.id === 1) {
           if (!closePer.has(name)) closePer.set(name, closeTally());
@@ -372,6 +518,11 @@ function runScenario(sc) {
         rollMax: Math.round(q.rollMax), rollAccMax: Math.round(q.rollAccMax), rollReversals: q.rollReversals,
         drawnMax: Math.round(q.drawnMax), rangeMin: Number.isFinite(q.rangeMin) ? Math.round(q.rangeMin) : null,
       };
+      const fc = fwPer.get(name);
+      if (fc) {
+        const two = f.state.aircraft.find((x) => (x.name ?? String(x.id)) === name);
+        aircraft[name].fw = fwResult(fc, f.state.aircraft[0], two);
+      }
       const c = closePer.get(name);
       if (c) {
         const r2 = (x) => +x.toFixed(2);
@@ -417,6 +568,13 @@ for (const sc of SCENARIOS) {
     for (const [name, a] of Object.entries(r.aircraft)) {
       const ba = b?.aircraft?.[name] ?? {};
       console.log(`    ${name.padEnd(5)} G ${a.g[0]}..${a.g[1]} | G rate max ${fmt(a.gRateMax, ba.gRateMax)} G/s, G reversals ${fmt(a.gReversals, ba.gReversals)} | roll max ${fmt(a.rollMax, ba.rollMax)}°/s, roll acc max ${fmt(a.rollAccMax, ba.rollAccMax)}°/s², roll reversals ${fmt(a.rollReversals, ba.rollReversals)} | drawn max ${fmt(a.drawnMax, ba.drawnMax)}°/s | least range ${fmt(a.rangeMin, ba.rangeMin, false)} ft`);
+      if (a.fw) {
+        const w = a.fw;
+        const bw = ba.fw ?? {};
+        const be = bw.end ?? {};
+        console.log(`          least slant ${fmt(w.slantMinFt, bw.slantMinFt, false)} ft, least horizontal ${fmt(w.horizMinFt, bw.horizMinFt, false)} ft | inside 500 ft ${fmt(w.in500Sec, bw.in500Sec)} s, inside 600 ft ${fmt(w.in600Sec, bw.in600Sec)} s | most G ${fmt(w.gMax, bw.gMax)}, most roll ${fmt(w.rollMaxDps, bw.rollMaxDps)}°/s | reversals (smoothed) G ${fmt(w.gReversalsSmoothed, bw.gReversalsSmoothed)}, roll ${fmt(w.rollReversalsSmoothed, bw.rollReversalsSmoothed)} | aim switches ${w.aimSwitches}, job switches ${w.jobSwitches}`);
+        console.log(`          at the end: ${fmt(w.end.slantFt, be.slantFt)} ft, sweep ${fmt(w.end.sweepDeg, be.sweepDeg)}°, ${fmt(w.end.heightFt, be.heightFt)} ft against Lead's height, ${fmt(w.end.dKias, be.dKias)} KIAS against Lead's`);
+      }
       if (a.close) {
         const c = a.close;
         const bc = ba.close ?? {};

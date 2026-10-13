@@ -30,7 +30,7 @@ import { DEG } from '../../../../core/angles.js';
 import { G_FTPS2 } from '../../../../core/units.js';
 import { STEP_SEC } from '../flight.js';
 import { LINE_BACK_PER_OUT, WINGSPAN_FT, LENGTH_FT } from '../slots.js';
-import { CLOSE_SEE } from '../wing-moves.js';
+import { CLOSE_SEE, FW_SEE } from '../wing-moves.js';
 import { sub3, dot3, cross3, unit3, perp3, scale3, add3, len3 } from '../attitude.js';
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
@@ -241,4 +241,114 @@ export function perceive(mem, ref, own) {
   const filt2 = { ...filt, placeDv: dv, placeAcc: smooth(f0.placeAcc ?? 0, (dv - (f0.placeDv ?? dv)) / STEP_SEC) };
   const next = { ...mem, buf, filt: filt2 };
   return { mem: next, seen: seeWith(next, now, filt2) };
+}
+
+// ---- fighting wing: what he sees of Lead (B5, TS-233; spec 7e.3b, 7e.7) ----------------------------------------------------
+//
+// Fighting wing reads a picture, not a place: the cues of SMM 12.2 paras 4-9, worked out from what eyes give of Lead (his
+// position, velocity and body up, TS-211) as it was FW_SEE.delaySec ago (0.4 s, Patrick 14 Oct 2026; close formation keeps
+// its 0.3 s). Each is continuous and lightly smoothed as an eye judges it, never stepped (F15):
+//  - range (slant) and closure (+ closing; smoothed over about 1 s, SMM 12.2 para 5);
+//  - the line of sight (the direction from him to Lead) and its turn rate, Lead's drift across the windscreen (about 0.5 s);
+//  - aspect (0° at Lead's tail, 180° in front; SMM 12.2 para 6, 16.16 para 40b) and HCA (between the two flight paths,
+//    para 9); sweep back from Lead's wing line and height against Lead;
+//  - Lead's bank and G, and his turn worked out from them each step, in his lift plane, not the horizontal (spec 7e.7:
+//    "So can lead and 2 follows"): his turning acceleration is his lift less his weight square to his path, so his turn
+//    circle's axis, rate and centre come from what he is doing now, only 0.4 s stale, never a fitted history (F4);
+//  - where Lead was over the last FW_SEE.historySec (the lag aim).
+// The memory is never changed in place. Numbers: wing-moves.js FW_SEE.
+
+const FW_LATE = Math.round(FW_SEE.delaySec / STEP_SEC);
+const FW_HIST = Math.round(FW_SEE.historySec / STEP_SEC);
+const ease = (y, x, sec) => y + (x - y) * Math.min(1, STEP_SEC / sec);
+const ease3 = (y, x, sec) => ({ x: ease(y.x, x.x, sec), y: ease(y.y, x.y, sec), z: ease(y.z, x.z, sec) });
+const angleDeg = (a, b) => Math.acos(Math.max(-1, Math.min(1, dot3(unit3(a), unit3(b))))) / DEG;
+
+/**
+ * An aircraft's turn as seen (s: a seen moment; g: its G): { aPerp (ft/s², the turning acceleration square to its path:
+ * its lift less its weight), omega (rad/s, the turn's axis times its rate), rateDps, radiusFt, centre }. Standard
+ * kinematics: the turn rate is the path's acceleration over its speed.
+ */
+export function turnOf(s, g) {
+  const nose = unit3(s.v);
+  const aPerp = perp3(sub3(scale3(unit3(perp3(s.up, nose)), g * G_FTPS2), scale3(Z, G_FTPS2)), nose);
+  const v2 = dot3(s.v, s.v);
+  const omega = scale3(cross3(s.v, aPerp), 1 / Math.max(v2, 1));
+  const a = len3(aPerp);
+  const radiusFt = a > 1e-6 ? v2 / a : Infinity;
+  return { aPerp, omega, rateDps: len3(omega) / DEG, radiusFt, centre: a > 1e-6 ? add3(s.p, scale3(unit3(aPerp), radiusFt)) : null };
+}
+
+/** The picture at a seen moment: own (him) and ref (Lead), seenOf's. */
+function fwRaw(ref, own) {
+  const r = sub3(own.p, ref.p);
+  const slant = len3(r);
+  const f = frameOf(ref);
+  const rel = { fwd: dot3(r, f.nose), left: dot3(r, f.left), up: dot3(r, f.up) };
+  return {
+    slant,
+    los: scale3(r, -1 / Math.max(slant, 1e-6)), // from him to Lead
+    aspectDeg: angleDeg(scale3(ref.v, -1), r),
+    hcaDeg: angleDeg(ref.v, own.v),
+    sweepDeg: Math.atan2(-rel.fwd, Math.abs(rel.left)) / DEG,
+    side: Math.sign(rel.left) || -1,
+    heightFt: r.z,
+    rel,
+    leadBankDeg: bankOf(f.nose, f.up),
+  };
+}
+
+/**
+ * His fighting wing sight at the start (bumpless, as startPerception): the memory filled with the moments before now,
+ * dead-reckoned back from the motion each has, the smoothed readings started on the picture as it is. ref, own: seenOf's;
+ * refAcc, ownAcc: their accelerations (ft/s²) when known; g: Lead's G now (else 1).
+ */
+export function startFwSight(ref, own, { refAcc = null, ownAcc = null, g = 1 } = {}) {
+  const buf = [];
+  for (let k = FW_LATE + 2; k >= 0; k--) buf.push({ ref: backOf(ref, k, refAcc), own: backOf(own, k, ownAcc) });
+  const seen = buf[buf.length - 1 - FW_LATE];
+  const raw = fwRaw(seen.ref, seen.own);
+  const hist = [];
+  for (let k = FW_HIST; k >= 0; k--) hist.push(backOf(seen.ref, k, refAcc).p);
+  return { buf, hist, filt: { closure: 0, losRate: { x: 0, y: 0, z: 0 }, g, los: raw.los, slant: raw.slant } };
+}
+
+/**
+ * One step of his fighting wing sight: the memory with this step's moment added (ref, own: seenOf's, at the same time) and
+ * the picture as it was FW_SEE.delaySec ago. Returns { mem, seen }: seen = { slant, closure, los, losRate (rad/s vector),
+ * losDps, aspectDeg, hcaDeg, sweepDeg, side, heightFt, rel, lead (the seen moment of Lead), own (his, as seen), leadBankDeg,
+ * leadG, turn (turnOf), wasAt(sec) (where Lead was sec before the seen moment) }.
+ */
+export function seeFw(mem, ref, own) {
+  const buf = [...mem.buf.slice(1 - (FW_LATE + 3)), { ref, own }];
+  const i = buf.length - 1 - FW_LATE;
+  const s0 = buf[i];
+  const s1 = buf[i - 1];
+  const raw = fwRaw(s0.ref, s0.own);
+  // Lead's G: the lift's share along his body up, from how his velocity turned over the step before the seen moment.
+  const acc = scale3(sub3(s0.ref.v, s1.ref.v), 1 / STEP_SEC);
+  const gRaw = dot3(add3(acc, scale3(Z, G_FTPS2)), unit3(perp3(s0.ref.up, unit3(s0.ref.v)))) / G_FTPS2;
+  const f0 = mem.filt;
+  const losRateRaw = scale3(cross3(f0.los, sub3(raw.los, f0.los)), 1 / STEP_SEC);
+  const filt = {
+    closure: ease(f0.closure, (f0.slant - raw.slant) / STEP_SEC, FW_SEE.closureSec),
+    losRate: ease3(f0.losRate, losRateRaw, FW_SEE.losSec),
+    g: ease(f0.g, gRaw, FW_SEE.gSec),
+    los: raw.los,
+    slant: raw.slant,
+  };
+  const hist = [...mem.hist.slice(-FW_HIST), s0.ref.p];
+  const next = { buf, hist, filt };
+  const seen = {
+    ...raw,
+    closure: filt.closure,
+    losRate: filt.losRate,
+    losDps: len3(filt.losRate) / DEG,
+    lead: s0.ref,
+    own: s0.own,
+    leadG: filt.g,
+    turn: turnOf(s0.ref, filt.g),
+    wasAt: (sec) => hist[Math.max(0, hist.length - 1 - Math.round(sec / STEP_SEC))],
+  };
+  return { mem: next, seen };
 }

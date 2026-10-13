@@ -360,6 +360,66 @@ export const CLOSE_WING = Object.freeze({
   plhPerSec: 0.5,
 });
 
+// ---- fighting wing on the live wingman (B5, TS-233; spec 7e) -----------------------------------------------------------
+
+/**
+ * What #2 sees in fighting wing (live/wingman/perception.js seeFw; spec 7e.7). Close formation's CLOSE_SEE is its own and
+ * untouched (its 0.3 s, TS-211; the delay is per technique, F5). Estimates unless a source is given.
+ */
+export const FW_SEE = Object.freeze({
+  delaySec: 0.4, // he acts 0.4 s after he sees Lead's bank and nose start (Patrick 14 Oct 2026; TS-211's 0.3-0.5 s)
+  closureSec: 1.0, // closure (the range's rate) smoothed over about 1 s: the manual calls its change subtle (SMM 12.2 para 5)
+  losSec: 0.5, // the line of sight's rate, Lead's drift across the windscreen, smoothed over about 0.5 s (spec 7e.7)
+  gSec: 0.1, // Lead's G (his lift, so his turn circle) read as close formation reads it, over about 0.1 s (CLOSE_SEE.filterSec)
+  historySec: 6, // how long he remembers where Lead was (the lag aim's "where Lead was", 7e.7; estimate)
+});
+
+/**
+ * How #2 flies fighting wing (live/wingman/fighting-wing.js and supervisor.js fwGuard; spec 7e.7's loop table). T28: the
+ * separation guard and enough steering to fly it (aim at Lead, or at where Lead was); the aim loop, swept place, entry
+ * and exit, the vertical loop and power are T29. Estimates unless a source is given (every gain a guess to start from,
+ * spec 7e.8).
+ */
+export const FW_WING = Object.freeze({
+  // Steering (spec 7e.7): a pursuit law, the aim line's turn fed forward (his speed x its turn rate) plus P on the angle
+  // between his flight path and the line to his aim point; works in 3D, in whatever plane the aim is (Patrick 14 Oct 2026,
+  // "So can lead and 2 follows").
+  gPerDeg: 0.05, // about 0.05 G per degree, 1 G per 20° (spec 7e.7)
+  aimTurnSec: 0.5, // the aim line's turn read over about 0.5 s (as the line of sight)
+  overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate) ...
+  minG: 0.5, // ... and never under 0.5 G, so his lift always has a direction (estimate)
+  rollDps: 60, // roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required")
+  stackFt: -50, // his height against Lead: 50 ft below (Patrick 14 Oct 2026, spec 7e.7 swept)
+  // The vertical loop (spec 7e.7): square to Lead's turn plane (up and down in a level turn), PD on his height against
+  // Lead's from the stack or the guard's miss: 0.005 G per foot and 0.02 G per ft/s (spec 7e.7's starting gains, damping
+  // about 0.8), at most 1 G either way (estimate). Steering works in Lead's turn plane once Lead turns faster than
+  // turnPlaneRadps (about 1°/s, estimate); slower, in the level plane.
+  vertGPerFt: 0.005,
+  vertGPerFtps: 0.02,
+  vertMaxG: 1,
+  turnPlaneRadps: 0.0175,
+  // The separation guard (spec 7e.7; a geometric predictor with priority and hysteresis, F1, F16). 500 ft is slant range
+  // (Patrick 14 Oct 2026; TS-208's 500 ft minimum).
+  guard: Object.freeze({
+    minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
+    engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
+    releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)
+    releaseSec: 3,
+    lookSec: 5, // the pass predicted up to 5 s ahead (spec 7e.7: 3-5 s), every 0.25 s
+    lookStepSec: 0.25,
+    tighter: 1.3, // ... with Lead on his present turn and one step tighter: his turn rate 1.3 times (estimate)
+    lagSec: 1, // "aim at where Lead was": Lead's place 1 s ago (estimate, about 380 ft back along his path at 200 KIAS: "turning slightly toward Lead", SMM Fig 12.20; 2 s turned him 120° off Lead's heading from tight)
+    aboveFt: 20, // "above only if already above": more than 20 ft above Lead when the guard engages (estimate), else the miss is below
+    missFt: [50, 300], // the miss below Lead (above only if already above): enough height to make the slant 600 ft over the predicted pass's horizontal, from his 50 ft stack to 300 ft (estimates; a slow tail chase needs little, a pass across Lead's nose a lot)
+    missSlantFt: 600,
+    torquePct: 20, // "power off": 20% torque, well back but not idle, so the engine answers at once when he wants it back (estimate; TS-218, idle's spool-up lag)
+    // The reversal onto Lead's circle: a definite increase in the line of sight (SMM 16.20 para 65b(2)), more than losRiseDps
+    // over its least since the guard engaged, with Lead behind his 3/9 line (aspect under 90°: never across Lead's nose).
+    losRiseDps: 2,
+    reverseClosureFtps: 15, // ... and only once the closure is under about 15 ft/s: closing faster, aiming at Lead would carry him in (the stretched turn into him reversed at 74 ft/s and came back to 442 ft predicted; estimate)
+  }),
+});
+
 // ---- the rolling rejoin (from rolling-rejoin.js) -------------------------------------------------------------------
 
 /** The rolling rejoin's search and pursuit (moved from rolling-rejoin.js, 12.2b). Estimates unless a page or ruling is named. */
