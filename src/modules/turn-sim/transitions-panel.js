@@ -106,7 +106,7 @@ function placeWords(key, p) {
  * shown under this one for the 2-ship, or null. Returns
  * { element, cardElement, setShips(n), update(state, where), renderCard(state, where), values() }.
  */
-export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, onEchelonShift = null, onCornerShift = null }) {
+export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, onFwWing = null, onEchelonShift = null, onCornerShift = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let turn = 'into'; // TRJ Into or Away (TS-174): which way Lead turns, toward #2's side or away from it
@@ -246,6 +246,29 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
   }, o.label));
   const closeWingRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': '#2 in close formation: Held or Live', title: CLOSE_WING_HINT },
     h('span', { class: 'ts-hint' }, '#2 in close formation'), closeWingButtons);
+
+  // #2 in fighting wing: Old (today's live law, fw-live.js, TS-208) or Live (the live wingman's fighting wing technique, B5,
+  // TS-233, spec 7e). Old the default until Patrick has flown Live (spec 7e.11, T28). Read at the next press of one of Lead's
+  // fighting wing moves. 2-ship only.
+  let fwWing = 'law';
+  const FW_WING_HINT = `Live (B5, being built): #2 flies off what he sees of Lead, 0.4 s late; his guard keeps him outside 500 ft slant, making the miss below Lead and reversing onto Lead's circle. Range keeping and the swept place come next (T29). Old: today's fighting wing law. Read at the next press of a fighting wing move.`;
+  const fwWingButtons = [
+    { value: 'law', label: 'Old' },
+    { value: 'live', label: 'Live' },
+  ].map((o) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    dataset: { fwWing: o.value },
+    title: FW_WING_HINT,
+    'aria-pressed': String(o.value === fwWing),
+    onclick: () => {
+      fwWing = o.value;
+      for (const x of fwWingButtons) x.setAttribute('aria-pressed', String(x.dataset.fwWing === fwWing));
+      onFwWing?.(fwWing);
+    },
+  }, o.label));
+  const fwWingRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': '#2 in fighting wing: Old or Live', title: FW_WING_HINT, hidden: true },
+    h('span', { class: 'ts-hint' }, '#2 in fighting wing'), fwWingButtons);
 
   // Echelon on the line (TS-230; Patrick 14 Oct 2026: "a little toggle that moves us up and down the line 1 foot at a time? so
   // i can play with it"): Up 1 ft toward Lead, Down 1 ft away, along the spinner-to-wingtip line; the value is from TS-230's
@@ -553,6 +576,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
     floatHeight,
     twoBar,
     closeWingRow,
+    fwWingRow,
     echelonShiftRow,
     cornerFwdRow,
     cornerUpRow,
@@ -634,7 +658,7 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
         cancelPick();
       }
       fourGrid.hidden = !four;
-      closeWingRow.hidden = four; // the pair's only in B1 (update shows it in close formation only)
+      closeWingRow.hidden = fwWingRow.hidden = four; // the pair's only in B1 (update shows it in close formation only)
       echelonShiftRow.hidden = four; // the pair's only (TS-230; update shows it in echelon only)
       cornerFwdRow.hidden = cornerUpRow.hidden = four; // the pair's only (update shows them in the corner only)
       twoBar.hidden = four;
@@ -684,10 +708,11 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
       const closeBankVisible = ['echelon', 'route', 'astern', 'corner', 'trail'].includes(where.key);
       bankRow.hidden = !closeBankVisible;
       closeWingRow.hidden = !closeBankVisible;
+      fwWingRow.hidden = where.key !== 'fw'; // B5: Lead's fighting wing moves (2-ship)
       echelonShiftRow.hidden = where.key !== 'echelon';
       cornerFwdRow.hidden = cornerUpRow.hidden = where.key !== 'corner';
       breakField.hidden = where.key !== 'echelon';
-      twoBar.hidden = closeWingRow.hidden && echelonShiftRow.hidden && cornerFwdRow.hidden;
+      twoBar.hidden = closeWingRow.hidden && fwWingRow.hidden && echelonShiftRow.hidden && cornerFwdRow.hidden;
       if (bankSelect.value !== String(closeBankNow())) {
         bankSelect.value = String(closeBankNow());
       }
