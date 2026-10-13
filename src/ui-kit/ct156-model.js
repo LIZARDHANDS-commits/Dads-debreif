@@ -572,13 +572,17 @@ function leaf(ctx, cx, cy, s, fill) {
   ctx.restore();
 }
 
+// The roundel, as fractions of its width on G01 (G3, Patrick 13 Oct 2026): a thin white outer ring from 0.96 to 1.0,
+// blue inside it, the white disc 0.60 and the leaf 0.52 tall (were a blue edge, a 0.72 disc and a 0.56 leaf).
 function roundelCanvas(ctx, w) {
   const c = w / 2;
-  ctx.fillStyle = '#1d3f8f';
-  ctx.beginPath(); ctx.arc(c, c, c - 1, 0, 7); ctx.fill();
   ctx.fillStyle = '#f4f6f8';
-  ctx.beginPath(); ctx.arc(c, c, c * 0.72, 0, 7); ctx.fill();
-  leaf(ctx, c, c, c * 0.56, '#d2202c');
+  ctx.beginPath(); ctx.arc(c, c, c - 1, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1d3f8f';
+  ctx.beginPath(); ctx.arc(c, c, c * 0.96, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f4f6f8';
+  ctx.beginPath(); ctx.arc(c, c, c * 0.6, 0, 7); ctx.fill();
+  leaf(ctx, c, c, c * 0.52, '#d2202c');
 }
 
 // The NATO star: a ring and four broad points, each half light and half grey (Patrick's photo of 156102).
