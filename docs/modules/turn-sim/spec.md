@@ -467,7 +467,7 @@ One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** 
 4. ~~The speed brakes~~: answered (very rarely, for too much closure; not ideal).
 5. ~~The echelon place~~: settled by TS-182 (18 back, 43 out, 3 down from the SMM references); section 4's table corrected.
 
-## 7c. Route and the station changes on the live wingman (B3; DRAFT, every open question answered 14 Oct 2026, awaiting Patrick's approval)
+## 7c. Route and the station changes on the live wingman (B3; approved by Patrick 14 Oct 2026, TS-231: "Once you fix the route trhing, Approve spec 7c and TS-231")
 
 **Objective.** With "#2 in close formation: Live", the live close-in wingman of 7b also holds route and line astern, follows Lead's telegraphed turns in them, and flies the changes between the close formations himself: echelon to route and back along the line, echelon to line astern and back, and the station change to echelon on the other side through the corner (the crossunder). The tracker and the held poses keep flying them with Held. Patrick's order (14 Oct 2026): B3 now; then fighting wing, its TRJ and SARJ, the line abreast manoeuvres and the hot turning rejoin, the 4-ship, the training errors.
 
