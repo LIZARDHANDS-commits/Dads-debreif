@@ -8,6 +8,19 @@ Thank you for the review. One more piece of work on the same design, using the s
 
 Everything you need is in this message and your own report. Please do not open any file.
 
+## The instructor's answers to your questions, and two corrections
+
+These are fixed givens now; fold them into your tables and sizing.
+
+1. **Pass clear's push (your question 1):** by urgency, smoothly, no switch: about 0.5 G for an ordinary drop, easing toward about 0 G only when the pass is close. In his words, in a turn "you can just relax some G to go out, rarely do you have to go to 0 G": relaxing some G is usually enough to go out (and a little down).
+2. **The sustained turn (your question 2), and a correction:** yes, the trainer holds 200 KIAS in a 2 G level turn at 8,000 ft. The simulator's trainer model at 200 KIAS and 8,000 ft, full power, has this acceleration in hand: +1.85 kt/s at 1 G, +0.93 at 2 G, +0.24 at 2.5 G, −0.60 at 3 G, −2.75 at 4 G (sustained about 2.7 G). Brief 3's "about 1 kt/s in hand" was the 2 G figure, not the 1 G one, so your D14 does not hold at Lead's 2 G; it applies only when #2 pulls well past about 2.5 G. Also: turns in the trail cone are usually 90-180° of heading for manoeuvring, not sustained; the measuring tool's 30 s academic turns (about 250°) are longer than he flies.
+3. **Pass clear's energy (your question 3):** no fixed power rule. His model: the throttle adds or subtracts energy, the stick transforms it, G uses it up, and height and speed trade it. So pass clear's energy intent is set from the picture when it is planned: power back when closure is the problem, power in when he would be stretched afterwards, like every other move.
+4. **The steering (your question 4):** your gentler slope is accepted: course gain 0.5 per second, Ke 0.026° per ft (about 1 per 420 ft under the 20° cap, 1 per 250 ft under 12°). The 20° and 12° caps stand.
+5. **The arc loop (your question 5):** τ_s stays 10 s.
+6. **The speed brake (your question 6):** only when bleeding on purpose: out when closing over about 60 ft/s for 1 s with a bleed intent, in under about 20 ft/s, held at least 3 s.
+7. **A correction to your question 7:** the climb-out-of-plane reset comes back down onto Lead's circle behind him and ends stacked low (the instructor's ruling, in brief 3's technique table); it is above Lead only during the climb.
+8. **Your findings:** D3 approved (#2 runs Lead's seen bank forward by the roll rate he sees across the 0.4 s, from what he sees, never Lead's plan). D4 approved (vertical first; only when the vertical alone cannot make the pass in time, the least turn away that makes it, the guard choosing). D1, D5, D6, D7, D9, D10, D11, D12, your cubic guard taper and your C10 definition are approved too.
+
 ## Today's wiring, in the trail cone
 
 ### Who passes what to whom (today's N² chart, by source block)
@@ -150,8 +163,13 @@ These are the project's block diagrams, written as their boxes. Each numbered la
 3. **Gaps.** Any link today's design needs, or the close-formation pattern shows, that your tables lack; and any new link with no stated purpose.
 4. **Re-check** C1 (one owner per control), C5 (interaction) and C6 (switches) on the reconciled tables.
 5. **Revise** your tables where this changes them: give only the rows that change, with the reason.
-6. **Draw your recommended structure** as a diagram the project can render: a mermaid flowchart (`flowchart TB`), one node per block, each edge labelled with what passes. Use one edge style for physics (`-->`), another for limits and requests (`-.->`) and a third for any decision or switch state (`==>`), and group the layers with subgraphs as in the level-1 diagrams above. Then give the same diagram as a short boxes-and-arrows list. If the loops need it, add a second, level-2 diagram for the loops alone (each loop's inputs, gains and output). A mermaid diagram is a drawing notation; it is fine to write, even though no code is wanted.
+6. **Draw your recommended structure** (the proposed design with your D1-D20 changes folded in, and with any changes this reconciliation brings) as a diagram the project can render: a mermaid flowchart (`flowchart TB`), one node per block, each edge labelled with what passes. Use one edge style for physics (`-->`), another for limits and requests (`-.->`) and a third for any decision or switch state (`==>`), and group the layers with subgraphs as in the level-1 diagrams above. Then give the same diagram as a short boxes-and-arrows list. If the loops need it, add a second, level-2 diagram for the loops alone (each loop's inputs, gains and output). A mermaid diagram is a drawing notation; it is fine to write, even though no code is wanted.
 
-Please give: the reconciliation table; the classification of your N² cells; the gaps; the three gate re-checks; the changed rows; the diagram (mermaid, then the list); and any new findings, each marked "fix before building", "can wait" or "note", with its evidence and your confidence.
+7. **Pass clear, re-planned with the answers:** its profile (push by urgency from about 0.5 G toward 0 G, hold, pull back to the stack), the least turn mix when the vertical alone can't reach in time, its energy intent set from the picture, its cue time and its bands; as a short plan with its numbers, each marked a guess.
+8. **The build plan, re-cut by your D7:** each slice from 0 to 8b with what it builds, what it removes and its acceptance, checking that each adds one loop group or one technique family and leaves the wingman flyable; include the forced G-cap case and the abeam restriction you proposed.
+9. **The rig steps for slice 0:** exactly how to measure the turn-rate lag and the G lag your margins depend on: the trims, the step sizes, what to read, and the value at which each loop's C2 verdict changes.
+10. **Re-check with the corrected energy numbers:** anything in your report that rested on D14 (slice 4's "within 15 KIAS of Lead at each turn's end", the drop low inside, the power trim).
+
+Please give: the reconciliation table; the classification of your N² cells; the gaps; the three gate re-checks; the changed rows; the diagram (mermaid, then the list); pass clear's plan; the re-cut slices; the rig steps; the energy re-check; and any new findings, each marked "fix before building", "can wait" or "note", with its evidence and your confidence.
 
 You are working on your own: nobody is watching, and nobody can answer a question while you work. Finish the whole task before you stop. Don't end with a plan for what you would do next, or with a question asking whether to carry on; do that work. If a question comes up, finish everything that doesn't depend on it, state the assumption you made, and list the question at the end. The tables and findings are the deliverable: report them and stop, and don't write code. Keep to what is asked here; anything else you notice goes in a short "Notes" section at the end. Please remove all mannered prose: say what you mean in plain, direct words.
