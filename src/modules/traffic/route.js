@@ -365,14 +365,33 @@ export function pointDistFt(route, index, options = DEFAULT_ROUTE_OPTIONS) {
   const path = routePath(route, options);
   let sum = path.pointDists.get(index); // the sim asks for the same few points every step
   if (sum === undefined) {
-    sum = 0;
-    for (const s of path.segs) {
-      if ((s.a.src ?? 0) >= index) break;
-      sum += s.len;
+    sum = path.built ? flownPointDistFt(path.segs, index) : null;
+    if (sum === null) {
+      sum = 0;
+      for (const s of path.segs) {
+        if ((s.a.src ?? 0) >= index) break;
+        sum += s.len;
+      }
     }
     path.pointDists.set(index, sum);
   }
   return sum;
+}
+
+/**
+ * On a path a builder flew (route.js FLOWN_BUILDERS), the distance to where route point `index` first starts, or null
+ * when the path never passes it. Such a path need not pass its points in order: the Astra's lap passes 0, 1, 7, 8, 9,
+ * 10, 5, 6, 2, 3, 4 (astra-circuit.js ASTRA_POINT; spec 4.19 item 11), so "the first point at or past this index"
+ * would put its downwind, perch and window on the upwind. A point the path never passes (the Astra's 45 to initial, a
+ * start the sim flies off the lap) falls back to that rule, as before.
+ */
+function flownPointDistFt(segs, index) {
+  let sum = 0;
+  for (const s of segs) {
+    if ((s.a.src ?? 0) === index) return sum;
+    sum += s.len;
+  }
+  return null;
 }
 
 /**
@@ -428,7 +447,8 @@ export function positionAt(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
 /** The flown path as points to draw: `[{ x, y, alt }]` (the rounded turns V6 draws, 5 to 28 steps each). */
 export function drawPath(route, options = DEFAULT_ROUTE_OPTIONS) {
   const path = routePath(route, options);
-  path.draw ??= path.points.map((p) => ({ x: p.x, y: p.y, alt: p.alt ?? 2500 }));
+  // A builder may give its own line to draw (the Astra's lap with its 45 to initial as a spur, astra-circuit.js `drawn`).
+  path.draw ??= (path.built?.drawn ?? path.points).map((p) => ({ x: p.x, y: p.y, alt: p.alt ?? 2500 }));
   return path.draw;
 }
 

@@ -166,6 +166,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   const windowOf = (pat) => pat?.points?.[isAstraPattern(pat) ? ASTRA_POINT.window : 12];
   /** The Astra pattern's perch today (the perch search's, in today's wind), or its route point when it is drawn, not flown. */
   const astraPerchOf = (pat) => flownBuildOf(pat, routeOptions())?.perch ?? pat.points[ASTRA_POINT.perch];
+  /** The Astra pattern's build when it has its outer pattern and both ways to initial (astra-circuit.js `via45`), else null. */
+  const astraOuterOf = (route) => {
+    if (!isAstraPattern(route)) return null;
+    const built = flownBuildOf(route, routeOptions());
+    return built?.via45?.length ? built : null;
+  };
 
   // ── Aircraft ───────────────────────────────────────────────────────────────
 
@@ -191,9 +197,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // route's last point along the line it flies; startIndex becomes the spot it starts after.
       const lastIndex = route.points.length - 1;
       a.distFt = Math.max(0, pointDistFt(route, lastIndex, routeOptions()) - a.backFt);
-      let after = 0;
-      while (after < lastIndex - 1 && pointDistFt(route, after + 1, routeOptions()) <= a.distFt) after++;
-      a.startIndex = after;
+      if (astraOuterOf(route)) {
+        // The Astra's lap passes its points out of order (astra-circuit.js ASTRA_POINT): the spot is the one it is on.
+        a.startIndex = posOnRoute(route, a.distFt, routeOptions()).seg;
+      } else {
+        let after = 0;
+        while (after < lastIndex - 1 && pointDistFt(route, after + 1, routeOptions()) <= a.distFt) after++;
+        a.startIndex = after;
+      }
     } else {
       a.distFt = pointDistFt(route, Math.min(+a.startIndex || 0, route.points.length - 1), routeOptions());
     }
@@ -225,8 +236,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
       a.phase = p.phase || (isBrkPoint ? 'break' : 'initial');
       // The Astra's Initial and Break are not on its lap: it flies the overhead from there, then joins the lap's downwind.
-      if (isAstraPattern(route) && (+a.startIndex === ASTRA_POINT.initial || +a.startIndex === ASTRA_POINT.break)) startAstraOverhead(a, route);
+      // Its 45 to initial is not on the lap either: it flies that way round from there and joins the lap on initial.
+      const bySpot = isAstraPattern(route) && !Number.isFinite(a.backFt);
+      if (bySpot && (+a.startIndex === ASTRA_POINT.initial || +a.startIndex === ASTRA_POINT.break)) startAstraOverhead(a, route);
+      else if (bySpot && +a.startIndex === ASTRA_POINT.fortyFiveToInitial) startAstraVia45(a, route, null);
     }
+    // Which way back to initial its first lap flies (the 90 or the 45). A start placed by distance back (Spawn a
+    // conflict) flies the 90, the lap its planner flew (scenario-timing.js).
+    rollWayToInitial(a, route, Number.isFinite(a.backFt));
     a.trackDeg = a.headingDeg;
     a.crabDeg = 0;
     a.gsKt = a.iasKt;
@@ -353,6 +370,52 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   }
 
   /**
+   * The Astra's way back to initial for its next lap (spec 4.19 item 11; TR-164, a working answer not yet confirmed with
+   * Patrick): the 90 to initial (the lap itself) or the 45 to initial (flown off the lap: startAstraVia45), at even odds,
+   * from the run's seed, the callsign and the roll's count (randomize.js rollFor), so a rewind replays the same and no
+   * other aircraft's dice change. Rolled when an aircraft appears and at each touch-and-go; `force90` gives the 90
+   * without a roll. Only for the Astra pattern with its outer pattern built; nothing for any other route.
+   */
+  function rollWayToInitial(a, route, force90 = false) {
+    if (!astraOuterOf(route)) return;
+    if (force90) { a.toInitial = '90'; return; }
+    a.toInitialRolls = (a.toInitialRolls ?? 0) + 1;
+    a.toInitial = rollFor(seed, `${a.id}:initial`, a.toInitialRolls) < 0.5 ? '45' : '90';
+  }
+
+  /**
+   * The Astra's 45 to initial (spec 4.19 item 11): the path its builder flew in today's wind from the branch point on
+   * the outside downwind (astra-circuit.js buildAstraCircuit `via45`, which starts at the lap's own place, speed and
+   * heading there, `branchFt` along it), followed by the path follower; a few seconds after it settles on initial it
+   * joins the lap there (goAroundEnded, 'join', nearest by height, so never the final below the same line). `overFt` is
+   * how far past the branch point the aircraft already is; with null it starts at the 45's own turn (its spot,
+   * ASTRA_POINT.fortyFiveToInitial). It carries the overhead's id (behaviour.js names it by the lap's word), flagged as
+   * flown on its lap, so the deconfliction counts it established in its pattern, not joining (deconflict.js).
+   */
+  function startAstraVia45(a, route, overFt) {
+    const built = astraOuterOf(route);
+    if (!built) return false;
+    const from = overFt === null ? Math.max(0, built.via45.findIndex((q) => q.src === ASTRA_POINT.fortyFiveToInitial)) : 0;
+    const points = built.via45.slice(from, built.via45JoinIndex + 1);
+    if (points.length < 2) return false;
+    setFlown(a, 'move', { id: 'ASTRA_OVERHEAD_FLOWN', kind: 'flown', name: '45 to initial', points }, { then: 'join', joinId: route.id, onLap: true, joinByHeight: true });
+    delete a.joinOffset;
+    if (overFt !== null) { a.distFt = overFt; return true; }
+    const q = points[0];
+    Object.assign(a, { x: q.x, y: q.y, alt: q.alt, iasKt: q.kt, headingDeg: q.headingDeg ?? a.headingDeg, distFt: 0, phase: q.phase ?? 'initial', tag: q.tag ?? 'to_initial' });
+    return true;
+  }
+
+  /** An Astra on its lap rolled the 45 to initial: past the branch point on the outside downwind, it flies that way round. */
+  function wayToInitial(a, route, oldDist, newDist) {
+    if (a.toInitial !== '45' || a.flown) return;
+    const built = astraOuterOf(route);
+    const lengthFt = built ? routeLengthFt(route, routeOptions()) : 0;
+    if (!lengthFt || !crossed(oldDist, newDist, built.branchFt, lengthFt)) return;
+    startAstraVia45(a, route, ((newDist - built.branchFt) % lengthFt + lengthFt) % lengthFt);
+  }
+
+  /**
    * A landing for the stop (Traffic spec 4.17, TR-115; Patrick, 10 Oct 20:38Z): on 29L it rolls out to 20 kt by the
    * runway's end and taxis in to the Bandit hangar (taxi.js), where it is removed; anywhere else (a made-up route
    * that lands off the runway) it is removed at touchdown, as before.
@@ -439,6 +502,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         return;
       } else {
         a.phase = 'touch_and_go';
+        rollWayToInitial(a, route);
       }
     }
     // Each split from this pattern rolls in turn, and a later one can override an earlier one (V6 bug #47, kept for now).
@@ -498,8 +562,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const from = { x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0 };
     // The Astra's own go-around (astra-circuit.js; spec 4.19 item 3): straight to 3,000 ft and onto its downwind. The
     // move-over's side step, level and speed are the CT-156's and are not given to it (spec 4.19 item 6).
+    // With the outer pattern it holds the downwind line until just past the break's roll-out before joining the lap
+    // (astra-circuit.js goAroundJoin), so it never joins the upwind.
     const points = isAstraPattern(pat)
-      ? buildAstraGoAround(pat.points, from, wind.windFromDeg, wind.windKt, astraPerchOf(pat))
+      ? buildAstraGoAround(pat.points, from, wind.windFromDeg, wind.windKt, astraPerchOf(pat), undefined, astraOuterOf(pat)?.goAroundJoin ?? null)
       : buildGoAround(pat.points, from, wind.windFromDeg, wind.windKt, sideFt, levelAltFt, holdKias);
     setFlown(a, 'move', { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points });
     a.distFt = 0;
@@ -903,7 +969,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function goAroundEnded(a) {
     delete a.goAroundDone;
     const move = flownOf(a, 'move');
-    const then = move?.then, joinId = move?.joinId;
+    const then = move?.then, joinId = move?.joinId, joinByHeight = Boolean(move?.joinByHeight);
     if (move) delete a.flown;
     // The deconfliction's short moves: the breakout follows, or the straight-in is joined again.
     if (then === 'breakout') { startBreakout(a, a.spacing?.deconflict?.layer === 'skill'); return; }
@@ -928,7 +994,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!route) { a.active = false; return; }
       const opt = routeOptions();
       a.routeId = route.id;
-      startJoin(a, route, closestDistFt(route, a, opt), windNow(), opt);
+      startJoin(a, route, closestDistFt(route, a, opt, { byHeight: joinByHeight }), windNow(), opt);
       a.phase = posOnRoute(route, a.distFt, opt).phase || 'route';
       return;
     }
@@ -997,6 +1063,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), windNow(), opt);
     a.phase = 'touch_and_go';
     a.command = null;
+    rollWayToInitial(a, pat);
   }
 
   /** The end of a flown path, by kind: a PFL that has flown its glide, then a move that has flown its path. */
@@ -1126,6 +1193,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
     const route = routeOf(a);
     const beforeDist = a.distFt;
+    const onRouteBefore = !a.flown; // beforeDist is along the route, not along a flown path that ends this step
     const sideStepping = Boolean(a.sideStep);
     tickAircraft(a, STEP_SEC, wind, route, opt);
     // A PFL's bank away has ended, its height charged: re-plan the glide from where it really is (TR-55).
@@ -1135,6 +1203,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const len = routeLengthFt(route, opt);
       if (route.kind === 'pattern' && a.distFt >= beforeDist) {
         checkDecisions(a, beforeDist, a.distFt);
+        // The Astra's way back to initial: the 45 is flown off the lap from the branch point (the 90 is the lap).
+        if (onRouteBefore && a.active && isAstraPattern(route)) wayToInitial(a, route, beforeDist, a.distFt);
       }
       if (a.active && len && a.distFt >= len && !isClosedRoute(route)) {
         handleRouteEnd(a, a.distFt - len);

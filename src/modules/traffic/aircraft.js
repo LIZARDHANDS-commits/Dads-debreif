@@ -52,13 +52,19 @@ export const SPOT_CHOICES = Object.freeze({
   ]),
   // The CT-102B Astra II's pattern (spec 4.19 item 6, plan Step 5c Phase 3): the same four spots as the overhead break's,
   // from its own route points (astra-circuit.js ASTRA_POINT), and the take-off from the runway. Downwind is where its
-  // climbing turn rolls out, about abeam the departure end.
+  // break rolls out. The outer pattern's five (spec 4.19 item 11, V2.429) are offered only when the route has their
+  // points (spotChoices), so a setup saved with the seven-point route keeps its old spots.
   PAT_ASTRA: Object.freeze([
     { label: 'Initial', point: ASTRA_POINT.initial + 1 },
     { label: 'In the break', point: ASTRA_POINT.break + 1 },
     { label: 'Downwind', point: ASTRA_POINT.downwind + 1 },
     { label: 'Perch', point: ASTRA_POINT.perch + 1 },
     { label: 'Take-off', point: ASTRA_POINT.threshold + 1 },
+    { label: 'Upwind', point: ASTRA_POINT.upwind + 1 },
+    { label: 'Crosswind', point: ASTRA_POINT.crosswind + 1 },
+    { label: 'Outside downwind', point: ASTRA_POINT.outerDownwind + 1 },
+    { label: '90 to initial', point: ASTRA_POINT.ninetyToInitial + 1 },
+    { label: '45 to initial', point: ASTRA_POINT.fortyFiveToInitial + 1 },
   ]),
 });
 

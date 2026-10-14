@@ -59,6 +59,12 @@ export const ASTRA_FEWEST_POINTS = ASTRA_POINT.break + 1;
 export const ASTRA_OUTER_POINTS = ASTRA_POINT.fortyFiveToInitial + 1;
 /** An Astra flying off its lap (the overhead from its initial, the 45 to initial) joins the lap again this many path points (0.4 s each) after it rolls out on its downwind or its initial (an engineering choice: wings level on the line). */
 export const ASTRA_JOIN_POINTS = 40;
+/**
+ * With the outer pattern, the go-around holds the inner downwind line until this far past where the lap's break rolls
+ * out, ft, before it joins the lap (an engineering choice): joined any earlier, the lap nearest to it is the upwind, a
+ * downwind's width away, not the inner downwind (spec 4.19 item 11, "What stays").
+ */
+export const ASTRA_GO_AROUND_JOIN_PAST_ROLLOUT_FT = 500;
 /** The phases of the lap's outer pattern, whose turns are flown at the outer bank (ASTRA_PATTERN.outerTurnBankDeg, TR-164); every other turn is the break's 60° or 30°. */
 export const ASTRA_OUTER_PHASES = Object.freeze(['crosswind', 'outer_downwind', 'initial']);
 
@@ -117,8 +123,10 @@ function downwindLineThrough(perch, th, dep) {
  * downwind line once at height and past the departure end. Stops once on the line, wings level. Returns { track, end }.
  * With `from` (an aircraft's state { x, y, alt, kias, headingDeg, bankDeg }) it is the go-around from there instead
  * (buildAstraGoAround): the same climb along the centreline and the same climbing turn, named 'go_around' until the turn.
+ * With `holdTo` ({ alongFt, kias }: buildAstraCircuit's `goAroundJoin`), once on the line it holds the downwind at
+ * pattern height, at full power toward `kias`, until it is `alongFt` past the threshold, and stops there.
  */
-function flyClimbOut(points, centre, downwind, wind, k, from = null) {
+function flyClimbOut(points, centre, downwind, wind, k, from = null, holdTo = null) {
   const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd];
   const runwayFt = Math.hypot(dep.x - th.x, dep.y - th.y);
   const start = from
@@ -129,9 +137,15 @@ function flyClimbOut(points, centre, downwind, wind, k, from = null) {
   if (!from) s.hdg = pilot.headingFor(centre.trackDeg);
   s.tag = from ? 'go_around' : 'climb';
   pilot.record();
-  let turning = false, turned = 0;
+  let turning = false, turned = 0, holding = false;
   for (let n = 0; n < MAX_STEPS; n++) {
     const along = legOffsetsFt(th, dep, s).alongFt;
+    if (holding) {
+      if (along <= holdTo.alongFt) break;
+      const { climb, accel } = powerClimb(pilot, holdTo.kias, k.patternAltFt);
+      pilot.step(bankFor(pilot.headingFor(trackForLine(downwind, s, HOLD_RADIUS_FT)), s, 30), climb, accel);
+      continue;
+    }
     if (s.src < ASTRA_POINT.departureEnd && along >= runwayFt) pilot.mark({ src: ASTRA_POINT.departureEnd });
     if (!turning && along >= runwayFt && s.alt >= k.patternAltFt - NEAR_HEIGHT_FT) {
       turning = true;
@@ -146,7 +160,12 @@ function flyClimbOut(points, centre, downwind, wind, k, from = null) {
       // The circle-onto-a-line law at the turn's own radius: a steady 30° turn that rolls out on the downwind line.
       const R = turnRadiusFromBankFt(ktToFtps(pilot.tasKt()), k.climbingTurnBankDeg);
       bank = bankFor(pilot.headingFor(trackForLine(downwind, s, R)), s, k.climbingTurnBankDeg, 'left');
-      if (turned > 90 && Math.abs(wrapDeg180(downwind.trackDeg - pilot.trackDeg())) < ON_LINE_DEG && Math.abs(bank) < WINGS_LEVEL_DEG && Math.abs(s.bank) < WINGS_LEVEL_DEG) break;
+      if (turned > 90 && Math.abs(wrapDeg180(downwind.trackDeg - pilot.trackDeg())) < ON_LINE_DEG && Math.abs(bank) < WINGS_LEVEL_DEG && Math.abs(s.bank) < WINGS_LEVEL_DEG) {
+        if (!holdTo) break;
+        holding = true;
+        pilot.mark({ src: ASTRA_POINT.downwind, phase: 'downwind', tag: 'downwind' });
+        continue;
+      }
     }
     const hdgBefore = s.hdg;
     pilot.step(bank, climb, accel);
@@ -350,6 +369,9 @@ function lengthTo(track, to) {
  *    it where the sim joins the lap again on initial (ASTRA_JOIN_POINTS after it is settled on the centreline);
  *    branchFt: how far along `track` the branch point is (where via45 starts, the same place, speed and heading);
  *  - drawn: the line to draw, the lap with the 45 to initial as a spur off it (out along via45 to its join, then back);
+ *  - goAroundJoin: { alongFt, kias }, where a go-around hands over to the lap (buildAstraGoAround's `holdTo`): on the
+ *    inner downwind ASTRA_GO_AROUND_JOIN_PAST_ROLLOUT_FT past the break's roll-out (ft past the threshold), and the
+ *    lap's speed there;
  *  - fromInitial: the overhead from the initial point to touchdown;
  * each path [{ x, y, alt, kt, g, bankDeg, src, phase, headingDeg, tag }]; the perch the search found, where the break
  * starts (ft past the threshold), how far the lap's final turn rolled out from the window (ft), and the seconds each path
@@ -383,8 +405,18 @@ export function buildAstraCircuit(points, windFromDeg = 360, windKt = 0, numbers
   const via45JoinIndex = onInitial < 0 ? via45.length - 1 : Math.min(via45.length - 1, onInitial + ASTRA_JOIN_POINTS);
   const spur = via45.slice(0, via45JoinIndex + 1);
   const drawn = [...track.slice(0, branchIndex), ...spur, ...spur.slice(0, -1).reverse(), ...track.slice(branchIndex + 1)].map((q) => ({ x: q.x, y: q.y, alt: q.alt }));
+  // Where a go-around hands over to the lap: on the inner downwind, ASTRA_GO_AROUND_JOIN_PAST_ROLLOUT_FT past the break's
+  // roll-out, at the lap's speed there.
+  const rolloutIndex = track.findIndex((q) => q.tag === 'break_rollout');
+  let goAroundJoin = null;
+  if (rolloutIndex >= 0) {
+    const alongFt = legOffsetsFt(th, dep, track[rolloutIndex]).alongFt - ASTRA_GO_AROUND_JOIN_PAST_ROLLOUT_FT;
+    const at = track.find((q, i) => i > rolloutIndex && legOffsetsFt(th, dep, q).alongFt <= alongFt) ?? track[rolloutIndex];
+    goAroundJoin = { alongFt, kias: at.kt };
+  }
   return {
     track,
+    goAroundJoin,
     via45,
     via45JoinIndex,
     branchFt: lengthTo(track, branchIndex),
@@ -435,11 +467,14 @@ function buildInnerLap(points, centre, breakAlong, initial, wind, k) {
  * the departure end, the 30° climbing turn onto the downwind line, the same climb-out and turn as the lap after a
  * touch-and-go (flyClimbOut). It stops once on the downwind line, wings level, where the Astra route carries on (sim.js
  * goAroundEnded). `points` are the Astra route's; the downwind line is the one through today's perch (the route's lap,
- * buildAstraCircuit's `perch`, passed in). Returns the path [{ x, y, alt, kt, g, bankDeg, src, phase, headingDeg, tag }].
+ * buildAstraCircuit's `perch`, passed in). With the outer pattern the lap's upwind is the nearest part of the lap to
+ * where the climbing turn rolls out, so the go-around holds the downwind line on to `holdTo` (buildAstraCircuit's
+ * `goAroundJoin`: about 500 ft past the break's roll-out) before it stops and joins the lap there (spec 4.19 item 11;
+ * an engineering choice). Returns the path [{ x, y, alt, kt, g, bankDeg, src, phase, headingDeg, tag }].
  */
-export function buildAstraGoAround(points, from, windFromDeg, windKt, perch, numbers = ASTRA_PATTERN) {
+export function buildAstraGoAround(points, from, windFromDeg, windKt, perch, numbers = ASTRA_PATTERN, holdTo = null) {
   const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd];
-  return flyClimbOut(points, lineOf(th, dep), downwindLineThrough(perch, th, dep), { windFromDeg, windKt }, numbers, from).track;
+  return flyClimbOut(points, lineOf(th, dep), downwindLineThrough(perch, th, dep), { windFromDeg, windKt }, numbers, from, holdTo).track;
 }
 
 /**

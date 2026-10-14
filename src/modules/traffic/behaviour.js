@@ -96,7 +96,7 @@ function patternOf(a, ctx) {
   // Round the lap the tag names the pattern or phase (OHB, DW, FT, or SI); the stage still sets the configuration.
   // A type with its own pattern names it the whole way round with its own word.
   if (own) {
-    const stage = { climb: 'upwind', climb_out: 'upwind', touch_and_go: 'upwind', go_around: 'upwind', crosswind: 'outer', initial: 'initial', break: 'break', downwind: 'inner_downwind', final_turn: 'final', final: 'final' }[a.phase];
+    const stage = { climb: 'upwind', climb_out: 'upwind', touch_and_go: 'upwind', go_around: 'upwind', crosswind: 'outer', outer_downwind: 'outer', initial: 'initial', break: 'break', downwind: 'inner_downwind', final_turn: 'final', final: 'final' }[a.phase];
     return stage ? { pattern: own, next: null, stage, short: true } : null;
   }
   const lap = a.siPattern ? 'SI' : 'OHB';

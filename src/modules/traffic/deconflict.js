@@ -48,7 +48,11 @@ export const DECONFLICT = Object.freeze({
  */
 const PATTERN_HEIGHT_FT = Object.freeze({ PAT1: PATTERN_ALT_FT, PAT_ASTRA: ASTRA_PATTERN.patternAltFt });
 
-/** The Astra's own overhead from its initial (sim.js startAstraOverhead): its join, flown before it is on its lap. */
+/**
+ * The Astra's own overhead from its initial (sim.js startAstraOverhead): its join, flown before it is on its lap. Its 45
+ * to initial (sim.js startAstraVia45, spec 4.19 item 11) carries the same id, flagged `onLap`: flown from its own lap, so
+ * it stands by its phase (outer_downwind, initial) and counts as established in its pattern, not joining.
+ */
 const OWN_OVERHEAD_ID = 'ASTRA_OVERHEAD_FLOWN';
 
 /** Where each aircraft stands, for the right-of-way table: keyed on route kind and phase, never a route name. */
@@ -304,7 +308,7 @@ export function freeze(aircraft, pathOf, routeOf) {
     const patternId = typeProfile(a.type).patternRouteId;
     const ownMoves = patternId !== 'PAT1';
     const standing = standingOf(a, route, ownMoves);
-    const joining = ownMoves && a.flown?.route?.id === OWN_OVERHEAD_ID && (standing === 'initial' || standing === 'break');
+    const joining = ownMoves && a.flown?.route?.id === OWN_OVERHEAD_ID && !a.flown.onLap && (standing === 'initial' || standing === 'break');
     // A straight-in is on final only on its last leg; further out it breaks out like anyone else (Patrick's Q3, Q7).
     const finalLeg = standing === 'straight_in' && route?.points?.length >= 2 && Number.isFinite(a.distFt)
       ? a.distFt >= pointDistFt(route, route.points.length - 2, path?.options) : undefined;

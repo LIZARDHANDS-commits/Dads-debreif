@@ -83,7 +83,6 @@ export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-15
     targetAt.push(flying.find((a) => a.id === targetId) ?? null);
     others.push(flying.map((a) => ({ x: a.x, y: a.y, alt: a.alt })));
   }
-  const lap = trackOf(setup, { type, routeId, startIndex: 0 }, CONFLICT_LAP_SEC);
   // The route's length in today's wind, with the options the sim flies it with (sim.js routeOptions): a route the pilot
   // flies (the Astra pattern, route.js `flown`) is built for the wind, so its length changes with it, and `backFt` is
   // measured back from its end by the sim the same way (plan Step 5c Phase 4; before, the calm-air length was used,
@@ -95,6 +94,10 @@ export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-15
     windFromDeg: setup.windFromDeg ?? setup.routeOptions?.windFromDeg ?? 360,
   };
   const endFt = pointDistFt(route, route.points.length - 1, opt);
+  // A route the pilot flies is started by distance back (the whole route back: its start), as the spawn it plans is, so
+  // both fly the same lap: the Astra's with the 90 to initial, never the 45 its dice might pick (sim.js toStart; spec
+  // 4.19 item 11).
+  const lap = trackOf(setup, { type, routeId, startIndex: 0, ...(route.flown ? { backFt: endFt } : {}) }, CONFLICT_LAP_SEC);
   const lead = Math.ceil(CONFLICT_LEAD_SEC / SAMPLE_SEC) - 1;
   const meets = (o, b) => o && b && Math.abs(o.alt - b.alt) < HEIGHT_FT && Math.hypot(o.x - b.x, o.y - b.y) < HEIGHT_FT;
   // The starts on the route's first lap: while it is still on this route, before its end.
