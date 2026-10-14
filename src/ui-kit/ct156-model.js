@@ -820,8 +820,8 @@ export function ct156PiecesHash(pieces) {
 const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 // The prop's blade 1 and its tip from the same file (3d-work chunk 8b; delivery 423e5eb on), taken only both together and
-// only when the file has them, so an older delivery leaves the code's blades; the root cuffs (bladeCuff) with them when
-// the file has faces for them (High only). Not in EXTERIOR_PARTS: the export scripts in tools/blender/ never had them.
+// only when the file has them, so an older delivery leaves the code's blades. Not in EXTERIOR_PARTS: the export scripts in
+// tools/blender/ never had them.
 const PROP_PARTS = Object.freeze(['blade', 'bladeTip']);
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
 // The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
@@ -910,11 +910,9 @@ function attachExterior(kit) {
     kit.ao = loadAo(kit.THREE, CT156_FILES + EXTERIOR_AO);
     kit.skin = { bump: loadAo(kit.THREE, CT156_FILES + EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, CT156_FILES + EXTERIOR_DIRT) };
     for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
-    // The prop's blade 1 and its tip (and the root cuffs where the file has faces for them: High only), when the file has
-    // them (3d-work delivery 423e5eb on); before that the code's plates stay.
+    // The prop's blade 1 and its tip, when the file has them (3d-work delivery 423e5eb on); before that the code's plates stay.
     if (PROP_PARTS.every((name) => usable(byName.get(name)))) {
       for (const name of PROP_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-      if (usable(byName.get('bladeCuff'))) takeShape(kit.THREE, kit.geo.bladeCuff, byName.get('bladeCuff').meshes);
       kit.propDelivered = true;
       for (const mesh of kit.propMeshes) shadeMesh(kit, mesh);
     }
@@ -2481,7 +2479,7 @@ function buildKit(THREE) {
   // Blender file delivers them (3d-work chunk 8b): pointing +Y, feathered as the master's blade is modelled
   // (PROP_FEATHER_DEG), on its pitch axis through the hub (PROP_HUB_FT). The ship draws it four times, each arm turned
   // about the prop's axis and pitched about the blade's own (createCt156Model, PROP_PITCH). These flat plates are the
-  // fallback until the file's blade attaches (attachExterior); the file's root cuffs (F29, High only) have none.
+  // fallback until the file's blade attaches (attachExterior).
   // Dark (G2; Traffic's turning prop hides them: blurProp).
   const hubX = PROP_HUB_FT * GFT, tipStart = (39 / 12) * GFT;
   const blade = (v0, v1, w0, w1) => {
@@ -2494,7 +2492,6 @@ function buildKit(THREE) {
   };
   geo.blade = blade(0.03, tipStart, 0.016, 0.0132);
   geo.bladeTip = blade(tipStart, 0.175, 0.0132, 0.012);
-  geo.bladeCuff = emptyGeometry(THREE);
   // The landing and taxi lamp (GEAR_LAMP): the gear's Blender file's, in its hinge's frame; nothing until it attaches (the
   // old glow, geo.gearLights, shows meanwhile).
   geo.gearLamp = emptyGeometry(THREE);
@@ -2692,10 +2689,9 @@ function buildKit(THREE) {
     // geometry (blurProp hides both), the blades' colour.
     tip: mat({ color: PROP_DARK, roughness: 0.6 }),
     // The turning prop's blades, half see-through so they read as a blur (PROP_TURN); the tips banded red, white and red
-    // (PROP_TIP_BANDS), and the root cuffs (the Blender file's, High only) black.
+    // (PROP_TIP_BANDS).
     propBlade: mat({ color: PROP_DARK, roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
     propTip: tipBands(mat({ color: PROP_DARK, roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two })),
-    propCuff: mat({ color: '#141619', roughness: 0.5, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
     disc: keep(new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, fog: false })),
     // The landing gear (gearMain's and gearNose's slots): light grey legs, the tyres, the wheels' hubs and the chrome
     // pistons; and the doors' insides, primer grey (colours estimates off Patrick's photos of 104 and 126).
@@ -2715,9 +2711,8 @@ function buildKit(THREE) {
     lamp: keep(new THREE.MeshBasicMaterial({ color: GEAR_LAMP.lit, fog: false })),
     propBladeStill: mat({ color: PROP_DARK, roughness: 0.6, side: two }),
     propTipStill: tipBands(mat({ color: PROP_DARK, roughness: 0.6, side: two })),
-    propCuffStill: mat({ color: '#141619', roughness: 0.5, side: two }),
     // The landing and taxi lamps as the Blender file draws them (GEAR_LAMP's colours): slot 0 the housing, 1 the lens,
-    // 2 the LEDs, off; lit, the lens and LEDs are \`lamp\` (setGear).
+    // 2 the LEDs, off; lit, the lens and LEDs are `lamp` (setGear).
     gearLamp: [
       mat({ color: GEAR_LAMP.housing, roughness: 0.35, metalness: 0.6, envMap: env, envMapIntensity: 0.8 }),
       mat({ color: GEAR_LAMP.lens, roughness: 0.12, metalness: 0.2, envMap: env, envMapIntensity: 0.9 }),
@@ -2743,9 +2738,9 @@ function buildKit(THREE) {
   kit.gearMeshes = new Set();
   kit.gearShaded = new WeakMap();
   kit.gearAo = null;
-  // The prop's blades and cuffs (PROP_PARTS) and the gear lamps, taken from the files when they have them: their meshes
-  // on every ship, shaded by the files' pictures once in; and every ship's lamps, to swap the glow for the file's lamp.
-  kit.propGeos = new Set([geo.blade, geo.bladeTip, geo.bladeCuff]);
+  // The prop's blades (PROP_PARTS) and the gear lamps, taken from the files when they have them: their meshes on every
+  // ship, shaded by the files' pictures once in; and every ship's lamps, to swap the glow for the file's lamp.
+  kit.propGeos = new Set([geo.blade, geo.bladeTip]);
   kit.propMeshes = new Set();
   kit.propDelivered = false;
   kit.lampMeshes = new Set();
@@ -3101,7 +3096,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     helmetRear = add(geo.helmetRear, mats.pilot, detail);
     seats = add(geo.seats, mats.headbox, detail);
     // The prop (turnProp turns it about the spinner's axis): four arms a quarter turn apart, each pitching blade 1's shape
-    // about the blade's own outward axis through the hub (PROP_PITCH; 3d-work hinge.blade1 to blade4), and the root cuffs.
+    // about the blade's own outward axis through the hub (PROP_PITCH; 3d-work hinge.blade1 to blade4).
     prop = new THREE.Group();
     prop.rotation.x = rad(PROP_REST_DEG);
     propPitch = [0, 1, 2, 3].map((k) => {
@@ -3116,7 +3111,6 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(geo.bladeTip, mats.propTip, pitch).position.x = -PROP_HUB_FT * GFT;
       return pitch;
     });
-    add(geo.bladeCuff, mats.propCuff, prop);
     detail.add(prop);
     // The glass last, so the cockpit shows through it.
     canopy = add(geo.canopy, mats.glass);
@@ -3132,7 +3126,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const lamps = { kit, glow: gearLights, meshes: gear.lampMeshes, lit: false };
   kit.lampShips.add(lamps);
   showLamps(lamps);
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip, mats.propCuff], still: [mats.propBladeStill, mats.propTipStill, mats.propCuffStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 
@@ -3165,13 +3159,13 @@ export function setPropStopped(root, stopped) {
   const on = Boolean(stopped);
   if (!d?.prop || d.propStopped === on) return;
   d.propStopped = on;
-  const [blade, tip, cuff] = d.propMats[on ? 'still' : 'running'];
+  const [blade, tip] = d.propMats[on ? 'still' : 'running'];
   const { geo } = d.kit;
   const blades = [];
   d.prop.traverse((o) => { if (o.isMesh) blades.push(o); });
   if (on) d.bladesShownRunning = blades.map((o) => o.visible);
   blades.forEach((o, i) => {
-    o.material = o.geometry === geo.bladeTip ? tip : o.geometry === geo.bladeCuff ? cuff : blade;
+    o.material = o.geometry === geo.bladeTip ? tip : blade;
     if (d.kit.propDelivered && d.kit.ao) shadeMesh(d.kit, o); // the file's blade keeps its picture
     o.visible = on ? true : (d.bladesShownRunning?.[i] ?? true);
   });

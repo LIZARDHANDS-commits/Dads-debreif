@@ -24,11 +24,11 @@ const DEST = join(ROOT, 'public', 'models', 'ct156');
 // The sheet layout this app reads (3d-work ct156/build/app_layout.json "layout"); raised there when the app must change.
 const LAYOUT = 1;
 // The parts the app takes from each file: src/ui-kit/ct156-model.js EXTERIOR_PARTS and GEAR_PARTS with the prop's
-// blade, tip and cuffs (PROP_PARTS; the cuffs High only, an empty part in Performance) and the gear lamp (since 3d-work
-// delivery 423e5eb), and the cockpit's parts (ct156-cockpit-model.js takes every part the file has; these are the ones it
+// blade and tip (PROP_PARTS) and the gear lamp (since 3d-work delivery 423e5eb; the root cuffs F29 were withdrawn in
+// 7bd9b52), and the cockpit's parts (ct156-cockpit-model.js takes every part the file has; these are the ones it
 // has today).
 const PARTS = {
-  'ct156-exterior.glb': ['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut', 'blade', 'bladeTip', 'bladeCuff'],
+  'ct156-exterior.glb': ['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut', 'blade', 'bladeTip'],
   'ct156-gear.glb': ['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor', 'gearLamp'],
   'ct156-cockpit.glb': ['body', 'canopy-rails', 'forward-bow', 'pcl', 'seat', 'shade', 'stick'],
 };
