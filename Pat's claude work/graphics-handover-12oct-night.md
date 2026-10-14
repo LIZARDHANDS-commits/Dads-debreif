@@ -5,7 +5,29 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026, late night): chunks 1 to 8 built and verified; read `3d-work` `ct156/plan.md` first (its decisions log, newest first, and "Next, in order")
+## Latest (14 Oct 2026, small hours): the first delivery of chunks 2 to 7, its import, the flight-photo fixes; read `3d-work` `ct156/plan.md` first (its decisions log, newest first)
+
+- **Delivery and import:** delivery `ct156-2026-10-13-17f0c75` (from `ct156-pilots`) passed and is imported on app
+  **#1035** (`shared-3d-ct156-import-c2c7`, on #1034; every chunk's app numbers, the inboard doors open when parked as
+  an option, the consoles dark; V2.433, check the free version at merge). Its pictures found the two-pass cockpit bake
+  nearly black (the arch, det cord and rear hood drawn black): fixed in `deliver.py` with a picture gate (`3d-work` #81,
+  `ct156-two-pass-bake-fix`, verified; delivery `ct156-2026-10-14-776e101` in its worktree). A new delivery and
+  re-import follow once chunk 8 is in.
+- **Chunk 8, the flight-photo fixes:** `3d-work` #79 (`ct156-flight-fixes` on `ct156-pilots`): the wing up 1.5 in, the
+  root collar, the leg doors to the axle, the rail's top lip, the lamps, indexer, compass, mirrors and bow feet, High's
+  budgets raised (cockpit 150,000, outside 100,000, gear 15,000, pilots 50,000). The same modeller is on Patrick's
+  fixes from its sheets (the rail's sides 1.5 times the lip, the mirrors larger and rounded, the compass on its
+  bracket, the collar from the front, the leg door wider at the bottom).
+- **Patrick's rulings tonight:** in `3d-work` #75 to #82 (cards on the rail, paper, lamps, indexer, compass, the wing,
+  budgets, chunks 9 and 10's tools, EN18 an option off by default, EN19 and EN20 approved, estimates accepted, the
+  feathered prop at 86 degrees, the vane inboard, the lamps dropping out under both wings, the rear hood dark grey).
+  **ALL-42** (ships told apart by numbers and a label, not the fin) on #1034 with Debrief's spec (ff4b6fda).
+- **Next:** the modeller's fixes verified; the bake fix merged into its branch; one delivery; the import agent
+  re-imports on #1035; a fresh modeller for the feathered prop, the vane, the rear hood and the lamp heads; Patrick's
+  look in the app; the merges in order. Patrick's caption sheet for the ruler photos is out (`3d-work`
+  `refs/review/caption-questions.png`).
+
+## Earlier (13 Oct 2026, late night): chunks 1 to 8 built and verified; read `3d-work` `ct156/plan.md` first (its decisions log, newest first, and "Next, in order")
 
 - **The master (3d-work), stacked drafts, none merged:** #30, #38, #41, #50, #56 (chunks 1 to 5), #60 (Patrick's
   readings), #66 (chunk 6: the rear cockpit, High and Performance versions of a part under one name, the front's High
