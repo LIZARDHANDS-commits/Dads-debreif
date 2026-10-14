@@ -41,6 +41,29 @@ export function valueAt(path) {
   return v;
 }
 
+/** The ledger entry for a leaf path: its exact key, else the longest prefix key ('FW_WING.yoyo.'), else null. */
+export function ledgerEntry(ledger, path) {
+  if (ledger[path]) return { key: path, ...ledger[path] };
+  let best = null;
+  for (const k of Object.keys(ledger)) if (k.endsWith('.') && path.startsWith(k) && (!best || k.length > best.length)) best = k;
+  return best ? { key: best, ...ledger[best] } : null;
+}
+
+/** numbers.md's source note for a leaf: its own row, else the nested '…' row, else its parent object's row. */
+export function sourceOf(numbersMd, path) {
+  const rows = new Map();
+  for (const line of numbersMd.split('\n')) {
+    const m = line.match(/^\| ([A-Z_]+\.[^|]*?) \| (.*?) \| (.*) \|$/);
+    if (m) rows.set(m[1].trim(), m[3].trim());
+  }
+  const parts = path.split('.');
+  const t = parts[0];
+  const tries = [path, `${t}.…${parts[parts.length - 1]}`];
+  for (let i = parts.length - 1; i >= 2; i--) tries.push(parts.slice(0, i).join('.'), `${t}.…${parts[i - 1]}`);
+  for (const k of tries) if (rows.has(k) && rows.get(k)) return rows.get(k);
+  return null;
+}
+
 /** The shared numbers the loops run on beside the four tables (each read from its own file). */
 export const SHARED = Object.freeze({
   stepSec: fl.STEP_SEC,
