@@ -69,9 +69,10 @@ Each step is one pull request in this repo by Dad's thread (one writer: `tools/b
 3. **Paint:**
    - (a) USAF white with national insignia (T2);
    - (b) today's AETC scheme at the US bases;
-   - (c) your idea.
+   - (c) the Beale AFB scheme;
+   - (d) your idea.
 
-   Working answer: (a) until a photo of a base's own scheme comes in.
+   **Dad's pick: the Beale paint scheme** (14 Oct 2026: "BEALE PAINT SCHEME"): the T-38As of the 9th Reconnaissance Wing at Beale AFB, California, kept as companion trainers for the U-2 pilots. From memory, not yet checked: overall gloss black with low-visibility markings and a Beale "BB" tail code, to match the U-2. Paint waits on photos of the Beale T-38A from Dad (side, top, tail, close-ups of the markings), each a P-row in the sources table; the markings' layout is measured off them, never copied. Needs Patrick's yes with the plan.
 4. **Who builds it:** Dad's thread, in its own files (`tools/blender/t38/`), never editing a CT-156 or Astra file. Working answer.
 
 ## When data fails
