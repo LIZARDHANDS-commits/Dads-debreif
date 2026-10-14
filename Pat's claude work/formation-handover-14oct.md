@@ -23,20 +23,23 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
   - **`B11` (`powerFromRef` in `fighting-wing.js`):** physics feed-forwards for commanded-G drag (`S44` from `B13`), climb rate (`S27c`), speed-brake drag (`S34`), and Lead's seen roll-in rate (`S03, S04` above `10°/s`), plus `0.3 /s` proportional speed loop on $(V_L + \Delta v_{\text{ref}} - V)$ (`D21`, `D23`) and effective intent bias $\min(\text{intent `S27d`}, -\text{bleedReq `S39`}) \times 2\text{ kt/s}$, handing `{ throttle }` directly to `stepLead` (`R4` `ac.speedHold` series cascade and `lowMax` relay retired; `R10` closed; `power-T1` rig step $t_{63} = 3.45\text{ s}$, `0%` overshoot).
   - **Speed brake `S34` (`D8`, `D25`):** out when `slantClosing > 60 ft/s` for `1 s` under deliberate bleed (`effectiveIntent <= -0.5`), in when `< 10 ft/s` (`boardsOffFtps = 10` per `S0` `D25` ripple check) or `effectiveIntent > -0.2`, held `≥ 3 s`.
   - **Continuous drop-low-inside (`D24` in `B05`):** $h_T = \text{stack} - \min(300, 20 \times \max(0, \text{deficit} - 5))$ when turning inside, blended `4.3 s` down / `15 s` return to stack, with profile rate $\dot{h}_T$ (`D1`) and `lowCounted = dropLowFt > 100`.
+- **Round 5 (`B5`) Wave 1 (`S5 + S7` Technique Plugins, `1e33a17c`):** built, verified, and merged (`886 rows` in `numbers.md`, `249` numbers in `LEDGER`, `check.mjs --tag cm` `PASSED`, `npm run build` clean):
+  - **5 Standalone `B06` Technique Modules (`src/modules/turn-sim/live/wingman/techniques/`):**
+    - `behind-39.js` (`T2`, priority 2): ahead of Lead's 3/9 line or predicted cross-ahead within `3 s`; sizes vertical pass depth below Lead (`100–300 ft` for `625 ft` slant), `35°` lag course bias, `-0.5` bleed intent, `0.5` urgency; done at `≥ 15°` behind 3/9 line for `2 s`.
+    - `yo-yo.js` (`T4`, priority 4): inside circle (`d < -30 ft`) gaining `> 15 ft/s` for `2 s`; climbs `12 ft/(ft/s)` above Lead (bounded by `1,000 ft` slant), holds top until closure `< 5 ft/s` for `5 s`, then descends back onto circle **ending stacked low** (`-50 ft`).
+    - `cut-across.js` (`T5`, priority 5): stretched `> 1,000 ft` in a turn not closing for `3 s`; opens inward approach cap to `45°`, `-150 ft` lead offset, `-150 ft` dive, `+15 kt` speed offset, `+1.0` gain intent; aborts if `sweep < 10°`, done at `< 900 ft`.
+    - `exit-vertical.js` (`T6`, priority 6): in exit phase when `|s - 650| > 150 ft` or `|closure| > 20 ft/s`; converts spacing error over `10 s` at `12 ft/(ft/s)` (`±350 ft` cap, `[500, 1000] ft` cone cap); defers to `s-turns` when tight and cone-limited.
+    - `s-turns.js` (`T7`, priority 7): in level/exit phase when `slant < 575 ft` or closing `> 15 ft/s` inside `650 ft`; sizes heading swing `12°–30°`, alternates legs every `6 s` or at cone edges (`32°`/`58°`); aborts on new turn, done at `≥ 650 ft` for `5 s`.
+  - **`FW_WING` Sub-Tables (`src/modules/turn-sim/live/wing-moves.js` & `tools/control-map/signals.mjs`):** added frozen `behind39`, `yoyo` (updated), `cutAcross`, `exitVert`, and `sTurn` parameter sub-tables and ledger prefixes.
 - **Nothing is running.** Both worktrees (`Dads-debreif-physics` and `../formation-b5-slices`) are synced and clean.
 
 ## Next, in order (`docs/modules/turn-sim/plan.md`)
 
-1. **Step 3 (`S5 → S6 → S7 + A2` — Techniques `T2–T7` + Audit 2 `C10`):**
-   - **`S5` (`T6` exit-vertical + `T7` s-turns):** `techniques/exit-vertical.js` and `techniques/s-turns.js`.
-   - **`S6` (Abeam to `0°` & `T3` lag-abeam):** widen band to `0°` sweep (`R14`) + `techniques/lag-abeam.js` (track crossing + LOS rate `S15` backup `D18`).
-   - **`S7 + A2` (`T4` yo-yo, `T5` cut-across, `T2` behind-39 + Audit 2 `C10` self-check):** `techniques/yo-yo.js`, `cut-across.js`, `behind-39.js` (`15/15` blocks, `53/53` signals built).
-2. **Step 4 (`S8a → S8b → T30 → CR`):**
-   - Climbs/descents (`S8a` / `T29b`), aggressive Lead to `4 G` / `90°/s` (`S8b` / `T29d`), blended move-out from close (`T30` / `T8`), and dead-code removal (`CR`).
-3. **Step 5 (`T29r + Systems Engineering Plots` — `flash`):**
-   - `fw-systems-plot-agent` (`flash`) wires `T29r` HUD readout + `D3b` phase-plane plot and runs the full systems-engineering diagram/plot suite (`draw.mjs`, `fw_loops.py`, `fw-rig.mjs`, `ripple.mjs`, `faults.mjs`).
-4. **Step 6 (`T31` Consolidated Docs, Log & Walkthrough — Orchestrator):**
-   - Orchestrator (`pro`) audits final diff, merges to `formation-close-wingman-b2`, updates `plan.md`, `b5-assumptions-decisions-log.md`, `README.md`, and `formation-handover-14oct.md` in one pass, and delivers the final architecture walkthrough.
+1. **Wave 2 (`S6` `lag-abeam` + `B04` Picker Registration `T1–T7` + `A2` Audit `C10`):**
+   - **`S6` (Abeam to `0°` & `T3` lag-abeam):** widen Fighting Wing maneuver gate to `0°` sweep in `src/modules/turn-sim/live/slots.js` (`R14`) + create `techniques/lag-abeam.js` (`T3`, priority 3, track crossing + LOS rate `S15` backup `D18`).
+   - **Wire `T1–T7` into `techniques/index.js` & Retire Inline Legacy Rules:** register all 7 techniques in priority order (`miss`, `behind-39`, `lag-abeam`, `yo-yo`, `cut-across`, `exit-vertical`, `s-turns`), retire inline `sTurn` / `fwYoYo` rules in `supervisor.js` / `fighting-wing.js`, add `b5-level-tight`, `b5-into-abeam` (`5–10°`), and `b5-away-very-stretched` to `tools/formation-gauge.mjs`, and run Structure Audit 2 (`A2` / `C10` count + gauge verification).
+2. **Wave 3 (`S8a → S8b → T30 → T29r → CR/T31`):**
+   - Climbs/descents (`S8a` / `T29b`), aggressive Lead to `4 G` / `90°/s` (`S8b` / `T29d`), blended move-out from close (`T30` / `T8`), `T29r` HUD readout + `D3b` phase-plane plot, dead-code removal (`CR`), and consolidated docs (`T31`).
 
 ## Patrick's rulings on 14 Oct (all in `TS-233` and `TS-234` in `decisions.md`, and in `spec.md` §7e and §7a)
 
