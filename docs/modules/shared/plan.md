@@ -94,11 +94,11 @@ The CT-156's process applied to the Astra II (Grob G 120TP): [ct102-astra-plan.m
 - [ ] 5. Cockpit, once the outside is signed off.
 - [ ] 6. High and Performance delivery through the CT-156's import path (Step 3b items 3.4, 6 to 8), then first use in the Debrief (outside only, nothing flies).
 
-## Step 3d. T-38 Talon model in Blender (Dad's ask, 14 Oct 2026; proposed, waits on Patrick's yes)
+## Step 3d. T-38A Talon model in Blender (Dad's ask; Patrick approved 14 Oct 2026, relayed by Dad)
 
-The Astra's process applied to the T-38: [t38a-plan.md](t38a-plan.md). Dad's thread would build it in its own files (`tools/blender/t38/`). Nothing is built until Patrick says yes and answers which T-38, where it is used first, and its paint (working answers in the plan).
+The Astra's process applied to the T-38: [t38a-plan.md](t38a-plan.md). Dad's thread would build it in its own files (`tools/blender/t38/`). Dad's picks: the T-38A, first used in the Debrief (KML viewer), in the Beale AFB paint.
 
-- [ ] 0. Patrick's yes, and the answers to the plan's questions.
+- [x] 0. Patrick's yes, and the answers to the plan's questions (14 Oct 2026).
 - [ ] 1. Sources table: public sizes, then sizes measured off the scaled drawings Dad sent (measuring only, kept out of the repo).
 - [ ] 2. First outside in Blender, by script, in real feet, with named points and hinges; size checks.
 - [ ] 3. Renders and a fix list from Patrick and Dad.

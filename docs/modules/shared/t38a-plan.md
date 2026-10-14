@@ -1,6 +1,6 @@
-# T-38A Talon model: plan (proposed)
+# T-38A Talon model: plan (approved)
 
-> **Status:** proposed, waiting on Patrick's yes. Dad asked on 14 Oct 2026: "Lets use the same logic to create a 3D model for a T-38A. Lets come up with our plan." It would be Step 3d of `plan.md`, built the way the CT-102B Astra II is (Step 3c, `ct102-astra-plan.md`), which follows the CT-156's process (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). Nothing is built until Patrick says yes.
+> **Status:** approved: Patrick said yes (relayed by Dad, 14 Oct 2026: "Pat approves start it up"), with Dad's picks below (T-38A only, first used in the Debrief, the Beale paint scheme). Dad asked on 14 Oct 2026: "Lets use the same logic to create a 3D model for a T-38A. Lets come up with our plan." It would be Step 3d of `plan.md`, built the way the CT-102B Astra II is (Step 3c, `ct102-astra-plan.md`), which follows the CT-156's process (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). 
 
 ## What it would be
 
@@ -33,6 +33,10 @@ Kept in the session's scratch folder, never in the repo or on the site:
 | T3 | Willy Peeters' 1/72 scale drawings (Dacoverlay): top, bottom, side, undercarriage details, AT-38 panel differences | the best measured source: scaled drawing with gear details; scale checked against the public length before use |
 | T4 | An RC model plan of the USAF T-38A (balsa formers and sections) | fuselage cross-sections, by eye only (a model plan, not a scale drawing) |
 | T5 | Dave Rees' RC model plan "T-38 Talon" | outline cross-check only |
+| T6 | A side-view print of a Beale AFB 9th Reconnaissance Wing T-38 (Cobalt Aviation-style poster) | the Beale paint and markings layout, by eye |
+| T7 | A photo of a Beale T-38, "BB" tail, serial ending 247, side-on in flight over a lake | paint and markings as flown: gloss black, red markings, the bare-metal tail cone |
+
+What T6 and T7 show (by eye, to be measured as P-rows): overall gloss black; all markings red: "BB" tail code and the serial on the fin, a red fin-tip band with white stars, a small unit badge on the fin, "U.S. AIR FORCE" and a low-visibility star-and-bar on the intake, a small code letter aft on the fuselage, warning stencils; the exhaust and tail cone bare metal. This replaces the "from memory" note under question 3.
 
 Only measured numbers go into the sources table (as R-rows, like the Astra's), never the pictures. Commercial drawings and model plans are references, never copied.
 
