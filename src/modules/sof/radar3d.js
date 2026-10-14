@@ -300,10 +300,11 @@ const SMOOTH_MARGIN = 3;
 
 /**
  * Smoothed copies of High's volume for drawing (the set's own codes, which the corridor check reads, are left as they are), two bytes a cell: the first lightly
- * smoothed for the inner shells (1-2-1 east-west and north-south: a core of two or three cells keeps its strength), the second more (1-4-6-4-1 each way, about a
- * cell's spread) for the outer shells, where weak echo near their threshold otherwise breaks into speckle that looked like grass. Only inside `bounds`
- * (echoBounds) and up to its highest height (elsewhere none: nothing there reaches MIN_DRAW_DBZ); no smoothing between heights (they are 1 to 2 km apart).
- * Whole numbers throughout, one sweep a height (about 0.1 to 0.5 s for a stormy 450 NM square, measured in headless Chromium). Estimates for the look.
+ * smoothed, for the red core (1-2-1 east-west and north-south: a core of two or three cells keeps its strength), the second more (1-4-6-4-1 each way, about a
+ * cell's spread), for the blue, green and yellow shells (OUTER_SHELL), where weak echo near a threshold otherwise breaks into speckle that looked like grass.
+ * Only inside `bounds` (echoBounds) and up to its highest height (elsewhere none: nothing there reaches MIN_DRAW_DBZ); no smoothing between heights (they are
+ * 1 to 2 km apart). Whole numbers, one sweep a height: about 0.11 s in Node and 0.15 to 0.3 s in headless Chromium for a 450 NM square full of rain (14 Oct
+ * 2026), once a radar update. Estimates for the look.
  */
 export function smoothedCodes({ n, codes, levelsKm }, bounds) {
   const plane = n * n;
