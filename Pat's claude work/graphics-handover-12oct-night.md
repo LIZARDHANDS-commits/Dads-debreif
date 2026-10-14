@@ -1,11 +1,21 @@
 # Graphics handover: CT-156 model work, 12 Oct 2026 night
 
-For whoever picks up the graphics session next: a Claude Code session in `Documents/antigravity/3d-work`, with an app
-worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the old `Dads-debreif-graphics` worktree is
-gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
-(the model's history) and `tools/blender/README.md` (how to build it).
+For whoever picks up the graphics session next: a Claude Code or Antigravity session in `Documents/antigravity/3d-work` (worktree `.claude/worktrees/round-3`, branch `ct156-round-3`, PR `#102`), with the app worktree beside it (`wise-mendeleev/Dads-debreif-prop`, branch `shared-3d-ct156-round3`, PR `#1040`). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `3d-work` `ct156/plan.md` and `tools/blender/README.md`.
 
-## Latest (13 Oct 2026, evening): the rebuild under way; read `3d-work` `ct156/plan.md` "Resume here" first
+## Latest (14 Oct 2026): Stage 2 (Chunk 9) and Stage 3 (Chunk 10) complete; ready for Patrick's review
+
+- **`3d-work` (branch `ct156-round-3`, PR `#102`, commit `475eadd`):**
+  - **Decision 3 & `layout: 2`:** Promoted all 18 remaining code-drawn parts (`stubs`, `coamings`, `floor`, `speedBrake`, `speedBrakeWell`, `flapInWell*`, `flapOutWell*`, `gearInboardWell*`, `gearLegWell*`, `gearNoseWell`, `tub`, `helmetFront*`, `helmetRear*`) to master-delivered meshes (`layout: 2` in `ct156/build/app_layout.json`, producing `ct156-pilots.glb` alongside `ct156-exterior.glb`, `ct156-gear.glb`, and `ct156-cockpit.glb`).
+  - **Chunk 9b (`*Perf` outside decimation):** Built 24 dedicated quad-dominant `*Perf` outside meshes in `ct156/build/chunk_9.py`, reducing `performance/Outside` from `31,288` tris to **`8,874` tris** (`<= 10,000` ceiling) and clearing `ct156/build/known-gaps.json` (`"gaps": []`).
+  - **Chunk 9a & EN5:** Added High-only geometry details (`D7`, `D8` on `bodyFront`; `F36` to `F38`, `F16`+`F35` on `fuselage`/`bowFront`/`vent`; `F18` 4x4 slot recesses on `speedBrake`; `F9`+`G6` `staticWicks`; `F20` `staticPorts`) and `0.08 in` 1-segment bevels on High hard-edged parts.
+  - **Chunk 9c, 9d, 9e:** Unwrapped fixed non-overlapping `UVMap` layers on all delivered objects (`0` fresh-layout notes), baked tangent-space normal map (`ct156-exterior-normal.png`, `4k` High / `2k` Performance, Non-Color Raw PNG) and packed mask (`ct156-exterior-mask.png`, `R=AO, G=Curvature, B=Dirt`, `2k` High / `1k` Performance), and produced official non-draft delivery **`ct156-2026-10-14-475eadd`** (`0` problems, `0` validator errors/warnings).
+- **`Dads-debreif` (branch `shared-3d-ct156-round3`, PR `#1040`):**
+  - Updated `tools/blender/models-import.mjs` to validate and import `layout: 2` (`ct156-pilots.glb`, 18 extra parts, and PNG header size validation for `ct156-exterior-normal.png` and `ct156-exterior-mask.png`).
+  - Updated `src/ui-kit/ct156-blender.js` (`getCt156Level`, `setCt156Level`, `onCt156LevelChange`, `loadDataTexture`, and `aoShaded` support for `normal`, `mask`, `sheenVar`, and `cornerShadow`) and `src/ui-kit/ct156-model.js` (wiring all 18 newly delivered parts, `attachPilots`, normal/mask maps, and High/Performance level switching).
+  - Imported `ct156-2026-10-14-475eadd` into `public/models/ct156/`; all unit tests (`ct156-*.test.js`) and `npm run build` pass.
+- **Next:** Patrick inspects the model in the app and chooses his preferred defaults from the 4 visual comparison sheets (`bevel-004-008-014.png`, `normal-relief-06-10-14.png`, `wear-light-medium-heavy.png`, `sheen-variation-00-06-12.png`); Step 3b item 10 (retiring the legacy procedural fallback code) waits for his sign-off.
+
+## Earlier (13 Oct 2026, evening): the rebuild under way; read `3d-work` `ct156/plan.md` "Resume here" first
 
 - **How it runs:** one Opus orchestrator session talks to Patrick and verifies every agent result itself; one agent per
   lane, reused for the lane's next job (Patrick: "keep reusing the agents that are already working"): A, the master

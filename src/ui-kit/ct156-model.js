@@ -27,7 +27,7 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, CT156_FILES, loadAo, loadDelivered, paintBands, paintGrain } from './ct156-blender.js';
+import { aoShaded, CT156_FILES, ct156FilesDir, loadAo, loadDataTexture, loadDelivered, onCt156LevelChange, paintBands, paintGrain } from './ct156-blender.js';
 import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
@@ -818,17 +818,23 @@ export function ct156PiecesHash(pieces) {
 // none: if the file is missing, not from the imported delivery, or lacks a part, every ship stays as the code draws it.
 // The code's shapes here are that fallback (ALL-38 (5)); since 3.4 the file's shape may differ from them on purpose.
 const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
+// Extra outside parts added in layout 2 (Decision 3, Chunk 9a/10): taken from ct156-exterior.glb when present.
+const EXTRA_EXTERIOR_PARTS = Object.freeze(['stubs', 'coamings', 'floor', 'speedBrake', 'speedBrakeWell', 'flapInWell', 'flapOutWell', 'tub']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 // The prop's blade 1 and its tip from the same file (3d-work chunk 8b; delivery 423e5eb on), taken only both together and
 // only when the file has them, so an older delivery leaves the code's blades. Not in EXTERIOR_PARTS: the export scripts in
 // tools/blender/ never had them.
 const PROP_PARTS = Object.freeze(['blade', 'bladeTip']);
+const PILOTS_FILE = 'ct156-pilots.glb';
+const PILOT_PARTS = Object.freeze(['helmetFront', 'helmetRear']);
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
 // The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
 // same script on the same uv map (Patrick, 11 Oct 2026 21:07Z: "Surface texture"); BUMP_SCALE how strongly the relief
-// shows, by eye.
+// shows, by eye. Stage 2/3 adds the tangent-space normal map (EN3/EN10) and packed mask (R=AO, G=Curvature, B=Dirt).
 const EXTERIOR_BUMP = 'ct156-exterior-bump.jpg';
 const EXTERIOR_DIRT = 'ct156-exterior-dirt.jpg';
+const EXTERIOR_NORMAL = 'ct156-exterior-normal.png';
+const EXTERIOR_MASK = 'ct156-exterior-mask.png';
 const BUMP_SCALE = 3;
 
 /** The shapes the Blender outside is built from, by name (tools/blender/ct156-exterior-pieces.mjs). */
@@ -896,7 +902,29 @@ function takeShape(THREE, into, meshes) {
   into.computeBoundingSphere();
 }
 
+/** Mirrors a left-side non-indexed shape across Y=0 into `into`, flipping Y and reversing triangle winding. */
+function mirrorShape(THREE, into, from) {
+  into.dispose();
+  into.setIndex(null);
+  into.clearGroups();
+  for (const key of Object.keys(into.attributes)) into.deleteAttribute(key);
+  for (const g of from.groups) into.addGroup(g.start, g.count, g.materialIndex);
+  for (const key of ['position', 'normal', 'uv']) {
+    const src = from.attributes[key].array, out = new Float32Array(src.length), n = key === 'uv' ? 2 : 3;
+    for (let t = 0; t < src.length; t += 3 * n) {
+      for (let v = 0; v < 3; v++) {
+        const sv = v === 1 ? 2 : v === 2 ? 1 : 0;
+        for (let c = 0; c < n; c++) out[t + v * n + c] = (n === 3 && c === 1 ? -1 : 1) * src[t + sv * n + c];
+      }
+    }
+    into.setAttribute(key, new THREE.BufferAttribute(out, n));
+  }
+  into.computeBoundingBox();
+  into.computeBoundingSphere();
+}
+
 function attachExterior(kit) {
+  const dir = ct156FilesDir();
   loadDelivered(EXTERIOR_FILE).then((list) => {
     if (kit.disposed) return;
     const byName = new Map(list.map((p) => [p.name, p]));
@@ -907,8 +935,27 @@ function attachExterior(kit) {
       return;
     }
     for (const name of EXTERIOR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-    kit.ao = loadAo(kit.THREE, CT156_FILES + EXTERIOR_AO);
-    kit.skin = { bump: loadAo(kit.THREE, CT156_FILES + EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, CT156_FILES + EXTERIOR_DIRT) };
+    for (const name of EXTRA_EXTERIOR_PARTS) {
+      if (usable(byName.get(name)) && kit.geo[name]) {
+        takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
+        if (name === 'speedBrake') {
+          const { x0, length } = SPEED_BRAKE;
+          const shut = Math.atan2(bellyAt(x0 - length) - bellyAt(x0), length);
+          kit.geo.speedBrake.translate(-x0, 0, -(bellyAt(x0) - 0.0006)).rotateY(-shut);
+        }
+      }
+    }
+    kit.ao = loadAo(kit.THREE, dir + EXTERIOR_AO);
+    kit.skin = {
+      bump: loadAo(kit.THREE, dir + EXTERIOR_BUMP),
+      bumpScale: BUMP_SCALE,
+      dirt: loadAo(kit.THREE, dir + EXTERIOR_DIRT),
+      normal: loadDataTexture(kit.THREE, dir + EXTERIOR_NORMAL),
+      normalScale: 1.0,
+      mask: loadDataTexture(kit.THREE, dir + EXTERIOR_MASK),
+      sheenVar: 0.06,
+      cornerShadow: 0,
+    };
     for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
     // The prop's blade 1 and its tip, when the file has them (3d-work delivery 423e5eb on); before that the code's plates stay.
     if (PROP_PARTS.every((name) => usable(byName.get(name)))) {
@@ -921,6 +968,7 @@ function attachExterior(kit) {
 
 /** The gear's Blender file (ALL-34), as attachExterior: all its parts or none; without it the code's gear shows. */
 function attachGear(kit) {
+  const dir = ct156FilesDir();
   loadDelivered(GEAR_FILE).then((list) => {
     if (kit.disposed) return;
     const byName = new Map(list.map((p) => [p.name, p]));
@@ -931,7 +979,16 @@ function attachGear(kit) {
       return;
     }
     for (const name of GEAR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-    kit.gearAo = loadAo(kit.THREE, CT156_FILES + GEAR_AO);
+    for (const well of ['gearLegWell', 'gearInboardWell']) {
+      if (usable(byName.get(well)) && kit.geo[`${well}L`] && kit.geo[`${well}R`]) {
+        takeShape(kit.THREE, kit.geo[`${well}L`], byName.get(well).meshes);
+        mirrorShape(kit.THREE, kit.geo[`${well}R`], kit.geo[`${well}L`]);
+      }
+    }
+    if (usable(byName.get('gearNoseWell')) && kit.geo.gearNoseWell) {
+      takeShape(kit.THREE, kit.geo.gearNoseWell, byName.get('gearNoseWell').meshes);
+    }
+    kit.gearAo = loadAo(kit.THREE, dir + GEAR_AO);
     for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
     // The landing and taxi lamp (GEAR_LAMP), when the file has it (3d-work delivery 423e5eb on): every ship's lamps take
     // it and its old glow goes; before that the glow stays.
@@ -939,6 +996,18 @@ function attachGear(kit) {
       takeShape(kit.THREE, kit.geo.gearLamp, byName.get('gearLamp').meshes);
       kit.lampDelivered = true;
       for (const lamps of kit.lampShips) showLamps(lamps);
+    }
+  }, () => {});
+}
+
+/** The pilots' Blender file (layout 2, Decision 3): swaps helmetFront and helmetRear when present. */
+function attachPilots(kit) {
+  loadDelivered(PILOTS_FILE).then((list) => {
+    if (kit.disposed) return;
+    const byName = new Map(list.map((p) => [p.name, p]));
+    const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
+    if (PILOT_PARTS.every((name) => usable(byName.get(name)))) {
+      for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
     }
   }, () => {});
 }
@@ -2724,17 +2793,18 @@ function buildKit(THREE) {
     marks: decalMat(tex.marks),
     dot: decalMat(tex.dot),
   };
-  const kit = { THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, dispose: () => ((kit.disposed = true), own.forEach((o) => o.dispose())) };
+  let offLevel = () => {};
+  const kit = { THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, dispose: () => ((kit.disposed = true), offLevel(), own.forEach((o) => o.dispose())) };
   // Each outside part's fingerprint of the code's own shape, before the file's shape takes its place: read by the
   // export scripts in tools/blender/ (ct156ExteriorPieces); since plan 3.4 the app no longer compares it with the file.
   kit.hashes = Object.fromEntries(EXTERIOR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
-  kit.exteriorGeos = new Set(EXTERIOR_PARTS.map((name) => geo[name]));
+  kit.exteriorGeos = new Set([...EXTERIOR_PARTS, ...EXTRA_EXTERIOR_PARTS].map((name) => geo[name]).filter(Boolean));
   kit.exteriorMeshes = new Set();
   kit.shaded = new WeakMap();
   kit.ao = null;
   // The gear from its own Blender file (ALL-34), the same way, swapped in only all together.
   kit.gearHashes = Object.fromEntries(GEAR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
-  kit.gearGeos = new Set(GEAR_PARTS.map((name) => geo[name]));
+  kit.gearGeos = new Set([...GEAR_PARTS.map((name) => geo[name]), geo.gearLegWellL, geo.gearLegWellR, geo.gearInboardWellL, geo.gearInboardWellR, geo.gearNoseWell].filter(Boolean));
   kit.gearMeshes = new Set();
   kit.gearShaded = new WeakMap();
   kit.gearAo = null;
@@ -2747,8 +2817,16 @@ function buildKit(THREE) {
   kit.lampShips = new Set();
   kit.lampDelivered = false;
   if (typeof window !== 'undefined') {
-    attachExterior(kit);
-    attachGear(kit);
+    const loadAll = () => {
+      if (kit.disposed) return;
+      kit.shaded = new WeakMap();
+      kit.gearShaded = new WeakMap();
+      attachExterior(kit);
+      attachGear(kit);
+      attachPilots(kit);
+    };
+    loadAll();
+    offLevel = onCt156LevelChange(loadAll);
   }
   return kit;
 }

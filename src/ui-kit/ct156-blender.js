@@ -36,9 +36,41 @@ export function loadParts(file) {
 /**
  * Where the CT-156's delivered files sit (plan Step 3b item 3.4): public/models/ct156/, written only by
  * `npm run models:import` from a checked delivery of the 3d-work repo (ALL-38: Blender owns the shape). High and
- * Performance each have their own folder; the app loads High until the Graphics switch picks the level (item 8).
+ * Performance each have their own folder; setCt156Level switches between 'high' and 'performance' (item 8).
  */
 export const CT156_FILES = 'ct156/high/';
+
+let currentLevel = 'high';
+const levelListeners = new Set();
+
+/** Returns the active CT-156 graphics level ('high' or 'performance'). */
+export function getCt156Level() {
+  return currentLevel;
+}
+
+/** Folder prefix for the given CT-156 level ('ct156/high/' or 'ct156/performance/'). */
+export function ct156FilesDir(level = currentLevel) {
+  return `ct156/${level === 'performance' ? 'performance' : 'high'}/`;
+}
+
+/**
+ * Switches the CT-156 graphics level ('high' or 'performance') and notifies registered kits to reload
+ * that level's geometry and pictures in place.
+ */
+export function setCt156Level(level) {
+  const next = level === 'performance' ? 'performance' : 'high';
+  if (next !== currentLevel) {
+    currentLevel = next;
+    for (const fn of levelListeners) fn(currentLevel);
+  }
+  return currentLevel;
+}
+
+/** Registers a callback invoked whenever setCt156Level changes the active level. */
+export function onCt156LevelChange(fn) {
+  levelListeners.add(fn);
+  return () => levelListeners.delete(fn);
+}
 
 let delivery = null;
 let told = false;
@@ -58,8 +90,8 @@ function ct156Delivery() {
  * 13 Oct 2026): the file is now the shape's one source and differs from the code's shape on purpose once a fix is made.
  * Rejects otherwise, and the code's own parts stay.
  */
-export function loadDelivered(file) {
-  return Promise.all([ct156Delivery(), loadParts(CT156_FILES + file)]).then(([name, list]) => {
+export function loadDelivered(file, level = currentLevel) {
+  return Promise.all([ct156Delivery(), loadParts(ct156FilesDir(level) + file)]).then(([name, list]) => {
     const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
     if (!name || foreign.length) {
       console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);
@@ -85,24 +117,65 @@ export function loadAo(THREE, file) {
   return aoTextures.get(file);
 }
 
+/** A Non-Color data picture (EN10: tangent-space normal map or R=AO/G=Curvature/B=Dirt packed mask), loaded once. */
+const dataTextures = new Map();
+export function loadDataTexture(THREE, file) {
+  if (!dataTextures.has(file)) {
+    const t = new THREE.TextureLoader().load(modelsUrl(file));
+    t.flipY = false;
+    t.anisotropy = 16;
+    if (THREE.NoColorSpace !== undefined) t.colorSpace = THREE.NoColorSpace;
+    dataTextures.set(file, t);
+  }
+  return dataTextures.get(file);
+}
+
 /**
  * A copy of `material` darkened by baked soft shadows, in the sun's light as well as the sky's (three.js's own aoMap
  * shades only the sky's light, and the sun is most of an aircraft's light). The part drawn with it needs a uv map.
- * Optional, on the same uv map: `bump`, a relief picture (panel line grooves, rivets) bump-mapped at `bumpScale`; and
- * `dirt`, a picture of where the aircraft weathers (0 clean, 1 dirty), which darkens the colour toward soot and dulls
- * the gloss there (Patrick, 11 Oct 2026 21:07Z: "Surface texture").
+ * Optional, on the same uv map:
+ * - `normal` / `normalScale` (EN3): tangent-space normal map (`normalScale.set(s, -s)` for glTF top-down UVs);
+ * - `mask` (EN7): packed mask (`R=AO, G=Curvature 0.5 flat, B=Dirt`) + `sheenVar` (panel-to-panel sheen variation, default 0.06);
+ * - `bump` / `bumpScale` and `dirt`: legacy separate bump/dirt maps when `normal`/`mask` are not supplied;
+ * - `cornerShadow` (EN18): optional live screen-space corner/crevice shadow (0 = off by default).
  */
-export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null } = {}) {
+export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null, normal = null, normalScale = 1, mask = null, sheenVar = 0.06, cornerShadow = 0 } = {}) {
   const m = material.clone();
   m.aoMap = ao;
-  if (bump) {
+  if (normal) {
+    m.normalMap = normal;
+    if (m.normalScale?.set) m.normalScale.set(normalScale, -normalScale);
+  } else if (bump) {
     m.bumpMap = bump;
     m.bumpScale = bumpScale;
   }
+  const sv = Number(sheenVar) || 0;
+  const cs = Number(cornerShadow) || 0;
   m.onBeforeCompile = (shader) => {
     let fs = shader.fragmentShader.replace('#include <aomap_fragment>',
       '#include <aomap_fragment>\n#ifdef USE_AOMAP\n\treflectedLight.directDiffuse *= ambientOcclusion;\n\treflectedLight.directSpecular *= ambientOcclusion;\n#endif');
-    if (dirt) {
+    if (mask) {
+      shader.uniforms.ct156Mask = { value: mask };
+      fs = fs.replace('#include <common>', '#include <common>\nuniform sampler2D ct156Mask;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef USE_AOMAP
+	vec3 ct156MaskAt = texture2D( ct156Mask, vAoMapUv ).rgb;
+	float ct156CurvAt = ct156MaskAt.g - 0.5;
+	float ct156DirtAt = ct156MaskAt.b;
+	diffuseColor.rgb *= 1.0 - 0.35 * clamp( -ct156CurvAt * 2.5, 0.0, 1.0 );
+	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 1.22 + vec3( 0.04 ), clamp( ct156CurvAt * 2.2, 0.0, 0.35 ) );
+	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.11, 0.1, 0.085 ), 0.55 * ct156DirtAt );
+#endif`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+#ifdef USE_AOMAP
+	float ct156PanelVar = ( fract( sin( dot( floor( vAoMapUv * 12.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ) - 0.5 ) * ${sv.toFixed(4)};
+	roughnessFactor = clamp( mix( roughnessFactor + ct156PanelVar, 0.85, ct156DirtAt ) - 0.08 * clamp( ct156CurvAt * 2.0, 0.0, 1.0 ), 0.04, 1.0 );
+#endif`)
+        .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+#if defined( USE_AOMAP ) && defined( USE_CLEARCOAT )
+	material.clearcoat *= 1.0 - ct156DirtAt;
+#endif`);
+    } else if (dirt) {
       shader.uniforms.ct156Dirt = { value: dirt };
       fs = fs.replace('#include <common>', '#include <common>\nuniform sampler2D ct156Dirt;')
         .replace('#include <map_fragment>', `#include <map_fragment>
@@ -119,9 +192,16 @@ export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null
 	material.clearcoat *= 1.0 - ct156DirtAt;
 #endif`);
     }
+    if (cs > 0) {
+      fs = fs.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+	{
+		float ct156Cavity = clamp( length( fwidth( normal ) ) * ${cs.toFixed(4)}, 0.0, 0.35 );
+		diffuseColor.rgb *= 1.0 - ct156Cavity;
+	}`);
+    }
     shader.fragmentShader = fs;
   };
-  m.customProgramCacheKey = () => `ct156-ao-direct${dirt ? '-dirt' : ''}`;
+  m.customProgramCacheKey = () => `ct156-ao-direct${mask ? `-mask-${sv.toFixed(4)}` : dirt ? '-dirt' : ''}${normal ? '-norm' : ''}${cs > 0 ? `-cs-${cs.toFixed(4)}` : ''}`;
   if (m.userData.ct156Bands) paintBands(m, m.userData.ct156Bands); // painted bands (the prop's tips) stay
   return m.userData.ct156Grain ? paintGrain(m, m.userData.ct156Grain) : m; // a painted surface keeps its grain
 }
