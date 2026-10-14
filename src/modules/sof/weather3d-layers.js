@@ -23,7 +23,7 @@ import {
 } from './weather3d-model.js';
 import { buildShafts, buildBolts, buildSatelliteSheet, buildFronts, buildFlow } from './weather3d.js';
 import { buildRadarColumns, buildRadarVolume, CONTOUR_FT } from './radar3d.js';
-import { performanceColumns, volumeColumns, northStrip, coverageMask, MIN_DRAW_DBZ, NORTH_WORDS, HIGH_SHELL_DBZ } from './mrms-model.js';
+import { performanceColumns, volumeColumns, northStrip, coverageMask, MIN_DRAW_DBZ, NORTH_WORDS, HIGH_SHELL_DBZ, PERFORMANCE_LOW_KM, kmToFt } from './mrms-model.js';
 import { readTotalCloud } from './cloud-field.js';
 import { CLOUD_SHEET_PX } from './model-clouds.js';
 import { FRONTS_CREDIT } from './fronts.js';
@@ -226,7 +226,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
           }
           const { columns } = performanceColumns(set, { groundAt: ground });
           drawnLists.radar = columns;
-          facts.radar = { ...base, count: columns.length, tall: columns.filter((c) => !c.flat).length, cores: columns.filter((c) => c.coreTopFt !== null).length, flats: columns.filter((c) => c.flat).length, highestFt: columns.reduce((m, c) => Math.max(m, c.flat ? 0 : c.topFt), 0) };
+          facts.radar = { ...base, count: columns.length, tall: columns.filter((c) => !c.flat).length, cores: columns.filter((c) => c.coreTopFt !== null).length, flats: columns.filter((c) => c.flat).length, aloft: columns.filter((c) => c.aloft).length, highestFt: columns.reduce((m, c) => Math.max(m, c.flat ? 0 : c.topFt), 0) };
           return buildRadarColumns(T, { columns, scale });
         });
       }
@@ -418,7 +418,7 @@ export function mrmsKeyWords(r, scale) {
     const seen = (r.levelsKm ?? []).map((k, l) => `${k} km ${r.shares?.[l] === null || r.shares?.[l] === undefined ? 'no data' : pct(r.shares[l])}`).join(', ');
     out.push(`Radar heights (High): NOAA MRMS reflectivity at ${r.levelsKm.length} heights (${r.levelsKm.join(', ')} km above sea level: an estimate for the levels), as one see-through volume over the square: every cell about ${km} km at every height, never merged, drawn as nested see-through shells where the echo reaches ${HIGH_SHELL_DBZ.slice(0, -1).join(', ')} and ${HIGH_SHELL_DBZ.at(-1)} dBZ, each in NOAA's colour for that strength (blue, green, yellow, red from the outside in): faint where a shell faces you, brighter at its outline, with faint lines every ${formatFeet(CONTOUR_FT)} ft above sea level (the strengths, opacities and lines are estimates). Echo from ${MIN_DRAW_DBZ} dBZ up to the first shell draws no shell; the flat radar picture on the ground shows it. The strength is smoothed a little across cells for drawing and blended between heights; the 1 km height is drawn down to the ground. Heights ×${scale}. Where MRMS sees each height (share of the square south of its 55° N edge): ${seen}.`);
   } else {
-    out.push(`Radar heights (Performance): NOAA MRMS echo tops and composite reflectivity, cell by cell, never merged: each cell about ${km} km with an echo of ${MIN_DRAW_DBZ} dBZ or more (an estimate) is one see-through column from the ground to its measured 18 dBZ echo top (km above sea level), in ${DBZ_COLOUR_WORDS} for its strongest echo; a narrower, stronger core runs up to its 30 dBZ top. An echo weaker than 18 dBZ has no measured top and lies as a flat tile on the ground. ${r.count} cells: ${r.tall} with a top (highest ${formatFeet(Math.round(r.highestFt / 100) * 100)} ft), ${r.cores} with a 30 dBZ core, ${r.flats} flat. Heights ×${scale}.`);
+    out.push(`Radar heights (Performance): NOAA MRMS echo tops and composite reflectivity, cell by cell, never merged: each cell about ${km} km with an echo of ${MIN_DRAW_DBZ} dBZ or more (an estimate) is one see-through column from the ground to its measured 18 dBZ echo top (km above sea level), in ${DBZ_COLOUR_WORDS} for its strongest echo; a narrower, stronger core runs up to its 30 dBZ top. An echo weaker than 18 dBZ has no measured top and lies as a flat tile on the ground. Where MRMS sees ${PERFORMANCE_LOW_KM} km (${formatFeet(Math.round(kmToFt(PERFORMANCE_LOW_KM) / 100) * 100)} ft) above sea level and finds no echo there, the echo is aloft and may not reach the ground (virga): its column or tile starts at that height instead. ${r.count} cells: ${r.tall} with a top (highest ${formatFeet(Math.round(r.highestFt / 100) * 100)} ft), ${r.cores} with a 30 dBZ core, ${r.flats} flat, ${r.aloft} aloft. Heights ×${scale}.`);
   }
   for (const note of r.notes ?? []) out.push(`${note}.`);
   if (r.gapShare > 0) out.push(`Grey hatching on the ground: no MRMS radar coverage there (${pct(r.gapShare)} of the square${r.north > 0 ? ', the strip north of 55° N included' : ''}): not clear air, the radar cannot see it.`);

@@ -10,7 +10,7 @@
 import { guardedFetch, MapFetchError } from './map-fetch.js';
 import { STALE_MS, REFRESH_MS } from './feeds.js';
 import {
-  MODE_PRODUCTS, HIGH_LEVELS_KM, HIGH_FAILS_TO_PERFORMANCE, MAX_FILE_BYTES, MAX_LIST_BYTES, LIST_TIMEOUT_MS, FILE_TIMEOUT_MS, DEFAULT_RADAR_DETAIL,
+  MODE_PRODUCTS, PERFORMANCE_LOW_KM, HIGH_LEVELS_KM, HIGH_FAILS_TO_PERFORMANCE, MAX_FILE_BYTES, MAX_LIST_BYTES, LIST_TIMEOUT_MS, FILE_TIMEOUT_MS, DEFAULT_RADAR_DETAIL,
   listingUrls, parseListing, newestFile, fileUrl, targetFor, heightsLine, fallbackWords, hhmmZ, levelsWords,
 } from './mrms-model.js';
 
@@ -105,19 +105,23 @@ export function createMrmsFeed({ fetch, timers, now = () => new Date(), decode, 
     return results;
   }
 
-  /** A Performance set from its three results, or { reason } when the composite or the 18 dBZ tops failed (no colour or no height to draw). */
+  /**
+   * A Performance set from its four results, or { reason } when the composite or the 18 dBZ tops failed (no colour or no height to draw). A failed 30 dBZ file
+   * leaves the cores out and a failed low height (SOF-70) stands every cell on the ground, each said in words.
+   */
   function performanceSet(results, target) {
     const by = Object.fromEntries(results.map((r) => [r.product.name, r]));
-    const [top18, top30, composite] = MODE_PRODUCTS.performance.map((p) => by[p.name]);
+    const [top18, top30, composite, low] = MODE_PRODUCTS.performance.map((p) => by[p.name]);
     const failed = [composite, top18].find((r) => !r?.ok);
     if (failed) return { reason: `${failed.product.words}: ${failed.reason}` };
     const notes = [];
     if (!top30?.ok) notes.push(`30 dBZ cores not drawn (${top30?.reason ?? 'not read'})`);
-    const times = [top18, composite, top30].filter((r) => r?.ok).map((r) => r.reply.time);
+    if (!low?.ok) notes.push(`No data at ${PERFORMANCE_LOW_KM} km (${low?.reason ?? 'not read'}): every column starts at the ground, so echo aloft may look as if it reaches it`);
+    const times = [top18, composite, top30, low].filter((r) => r?.ok).map((r) => r.reply.time);
     return {
       set: {
         mode: 'performance', n: target.n, halfFt: target.halfFt, lat: target.lat, lon: target.lon,
-        composite: composite.reply.cells, top18: top18.reply.cells, top30: top30?.ok ? top30.reply.cells : null,
+        composite: composite.reply.cells, top18: top18.reply.cells, top30: top30?.ok ? top30.reply.cells : null, low: low?.ok ? low.reply.cells : null,
         time: Math.min(...times), notes,
       },
     };

@@ -264,7 +264,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const radarDetailPicker = h('select', {
     id: radarDetailId,
     class: 'sof-3d-appr-field',
-    title: 'Performance: NOAA MRMS echo tops, one column a cell of about 4 km from the ground to its 18 dBZ top, its 30 dBZ core stronger (about 1 to 2.5 MB an update). High: NOAA MRMS reflectivity at 12 heights, every 1 km cell as a see-through volume (about 8 to 10 MB an update on a quiet day, more in storms).',
+    title: 'Performance: NOAA MRMS echo tops, one column a cell of about 4 km from the ground to its 18 dBZ top, its 30 dBZ core stronger; a cell with no echo at 2 km (about 6,600 ft) starts there instead, its echo aloft (about 3 MB an update). High: NOAA MRMS reflectivity at 12 heights, every 1 km cell as a see-through volume (about 8 to 10 MB an update on a quiet day, more in storms).',
     onchange: () => onRadarDetail(radarDetailPicker.value),
   }, RADAR_DETAIL_OPTIONS.map((o) => h('option', { value: o.value }, o.label)));
   const weatherPanel = h('div', { class: 'sof-3d-model sof-3d-wx', role: 'group', 'aria-label': 'Weather layers' },

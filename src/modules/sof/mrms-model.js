@@ -52,9 +52,15 @@ export const PRODUCTS = Object.freeze({
 export const HIGH_LEVELS_KM = Object.freeze([1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18]);
 /** The 3D reflectivity at one height, km above sea level ("MergedReflectivityQC_03.00" for 3 km). */
 export const levelProduct = (km) => product(`MergedReflectivityQC_${km.toFixed(2).padStart(5, '0')}`, 'dbz', 9, 0, Math.round(km * 1000), `reflectivity at ${km} km`);
+/**
+ * Performance's one low height, km above sea level (SOF-70; Dad, 14 Oct 2026, picked "Add one low height" after the Moose Jaw comparison showed virga drawn
+ * reaching the ground): a cell with no echo here starts here, not at the ground. 2 km (about 6,600 ft) because MRMS covered it over nearly all of 150 NM round
+ * CYMJ that day, where 1 km had no coverage over about 70 % beyond 50 NM (radar-3d-research.md "The Moose Jaw comparison"); one day's check, an estimate.
+ */
+export const PERFORMANCE_LOW_KM = 2;
 /** The products each mode asks for, in the order they are asked. */
 export const MODE_PRODUCTS = Object.freeze({
-  performance: Object.freeze([PRODUCTS.top18, PRODUCTS.top30, PRODUCTS.composite]),
+  performance: Object.freeze([PRODUCTS.top18, PRODUCTS.top30, PRODUCTS.composite, levelProduct(PERFORMANCE_LOW_KM)]),
   high: Object.freeze(HIGH_LEVELS_KM.map(levelProduct)),
 });
 /** The setting "3D radar detail": Performance (default) or High (spec, SOF-67). */
@@ -371,12 +377,16 @@ export const COLUMN_MIN_FT = 600;
 /**
  * Performance's columns (spec): each cell whose composite echo is MIN_DRAW_DBZ or more is one column from the ground to its 18 dBZ top, in the composite's colour;
  * where there is a 30 dBZ top the column has a core up to it. A cell with an echo but no 18 dBZ top (weaker than 18 dBZ) has no measured height: it is a flat
- * tile on the ground (`flat`). `set` is { n, halfFt, composite, top18, top30 } (binMax cells); `groundAt(x, y)` feet above sea level.
- * Returns { columns: [{ x, y, wFt, dFt, baseFt, topFt, coreTopFt | null, flat, dbz, colour }], gaps } with `gaps` the cells with no coverage.
+ * tile on the ground (`flat`). Where MRMS sees PERFORMANCE_LOW_KM and finds no echo there (`low`, SOF-70), the echo is aloft: a column whose 18 dBZ top is above
+ * that height, and a flat tile, start at that height instead of the ground (`aloft`); a column topped below it stays on the ground (its echo is under that
+ * height). With no `low` cells, or no coverage at that height, a cell stands on the ground as before. `set` is { n, halfFt, composite, top18, top30, low }
+ * (binMax cells; top30 and low may be null); `groundAt(x, y)` feet above sea level.
+ * Returns { columns: [{ x, y, wFt, dFt, baseFt, topFt, coreTopFt | null, flat, aloft, dbz, colour }], gaps } with `gaps` the cells with no coverage.
  */
 export function performanceColumns(set, { groundAt = /** @type {(x: number, y: number) => number} */ (() => 0) } = {}) {
-  const { n, halfFt, composite, top18, top30 } = set;
+  const { n, halfFt, composite, top18, top30, low = null } = set;
   const size = (2 * halfFt) / n;
+  const lowFt = kmToFt(PERFORMANCE_LOW_KM);
   const columns = [];
   let gaps = 0;
   for (let j = 0; j < n; j++) {
@@ -394,9 +404,13 @@ export function performanceColumns(set, { groundAt = /** @type {(x: number, y: n
       const t18 = top18 ? top18[k] : NaN;
       const t30 = top30 ? top30[k] : NaN;
       const flat = !(t18 > 0);
-      const topFt = flat ? ground : Math.max(kmToFt(t18), ground + COLUMN_MIN_FT);
-      const coreTopFt = !flat && t30 > 0 ? Math.min(topFt, Math.max(kmToFt(t30), ground + COLUMN_MIN_FT)) : null;
-      columns.push({ x, y, wFt: size, dFt: size, baseFt: ground, topFt, coreTopFt, flat, dbz, colour: dbzColour(dbz) });
+      const lowValue = low ? low[k] : NaN;
+      const noEchoLow = !Number.isNaN(lowValue) && !(lowValue >= MIN_DRAW_DBZ); // MRMS sees that height and finds nothing to draw there
+      const aloft = noEchoLow && lowFt > ground && (flat || t18 > PERFORMANCE_LOW_KM);
+      const baseFt = aloft ? lowFt : ground;
+      const topFt = flat ? baseFt : Math.max(kmToFt(t18), baseFt + COLUMN_MIN_FT);
+      const coreTopFt = !flat && t30 > 0 ? Math.min(topFt, Math.max(kmToFt(t30), baseFt + COLUMN_MIN_FT)) : null;
+      columns.push({ x, y, wFt: size, dFt: size, baseFt, topFt, coreTopFt, flat, aloft, dbz, colour: dbzColour(dbz) });
     }
   }
   return { columns, gaps };
