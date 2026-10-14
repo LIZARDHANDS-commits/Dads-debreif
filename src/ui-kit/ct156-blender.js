@@ -56,10 +56,11 @@ function ct156Delivery() {
  * A delivered file's parts (loadParts), used only when every part carries the name of the delivery the import wrote
  * beside them, so a mixed or half-copied set never shows. This replaced the code's fingerprints (plan 3.4, Patrick
  * 13 Oct 2026): the file is now the shape's one source and differs from the code's shape on purpose once a fix is made.
- * Rejects otherwise, and the code's own parts stay.
+ * Rejects otherwise, and the code's own parts stay. The sheet is asked for only once the parts have loaded, so a page
+ * that cannot load them (such as the Harvard memory test page) makes no request and logs nothing.
  */
 export function loadDelivered(file) {
-  return Promise.all([ct156Delivery(), loadParts(CT156_FILES + file)]).then(([name, list]) => {
+  return loadParts(CT156_FILES + file).then((list) => ct156Delivery().then((name) => {
     const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
     if (!name || foreign.length) {
       console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);
@@ -70,7 +71,7 @@ export function loadDelivered(file) {
       console.info(`CT-156 models: delivery ${name}`);
     }
     return list;
-  });
+  }));
 }
 
 /** A baked soft-shadow picture beside the files, laid on its part's own UV map; loaded once a page. */
