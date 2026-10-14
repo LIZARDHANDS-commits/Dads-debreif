@@ -20,7 +20,7 @@
 //  7. The separation filter (separation.js separationFilter): the least change to his turn that keeps the predicted pass
 //     outside the pass line and him behind Lead's wing line.
 //  8. His lift (gCap, liftWithin): within his G, the turn giving way first, and unload, roll, pull.
-//  9. Power (powerFor): Lead's speed plus the closure the aim can't give; off while the filter holds and he is closing; MAX
+//  9. Power (powerAsk; not power.js powerFor): Lead's speed plus the closure the aim can't give; off while the filter holds and he is closing; MAX
 //     low inside; back on the yo-yo's way down; idle and the boards.
 // 10. The step (stepLead) and the trace.
 // Steering works in Lead's turn plane, his lift plane in a turn ("So can lead and 2 follows", Patrick 14 Oct 2026); his
@@ -383,7 +383,7 @@ function liftWithin(aTurn, hold, cap, bodyUp) {
  * pass line, and not slower than Lead; released early for the engine's 3.5 s spool-up (live/handling.js ENGINE). Returns {
  * ask (stepLead's power fields), idle, boards, powerI, wantKias, powerBack (power back this step: the yo-yo's trigger) }.
  */
-function powerFor(w, seen, job, st, guard, aim, closing, flt, owner, pitch, leadKias) {
+function powerAsk(w, seen, job, st, guard, aim, closing, flt, owner, pitch, leadKias) {
   const band = W.powerBandKias * KT_TO_FTPS;
   const missPower = flt.filterHold > 0 && closing > 0;
   const P = missPower ? 0 : aim.residual;
@@ -453,7 +453,7 @@ export function stepFwWingman(w, refSt) {
   // his lift, his power, the step
   const { capNormal, cap } = gCap(seen, st, guard, flt.filterPull);
   const lift = liftWithin(flt.aTurn, vert.hold, cap, st.bodyUp);
-  const pw = powerFor(w, seen, job, st, guard, aim, arc.closing, flt, owner, pitch, leadKias);
+  const pw = powerAsk(w, seen, job, st, guard, aim, arc.closing, flt, owner, pitch, leadKias);
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...pw.ask });
   const gAsk = len3(lift);
   const { arcFt, dFt } = arc;
