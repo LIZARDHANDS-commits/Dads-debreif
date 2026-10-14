@@ -24,7 +24,8 @@ import { ROLL } from '../rates.js';
 import { FW_SEE, FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
 import { seenOf, startFwSight, seeFw, aheadOnTurn } from './perception.js';
-import { startFwGuard, fwGuard, startFwJob, fwJob, leastPass } from './supervisor.js';
+import { startFwJob, fwJob } from './supervisor.js';
+import { startFwGuard, fwGuard, separationFilter } from './separation.js';
 
 const W = FW_WING;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
@@ -250,101 +251,9 @@ export function stepFwWingman(w, refSt) {
     return { dz, errFt, aV, hold };
   };
   const aTurn0 = perp3(add3(aFf, aP), u);
-  // ---- the separation filter ----
-  const runFilter = ({ errFt, aV, hold }) => {
-    let aTurn = aTurn0;
-    let filterPull = false;
-    let filterOn = false;
-    let lineShort = false;
-    let filterHold = Math.max(0, (w.filterHold ?? 0) - STEP_SEC);
-    let filterSide = w.filterSide ?? 0;
-    let cleared = true;
-    let engaged = Boolean(w.filterEngaged);
-    let engageClear = w.filterClearSec ?? 0;
-    let omPick = null;
-    const side = unit3(cross3(out, u)); // his left in the turn plane
-    const omegaNom = dot3(aTurn, side) / V; // rad/s, + turning left
-    const omNom = omegaNom / DEG;
-    const horizon = W.guard.lookSec;
-    const leadAsIs = { p: leadNow, v: leadV, omega: seen.turn.omega };
-    const leadTighter = { p: leadNow, v: leadV, omega: scale3(seen.turn.omega, W.guard.tighter) };
-    const passLine = Math.max(W.guard.engageFt, W.guard.minFt + W.guard.passLineSec * Math.max(0, seen.closure));
-    const predFor = (om) => {
-      const me = { p: ownP, v: ownV, omega: scale3(out, om), thenSec: job.turning ? W.circleLookSec : null };
-      const extra = { acc: aV, maxFt: Math.abs(errFt) };
-      const a = leastPass(leadAsIs, me, horizon, extra);
-      const b = leastPass(leadTighter, me, horizon, extra);
-      return { pass: Math.min(a.leastFt, b.leastFt + (passLine - W.guard.minFt)), behind: a.behindLeastFt };
-    };
-    const lineOk = (p) => p.behind >= W.guard.wingLineFt;
-    const nom = predFor(omegaNom);
-    const passFt = nom.pass;
-    const passShort = nom.pass < passLine;
-    const H = W.guard.engage;
-    const failing = nom.pass < passLine || !lineOk(nom);
-    const clearBy = nom.pass >= passLine + H.marginFt && nom.behind >= W.guard.wingLineFt + H.marginFt;
-    if (failing) {
-      engaged = true;
-      engageClear = 0;
-    } else if (engaged) {
-      engageClear = clearBy ? engageClear + STEP_SEC : 0;
-      if (engageClear >= H.releaseSec) engaged = false;
-    }
-    if (failing) {
-      filterOn = true;
-      const gMost = Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)));
-      const gHold = len3(hold);
-      const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
-      const N = W.guard.filterSteps;
-      const cands = [];
-      for (let k = -N; k <= N; k++) {
-        const om = (omMax * k) / N;
-        cands.push({ om, ...predFor(om) });
-      }
-      const insideK = Math.sign(dot3(seen.turn.omega, out)) || 0;
-      const choose = (ok) => {
-        let best = null;
-        for (const c of cands) {
-          if (!ok(c)) continue;
-          const sideK = Math.sign(c.om - omegaNom) || 1;
-          const lagPenalty = turning && insideK && sideK === insideK ? 2 * omMax : 0;
-          const cost = Math.abs(c.om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0) + lagPenalty;
-          if (!best || cost < best.cost) best = { ...c, cost, sideK };
-        }
-        if (!best) return null;
-        let lo = best.om;
-        let hi = best.om - best.sideK * (omMax / N);
-        for (let r = 0; r < W.guard.filterRefine; r++) {
-          const mid = (lo + hi) / 2;
-          if (ok(predFor(mid))) lo = mid;
-          else hi = mid;
-        }
-        return { om: lo, sideK: best.sideK };
-      };
-      const passOk = (c) => c.pass >= passLine;
-      let pick = choose((c) => passOk(c) && lineOk(c));
-      if (!pick) {
-        lineShort = !cands.some(lineOk);
-        pick = passOk(nom) ? { om: omegaNom, sideK: 0, free: true } : choose(passOk);
-      }
-      cleared = Boolean(pick);
-      const lagRescue =
-        !pick && turning && insideK
-          ? choose((c) => c.pass >= W.guard.minFt && (Math.sign(c.om - omegaNom) || 1) !== insideK)
-          : null;
-      if (lagRescue) pick = lagRescue;
-      const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
-      omPick = om / DEG;
-      if (pick?.free) filterOn = false;
-      else filterSide = pick ? pick.sideK : filterSide;
-      if (filterOn) {
-        aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
-        filterHold = W.guard.filterHoldSec;
-        filterPull = Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG;
-      } else filterSide = 0;
-    } else filterSide = 0;
-    return { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passShort, cleared, passFt, omNom, omPick: filterOn ? omPick : null, engaged, engageClear };
-  };
+  // ---- the separation filter (separation.js) ----
+  const sit = { seen, st, job, turning, out, u, V, ownP, ownV, leadNow, leadV };
+  const runFilter = (vert) => separationFilter(w, aTurn0, vert, sit);
   let vert = vertFor(dzOf(owner));
   let flt = runFilter(vert);
   if (owner.name === 'yoyo' && yoyo.phase === 'up' && flt.passShort && !flt.cleared) {

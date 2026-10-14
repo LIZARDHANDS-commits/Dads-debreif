@@ -18,6 +18,8 @@
 //    his wings overlap Lead's sideways he goes no further in, and back to line astern's fore and aft first), and under Lead
 //    out before up as in B1; each a guard on the place he aims at, with a dead band.
 // Collision avoidance comes at B4.
+// B5 (spec 7e.7, TS-233) adds fighting wing's jobs (fwJob, below). Fighting wing's separation guard and filter, which always
+// come first, are in separation.js.
 //
 // Plane, line, hinge is done by the share of each axis's deviation the loops are shown (masks, 0 to 1): the plane's at
 // once, the line's once he is near the plane, the rest along the line once also near the line, each eased in so the target
@@ -27,10 +29,9 @@
 // Signs and units as perception.js. The memory is never changed in place. Numbers: wing-moves.js CLOSE_WING.
 import { STEP_SEC } from '../flight.js';
 import { WINGSPAN_FT, LENGTH_FT, pairSlot } from '../slots.js';
-import { CLOSE_WING, FW_WING, FW_SEE } from '../wing-moves.js';
+import { CLOSE_WING, FW_WING } from '../wing-moves.js';
 import { KT_TO_FTPS } from '../../../../core/units.js';
 import { DEG } from '../../../../core/angles.js';
-import { add3, sub3, scale3, cross3, dot3, len3 } from '../attitude.js';
 
 const C = CLOSE_WING;
 
@@ -178,21 +179,6 @@ export function deconflict(place, rel, vLeft, guard, vFwd = 0) {
   return { place: aim, guard: { wings, span, ahead: ahead39 } };
 }
 
-// ---- B5: fighting wing's separation guard (spec 7e.7, TS-233) -------------------------------------------------------------
-//
-// Always first; a geometric predictor with priority and hysteresis, not a PID (Fable F1, F16). Each step he predicts the
-// pass from what he sees: Lead on his present turn (in his lift plane, perception.js turnOf) and one step tighter, himself on
-// his own present turn, each turn held; the least slant range over the next lookSec (plus the 0.4 s he sees late). Under
-// engageFt predicted (or under minFt now) the guard engages; it flies the manual's sequence for a turn into him (SMM 12.29
-// Figs 12.20, 12.22): the miss (aim at where Lead was, power off, the vertical: below Lead unless already above him,
-// Patrick 14 Oct 2026), then the reversal onto Lead's circle once the line of sight definitely rises (SMM 16.20 para
-// 65b(2)) with Lead behind his 3/9 line (never across Lead's nose). It owns pitch while engaged, and may pull past the
-// Lead + 1.5 G estimate up to what the aircraft gives, flagged (Patrick 14 Oct 2026). It releases once the pass predicted
-// and the range now are both over releaseFt for releaseSec. No Terminate: Lead never waits (Patrick 14 Oct 2026).
-// Numbers: wing-moves.js FW_WING.guard.
-
-const FG = FW_WING.guard;
-
 // ---- B5 T29: fighting wing's jobs (spec 7e.7) ------------------------------------------------------------------------------
 //
 // Below the guard, by what Lead is doing as he sees it (each switch with hysteresis, F4, F17):
@@ -296,74 +282,3 @@ export function fwJob(j, seen, { shortKt = 0 } = {}) {
   return { turning, dir, hold, entry, side: side || seen.levelSide, sTurn, quick, low: Boolean(low), heightFt };
 }
 
-
-/** The guard at the start: off. */
-export function startFwGuard() {
-  return { on: false, missFt: 0, clearSec: 0, predFt: Infinity };
-}
-
-/**
- * The least slant range over the next horizonSec between two aircraft each holding its turn: p, v (ft, ft/s) and omega
- * (rad/s, the turn's axis times its rate) for each; b.thenSec, when given: b holds its turn that long, then turns as a does
- * (its capture of a's turn). Integrated in lookStepSec steps (a turn held: the velocity turned by
- * omega x v, standard kinematics). Returns { leastFt, horizFt (the horizontal range at that moment) }.
- */
-export function leastPass(a, b, horizonSec, extra = null) {
-  let [pa, va, pb, vb] = [a.p, a.v, b.p, b.v];
-  let least = len3(sub3(pa, pb));
-  let horiz = Math.hypot(pa.x - pb.x, pa.y - pb.y);
-  // B5 round 3: how far b stays behind a's wing line (along a's path, + behind), the least over the look (Fable F6)
-  let behind = -dot3(sub3(pb, pa), va) / Math.max(len3(va), 1e-9);
-  // ... and b's vertical demand as a known term (Fable F3): extra = { acc (ft/s², a vector), maxFt (how far it moves him at
-  // most, his height target) }; the height it gives is added to b's place, so the slant counts it.
-  const accLen = extra ? len3(extra.acc) : 0;
-  const accDir = accLen > 1e-9 ? scale3(extra.acc, 1 / accLen) : null;
-  const dt = FG.lookStepSec;
-  for (let t = dt; t <= horizonSec + 1e-9; t += dt) {
-    // half-step turns keep the speed while turning (midpoint)
-    const va2 = add3(va, scale3(cross3(a.omega, va), dt));
-    // B5 round 4: b may hold its turn thenSec and then turn as a does (the capture: matching Lead's turn, SMM 12.29 Fig 12.20)
-    const omB = b.thenSec != null && t > b.thenSec + 1e-9 ? a.omega : b.omega;
-    const vb2 = add3(vb, scale3(cross3(omB, vb), dt));
-    const ka = len3(va) / Math.max(len3(va2), 1e-9);
-    const kb = len3(vb) / Math.max(len3(vb2), 1e-9);
-    pa = add3(pa, scale3(add3(va, scale3(va2, ka)), dt / 2));
-    pb = add3(pb, scale3(add3(vb, scale3(vb2, kb)), dt / 2));
-    va = scale3(va2, ka);
-    vb = scale3(vb2, kb);
-    const pbH = accDir ? add3(pb, scale3(accDir, Math.min(extra.maxFt, 0.5 * accLen * t * t))) : pb;
-    const d = len3(sub3(pa, pbH));
-    if (d < least) {
-      least = d;
-      horiz = Math.hypot(pa.x - pbH.x, pa.y - pbH.y);
-    }
-    behind = Math.min(behind, -dot3(sub3(pbH, pa), va) / Math.max(len3(va), 1e-9));
-  }
-  return { leastFt: least, horizFt: horiz, behindLeastFt: behind };
-}
-
-/**
- * One step of the guard. g: last step's; seen: perception.js seeFw's; ownOmega: his own turn now (rad/s vector, he feels
- * it). Returns the guard { on, phase ('miss' | 'reverse' | null), vert (+1 above, -1 below), missFt (the height off Lead
- * he makes the miss at), clearSec, losLeast, predFt (the least pass predicted) }.
- */
-export function fwGuard(g, seen, ownOmega) {
-  const horizon = FG.lookSec + FW_SEE.delaySec; // the picture is that old
-  const me = { p: seen.own.p, v: seen.own.v, omega: ownOmega };
-  const asIs = leastPass({ p: seen.lead.p, v: seen.lead.v, omega: seen.turn.omega }, me, horizon);
-  const tighter = leastPass({ p: seen.lead.p, v: seen.lead.v, omega: scale3(seen.turn.omega, FG.tighter) }, me, horizon);
-  const pass = asIs.leastFt <= tighter.leastFt ? asIs : tighter;
-  const predFt = Math.min(pass.leastFt, seen.slant);
-  if (!g.on) {
-    if (predFt >= FG.engageFt && seen.slant >= FG.minFt) return { ...g, predFt };
-    // Engaged: the miss deep enough to make the slant missSlantFt over the pass.
-    const need = Math.sqrt(Math.max(0, FG.missSlantFt ** 2 - pass.horizFt ** 2));
-    return { on: true, missFt: Math.min(FG.missFt[1], Math.max(FG.missFt[0], need)), clearSec: 0, predFt };
-  }
-  const clear = predFt > FG.releaseFt;
-  const clearSec = clear ? g.clearSec + STEP_SEC : 0;
-  if (clearSec >= FG.releaseSec) return { ...startFwGuard(), predFt };
-  const need = Math.sqrt(Math.max(0, FG.missSlantFt ** 2 - pass.horizFt ** 2));
-  const missFt = Math.max(g.missFt, Math.min(FG.missFt[1], need)); // deepened if the pass gets closer, never given back while engaged
-  return { ...g, missFt, clearSec, predFt };
-}
