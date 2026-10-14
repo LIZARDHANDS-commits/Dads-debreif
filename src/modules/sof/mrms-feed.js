@@ -43,7 +43,7 @@ export function createMrmsFeed({ fetch, timers, now = () => new Date(), decode, 
   let run = null; // { controller, key } of the update in progress
   let cancelNext = null;
   let lastGood = null; // the set on screen: see `assemble`
-  let failure = null; // { reason, at } of the last update that failed, cleared by a good one
+  let failure = null; // { reason, at, place } of the last update that failed, cleared by a good one
   let lastRunAt = null;
   let disposed = false;
   let serial = 0;
@@ -193,7 +193,7 @@ export function createMrmsFeed({ fetch, timers, now = () => new Date(), decode, 
       serial += 1;
       lastGood = { ...outcome.set, id: serial, place: placeKey(sq), receivedAt: +now() };
       failure = null;
-    } else failure = { reason: outcome.reason, at: +now() };
+    } else failure = { reason: outcome.reason, at: +now(), place: placeKey(sq) };
     schedule(refreshMs);
     changed();
   }
@@ -235,24 +235,25 @@ export function createMrmsFeed({ fetch, timers, now = () => new Date(), decode, 
       const clock = +t;
       const sq = square();
       const mine = lastGood && lastGood.place === placeKey(sq) ? lastGood : null;
+      const failed = failure && failure.place === placeKey(sq) ? failure : null; // a failure round another home is not this one's
       const fresh = mine && clock - mine.time <= staleMs ? mine : null;
       const notes = fresh ? fresh.notes : [];
       let state;
       let line;
       let reason = null;
-      if (fresh && !failure) {
+      if (fresh && !failed) {
         state = 'ok';
         line = { text: heightsLine(fresh.time, clock), symbol: '✓', tone: 'ok' };
       } else if (fresh) {
         state = 'old';
-        reason = failure.reason;
-        line = { text: `${heightsLine(fresh.time, clock)}; refresh failed (${failure.reason})`, symbol: '⚠', tone: 'caution' };
-      } else if (busy && !failure && !mine) {
+        reason = failed.reason;
+        line = { text: `${heightsLine(fresh.time, clock)}; refresh failed (${failed.reason})`, symbol: '⚠', tone: 'caution' };
+      } else if (busy && !failed && !mine) {
         state = 'loading';
         line = { text: 'Radar heights: NOAA MRMS loading; heights from model cloud until it arrives', symbol: '⟳', tone: 'busy' };
       } else {
         state = 'failed';
-        reason = failure?.reason ?? (mine ? `last set ${hhmmZ(mine.time)} is over ${Math.round(staleMs / 60_000)} min old` : busy ? 'loading' : 'not asked yet');
+        reason = failed?.reason ?? (mine ? `last set ${hhmmZ(mine.time)} is over ${Math.round(staleMs / 60_000)} min old` : busy ? 'loading' : 'not asked yet');
         line = { text: fallbackWords(reason), symbol: '⚠', tone: 'bad' };
       }
       const set = state === 'ok' || state === 'old' ? fresh : null;

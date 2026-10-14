@@ -211,7 +211,8 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       const set = mrms?.set ?? null;
       heightsNow = mrms && mrms.state !== 'nosource' ? mrms.line.text : null;
       if (set) {
-        place('radar', `mrms|${set.id}|${standing}`, () => {
+        // High's volume stands on the home field's ground, so new terrain tiles do not upload its 3D texture again; Performance's columns stand on the terrain.
+        place('radar', `mrms|${set.id}|${set.mode === 'high' ? common : standing}`, () => {
           const ground = groundAt ?? (() => groundFt);
           const strip = northStrip(set.lat, set.lon, set.halfFt);
           const mask = coverageMask(set);
