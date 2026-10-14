@@ -94,6 +94,19 @@ The CT-156's process applied to the Astra II (Grob G 120TP): [ct102-astra-plan.m
 - [ ] 5. Cockpit, once the outside is signed off.
 - [ ] 6. High and Performance delivery through the CT-156's import path (Step 3b items 3.4, 6 to 8), then first use in the Debrief (outside only, nothing flies).
 
+## Step 3d. T-38 Talon model in Blender (Dad's ask, 14 Oct 2026; proposed, waits on Patrick's yes)
+
+The Astra's process applied to the T-38: [t38a-plan.md](t38a-plan.md). Dad's thread would build it in its own files (`tools/blender/t38/`). Nothing is built until Patrick says yes and answers which T-38, where it is used first, and its paint (working answers in the plan).
+
+- [ ] 0. Patrick's yes, and the answers to the plan's questions.
+- [ ] 1. Sources table: public sizes, then sizes measured off the scaled drawings Dad sent (measuring only, kept out of the repo).
+- [ ] 2. First outside in Blender, by script, in real feet, with named points and hinges; size checks.
+- [ ] 3. Renders and a fix list from Patrick and Dad.
+- [ ] 4. Refine, before and after.
+- [ ] 5. Paint.
+- [ ] 6. First delivery (High and light files) and first use in the module Patrick names.
+- [ ] 7. Cockpit, once the outside is signed off.
+
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 
 - [ ] Sign-off: anyone runs the checklist in `testing.md` for the shared parts and sends Patrick the result; the next step starts only after his yes (TQ-2) (`pf/reset/4-decisions/answers.md:13`).
