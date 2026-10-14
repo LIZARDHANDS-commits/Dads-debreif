@@ -253,7 +253,10 @@ const cheatZ = () => -0.027;
 // about 0.45 ft aft and 4 % too deep (a 6.5 ft root from 11.6 ft, a 3.9 ft tip). 15 % thick at the root and 12 % at the
 // tip (estimates; the front view's root about 12 in and tip about 5.5 in thick agree); the tip 0.722 units out (Patrick,
 // 5 Oct: the real span, 33 ft 5 in), so its station along the bent wing is TIP_S.
-const WING_Z = -0.112;
+// Chunk 8 (3d-work #79, FU3 and FU11; Patrick, 13 Oct 2026, night: "Raise 1.5 in now"; imported with delivery ct156-2026-10-14-b2012a8): the whole wing 0.125 ft (1.5 in) higher, -0.112 + 0.0054 units, the root's thickness kept. An estimate
+// until the tape (between photo A24's 0.09 to 0.19 ft and the side drawing's 0.22 to 0.27). Everything built from the wing follows: its surface, the surfaces' hinges, the wells, the main gear's pivots, doors and
+// (since the ground stays) legs, the pitots, tie-downs and AOA vane on its skin, the wingtip lights.
+const WING_Z = -0.112 + 0.0054;
 const DIHEDRAL = rad(8.4);
 const WING_BREAK = 0.177; // the centre section's half-span, units: where the outer panel bends up (wingBend)
 const TIP = 0.722;
@@ -532,7 +535,10 @@ const GEAR_SIT_DEG = 0;
 const GEAR = Object.freeze({
   groundFt: -5.42, // the main wheels' ground, feet under the spinner's axis (A2; was -5.35)
   main: Object.freeze({ xFt: 13.87, pivotYFt: 3.85, wheelOutFt: 0.23, doorOutFt: 0.55, tyreRFt: 0.8333, tyreWFt: 0.3667, legRFt: 0.2, pistonRFt: 0.13 }), // M4 (3d-work #60, Patrick 13 Oct 2026, photos 30 and 31): 20 x 4.4 in tyres, r 10 in and 4.4 in wide (were 0.825 and 0.45)
-  legDoor: Object.freeze({ x0Ft: 13.45, x1Ft: 14.55, y0Ft: 2.3, y1Ft: 4.25 }),
+  // A2 (3d-work #79, Patrick, 13 Oct 2026, night: "Extend to the axle", photo 17; estimates): the leg doors reach down to the axle's height, 2.62 ft long from the hinge (y0Ft 2.3 to 1.63; was
+  // 1.95 ft); the upper part keeps its 1.1 ft width, and from the bottom up to 62 % of the length (lowerFrac) the door reaches 0.35 ft further aft (lowerAftFt: 1.45 ft fore and aft), a short slanted
+  // shoulder to 66 % (shoulderFrac). The leg well keeps the old span (wellY0Ft).
+  legDoor: Object.freeze({ x0Ft: 13.45, x1Ft: 14.55, y0Ft: 1.63, y1Ft: 4.25, wellY0Ft: 2.3, lowerFrac: 0.62, shoulderFrac: 0.66, lowerAftFt: 0.35 }),
   inboardDoor: Object.freeze({ x0Ft: 12.9, x1Ft: 15.1, y0Ft: 0.45, y1Ft: 2.35, aftCornerFt: 1.0, foreCornerFt: 0.2 }),
   legDoorSplayDeg: 12,
   nose: Object.freeze({ xFt: 6.0, pivotXFt: 6.2, pivotZFt: -2.05, tyreRFt: 0.6667, tyreWFt: 0.3667, // M4: 16 x 4.4 in, r 8 in and 4.4 in wide (were 0.645 and 0.5)
@@ -1363,9 +1369,11 @@ function gearGeometries(THREE) {
     return [x - px - hd[0], -dz - hd[1], dy - hd[2]];
   };
   geo.gearMainDoor = gearDoor(THREE, (u, v) => {
-    const x = gearX(ld.x0Ft + (ld.x1Ft - ld.x0Ft) * u), y = (ld.y0Ft + (ld.y1Ft - ld.y0Ft) * v) * GFT;
+    // v 0 is the door's bottom (its inboard end, folded): wider aft there up to the shoulder (A2).
+    const k = 1 - clamp01((v - ld.lowerFrac) / (ld.shoulderFrac - ld.lowerFrac));
+    const x = gearX(ld.x0Ft + (ld.x1Ft + ld.lowerAftFt * k - ld.x0Ft) * u), y = (ld.y0Ft + (ld.y1Ft - ld.y0Ft) * v) * GFT;
     return under(x, y);
-  }, [0, 0, 1], t, intoLeg);
+  }, [0, 0, 1], t, intoLeg, 8, 24);
   const ih = L.inboardHinge;
   geo.gearInboardDoor = gearDoor(THREE, (u, v) => {
     const xFt = ib.x0Ft + (ib.x1Ft - ib.x0Ft) * Math.sin((Math.PI / 2) * u); // closer together aft, round the D
@@ -1407,7 +1415,7 @@ function gearGeometries(THREE) {
   for (const k of ['L', 'R']) {
     const s = k === 'L' ? 1 : -1;
     const ys = (a, b) => (s > 0 ? [a * GFT, b * GFT] : [-b * GFT, -a * GFT]);
-    geo[`gearLegWell${k}`] = gearWell(THREE, gearX(ld.x0Ft), gearX(ld.x1Ft), () => ys(ld.y0Ft, ld.y1Ft), wing);
+    geo[`gearLegWell${k}`] = gearWell(THREE, gearX(ld.x0Ft), gearX(ld.x1Ft), () => ys(ld.wellY0Ft, ld.y1Ft), wing);
     geo[`gearInboardWell${k}`] = gearWell(THREE, gearX(ib.x0Ft), gearX(ib.x1Ft), (x) => ys(ib.y0Ft, inboardDoorFarFt((0.66 - x) / GFT)), wing, 20);
   }
   geo.gearNoseWell = gearWell(THREE, gearX(nd.x0Ft), gearX(nd.x1Ft), () => [-half, half], (x) => fairingBottomAt(x));

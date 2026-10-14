@@ -133,7 +133,8 @@ export const FORWARD_BOW_FT = Object.freeze({
   bandDepth: 0.13,
   tubeR: 0,
   section: Object.freeze({ outer: 0.16, outerT: 0.025, web: 0.05, inner: 0.067, innerT: 0.025 }),
-  foot: Object.freeze({ reach: 0.27, rise: 0.32, r: 0.06, rivets: Object.freeze({ n: 6, up: 0.06, r: 0.012 }) }),
+  // C11 (3d-work #79, "Bow foot narrower"; photo 42; estimates): each foot's plate 5.9 in fore and aft at the sill (reach 0.27 to 0.166, so 0.16 + 2 x 0.166 ft) and its flare 4.4 in tall (rise 0.32 to 0.3667).
+  foot: Object.freeze({ reach: 0.166, rise: 0.3667, r: 0.06, rivets: Object.freeze({ n: 6, up: 0.06, r: 0.012 }) }),
   studs: Object.freeze({ n: 40, r: 0.008, nut: 0.018, nutH: 0.017, tip: 0.021 }),
   lean: CT156_BOW_LEAN,
   dots: Object.freeze([]),
@@ -303,10 +304,11 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
  * across the grab rail beside it, so all three lamps show above the rail (Patrick, 11 Oct 2026), as the diagram and the
  * SMM's 220 KIAS picture (Fig 3.5) draw it.
  */
+// D14 (3d-work #79, Patrick, 13 Oct 2026, night: "Front indexer lower"; estimates): the front one 0.5 in (`frontLower` 0.042 ft) lower, its box's foot at z 1.605 ft (was 1.647), its post out and in its place a silver nut ring on the hood (`ringR` 0.028 ft round, from the hood to the box), as photo 39 shows.
 // E4 (3d-work #66, Patrick 13 Oct 2026; photo E01 at 1316 px a ft; estimates): the rear one stands on a short round post (`postR` 0.012 ft, 0.024 across) with a
 // washer (0.03 radius) and a hex nut (0.022) on a round boss on the hood (`boss`: 0.055 radius at its foot, 0.045 tall, its top rounded to 0.045 radius), its box
 // 0.085 ft over the master's hood (box bottom 1.832 ft; it was on the sight line's stud, 0.052 ft higher); the code's hood is 0.015 ft lower there (1.732 against 1.747 ft), so `postRise` is 0.1 to put the box where the master has it. The front's stays on its pod and sight line.
-export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.24, lampPitch: 0.057, aheadOfEdge: 0.15, y: 0.47, yRear: 0.62, clear: 0.01, postRise: 0.1, postR: 0.012, bossR: 0.055, bossTopR: 0.045, bossH: 0.045, nutR: 0.022, nutH: 0.012, washerR: 0.03, washerH: 0.004 });
+export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.24, lampPitch: 0.057, aheadOfEdge: 0.15, y: 0.47, yRear: 0.62, clear: 0.01, frontLower: 0.042, ringR: 0.028, postRise: 0.1, postR: 0.012, bossR: 0.055, bossTopR: 0.045, bossH: 0.045, nutR: 0.022, nutH: 0.012, washerR: 0.03, washerH: 0.004 });
 /**
  * The standby compass at the coaming's right corner, feet: a wet compass, a dark ball 0.2 ft (2.4 in) across with a
  * round window facing aft, the card a ball 0.17 ft across floating inside it and turned by the heading (update(hud)),
@@ -325,8 +327,10 @@ export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.2
  * the seat the ball's middle sits about half its width over the glareshield's edge, as on his reference picture. Sizes
  * estimates; the rear seat's is unseen.
  */
+// D15 (3d-work #79, Patrick, 13 Oct 2026, night: "Compass moved", then further outboard on its own bracket, clear of the rail's right corner, as photo 39; estimates): the front compass 0.18 ft further right, y -0.56 to -0.73,
+// and 1 in lower (its height follows the hood's there; the master's middle is about z 1.59 ft, was 1.67), with a stem `stemR` 0.02 ft round from the bowl's foot down to a base `baseR` 0.04 round on the hood's shoulder.
 // E12 (3d-work #66, Patrick 13 Oct 2026; the CFAFM rear panel drawing at its true scale): the rear compass 0.70 ft right of the middle (yRear was -0.8); its height follows the hood's (E3).
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, cardR: 0.055, cardBandDeg: 35, clear: 0.06, flange: 0.68, cornerR: 0.018, flangeT: 0.02, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.56, yRear: -0.7 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, cardR: 0.055, cardBandDeg: 35, clear: 0.06, flange: 0.68, cornerR: 0.018, flangeT: 0.02, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.73, yRear: -0.7, stemR: 0.02, baseR: 0.04, baseH: 0.015 });
 // Since 12 Oct 2026 (Patrick, from his photo) the flange is smaller (0.68 of the ball's width, so turned 45° its corners
 // stay inside the ball's outline; was 0.95, and 1.3 before that, "smaller footprint for the compass mount"), its corners
 // rounded and turned 45°, it and its strap light grey, and the card black with white marks (was cream with black).
@@ -2025,14 +2029,22 @@ function bowFeet(THREE, b) {
  * of the bow from the left sill (0) to the right (1), covering the bow from the glass to the far side of its inner tube
  * and no further, `aft` feet behind the band. Sizes estimates judged off the picture.
  */
-const BOW_MIRRORS = Object.freeze({ spans: Object.freeze([[0.18, 0.4], [0.6, 0.82]]), aft: 0.02 });
+// C10 (3d-work #79, Patrick, 13 Oct 2026, night: "There's only two near the top", then taller faces with rounded ends, a bit further apart; photos 10 and 40; estimates): each mirror a rounded
+// rectangle in the bow's face, the frame 6.4 in along the bow by 1.75 in across (`depthFt`), its ends rounded 0.45 in (`endR`), the glass 0.15 in inside the frame, from 3.35 to 9.75 in (`outFt`) out
+// along the bow from its crown either side (the frames' inner ends 6.7 in apart); they were 14.6 in from 6.6 in, before that [0.18, 0.4] and [0.6, 0.82] of the hoop. The master's grey brackets
+// at the crown ends and the three fittings between (`bowFittings`) are in the delivered file only.
+const BOW_MIRRORS = Object.freeze({ outFt: Object.freeze([3.35 / 12, 9.75 / 12]), depthFt: 1.75 / 12, endR: 0.45 / 12, aft: 0.02 });
 // Since 12 Oct 2026 (Patrick's mirror photo) longer, each from about 10 and 2 o'clock up to near the crest with a short
 // gap between, round-ended (they were [0.22, 0.35] and [0.65, 0.78], square-ended). Since the bow became solid (12 Oct 2026) 0.02 ft behind its aft face (was 0.04).
 
-/** One of the forward bow's curved mirrors between bow fractions t0 and t1 (BOW_MIRRORS), as { frame, face } (feet). */
-function bowMirrorGeometries(THREE, b, t0, t1) {
+/** One of the forward bow's curved mirrors, `side` +1 or -1 of the bow's crown (BOW_MIRRORS), as { frame, face } (feet). */
+function bowMirrorGeometries(THREE, b, side) {
   const n = 480; // fine enough for the round ends to show (48 until Patrick, 12 Oct 2026, "should have rounded ends")
-  const pts = ct156HoopPoints(b.bandX / F, n, 0, b.lean ?? 0).slice(Math.round(t0 * n), Math.round(t1 * n) + 1);
+  const all = ct156HoopPoints(b.bandX / F, n, 0, b.lean ?? 0);
+  const cum = [0];
+  for (let j = 1; j < all.length; j++) cum.push(cum[j - 1] + Math.hypot(all[j].y - all[j - 1].y, all[j].z - all[j - 1].z) * F);
+  const crown = cum[cum.length - 1] / 2, [out0, out1] = BOW_MIRRORS.outFt;
+  const pts = all.filter((_, j) => cum[j] >= crown + side * out0 - (side < 0 ? out1 - out0 : 0) && cum[j] <= crown + side * out0 + (side > 0 ? out1 - out0 : 0));
   const base = ct156CanopySection(b.bandX / F).base * F;
   const at = ({ x, y, z }, d, dx) => {
     const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz) || 1;
@@ -2042,8 +2054,9 @@ function bowMirrorGeometries(THREE, b, t0, t1) {
   // Round ends: near each end the strip narrows about its middle line as a half circle across its depth.
   const len = [0];
   for (let j = 1; j < pts.length; j++) len.push(len[j - 1] + Math.hypot(pts[j].y - pts[j - 1].y, pts[j].z - pts[j - 1].z) * F);
-  const half = (d1 - d0) / 2 + 0.012, mid = (d0 + d1) / 2;
-  const w = (j) => { const e = Math.min(len[j], len[len.length - 1] - len[j]); return e >= half ? 1 : Math.sqrt(Math.max(0, 1 - ((half - e) / half) ** 2)); };
+  const half = BOW_MIRRORS.depthFt / 2, mid = (d0 + d1) / 2, rr = BOW_MIRRORS.endR;
+  // A rounded rectangle: the strip's half-width keeps its full size to the corner's radius from each end, then closes as a quarter circle.
+  const w = (j) => { const e = Math.min(len[j], len[len.length - 1] - len[j]); return e >= rr ? 1 : (half - rr + Math.sqrt(Math.max(0, rr * rr - (rr - e) ** 2))) / half; };
   const edge = (sgn, grow, dx) => pts.map((q, j) => at(q, mid + sgn * (half - 0.012 + grow) * Math.max(w(j), 0.05), dx));
   const frame = loft(THREE, [edge(-1, 0.012, aft - 0.005), edge(1, 0.012, aft - 0.005)], { closed: false });
   const face = loft(THREE, [edge(-1, 0, aft), edge(1, 0, aft)], { closed: false });
@@ -2281,7 +2294,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // housing, FIRE a separate square box to their right. Each lamp: [y, slot, lens half-width, lens half-height].
   const lx = h.aftX - 0.003, lz = front ? h.top - RIM_FT.r - LAMP_STRIP_FT / 2 : h.top - lipDrop / 2 - 0.015;
   const lamps = front
-    ? [[0.19, SLOT.lampRed, 0.035, 0.017], [0, SLOT.lampAmber, 0.035, 0.017], [-0.21, SLOT.lampRed, 0.021, 0.021]]
+    ? [[0.114, SLOT.lampRed, 0.035, 0.017], [0, SLOT.lampAmber, 0.035, 0.017], [-0.126, SLOT.lampRed, 0.021, 0.021]] // D13 (3d-work #79, "Warning lamps closer"; 0.6 of the spacing, an estimate off photo 41): the red lamps at y +0.114 and -0.126 (were +0.19 and -0.21)
     : [[0.16, SLOT.lampRed, 0.042, 0.025], [0, SLOT.lampAmber, 0.042, 0.025], [-0.16, SLOT.lampRed, 0.042, 0.025]];
   if (front) {
     // On a grey strip across the panel's top under the lip, each in its own housing, MASTER CAUTION 2.3 in from MASTER WARN and 2.5 in from FIRE (3 in until Patrick, 12 Oct 2026, "Buttons still not spaced right?", measured again off his photo), a small screw
@@ -2291,7 +2304,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     // 2026 notes ("the right light is a box whereas the other two are rectangles", "note the size of these buttons",
     // "we should be able to see the whole EADI") the oblong lenses are 0.84 x 0.4 in and FIRE 0.5 in square, scaled off
     // his photo on the EADI's width, on a strip showing LAMP_STRIP_FT under the rail, with no lip above them.
-    put(box(THREE, lx, lx + 0.012, -0.47, 0.5, h.top - RIM_FT.r - LAMP_STRIP_FT, h.top - lipDrop), SLOT.grey);
+    put(box(THREE, lx, lx + 0.012, -0.282, 0.3, h.top - RIM_FT.r - LAMP_STRIP_FT, h.top - lipDrop), SLOT.grey); // D13: the strip 0.6 as wide, y -0.282 to +0.300 (was -0.47 to 0.5)
     for (const [y, , hw, hh] of lamps) {
       const m = 0.008;
       put(box(THREE, lx - 0.02, lx, y - hw - m, y + hw + m, lz - hh - m, lz + hh + m), SLOT.black);
@@ -2359,10 +2372,10 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const rx = h.aftX - RIM_FT.aftOfGlareshield, ry = (ay * (rx - eye.x)) / (ax - eye.x); // where the sight line crosses the rail
     const railTop = hoodTopZ(h, ts, h.aftX, ry) + RIM_FT.r;
     // The front: its foot on this seat's eye's sight line over the rail, on a pod and a stud. The rear (E4): 0.085 ft over the hood on a round post and boss.
-    const bottom = front ? Math.max(hood, eye.z + ((railTop - eye.z) * (ax - eye.x)) / (rx - eye.x) + A.clear) : hood + A.postRise;
+    const bottom = front ? Math.max(hood, eye.z + ((railTop - eye.z) * (ax - eye.x)) / (rx - eye.x) + A.clear) - A.frontLower : hood + A.postRise;
     const top = bottom + A.tall, fx0 = ax - A.deep / 2;
     put(box(THREE, fx0, ax + A.deep / 2, ay - A.wide / 2, ay + A.wide / 2, bottom, top), SLOT.dark);
-    if (front) put(box(THREE, ax - 0.02, ax + 0.02, ay - 0.02, ay + 0.02, hood - 0.03, bottom + 0.005), SLOT.metal); // its stud
+    if (front) put(new THREE.CylinderGeometry(A.ringR, A.ringR, Math.max(0.01, bottom - hood), 16).rotateX(Math.PI / 2).translate(ax, ay, (hood + bottom) / 2), SLOT.metal); // the silver nut ring on the hood (D14; the post is gone)
     else {
       const up = (g, z) => g.rotateX(Math.PI / 2).translate(ax, ay, z);
       put(up(new THREE.CylinderGeometry(A.postR, A.postR, A.postRise, 12), hood + A.postRise / 2), SLOT.metal); // the post
@@ -2405,6 +2418,11 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(box(THREE, cx - 0.02, cx + 0.02, cy + corner - 0.02, sy + 0.005, f1 - 0.01, f1), SLOT.grey);
     put(box(THREE, cx - 0.02, cx + 0.02, sy - 0.005, sy + 0.005, sz - 0.01, f1), SLOT.grey);
     put(new THREE.CylinderGeometry(C.r * 0.47, C.r * 0.47, C.r * 0.6, 14).rotateX(Math.PI / 2).translate(cx, cy, zc - C.r * 0.95), SLOT.black); // the light under the ball
+    if (front) { // D15: the stem from the bowl's foot down to its base on the hood's shoulder
+      const foot = zc - C.r * 1.25, base = hoodZ(h, ts, cx, cy);
+      put(new THREE.CylinderGeometry(C.stemR, C.stemR, Math.max(0.01, foot - base), 10).rotateX(Math.PI / 2).translate(cx, cy, (foot + base) / 2), SLOT.grey);
+      put(new THREE.CylinderGeometry(C.baseR, C.baseR, C.baseH, 14).rotateX(Math.PI / 2).translate(cx, cy, base + C.baseH / 2), SLOT.grey);
+    }
     // The case: the whole ball but its window (a round hole on the aft side, windowDeg across and 2 x cardBandDeg tall).
     const win = rad(C.windowDeg), band = rad(C.cardBandDeg);
     const phi0 = -win / 2; // SphereGeometry's phi 0 faces aft (-x) once turned upright; phi grows to the pilot's right
@@ -2935,8 +2953,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   bowParts.push(...bowFootParts(THREE).map(([geometry, slot]) => ({ geometry, materials: [slot] })));
   for (const g of fb.dots) bowParts.push({ geometry: g, materials: [SLOT.black] });
   for (const part of bowParts) solidParts.push({ ...part, name: 'forward-bow' });
-  for (const [t0, t1] of BOW_MIRRORS.spans) {
-    const { frame, face } = bowMirrorGeometries(THREE, FORWARD_BOW_FT, t0, t1);
+  for (const side of [-1, 1]) {
+    const { frame, face } = bowMirrorGeometries(THREE, FORWARD_BOW_FT, side);
     solidParts.push({ geometry: frame, materials: [SLOT.black] }, { geometry: face, materials: [SLOT.mirror] });
   }
   // The inter-cockpit arch's light band with its fastener rows and inner tube, and the clear inter-cockpit shield
