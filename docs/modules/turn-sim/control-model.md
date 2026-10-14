@@ -601,7 +601,7 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | CLOSE_SEE | 3 | 1 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | CLOSE_WING | 62 | 8 | 1 | 0 | 53 | 0 | 0 | 0 | 0 | 0 |
 | FW_SEE | 6 | 1 | 0 | 0 | 4 | 1 | 0 | 0 | 0 | 0 |
-| FW_WING | 111 | 18 | 0 | 3 | 90 | 0 | 0 | 0 | 3 | 5 |
+| FW_WING | 178 | 18 | 0 | 3 | 157 | 0 | 0 | 0 | 3 | 5 |
 
 | Added by the recommended structure | Value | Role | Source |
 |---|---|---|---|
@@ -750,11 +750,24 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | `FW_WING.yoyo.powerBackKt` | 5 | tuning | High yo-yo | removes: a power-to-yo-yo link (R9) | power-back trigger (kept until S7; estimate) |
 | `FW_WING.yoyo.excessFtps` | 20 | tuning | High yo-yo | removes: the speed trigger | excess arc closure trigger (kept until S7; estimate) |
 | `FW_WING.yoyo.minFt` | 100 | tuning | High yo-yo | keeps | 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233) |
-| `FW_WING.yoyo.exitArcFt` | 150 | tuning | High yo-yo | keeps | exit arc error threshold (estimate) |
-| `FW_WING.yoyo.onCircleFt` | 150 | tuning | High yo-yo | keeps | on-circle offset threshold (estimate) |
-| `FW_WING.yoyo.downEndFt` | 50 | tuning | High yo-yo | keeps | return-to-stack threshold (estimate) |
+| `FW_WING.yoyo.exitArcFt` | 150 | tuning | High yo-yo | keeps | exit arc error threshold: 150 ft (estimate) |
+| `FW_WING.yoyo.onCircleFt` | 150 | tuning | High yo-yo | keeps | on-circle offset threshold: 150 ft (estimate) |
+| `FW_WING.yoyo.downEndFt` | 50 | tuning | High yo-yo | keeps | return-to-stack threshold: 50 ft (estimate) |
 | `FW_WING.yoyo.highFt` | 100 | ruling | Pitch owner | keeps | "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233) |
-| `FW_WING.yoyo.ownerHoldSec` | 2 | tuning | High yo-yo | keeps | pitch owner hold time (kept until S7; estimate) |
+| `FW_WING.yoyo.ownerHoldSec` | 2 | tuning | High yo-yo | keeps | pitch owner hold time: 2 s (kept until S7; estimate) |
+| `FW_WING.yoyo.cueClosureFtps` | 15 | tuning | High yo-yo | keeps | closure cue threshold: 15 ft/s (TS-233; estimate) |
+| `FW_WING.yoyo.cueDwellSec` | 2 | tuning | High yo-yo | keeps | cue dwell time: 3 s (Fable D6; estimate) |
+| `FW_WING.yoyo.topClosureFtps` | 5 | tuning | High yo-yo | keeps | closure threshold to top out and descend: 5 ft/s (Fable D6; estimate) |
+| `FW_WING.yoyo.topDwellSec` | 5 | tuning | High yo-yo | keeps | dwell time at top of climb: 5 s (Fable D6; estimate) |
+| `FW_WING.yoyo.doneClosureFtps` | 10 | tuning | High yo-yo | keeps | completion closure threshold: 5 ft/s (estimate) |
+| `FW_WING.yoyo.ftPerFtps` | 12 | tuning | High yo-yo | keeps | vertical height change per ft/s rate: 12 ft/(ft/s) (physics; estimate) |
+| `FW_WING.yoyo.maxClimbFt` | 450 | tuning | High yo-yo | keeps | maximum planned climb height: 450 ft (estimate) |
+| `FW_WING.yoyo.maxSlantFt` | 1000 | tuning | High yo-yo | keeps | maximum slant range before capping climb: 1,000 ft (TS-233; estimate) |
+| `FW_WING.yoyo.maxRateFtps` | 50 | tuning | High yo-yo | keeps | maximum planned vertical profile rate: 50 ft/s (Fable D1; estimate) |
+| `FW_WING.yoyo.urgency` | 0.4 | tuning | High yo-yo | keeps | technique urgency: 0 (estimate) |
+| `FW_WING.yoyo.upIntent` | -0.5 | tuning | High yo-yo | keeps | bleed energy intent during climb: -0.5 (Fable 3b §7; estimate) |
+| `FW_WING.yoyo.downIntent` | 0 | tuning | High yo-yo | keeps | energy intent during descent: 0 (estimate) |
+| `FW_WING.yoyo.maxRunSec` | 20 | tuning | High yo-yo | keeps | longest-run timeout: 30 s (estimate) |
 | `FW_WING.powerBandKias` | 15 | ruling | Power (powerAsk) | keeps | speed offset Δv_ref bounded within ±15 KIAS of Lead (Patrick 4 Oct 19:12Z, Fable D21) |
 | `FW_WING.speedKvPerSec` | 0.3 | tuning | Power (powerAsk) | keeps: B11 proportional speed loop gain (0.3 /s, D21, D23) | proportional speed loop gain Kv = 0.3 /s with no integrator, crossover 0.3 rad/s, PM 89°/82° (Patrick 14 Oct 2026, Fable D21, D23; estimate) |
 | `FW_WING.rollInLeadMinDps` | 10 | tuning | Power (powerAsk) | keeps: B11 roll-in power lead start roll rate (10°/s, Spec 7e §7.8) | Lead's seen roll rate threshold to ramp in roll-in power lead ahead of his expected end-bank G drag (spec 7e §7.8, Fable 3b §1; estimate) |
@@ -772,7 +785,7 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | `FW_WING.guard.minFt` | 500 | ruling | Separation filter | keeps | 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233) |
 | `FW_WING.guard.taperStartFt` | 600 | ruling | Guard (fwGuard) | keeps: B12 cubic barrier outer boundary (600 ft, TS-233) | guard is completely silent at >= 600 ft and tapers cubically x = ((600 - p)/100)^3 down to 500 ft (Patrick 14 Oct 2026, TS-233) |
 | `FW_WING.guard.capOpenStartFt` | 550 | tuning | G cap | keeps: B12 smooth G-cap opening start (550 ft, S40) | G cap opens smoothly from Lead G + 1.5 at 550 ft to stall-warning/available G at 500 ft (spec 7e §7.8b; estimate) |
-| `FW_WING.guard.lookSec` | 10 | tuning | Separation filter | keeps: B12 closing-pass predictor horizon (10 s, S35) | single forward predictor horizon up to 10 s over the closing part of the pass (spec 7e §7.8b, Fable D4; estimate) |
+| `FW_WING.guard.lookSec` | 10 | tuning | Separation filter | keeps: B12 closing-pass predictor horizon (10 s, S35) | forward prediction look-ahead horizon: 3 s (estimate) |
 | `FW_WING.guard.lookStepSec` | 0.25 | search | Separation filter | keeps | predictor integration step 0.25 s (search effort) |
 | `FW_WING.guard.tighter` | 1.3 | tuning | Separation filter | keeps | also checks Lead tightening his turn by 1.3x when inside 550 ft (Fable F1, F13; estimate) |
 | `FW_WING.guard.passLineSec` | 1.4 | tuning | Separation filter | changes: the closure allowance becomes the taper's allowed closing speed | closure allowance time scale in the tapered barrier (spec 7e §7.8b; estimate) |
@@ -784,22 +797,76 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | `FW_WING.picker.noRestartSec` | 3 | tuning | Jobs (fwJob) | keeps: B04 technique picker cooldown and blend times (S23, D5) | 3 s cooldown after a technique finishes before the same technique can re-fire (spec 7e §7.10, Fable D6; estimate) |
 | `FW_WING.picker.pathBlendSec` | 6 | tuning | Jobs (fwJob) | keeps: B04 technique picker cooldown and blend times (S23, D5) | scalar path blend time >= 6 s (3 / ω_c for steering crossover 0.52 rad/s; Fable D5; estimate) |
 | `FW_WING.picker.heightBlendSec` | 4.3 | tuning | Jobs (fwJob) | keeps: B04 technique picker cooldown and blend times (S23, D5) | scalar height blend time >= 4.3 s on entry (3 / ω_c for vertical crossover 0.68 rad/s; Fable D5; estimate) |
-| `FW_WING.miss.clearSlantFt` | 625 | ruling | Pitch owner | keeps: B06 T1 pass-clear target slant clearance (625 ft) | target 3D pass clearance D = 625 ft so horizontal + vertical clears the 500 ft bubble with margin (spec 7e §7.9.1; estimate) |
+| `FW_WING.miss.clearSlantFt` | 625 | ruling | Pitch owner | keeps: B06 T1 pass-clear target slant clearance (625 ft) | target 3D pass clearance: 625 ft (spec 7e §7.9.1; estimate) |
 | `FW_WING.miss.cuePassFt` | 600 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | cue triggers when predicted pass p < 600 ft closing (Patrick 14 Oct 2026, TS-233; estimate) |
-| `FW_WING.miss.cueClosureFtps` | 5 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | minimum closing rate to trigger the miss cue (Fable D6; estimate) |
+| `FW_WING.miss.cueClosureFtps` | 5 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | closure cue threshold: 15 ft/s (TS-233; estimate) |
 | `FW_WING.miss.tPassMinSec` | 3 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | minimum time-to-pass for the planned vertical profile cue window (Fable D4: 3 s <= t_pass <= 10 s; estimate) |
 | `FW_WING.miss.tPassMaxSec` | 10 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | maximum time-to-pass for the planned vertical profile cue window (Fable D4; estimate) |
-| `FW_WING.miss.dwellSteps` | 2 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | cue must hold for 2 consecutive steps (0.1 s) before firing (Fable D6; estimate) |
+| `FW_WING.miss.dwellSteps` | 2 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | cue dwell steps: 2 (Fable D6; estimate) |
 | `FW_WING.miss.urgencyStartSec` | 8 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | urgency u = clip((8 - t_pass) / 5, 0, 1) starts rising below 8 s to pass (Fable 3b §7; estimate) |
 | `FW_WING.miss.urgencySpanSec` | 5 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | urgency reaches 1.0 at t_pass <= 3 s (Fable 3b §7; estimate) |
-| `FW_WING.miss.minDepthFt` | 75 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | least vertical miss depth below Lead (spec 7e §7.9.1; estimate) |
-| `FW_WING.miss.maxDepthFt` | 300 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | deepest planned vertical miss below Lead (spec 7e §7.9.1; estimate) |
-| `FW_WING.miss.maxRateFtps` | 60 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | maximum planned vertical profile descent/climb rate \\|ḣ_T\\| (Fable D1; estimate) |
+| `FW_WING.miss.minDepthFt` | 75 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | minimum vertical pass depth below Lead: 100 ft (estimate) |
+| `FW_WING.miss.maxDepthFt` | 300 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | maximum vertical pass depth below Lead: 300 ft (estimate) |
+| `FW_WING.miss.maxRateFtps` | 60 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | maximum planned vertical profile rate: 50 ft/s (Fable D1; estimate) |
 | `FW_WING.miss.maxTurnMixRadps` | 0.12 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | cap on least horizontal turn mix Δω when vertical reach alone is short of 625 ft (Fable D4; estimate) |
 | `FW_WING.miss.replanTighterFt` | 50 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | re-plans depth once if predicted pass tightens by more than 50 ft (spec 7e §7.9.1; estimate) |
 | `FW_WING.miss.donePassFt` | 650 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | miss hands back once predicted pass > 650 ft and opening ... (Fable D6; estimate) |
-| `FW_WING.miss.doneDwellSec` | 2 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | ... held for 2 s after passing bottom (Fable D6; estimate) |
-| `FW_WING.miss.maxRunSec` | 15 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | longest-run timeout for the miss technique (spec 7e §7.9.1; estimate) |
+| `FW_WING.miss.doneDwellSec` | 2 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | completion dwell time: 5 s (Fable D6; estimate) |
+| `FW_WING.miss.maxRunSec` | 15 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | longest-run timeout: 30 s (estimate) |
+| `FW_WING.behind39.lookSec` | 3 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | forward prediction look-ahead horizon: 3 s (estimate) |
+| `FW_WING.behind39.sweepCueDeg` | 0 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | sweep angle threshold ahead of Lead 3/9 line: 0° (spec 7e §7.9.2; estimate) |
+| `FW_WING.behind39.doneSweepDeg` | 15 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | sweep angle threshold behind 3/9 line: 15° (spec 7e §7.9.2; estimate) |
+| `FW_WING.behind39.doneDwellSec` | 2 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | completion dwell time: 5 s (Fable D6; estimate) |
+| `FW_WING.behind39.dwellSteps` | 2 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | cue dwell steps: 2 (Fable D6; estimate) |
+| `FW_WING.behind39.clearSlantFt` | 625 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | target 3D pass clearance: 625 ft (spec 7e §7.9.1; estimate) |
+| `FW_WING.behind39.minDepthFt` | 100 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | minimum vertical pass depth below Lead: 100 ft (estimate) |
+| `FW_WING.behind39.maxDepthFt` | 300 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | maximum vertical pass depth below Lead: 300 ft (estimate) |
+| `FW_WING.behind39.maxRateFtps` | 60 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | maximum planned vertical profile rate: 50 ft/s (Fable D1; estimate) |
+| `FW_WING.behind39.inCourseDeg` | 35 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | inward/lag course bias: 35° (TS-233; estimate) |
+| `FW_WING.behind39.urgency` | 0.5 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | technique urgency: 0 (estimate) |
+| `FW_WING.behind39.energyIntent` | -0.5 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | energy intent bleed: -0.5 (estimate) |
+| `FW_WING.behind39.maxRunSec` | 15 | tuning | Nose behind | keeps: B06 T2 back behind 3/9 line technique constants (Spec 7e §7.9.2, D6) | longest-run timeout: 30 s (estimate) |
+| `FW_WING.cutAcross.cueSlantFt` | 1000 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | slant range cue threshold: 575 ft (TS-233; estimate) |
+| `FW_WING.cutAcross.cueClosureFtps` | 0 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | closure cue threshold: 15 ft/s (TS-233; estimate) |
+| `FW_WING.cutAcross.cueDwellSec` | 3 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | cue dwell time: 3 s (Fable D6; estimate) |
+| `FW_WING.cutAcross.doneSlantFt` | 900 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | completion slant range: 650 ft (estimate) |
+| `FW_WING.cutAcross.doneClosureFtps` | 30 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | completion closure threshold: 5 ft/s (estimate) |
+| `FW_WING.cutAcross.chiMaxInDeg` | 45 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | maximum inward approach angle cap: 45° (spec 7e §7.9.5; estimate) |
+| `FW_WING.cutAcross.targetArcFt` | 800 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | target arc transition range: 800 ft (estimate) |
+| `FW_WING.cutAcross.leadOffsetFt` | -150 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | inward lead offset d: -150 ft (estimate) |
+| `FW_WING.cutAcross.diveFt` | -150 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | planned dive height below Lead: -150 ft (estimate) |
+| `FW_WING.cutAcross.urgency` | 0.2 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | technique urgency: 0 (estimate) |
+| `FW_WING.cutAcross.energyIntent` | 1 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | energy intent bleed: -0.5 (estimate) |
+| `FW_WING.cutAcross.maxRunSec` | 40 | tuning | Arc loop (aimInTurn) | keeps: B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6) | longest-run timeout: 30 s (estimate) |
+| `FW_WING.exitVert.cueArcErrFt` | 150 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | arc error threshold: 150 ft (TS-233; estimate) |
+| `FW_WING.exitVert.cueClosureFtps` | 20 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | closure cue threshold: 15 ft/s (TS-233; estimate) |
+| `FW_WING.exitVert.cueDwellSteps` | 2 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | cue dwell steps: 2 (Fable D6; estimate) |
+| `FW_WING.exitVert.rangeSec` | 10 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | range time constant: 10 s (TS-233, Fable D10; estimate) |
+| `FW_WING.exitVert.ftPerFtps` | 12 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | vertical height change per ft/s rate: 12 ft/(ft/s) (physics; estimate) |
+| `FW_WING.exitVert.minConeFt` | 500 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | minimum cone boundary: 500 ft (Patrick, TS-208; estimate) |
+| `FW_WING.exitVert.maxConeFt` | 1000 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | maximum cone boundary: 1,000 ft (TS-233; estimate) |
+| `FW_WING.exitVert.maxHeightFt` | 350 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | maximum planned vertical displacement: 350 ft (spec 7e §7.9.6; estimate) |
+| `FW_WING.exitVert.maxRateFtps` | 50 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | maximum planned vertical profile rate: 50 ft/s (Fable D1; estimate) |
+| `FW_WING.exitVert.doneArcErrFt` | 50 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | completion arc error threshold: 50 ft (estimate) |
+| `FW_WING.exitVert.doneClosureFtps` | 10 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | completion closure threshold: 5 ft/s (estimate) |
+| `FW_WING.exitVert.doneDwellSec` | 5 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | completion dwell time: 5 s (Fable D6; estimate) |
+| `FW_WING.exitVert.urgency` | 0.4 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | technique urgency: 0 (estimate) |
+| `FW_WING.exitVert.diveIntent` | 0.5 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | energy intent while diving: +0.5 (estimate) |
+| `FW_WING.exitVert.climbIntent` | -0.5 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | energy intent while climbing: -0.5 (estimate) |
+| `FW_WING.exitVert.maxRunSec` | 25 | tuning | Pitch owner | keeps: B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6) | longest-run timeout: 30 s (estimate) |
+| `FW_WING.sTurn.cueSlantFt` | 575 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | slant range cue threshold: 575 ft (TS-233; estimate) |
+| `FW_WING.sTurn.cueClosureFtps` | 15 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | closure cue threshold: 15 ft/s (TS-233; estimate) |
+| `FW_WING.sTurn.cueDwellSteps` | 2 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | cue dwell steps: 2 (Fable D6; estimate) |
+| `FW_WING.sTurn.rangeSec` | 10 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | range time constant: 10 s (TS-233, Fable D10; estimate) |
+| `FW_WING.sTurn.minSwingDeg` | 12 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | minimum heading swing angle: 12° (estimate) |
+| `FW_WING.sTurn.maxSwingDeg` | 30 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | maximum heading swing angle: 30° (estimate) |
+| `FW_WING.sTurn.legSec` | 6 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | s-turn leg alternation interval: 6 s (spec 7e §7.9.7; estimate) |
+| `FW_WING.sTurn.doneSlantFt` | 650 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | completion slant range: 650 ft (estimate) |
+| `FW_WING.sTurn.doneClosureFtps` | 5 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | completion closure threshold: 5 ft/s (estimate) |
+| `FW_WING.sTurn.doneDwellSec` | 5 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | completion dwell time: 5 s (Fable D6; estimate) |
+| `FW_WING.sTurn.urgency` | 0 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | technique urgency: 0 (estimate) |
+| `FW_WING.sTurn.energyIntent` | -0.5 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | energy intent bleed: -0.5 (estimate) |
+| `FW_WING.sTurn.maxRunSec` | 30 | tuning | Swept aim (aimSwept) | keeps: B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6) | longest-run timeout: 30 s (estimate) |
 
 ## 9. The phased-in pattern (Patrick's "phased security guard")
 
