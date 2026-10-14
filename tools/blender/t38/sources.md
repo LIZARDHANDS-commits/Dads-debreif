@@ -1,8 +1,8 @@
 # T-38A Talon: sources table
 
-Every number the build script (`build_t38.py`) uses, with its source. The script keeps these numbers in one constants block, and each one names its row here (for example `P3`, `R7`, `E8`). Shared plan Step 3d, items 1 to 3 and a first paint pass (item 5) (`docs/modules/shared/plan.md`, `docs/modules/shared/t38a-plan.md`).
+Every number the build script (`build_t38.py`) uses, with its source. The script keeps these numbers in one constants block, and each one names its row here (for example `P3`, `R7`, `E8`). Shared plan Step 3d, items 1 to 3, a first paint pass (item 5) and the rough cockpits (item 7) (`docs/modules/shared/plan.md`, `docs/modules/shared/t38a-plan.md`).
 
-**Status:** first pass of the outside and the Beale paint, 14 Oct 2026, **not yet seen by Patrick or Dad**. **No manual page is used:** there is no T-38 manual in the project files. The numbers below are public figures (P), measured off the scaled drawings Dad sent (R), read off Dad's Beale pictures (D) or estimates (E).
+**Status:** first pass of the outside and the Beale paint, and a first pass of the rough cockpits, 14 Oct 2026, **not yet seen by Patrick or Dad**. **No manual page is used for a number:** there is no T-38 manual in the project files. The numbers below are public figures (P), measured off the scaled drawings Dad sent (R), read off Dad's Beale pictures (D), the cockpit's layout read by eye off Dad's cockpit pictures (K) or estimates (E).
 
 ## How these were found, and what's missing
 
@@ -93,6 +93,49 @@ T6 is a side-view print of a Beale AFB 9th Reconnaissance Wing T-38 (left side, 
 
 Not drawn yet: the small red marking above the badge, the white light on the fin (T6), the red line along the fuselage side (T6), the warning stencils and the canopy's red tips seen on T7.
 
+## Cockpit: what sits where (K rows; shared plan Step 3d item 7, first pass, 14 Oct 2026)
+
+Dad, 14 Oct 2026: "It works now...great work...now lets workout the rough T-38A cockpit". "Rough" means shapes and layout, no working instruments. The pictures below are references for **where things are and their proportions, read by eye**; none carries a scale, so every size in the cockpit is an estimate (E12 to E22). They stay out of the repo, and nothing is copied or traced from them: the gauge faces, panels and placards are simple shapes drawn by the script in the positions read off them. **Not yet seen by Patrick or Dad.**
+
+| # | Reference picture (Dad, 14 Oct 2026) | Use |
+|---|---|---|
+| T8 | A photo of a T-38 front cockpit straight on: glare shield, main panel, consoles, stick | the panel's layout and the gauges' relative sizes, colours |
+| T9 | An airliners.net photo of a front cockpit from above and behind (canopy open) | seat, harness, consoles, throttles on the left console, stick and boot, colours |
+| T10 | A flight-sim screenshot of the front cockpit from the pilot's eye | the eye's height against the glare shield and the windshield bow, mirrors and standby compass; a cross-check only |
+| T11 | T.O. 1T-38A-1, Fig. 1-6 sheet 1, p. 1-7 (Dad's picture, 14 Oct 2026; not in the project files: layout by eye only, no numbers taken from it) | what sits where: instrument panel, left and right subpanels, landing gear lever, throttle quadrant on the left console, pedestal, control stick, consoles, AOA indexer, standby compass, rear-vision mirrors |
+| T12 | PaperTrainer's "U.S. Air Force Northrop T-38 Cockpit Configuration Trainer" poster (copyright, for the Air Force Association) | the panel's and consoles' straight-on proportions and every gauge's place and relative size; never copied or traced |
+
+Precedence for layout (the coordinator, 14 Oct 2026): T11 and the photos first for what is where, T12 for the panel's straight-on proportions, T10 only as a cross-check.
+
+| Row | What | Read off | Used in the build |
+|---|---|---|---|
+| K1 | The main instrument panel under a glare shield, the lower panel below it, a pedestal down the middle to the floor with the stick ahead of it, consoles each side | T8, T11, T12 | `board`, `glare_shield`, `pedestal`, `console` |
+| K2 | The panel's outline: a flat top over the middle, sloping shoulders, the main panel's foot | T12 (flat to 0.47 ft either side, shoulders to 1.075 ft out and 0.31 ft down, foot 0.83 ft down at E14's scale), T8 | `PANEL_TOP_FLAT_U`, `PANEL_SHOULDER`, `PANEL_MAIN_BOTTOM_V`; past the shoulders the panel reaches to the glass and walls |
+| K3 | The lower panel, wider, with two knee wells either side of the pedestal; black switch panels on it and the radio heads on the pedestal | T12, T8, T11 | `PANEL_LOWER`, `PANEL_BLOCKS` |
+| K4 | Gauges: the attitude indicator top centre (its centre 0.07 ft left of the centreline, on T12 and T8 alike), the HSI under it; airspeed and Mach left of the attitude indicator, the altimeter right of it, the vertical velocity right of the HSI; small gauges in a column on the left; on the right the engine gauges in two columns, then four columns lower down, and a larger gauge far right | T12 positions and sizes, T8, T10 | `PANEL_GAUGES`, `PANEL_FRAMES` (square black backings of the five main instruments) |
+| K5 | The fire lights at both ends of the main panel, warning lights on top, three gear lights and the landing gear lever upper left; red lights on the lower panel | T12, T11, T8 | `PANEL_LAMPS`, `GEAR_LEVER` |
+| K6 | The AOA indexer on the glare shield's top centre; the standby compass hung from the windshield bow upper right; a rear-view mirror on the bow each side | T11, T12, T10 | `AOA_INDEXER_Y`, `STANDBY_COMPASS`, `MIRRORS` |
+| K7 | Left console: a panel, the throttle quadrant with two levers side by side, a trim strip, more panels; right console: a caution-light panel, switch panels and the map case aft | T12, T11, T9 | `CONSOLE`, `THROTTLE`, `CONSOLE_PANELS` |
+| K8 | The rear cockpit: the same layout, moved with the eye (E10: 5.0 ft aft, 0.35 ft up); its panel higher again (E21), under a shroud over the front seat's back, with its own windscreen on top (E20). No picture of the rear cockpit was sent; "check the drawings": the outside drawings (T2, T3) show only the canopy, so this row is a copy of the front with estimates | E10, E20, E21 | `REAR_SHIFT`, `REAR_PANEL_RAISE`, `shroud`, `inter_windscreen` |
+| K9 | The ejection seat: cushion and bucket, back, headbox; khaki harness straps; yellow handgrips at the front of the seat's sides | T9 | `SEAT`, `harness`, `seat_handles` |
+| K10 | The stick in the middle with a black boot; rudder pedals in the footwells either side of the pedestal | T8, T9, T11 | `STICK`, `PEDALS` |
+| K11 | Colours: medium grey walls and consoles, light grey panel, black glare shield and switch panels, grey seat cushions, khaki harness, yellow handles | T8, T9 (by eye) | `COCKPIT_RGB`, `PANEL_INK` |
+
+**The outside changes that come with it:** the fuselage's top is cut away over the cockpit (E12) and a plain tub (`cockpitWell`, E13) closes it, so the outside files never show a hole; the canopy glass is an open shell (no floor across the sill, no ends), and the three bows are arches standing in from the glass (E19), so from a seat they read as glass and frames. The rear cockpit's own windscreen (first fix list, item 4) is drawn as an estimate (E20).
+
+**Eye checks** (printed by the build, 14 Oct 2026; E10's eye points unchanged):
+
+| | Front | Rear |
+|---|---|---|
+| Eye over the sill | 1.10 ft | 1.45 ft |
+| Eye over the seat cushion (E16) | 2.55 ft (about 31 in, a seated eye height) | 2.55 ft |
+| Glass over the eye; over a helmet (0.45 ft over the eye, E16) | 0.67 ft; 0.29 ft | 0.67 ft; 0.21 ft |
+| Glare shield's lip below the eye line (seen over it) | 13.0° (yes) | 8.7° (yes) |
+| Bow's inside top above the eye line | windshield bow +4.6° | own windscreen +13.5° |
+| The front seat's headbox from the rear eye | | level with the eye (0.0°): straight ahead the rear seat looks at it, over the rear glare shield |
+
+Cross-check against T10 (by eye): the sim's view puts about 20° between the windshield bow's inside top and the glare shield; the model has 17.6° (+4.6° to −13.0°). Close; an eye about 0.1 ft lower would match. Left as built until Patrick or Dad looks from the seat.
+
 ## Estimates (no source yet)
 
 Every row here is an **estimate** until a drawing, a photo, Patrick or a manual page replaces it.
@@ -110,6 +153,17 @@ Every row here is an **estimate** until a drawing, a photo, Patrick or a manual 
 | E9 | Pitot boom shape | 0.11 ft radius for the first 0.55 ft, tapering to 0.045 ft, 0.04 ft at the tip | |
 | E10 | Eye points | Front 12.3 ft, +3.0 ft; rear 17.3 ft, +3.35 ft (the rear seat sits higher) | Under the canopy's peak; needs the seats and a photo from each |
 | E11 | Datum | the model's origin: the radome tip | A model reference only; the aircraft's weighing datum is in the flight manual, which the project files don't hold |
+| E12 | Cockpit opening | the fuselage's top cut away from 9.6 to 19.9 ft, at the sill (R5, +1.90 ft) | From under the glare shield to the spine's front |
+| E13 | Tub | walls 0.08 ft in from the skin; floor −0.75 ft in front, −0.40 ft behind a step at 13.9 ft (the rear seat 0.35 ft higher, E10); the footwell's front at 9.0 ft, its ceiling at +1.33 ft (the knee wells' top) | Built round the eye and seat heights (E16) inside the measured fuselage (R3, R4) |
+| E14 | Panel scale | 2.15 ft across the main panel's shoulders: the attitude indicator's frame then 4.7 in, the airspeed indicator 2.9 in across, the engine gauges about 1.8 in | Between T8 scaled by a 5 in attitude indicator (2.27 ft) and what fits inside the canopy (R5) |
+| E15 | Panel and glare shield | panel's top centre 10.05 ft, +2.47 ft, its face leaning 12° back from upright; glare shield from 9.5 ft (the deck) to a lip 0.3 ft aft of the panel's top and 0.08 ft over it, 0.1 ft thick | The panel about 2.3 ft ahead of the front eye, the glare shield seen over at 13° down (eye checks) |
+| E16 | Seat | cushion top +0.45 ft (2.55 ft under the eye), pan from 11.35 to 12.75 ft, 1.24 ft wide (bucket 1.44 ft); back to 13.08 ft, +2.55 ft, about 9° back; headbox 13.05 to 13.65 ft, +2.55 to +3.35 ft, 0.84 ft wide; a helmet's top 0.45 ft over the eye (for the check only) | A seated eye height of about 31 in; the headbox inside the canopy |
+| E17 | Consoles, throttles | consoles from 10.45 to 12.80 ft, tops +0.97 ft, from 1.17 ft out to the wall (about 0.4 ft wide, T12's proportion); throttles at 11.25 ft, 1.28 and 1.44 ft out, grips up to +1.30 ft, in a slot from 10.91 to 11.60 ft | |
+| E18 | Stick, pedals | stick from the floor at 11.15 ft to its grip's top at 11.08 ft, +0.90 ft; pedals at 9.45 ft, 0.40 ft either side, −0.70 to −0.25 ft, hung from the footwell's ceiling | Reach from the seat (E16) |
+| E19 | Canopy bows | standing in from the glass 0.12 ft (the windshield bow, thick on T10) and 0.08 ft (the split and the aft frame) | |
+| E20 | The rear cockpit's own windscreen | a flat pane at 14.98 ft, the canopy's inside section above the rear panel's shroud | The first fix list (item 4) names it; its shape and place are not measured |
+| E21 | Rear panel, shroud | the rear panel 0.15 ft higher than the front one moved with the eye (its top +2.97 ft); its shroud from behind the front headbox (13.75 ft, top +2.55 ft) rising to the rear panel's top | So the rear glare shield sits over the front seat's back |
+| E22 | Standby compass, mirrors | compass at 10.85 ft, 0.55 ft right, +2.82 ft, 0.16 ft across, on a rod from the bow; mirrors at 10.82 ft, 0.70 ft out, +2.85 ft, 0.28 by 0.14 ft, on rods out to the bow | Placed by eye to T10 and T11 |
 
 ## Size checks (first pass, 14 Oct 2026)
 
@@ -141,7 +195,7 @@ The model's square-on side and top silhouettes (40 px per ft) laid over the draw
 1. **Fin leading edge:** T2 sweeps it 38.7°, T3 30.3°, T1 31°; the model follows T3. Wants a photo square-on to the fin.
 2. **Main gear:** the leg's door is a flat plate; T3 draws a rounded fairing tapering to the wheel. The pivots, the leg's rake and which way each leg folds are estimates (E8); the wheel wells and doors under the fuselage are not drawn.
 3. **Intakes:** no splitter plate or boundary-layer gap (about 0.15 ft on T2's top view); the lip is a plain rounded ring.
-4. **Canopy:** frame stations differ by 0.3 to 0.7 ft between T2 and T3 (R5); the rear cockpit's own windscreen, the canopy's hinges and the frames' detail are not drawn. Wanted before the cockpit (item 7).
+4. **Canopy:** frame stations differ by 0.3 to 0.7 ft between T2 and T3 (R5); the canopy's hinges and the frames' detail are not drawn. The rear cockpit's own windscreen is drawn since the first cockpit pass, as an estimate (E20).
 5. **Tailplane:** 2.8% under P3's area; its height is −1.6 on T3 and −1.17 on T2's front view (R8). A fairing at its root on both side views is not drawn.
 6. **Tail end:** T2 draws the body ending in a step at 42.1 ft with petalled nozzles beyond; the model's shrouds are plain tapered tubes, and the fairing between the two nozzles is not shaped.
 7. **Wing:** the section is a stand-in (E1); no root fillet; the full-chord line at 10.4 ft out is not drawn.
@@ -149,3 +203,13 @@ The model's square-on side and top silhouettes (40 px per ft) laid over the draw
 9. **Wheelbase:** 19.82 ft off T3 against 19 ft 5 in on a secondary site (P4).
 10. **Which line is level:** T3's ground line or T2's drawing line (1.2° apart) as the model's X axis: question for Patrick (R1).
 11. **Paint not drawn yet:** the small red marking above the badge, the fin's white light, the red line along the fuselage side (T6), warning stencils, the canopy's red tips (T7); the badge and star-and-bar are stand-ins; the fin band's stars are dark on both pictures where the plan said white (question for Dad).
+
+## Cockpit fix list (first pass; **not built**, for Patrick and Dad to look at)
+
+1. **No scale:** none of the cockpit pictures carries one, so every size is an estimate (E12 to E22); a tape measurement, a scaled drawing of the cockpit or Patrick's or Dad's eye from the seat would settle the panel's width, the seat's height and the eye points (E10).
+2. **Eye height:** against T10 the model's front eye may sit about 0.1 ft high (eye checks).
+3. **Rear cockpit:** a copy of the front (K8); the real rear panel, its shroud and its own windscreen (E20, E21) want a picture of the rear cockpit.
+4. **Gauges:** flat faces with ticks, no needles, numbers or placards; the attitude indicator and HSI are simple; nothing moves (the app says so).
+5. **Subpanels:** drawn in the panel's plane; T11 shows the left and right subpanels angled toward the pilot.
+6. **Not drawn:** the canopy breaker tool, canopy locking lever, utility light, compass correction card holders, landing gear alternate release handle (all on T11), the seat's rails, oxygen hose and canopy breakers, the canopy's hinges and inside frames, the rear cockpit's gear lever.
+7. **Seats** are blocks: cushions, back and headbox, a hint of the harness.

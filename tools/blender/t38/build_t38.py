@@ -2,11 +2,12 @@
 # paint pass, item 5; docs/modules/shared/t38a-plan.md). Runs headless, with Blender 5.2 or the bpy module:
 #
 #   blender -b --factory-startup -P tools/blender/t38/build_t38.py -- <out>/t38.blend [<render dir>]
-#   <venv>/bin/python tools/blender/t38/build_t38.py -- <out>/t38.blend [<render dir> [silhouettes]]
+#   <venv>/bin/python tools/blender/t38/build_t38.py -- <out>/t38.blend [<render dir> [silhouettes | cockpit]]
 #
 # Every number is in the constants block below and names its row in sources.md (P = a public page, R = measured off a
 # drawing Dad sent on 14 Oct 2026 (T2 Cullen's three-view, T3 Peeters' 1/72 drawings), D = read off Dad's Beale pictures
-# (T6 profile print, T7 photo), E = an estimate).
+# (T6 profile print, T7 photo), K = the cockpit's layout read by eye off Dad's cockpit pictures (T8 to T12), E = an
+# estimate).
 #
 # Axes and units follow the CT-156 and Astra scripts: real feet, nose +X, left +Y, up +Z. The origin (the named point
 # `datum`) is the tip of the radome, the nose cone's point behind the pitot boom, so a part's station (feet behind the
@@ -22,6 +23,12 @@
 # colours (<render dir>/plain) and painted (<render dir>/painted): both quarters, below, and square-on side, front and top
 # over a 1 ft grid; the painted set adds a view near the angle of Dad's photo T7. The plain set also writes the side and
 # top silhouettes (`-alpha.png`) that the overlay sheets are made from.
+#
+# The cockpits (shared plan Step 3d item 7, first pass, "rough": shapes and layout, no working instruments; Dad, 14 Oct
+# 2026: "lets workout the rough T-38A cockpit") are built here too, from the K and E rows of sources.md: the outside
+# keeps the cockpit opening, the open canopy arches and a plain tub (`cockpitWell`), and everything else sits in the
+# `cockpit` collection, which export_t38.py writes into its own file. `cockpit` after the render directory makes only
+# the cockpit renders (<render dir>/cockpit: each seat's view, from above and behind, and a cutaway side view).
 import math
 import os
 import shutil
@@ -34,10 +41,11 @@ from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 if not argv:
-    sys.exit('usage: build_t38.py -- <out.blend> [<render dir> [silhouettes]]')
+    sys.exit('usage: build_t38.py -- <out.blend> [<render dir> [silhouettes | cockpit]]')
 OUT_BLEND = os.path.abspath(argv[0])
 RENDER_DIR = os.path.abspath(argv[1]) if len(argv) > 1 else None
 SILHOUETTES_ONLY = len(argv) > 2 and argv[2] == 'silhouettes'  # only the side and top silhouettes, for the overlays
+COCKPIT_ONLY = len(argv) > 2 and argv[2] == 'cockpit'  # only the cockpit renders
 
 IN_TO_FT = 1 / 12
 
@@ -186,13 +194,77 @@ PITOT = [(0.25, 0.11), (-0.30, 0.11), (-0.60, 0.045), (-PITOT_LENGTH_FT, 0.04)] 
 EYE_FRONT = (12.3, 3.0)             # E10 estimate (station, height), front cockpit
 EYE_REAR = (17.3, 3.35)             # E10 estimate, rear cockpit (the rear seat sits higher)
 
+# ---------- cockpits (shared plan Step 3d item 7, first pass; K = layout by eye off T8 to T12, E = estimate) ----------
+# Every size here is an estimate (E12 to E22): no picture of the cockpit carries a scale, so the panel is scaled from its
+# width (E14), the rest from the cockpit's outside width (R4, R5) and a seated pilot's eye height (E16). Stations ft
+# behind the radome tip, heights ft above it, as everywhere in this script. The rear cockpit is the front one moved by
+# REAR_SHIFT, its panel REAR_PANEL_RAISE higher again (K8).
+SILL_Z = 1.90                       # R5: the canopy's sill, the cockpit opening's edge
+COCKPIT_OPEN_FT = (9.6, 19.9)       # E12: the opening in the fuselage's top, from under the glare shield to the spine
+TUB = dict(front=9.0, aft=19.85, wall=0.08, floor_front=-0.75, floor_rear=-0.40, step=13.9)  # E13: tub, walls 0.08 ft in from the skin
+REAR_SHIFT = (EYE_REAR[0] - EYE_FRONT[0], EYE_REAR[1] - EYE_FRONT[1])  # K8: the rear cockpit is the front one, 5.0 ft aft and 0.35 ft up
+REAR_PANEL_RAISE = 0.15             # K8, E21: the rear panel sits higher still, its hood over the front seat's headbox
+# The main instrument panel (K1 to K4, E14): its top centre, how far its face leans back from upright (the top forward),
+# and its layout in panel feet: u to the pilot's right, v up from the top centre (negative down). Scaled so the main
+# panel is 2.15 ft across its shoulders (E14), which makes the attitude indicator's frame 4.7 in and the engine gauges
+# about 1.8 in across.
+PANEL_TOP = (10.05, 2.47)           # E15: station, height of the panel's top centre
+PANEL_LEAN_DEG = 12.0               # E15
+PANEL_TOP_FLAT_U = 0.47             # K2: the top edge is flat to here, then slopes down at the shoulders
+PANEL_SHOULDER = (1.075, -0.31)     # K2: the shoulder's corner (u, v); the top edge carries on down to the glass
+PANEL_MAIN_BOTTOM_V = -0.83         # K2: the main panel's foot; below it the lower panel, wider
+PANEL_LOWER = dict(half=1.28, knee_top=-1.15, bottom=-1.57, pedestal=0.21, knee=(0.21, 0.90))  # K3: lower panel, knee wells, pedestal
+GLARE_SHIELD = dict(front=9.5, lip_aft=0.30, lip_up=0.08, thick=0.10)  # E15: hood from 9.5 ft, lip 0.3 ft aft of the panel top
+# Gauges (K4): kind, u, v, radius ft. 'adi' attitude indicator, 'hsi', 'dial' a round gauge, 'light' a light face.
+PANEL_GAUGES = [
+    ('adi', -0.07, -0.22, 0.164), ('hsi', -0.07, -0.61, 0.164),
+    ('dial', -0.41, -0.23, 0.12),                                    # airspeed and Mach, left of the attitude indicator
+    ('dial', 0.27, -0.21, 0.12), ('dial', 0.27, -0.51, 0.12),        # altimeter, vertical velocity
+    ('dial', -0.65, -0.26, 0.093), ('dial', -0.62, -0.47, 0.087), ('light', -0.415, -0.47, 0.087),
+    ('dial', -0.62, -0.68, 0.093), ('dial', 0.21, -0.73, 0.04), ('dial', 0.33, -0.73, 0.04),
+    ('dial', 0.48, -0.22, 0.071), ('dial', 0.63, -0.22, 0.071), ('dial', 0.48, -0.37, 0.071), ('dial', 0.63, -0.37, 0.071),
+    ('dial', 0.83, -0.34, 0.093),
+    ('dial', 0.48, -0.54, 0.076), ('dial', 0.63, -0.54, 0.076), ('dial', 0.80, -0.54, 0.076), ('dial', 0.96, -0.54, 0.076),
+    ('dial', 0.48, -0.70, 0.076), ('dial', 0.63, -0.70, 0.076), ('dial', 0.80, -0.70, 0.076), ('dial', 0.96, -0.70, 0.076),
+    ('dial', -0.64, -0.93, 0.07), ('dial', 1.14, -1.37, 0.075),
+]
+# Square black backings (K4): u0, u1, v0, v1 (attitude indicator, HSI, airspeed, altimeter, vertical velocity)
+PANEL_FRAMES = [(-0.27, 0.13, -0.43, -0.03), (-0.27, 0.13, -0.78, -0.44), (-0.54, -0.28, -0.36, -0.10),
+                (0.13, 0.40, -0.34, -0.08), (0.14, 0.40, -0.65, -0.38)]
+# Lamps (K5): u, v, width, height ft, colour: the fire lights at both ends, the warning lights on top, the gear lights
+PANEL_LAMPS = [(-0.88, -0.36, 0.10, 0.045, 'fire'), (0.99, -0.36, 0.10, 0.045, 'fire'),
+               (0.26, -0.05, 0.10, 0.04, 'amber'), (0.43, -0.055, 0.10, 0.04, 'fire'),
+               (-0.92, -0.59, 0.025, 0.025, 'green'), (-0.86, -0.59, 0.025, 0.025, 'green'), (-0.80, -0.59, 0.025, 0.025, 'green'),
+               (0.27, -0.90, 0.04, 0.10, 'fire'), (0.75, -0.89, 0.04, 0.09, 'fire'), (0.92, -0.89, 0.04, 0.09, 'fire'),
+               (-1.18, -1.33, 0.05, 0.10, 'fire'), (0.92, -1.33, 0.04, 0.10, 'fire'), (1.00, -1.33, 0.04, 0.10, 'fire')]
+# Black switch panels on the lower panel and pedestal (K3): u0, u1, v0, v1
+PANEL_BLOCKS = [(-0.68, -0.22, -1.15, -0.85), (-1.27, -0.91, -1.46, -1.08), (-1.06, -0.89, -1.01, -0.85),
+                (-0.19, 0.20, -1.17, -0.85), (-0.19, 0.20, -1.56, -1.19), (0.24, 0.65, -1.15, -0.85),
+                (0.66, 1.04, -1.05, -0.85), (0.85, 1.06, -1.46, -1.17)]
+GEAR_LEVER = (-0.86, -0.75)         # K5: the landing gear lever on the left of the main panel (u, v)
+AOA_INDEXER_Y = -0.03               # K6: on the glare shield's top centre (T11, T12)
+STANDBY_COMPASS = (10.85, -0.55, 2.82)  # K6, E22: hung from the windshield bow, upper right (T10, T11, T12)
+MIRRORS = dict(s=10.82, out=0.70, z=2.85, w=0.28, h=0.14)  # K6, E22: a rear-view mirror each side on the bow (T10, T11)
+# Side consoles (K7, E17): from the panel aft beside the seat, the throttle quadrant on the left
+CONSOLE = dict(s=(10.45, 12.80), top=0.97, inboard=1.17)
+THROTTLE = dict(s=11.25, out=(1.28, 1.44), top=1.30, slot=(10.91, 11.60))  # K7, E17: two levers side by side
+# Ejection seat (K9, E16): the cushion's top, the pan's front, the back's foot and top, the headbox
+SEAT = dict(pan_front=11.35, back_foot=12.75, cushion_z=0.45, half=0.62, frame_half=0.72, back_top=(13.08, 2.55),
+            back_depth=0.34, headbox=(13.05, 13.65, 2.55, 3.35, 0.42))
+STICK = dict(base=(11.15, -0.75), boot_top=(11.12, -0.35), grip_foot=(11.05, 0.50), grip_top=(11.08, 0.90))  # K10, E18
+PEDALS = dict(s=9.45, out=0.40, z=(-0.70, -0.25), w=0.18)  # K10, E18
+FOOTWELL_CEILING_Z = 1.33           # E13: under the panel, over the pedals (the knee wells' top, K3)
+WINDSCREEN_FRAME_DEPTH = (0.12, 0.08, 0.08)  # E19: how far each bow stands in from the glass (the windshield's is thick, T10)
+INTER_WINDSCREEN_FT = 14.98         # E20: the rear cockpit's own windscreen, on its panel's shroud (fix list 4)
+SHROUD_FRONT_Z = 2.55               # E21: the shroud's top behind the front seat's headbox, which stands 0.8 ft above it
+
 SHARP_DEG = 40  # as build_ct156_exterior.py: faces meeting at more than this keep a hard edge
 
 # ---------- Beale AFB paint (D rows: T6 profile print and T7 photo, Dad, 14 Oct 2026) ----------
 # Colours are sRGB 0 to 255 read off T7 away from reflections (D1); the black is a gloss black (T7 reads 8, 7, 14 in shade).
 PAINT_RGB = {'black': (20, 20, 23), 'red': (180, 28, 36), 'metal': (185, 180, 174), 'darkMetal': (70, 68, 66),
              'grey': (200, 201, 205), 'tyre': (28, 29, 32), 'duct': (12, 12, 14), 'frame': (34, 34, 38),
-             'white': (235, 235, 235)}
+             'white': (235, 235, 235), 'interior': (128, 136, 144)}
 BARE_METAL_FROM_FT = 41.1           # D2: T7 3.7 ft and T6 2.7 ft of bare metal ahead of the exit; mean
 STAR_COLOUR = 'black'               # D3: T6 and T7 show the fin band's stars dark; the plan's description says white
 # Markings: on = which picture; s, z = centre (station ft, height ft above the radome tip); sizes in ft. Lettering is
@@ -247,11 +319,12 @@ def foil(a, b, t):
     return upper + lower
 
 
-def loft(bm, rings, caps=True, cap_mat=(0, 0)):
+def loft(bm, rings, caps=True, cap_mat=(0, 0), closed=True):
+    """Joins rings of points (each the same count) into faces; closed=False leaves each ring an open line (an arch)."""
     vs = [[bm.verts.new(p) for p in r] for r in rings]
     n = len(rings[0])
     for a, b in zip(vs, vs[1:]):
-        for i in range(n):
+        for i in range(n if closed else n - 1):
             j = (i + 1) % n
             bm.faces.new((a[i], a[j], b[j], b[i]))
     if caps:
@@ -316,7 +389,16 @@ def fuselage_ring(s, n=56):
         p = pu if si >= 0 else pl
         z = zw + (top - zw) * se(si, pu) if si >= 0 else zw + (zw - bot) * se(si, pl)
         pts.append((X(s), hw * se(c, p), z))
+    if COCKPIT_OPEN_FT[0] <= s <= COCKPIT_OPEN_FT[1]:  # over the cockpit, the top is laid flat at the sill and cut away
+        pts = [(x, y, min(z, SILL_Z)) for x, y, z in pts]
     return pts
+
+
+def cut_cockpit(bm):
+    """Removes the fuselage's top over the cockpit (E12): the faces laid flat at the sill, so the skin ends at the sill."""
+    gone = [f for f in bm.faces if all(v.co.z >= SILL_Z - 1e-6 for v in f.verts)
+            and all(COCKPIT_OPEN_FT[0] - 1e-6 <= -v.co.x <= COCKPIT_OPEN_FT[1] + 1e-6 for v in f.verts)]
+    bmesh.ops.delete(bm, geom=gone, context='FACES')
 
 
 def body_halfwidth_at(s, z):
@@ -336,7 +418,7 @@ def linear(c):
 
 PLAIN_RGB = {'airframe': (205, 206, 210), 'surface': (190, 192, 198), 'canopy': (115, 158, 199), 'frame': (60, 62, 66),
              'gear': (215, 215, 218), 'tyre': (30, 32, 36), 'metal': (150, 148, 145), 'duct': (25, 25, 28),
-             'brake': (175, 177, 182)}
+             'brake': (175, 177, 182), 'interior': (120, 126, 132)}
 
 
 def bsdf_material(name, rgb, rough=0.35, metal=0.0, glass=False):
@@ -362,9 +444,11 @@ def plain(name):
                          glass=False)
 
 
-def part(name, colours, make):
+def part(name, colours, make, cockpit=False):
     """One named mesh object: make(bm) draws it (faces may pick a material by index into colours); smooth-shaded with
-    hard edges past SHARP_DEG. colours are PLAIN_RGB names; the plain names are kept on the object for the renders."""
+    hard edges past SHARP_DEG. colours are PLAIN_RGB names; the plain names are kept on the object for the renders.
+    With cockpit=True the colours are COCKPIT_RGB names, the part goes into the `cockpit` collection and keeps its own
+    colours in the plain renders too."""
     colours = [colours] if isinstance(colours, str) else list(colours)
     bm = bmesh.new()
     make(bm)
@@ -375,14 +459,40 @@ def part(name, colours, make):
     bm.to_mesh(mesh)
     bm.free()
     for c in colours:
-        mesh.materials.append(plain(c))
+        mesh.materials.append(cockpit_mat(c) if cockpit else plain(c))
     for p in mesh.polygons:
         p.use_smooth = True
     mesh.set_sharp_from_angle(angle=math.radians(SHARP_DEG))
     obj = bpy.data.objects.new(name, mesh)
-    obj['plain'] = colours
-    bpy.context.collection.objects.link(obj)
+    if cockpit:
+        cockpit_collection().objects.link(obj)
+    else:
+        obj['plain'] = colours
+        bpy.context.collection.objects.link(obj)
     return obj
+
+
+# The cockpit's colours (sRGB), read by eye off Dad's cockpit photos T8 and T9 (K11; estimates): the grey of the walls,
+# consoles and panel, black switch panels and glare shield, the seat's grey cushions and khaki harness, yellow handles.
+COCKPIT_RGB = {'interior': (138, 146, 154), 'panel': (172, 177, 182), 'black': (26, 26, 29), 'cushion': (96, 99, 98),
+               'seatFrame': (66, 68, 70), 'harness': (122, 112, 78), 'yellow': (226, 184, 38), 'floor': (70, 72, 76),
+               'boot': (24, 24, 26), 'mirror': (110, 122, 132), 'metal': (165, 165, 162), 'grip': (32, 32, 34),
+               'fire': (205, 30, 30), 'amber': (230, 150, 30), 'green': (60, 200, 90), 'glass': (150, 170, 185)}
+
+
+def cockpit_mat(k):
+    if k == 'glass':
+        return bsdf_material('cockpit_glass', COCKPIT_RGB[k], glass=True)
+    rough = {'mirror': 0.08, 'metal': 0.3, 'black': 0.6, 'cushion': 0.85, 'harness': 0.8, 'floor': 0.8}.get(k, 0.55)
+    return bsdf_material('cockpit_' + k, COCKPIT_RGB[k], rough=rough, metal=1.0 if k in ('mirror', 'metal') else 0.0)
+
+
+def cockpit_collection():
+    c = bpy.data.collections.get('cockpit')
+    if not c:
+        c = bpy.data.collections.new('cockpit')
+        bpy.context.scene.collection.children.link(c)
+    return c
 
 
 def empty(name, at, axis=None, **props):
@@ -418,7 +528,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 
 # ---------- fuselage, spine, canopy, intakes, pitot ----------
 FUS_STATIONS = sorted(set(steps(0.0, 1.6, 0.1) + steps(1.6, FUSELAGE[-1][0], 0.25)))
-part('fuselage', 'airframe', lambda bm: loft(bm, [fuselage_ring(s) for s in FUS_STATIONS]))
+part('fuselage', 'airframe', lambda bm: (loft(bm, [fuselage_ring(s) for s in FUS_STATIONS]), cut_cockpit(bm)))
 
 
 def spine_ring(s, n=33):
@@ -444,12 +554,39 @@ def canopy_rings(s0, s1, grow=0.0, n=33, step=0.1):
     return rings
 
 
-part('windshield', 'canopy', lambda bm: loft(bm, canopy_rings(CANOPY[0][0], WINDSHIELD_AFT_FT)))
-part('canopyFront', 'canopy', lambda bm: loft(bm, canopy_rings(WINDSHIELD_AFT_FT, CANOPY_SPLIT_FT)))
-part('canopyRear', 'canopy', lambda bm: loft(bm, canopy_rings(CANOPY_SPLIT_FT, CANOPY[-1][0])))
+def canopy_hw(s, z):
+    """Half-width of the canopy's glass at station s and height z (0 above its top); below the sill, the body's."""
+    sill = pchip(CANOPY, s, 1)
+    if z <= sill:
+        return body_halfwidth_at(s, z)
+    w, h = max(0.03, body_halfwidth_at(s, sill)), max(pchip(CANOPY, s, 2) - sill, 0.03)
+    f = (z - sill) / h
+    if f >= 1:
+        return 0.0
+    sin_t = f ** (CANOPY_POWER / 2)
+    return w * math.sqrt(max(0.0, 1 - sin_t ** 2)) ** (2 / CANOPY_POWER)
+
+
+def arch_band(bm, s0, s1, out, inward, step=0.05):
+    """A canopy bow: a band round the canopy from sill to sill, `out` ft proud of the glass and `inward` ft inside it."""
+    outer, inner = canopy_rings(s0, s1, grow=out, step=step), canopy_rings(s0, s1, grow=-inward, step=step)
+    loft(bm, outer, caps=False, closed=False)
+    loft(bm, inner, caps=False, closed=False)
+    for ring_o, ring_i in ((outer[0], inner[0]), (outer[-1], inner[-1])):  # the band's fore and aft faces
+        vo, vi = [bm.verts.new(p) for p in ring_o], [bm.verts.new(p) for p in ring_i]
+        for k in range(len(vo) - 1):
+            bm.faces.new((vo[k], vo[k + 1], vi[k + 1], vi[k]))
+    for k in (0, -1):  # the feet
+        bm.faces.new([bm.verts.new(p) for p in (outer[0][k], outer[-1][k], inner[-1][k], inner[0][k])])
+
+
+# The glass is open below (no floor across the sill) and at its ends, so it reads as glass from inside the cockpit too.
+part('windshield', 'canopy', lambda bm: loft(bm, canopy_rings(CANOPY[0][0], WINDSHIELD_AFT_FT), caps=False, closed=False))
+part('canopyFront', 'canopy', lambda bm: loft(bm, canopy_rings(WINDSHIELD_AFT_FT, CANOPY_SPLIT_FT), caps=False, closed=False))
+part('canopyRear', 'canopy', lambda bm: loft(bm, canopy_rings(CANOPY_SPLIT_FT, CANOPY[-1][0]), caps=False, closed=False))
 for k, (a, b) in enumerate(CANOPY_FRAMES_FT):
     part(('canopyFrameWindshield', 'canopyFrameSplit', 'canopyFrameAft')[k], 'frame',
-         lambda bm, a=a, b=b: loft(bm, canopy_rings(a, b, grow=0.035, step=0.05)))
+         lambda bm, a=a, b=b, k=k: arch_band(bm, a, b, 0.035, WINDSCREEN_FRAME_DEPTH[k]))
 
 
 def sill_rail(bm, side):
@@ -465,6 +602,39 @@ def sill_rail(bm, side):
 
 
 part('canopySill', 'frame', lambda bm: (sill_rail(bm, 1), sill_rail(bm, -1)))
+
+
+def floor_z(s):
+    return TUB['floor_front'] if s < TUB['step'] else TUB['floor_rear']
+
+
+def wall_hw(s, z):
+    """Half-width of the tub's inside at station s and height z: the skin less the wall (E13)."""
+    return body_halfwidth_at(s, z) - TUB['wall']
+
+
+def tub_profile(s, nz=14):
+    """The tub's section at station s, left sill to right sill: a ledge in from the skin's cut edge, down the left wall,
+    across the floor, up the right wall and out to the right ledge (E13)."""
+    top, bottom = SILL_Z - 0.005, floor_z(s)
+    zs = [top + (bottom - top) * k / (nz - 1) for k in range(nz)]
+    left = [(X(s), body_halfwidth_at(s, SILL_Z), top)] + [(X(s), wall_hw(s, z), z) for z in zs]
+    return left + [(x, -y, z) for x, y, z in reversed(left)]
+
+
+def cockpit_well(bm):
+    """The plain tub under the cockpit opening, in the outside model, so the outside never shows a hole: walls and floor
+    (one step up to the rear seat's floor, K8), the footwell's front end and the bulkhead behind the rear seat."""
+    st = sorted(set(steps(TUB['front'], TUB['aft'], 0.25)) | {TUB['step'] - 0.01, TUB['step'] + 0.01})
+    rings = [tub_profile(s) for s in st]
+    loft(bm, rings, caps=False, closed=False)
+    front = [p for p in rings[0] if p[2] <= FOOTWELL_CEILING_Z]  # the footwell's front end, up to the ceiling
+    bm.faces.new([bm.verts.new(p) for p in front])
+    aft = rings[-1] + [p for p in reversed(canopy_rings(TUB['aft'], TUB['aft'], grow=-0.01)[0])]
+    bm.faces.new([bm.verts.new(p) for p in aft])
+
+
+part('cockpitWell', 'interior', cockpit_well)
 
 
 def intake_ring(s, side, scale=1.0, slant=True, n=40, ds=0.0):
@@ -923,7 +1093,7 @@ PAINT_OF = {'wingLeft': 'black', 'wingRight': 'black', 'flapLeft': 'black', 'fla
             'gearMainRightDoor': 'black', 'canopyFrameWindshield': 'black', 'canopyFrameSplit': 'black',
             'canopyFrameAft': 'black', 'canopySill': 'black', 'pitot': 'darkMetal', 'gearNoseLeg': 'grey',
             'gearMainLeftLeg': 'grey', 'gearMainRightLeg': 'grey', 'gearNoseWheel': 'tyre',
-            'gearMainLeftWheel': 'tyre', 'gearMainRightWheel': 'tyre'}
+            'gearMainLeftWheel': 'tyre', 'gearMainRightWheel': 'tyre', 'cockpitWell': 'interior'}
 for name, k in PAINT_OF.items():
     me = bpy.data.objects[name].data
     me.materials.clear()
@@ -938,6 +1108,533 @@ for name in ('windshield', 'canopyFront', 'canopyRear'):
     me = bpy.data.objects[name].data
     me.materials.clear()
     me.materials.append(glass)
+
+# ---------- cockpits (shared plan Step 3d item 7, first pass; constants above, rows K1 to K11 and E12 to E22) ----------
+# Everything here goes into the `cockpit` collection (export_t38.py writes it into its own file), except the tub, which
+# is the outside's `cockpitWell`. The front cockpit is built at (ds, dz) = (0, 0), the rear one at REAR_SHIFT.
+LEAN = math.radians(PANEL_LEAN_DEG)
+PANEL_TEX = dict(u=(-1.3, 1.3), v=(-1.6, 0.0), ppf=360)  # the panel picture covers this much of the panel, px per ft
+
+
+def P(s, y, z):
+    return (X(s), y, z)
+
+
+def hexa(bm, c):
+    """Six faces through 8 corners: the bottom 4 then the top 4, each going round the same way."""
+    v = [bm.verts.new(p) for p in c]
+    for f in ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)):
+        bm.faces.new([v[i] for i in f])
+
+
+def box(bm, s0, s1, y0, y1, z0, z1):
+    hexa(bm, [P(s0, y0, z0), P(s1, y0, z0), P(s1, y1, z0), P(s0, y1, z0),
+              P(s0, y0, z1), P(s1, y0, z1), P(s1, y1, z1), P(s0, y1, z1)])
+
+
+def bisect(f, lo, hi, n=40):
+    """The x in [lo, hi] where f changes sign (f(lo) > 0 > f(hi))."""
+    for _ in range(n):
+        mid = (lo + hi) / 2
+        if f(mid) > 0:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def inside_hw(s, z):
+    """How far out a panel may reach at station s and height z: inside the glass above the sill, the walls below it."""
+    return canopy_hw(s, z) - 0.03 if z > SILL_Z else wall_hw(s, z) - 0.02
+
+
+def panel_point(u, v, ds=0.0, dz=0.0):
+    """A point on the panel's face (u right, v up from its top centre) as (station, y, height)."""
+    return PANEL_TOP[0] + ds - v * math.sin(LEAN), -u, PANEL_TOP[1] + dz + v * math.cos(LEAN)
+
+
+def panel_normal():
+    """The panel face's normal toward the pilot, as (station, height) parts: aft and up."""
+    return math.cos(LEAN), math.sin(LEAN)
+
+
+def panel_top_v(u):
+    """The panel's top edge: flat to PANEL_TOP_FLAT_U, then sloping down through the shoulder (K2)."""
+    a = abs(u)
+    return 0.0 if a <= PANEL_TOP_FLAT_U else -(a - PANEL_TOP_FLAT_U) * -PANEL_SHOULDER[1] / (PANEL_SHOULDER[0] - PANEL_TOP_FLAT_U)
+
+
+def panel_top_u(v):
+    return PANEL_TOP_FLAT_U + (PANEL_SHOULDER[0] - PANEL_TOP_FLAT_U) * (-v) / -PANEL_SHOULDER[1]
+
+
+def board_piece(bm, v0, v1, span, ds, dz, n_u=24, dv=0.03):
+    """A strip of the panel face from v0 down to v1, each row from span(v, s, z) = (u_left, u_right), UVs on the picture."""
+    uv_rows = []
+    rows = []
+    for v in steps(v0, v1, dv):
+        s, _, z = panel_point(0, v, ds, dz)
+        a, b = span(v, s, z)
+        row, uvr = [], []
+        for k in range(n_u):
+            u = a + (b - a) * k / (n_u - 1)
+            ps, py, pz = panel_point(u, v, ds, dz)
+            row.append(bm.verts.new(P(ps, py, pz)))
+            uvr.append(((u - PANEL_TEX['u'][0]) / (PANEL_TEX['u'][1] - PANEL_TEX['u'][0]),
+                        (v - PANEL_TEX['v'][0]) / (PANEL_TEX['v'][1] - PANEL_TEX['v'][0])))
+        rows.append(row)
+        uv_rows.append(uvr)
+    uv = bm.loops.layers.uv.verify()
+    for r0, r1, q0, q1 in zip(rows, rows[1:], uv_rows, uv_rows[1:]):
+        for k in range(n_u - 1):
+            f = bm.faces.new((r0[k], r1[k], r1[k + 1], r0[k + 1]))
+            for loop, t in zip(f.loops, (q0[k], q1[k], q1[k + 1], q0[k + 1])):
+                loop[uv].uv = t
+
+
+def board(bm, ds, dz):
+    """The instrument panel's face (K1 to K3): the main panel to the glass and walls, the lower panel, then the outer
+    parts and the pedestal either side of the two knee wells."""
+    lim = lambda s, z: inside_hw(s, z)  # noqa: E731
+    lo = PANEL_LOWER
+    board_piece(bm, 0.0, PANEL_MAIN_BOTTOM_V, lambda v, s, z: (-min(panel_top_u(v), lim(s, z)), min(panel_top_u(v), lim(s, z))), ds, dz)
+    board_piece(bm, PANEL_MAIN_BOTTOM_V, lo['knee_top'], lambda v, s, z: (-lim(s, z), lim(s, z)), ds, dz)
+    board_piece(bm, lo['knee_top'], lo['bottom'], lambda v, s, z: (-lim(s, z), -lo['knee'][1]), ds, dz, n_u=6)
+    board_piece(bm, lo['knee_top'], lo['bottom'], lambda v, s, z: (-lo['pedestal'], lo['pedestal']), ds, dz, n_u=6)
+    board_piece(bm, lo['knee_top'], lo['bottom'], lambda v, s, z: (lo['knee'][1], lim(s, z)), ds, dz, n_u=6)
+
+
+def glare_shield(bm, ds, dz, front_s, front_z):
+    """The glare shield: a hood 0.1 ft thick from front_s, where it meets the deck at front_z, aft to its lip over the
+    panel's top (E15); its edge follows the panel's top edge and stops at the glass."""
+    g = GLARE_SHIELD
+    lip_s = PANEL_TOP[0] + ds + g['lip_aft']
+    lip_z = lambda u: PANEL_TOP[1] + dz + g['lip_up'] + panel_top_v(u)  # noqa: E731
+    n = 31
+    rings = []
+    for s in steps(front_s, lip_s, 0.08):
+        f = (s - front_s) / (lip_s - front_s)
+        f = f * f * (3 - 2 * f)
+        z_top = lambda u: front_z + (lip_z(u) - front_z) * f  # noqa: E731
+        reach = bisect(lambda u: canopy_hw(s, z_top(u)) - 0.03 - u, 0.0, 1.8)
+        us = [reach * (-1 + 2 * k / (n - 1)) for k in range(n)]
+        top = [P(s, -u, z_top(u)) for u in us]
+        rings.append(top + [(x, y, z - g['thick']) for x, y, z in reversed(top)])
+    loft(bm, rings)
+
+
+def shroud(bm, s0, s1, z0, z1, z_front):
+    """The rear panel's shroud over the front seat's back (K8): from the tub's walls up to the glass, its top sloping from
+    z_front behind the front seat's headbox up to z1 at the rear panel's top (E21)."""
+    nz = 10
+    rings = []
+    for s in steps(s0, s1, 0.1):
+        top = z_front + (z1 - z_front) * (s - s0) / (s1 - s0)
+        zs = [z0 + (top - z0) * k / (nz - 1) for k in range(nz)]
+        left = [P(s, inside_hw(s, z), z) for z in zs]
+        rings.append(left + [(x, -y, z) for x, y, z in reversed(left)])
+    loft(bm, rings)
+
+
+def seat(bm, ds, dz):
+    """The ejection seat (K9, E16): cushion and bucket, the back and its frame, the headbox and its pad."""
+    S = SEAT
+    cz = S['cushion_z'] + dz
+    pan0, foot = S['pan_front'] + ds, S['back_foot'] + ds
+    bs, bz = S['back_top'][0] + ds, S['back_top'][1] + dz
+    h, fh, d = S['half'], S['frame_half'], S['back_depth']
+    box(bm, pan0, foot, -h, h, cz - 0.15, cz)                                           # seat cushion
+    hexa(bm, [P(foot, -h + 0.07, cz), P(foot + 0.2, -h + 0.07, cz), P(foot + 0.2, h - 0.07, cz), P(foot, h - 0.07, cz),
+              P(bs, -h + 0.07, bz), P(bs + 0.2, -h + 0.07, bz), P(bs + 0.2, h - 0.07, bz), P(bs, h - 0.07, bz)])  # back cushion
+
+
+def seat_frame(bm, ds, dz):
+    S = SEAT
+    cz = S['cushion_z'] + dz
+    pan0, foot = S['pan_front'] + ds, S['back_foot'] + ds
+    bs, bz = S['back_top'][0] + ds, S['back_top'][1] + dz
+    h, fh, d = S['half'], S['frame_half'], S['back_depth']
+    for sd in (1, -1):  # the bucket's sides
+        box(bm, pan0, foot + 0.2, sd * h, sd * fh, cz - 0.4, cz + 0.35)
+    box(bm, pan0 + 0.15, foot + 0.15, -h + 0.07, h - 0.07, floor_z(pan0) + 0.0, cz - 0.15)  # under the pan, to the floor
+    hexa(bm, [P(foot + 0.2, -fh, cz - 0.35), P(foot + 0.2 + d, -fh, cz - 0.35), P(foot + 0.2 + d, fh, cz - 0.35), P(foot + 0.2, fh, cz - 0.35),
+              P(bs + 0.2, -fh, bz), P(bs + 0.2 + d, -fh, bz), P(bs + 0.2 + d, fh, bz), P(bs + 0.2, fh, bz)])  # the back's frame
+    s0, s1, z0, z1, hb = S['headbox']
+    box(bm, s0 + ds, s1 + ds, -hb, hb, z0 + dz, z1 + dz)                                       # headbox
+
+
+def headbox_pad(bm, ds, dz):
+    s0, _, z0, z1, hb = SEAT['headbox']
+    box(bm, s0 + ds - 0.06, s0 + ds, -0.25, 0.25, z0 + dz + 0.1, z1 + dz - 0.18)
+
+
+def harness(bm, ds, dz):
+    """A hint of the harness (K9): two shoulder straps down the back cushion and the lap belt's halves on the cushion."""
+    S = SEAT
+    cz = S['cushion_z'] + dz
+    foot, bs, bz = S['back_foot'] + ds, S['back_top'][0] + ds, S['back_top'][1] + dz
+    for sd in (1, -1):
+        y0, y1 = sd * 0.13, sd * 0.27
+        hexa(bm, [P(foot - 0.02, y0, cz + 0.12), P(foot - 0.005, y0, cz + 0.12), P(foot - 0.005, y1, cz + 0.12), P(foot - 0.02, y1, cz + 0.12),
+                  P(bs - 0.02, y0, bz - 0.1), P(bs - 0.005, y0, bz - 0.1), P(bs - 0.005, y1, bz - 0.1), P(bs - 0.02, y1, bz - 0.1)])
+        box(bm, foot - 0.32, foot - 0.18, sd * 0.10, sd * (S['half'] - 0.02), cz, cz + 0.02)
+
+
+def buckle(bm, ds, dz):
+    cz = SEAT['cushion_z'] + dz
+    foot = SEAT['back_foot'] + ds
+    box(bm, foot - 0.34, foot - 0.16, -0.10, 0.10, cz, cz + 0.04)
+
+
+def seat_handles(bm, ds, dz):
+    """The yellow handgrips at the front of the seat's sides (K9)."""
+    cz = SEAT['cushion_z'] + dz
+    for sd in (1, -1):
+        box(bm, SEAT['pan_front'] + ds + 0.02, SEAT['pan_front'] + ds + 0.38, sd * (SEAT['half'] + 0.01), sd * (SEAT['frame_half'] + 0.02),
+            cz + 0.35, cz + 0.43)
+
+
+def stick(bm, ds, dz, part_):
+    S = STICK
+    p = lambda a: Vector(P(a[0] + ds, 0, a[1] + dz))  # noqa: E731
+    if part_ == 'boot':
+        cylinder(bm, p(S['base']), p(S['boot_top']), 0.17, 0.05, seg=16)
+    elif part_ == 'shaft':
+        cylinder(bm, p(S['boot_top']), p(S['grip_foot']), 0.032, seg=12)
+    else:
+        cylinder(bm, p(S['grip_foot']), p(S['grip_top']), 0.055, 0.06, seg=16)
+
+
+def pedals(bm, ds, dz, ceiling_z):
+    """The rudder pedals (K10, E18): a plate each side hung from under the panel."""
+    Pd = PEDALS
+    z0, z1 = Pd['z'][0] + dz, Pd['z'][1] + dz
+    for sd in (1, -1):
+        y0, y1 = sd * (Pd['out'] - Pd['w'] / 2), sd * (Pd['out'] + Pd['w'] / 2)
+        s = Pd['s'] + ds
+        hexa(bm, [P(s + 0.08, y0, z0), P(s + 0.11, y0, z0), P(s + 0.11, y1, z0), P(s + 0.08, y1, z0),
+                  P(s - 0.08, y0, z1), P(s - 0.05, y0, z1), P(s - 0.05, y1, z1), P(s - 0.08, y1, z1)])
+        cylinder(bm, Vector(P(s - 0.07, sd * Pd['out'], z1)), Vector(P(s - 0.2, sd * Pd['out'], ceiling_z)), 0.025, seg=8)
+
+
+def footwell_ceiling(bm, s0, s1, z):
+    box(bm, s0, s1, -inside_hw(s0, z), inside_hw(s0, z), z - 0.03, z)
+
+
+def pedestal(bm, ds, dz):
+    """The pedestal's lower part, from the panel's foot down to the floor, sloping aft toward the stick (K3)."""
+    s_top, _, z_top = panel_point(0, PANEL_LOWER['bottom'], ds, dz)
+    w = PANEL_LOWER['pedestal']
+    fz = floor_z(s_top)
+    hexa(bm, [P(s_top - 0.4, -w, fz), P(s_top + 0.37, -w, fz), P(s_top + 0.37, w, fz), P(s_top - 0.4, w, fz),
+              P(s_top - 0.4, -w, z_top), P(s_top - 0.005, -w, z_top), P(s_top - 0.005, w, z_top), P(s_top - 0.4, w, z_top)])
+
+
+def console(bm, ds, dz, sd):
+    s0, s1 = CONSOLE['s'][0] + ds, CONSOLE['s'][1] + ds
+    top = CONSOLE['top'] + dz
+    out = min(wall_hw(s0, top), wall_hw(s1, top)) - 0.01
+    box(bm, s0, s1, sd * CONSOLE['inboard'], sd * out, floor_z(s0), top)
+
+
+def console_top(bm, ds, dz, sd):
+    """The console's top, the picture on it (K7) mapped along the console from its front."""
+    s0, s1 = CONSOLE['s'][0] + ds, CONSOLE['s'][1] + ds
+    top = CONSOLE['top'] + dz + 0.004
+    out = min(wall_hw(s0, top), wall_hw(s1, top)) - 0.01
+    a, b = CONSOLE['inboard'], out
+    vs = [bm.verts.new(P(s, sd * y, top)) for s, y in ((s0, a), (s1, a), (s1, b), (s0, b))]
+    f = bm.faces.new(vs if sd < 0 else vs[::-1])
+    uv = bm.loops.layers.uv.verify()
+    for loop in f.loops:
+        s, y = -loop.vert.co.x, abs(loop.vert.co.y)
+        loop[uv].uv = ((y - a) / (b - a), (s - s0) / (s1 - s0))
+
+
+def throttles(bm, ds, dz, part_):
+    T = THROTTLE
+    top = CONSOLE['top'] + dz
+    for y in T['out']:
+        if part_ == 'lever':
+            cylinder(bm, Vector(P(T['s'] + ds, y, top)), Vector(P(T['s'] + ds - 0.06, y, T['top'] + dz - 0.06)), 0.02, seg=8)
+        else:
+            box(bm, T['s'] + ds - 0.13, T['s'] + ds - 0.01, y - 0.035, y + 0.035, T['top'] + dz - 0.08, T['top'] + dz + 0.03)
+
+
+def gear_lever(bm, part_):
+    s, y, z = panel_point(*GEAR_LEVER)
+    ns, nz = panel_normal()
+    a, b = Vector(P(s, y, z)), Vector(P(s + 0.14 * ns, y, z + 0.14 * nz))
+    if part_ == 'lever':
+        cylinder(bm, a, b, 0.018, seg=8)
+    else:
+        cylinder(bm, b, b + Vector((-0.03 * ns, 0, 0.03 * nz)), 0.05, seg=20)
+
+
+def aoa_indexer(bm, ds, dz, part_):
+    s = PANEL_TOP[0] + ds + GLARE_SHIELD['lip_aft'] - 0.04
+    z0 = PANEL_TOP[1] + dz + GLARE_SHIELD['lip_up'] - 0.01
+    y = AOA_INDEXER_Y
+    if part_ == 'body':
+        box(bm, s - 0.14, s, y - 0.035, y + 0.035, z0, z0 + 0.19)
+    else:
+        k = ('green', 'amber', 'fire').index(part_)
+        zc = z0 + 0.155 - 0.05 * k
+        box(bm, s, s + 0.006, y - 0.022, y + 0.022, zc - 0.018, zc + 0.018)
+
+
+def bow_height(s, out):
+    """The height of the canopy's glass at station s and `out` ft from the centreline (its inside)."""
+    return bisect(lambda z: canopy_hw(s, z) - out, SILL_Z + 0.01, pchip(CANOPY, s, 2) - 0.001)
+
+
+def mirrors(bm, part_):
+    M = MIRRORS
+    for sd in (1, -1):
+        y = sd * M['out']
+        if part_ == 'glass':
+            box(bm, M['s'] + 0.025, M['s'] + 0.035, y - M['w'] / 2, y + M['w'] / 2, M['z'] - M['h'] / 2, M['z'] + M['h'] / 2)
+        else:
+            box(bm, M['s'], M['s'] + 0.025, y - M['w'] / 2 - 0.015, y + M['w'] / 2 + 0.015, M['z'] - M['h'] / 2 - 0.015, M['z'] + M['h'] / 2 + 0.015)
+            y_bow = sd * (canopy_hw(CANOPY_FRAMES_FT[0][1], M['z']) - WINDSCREEN_FRAME_DEPTH[0] / 2)  # out to the bow's side
+            cylinder(bm, Vector(P(M['s'] + 0.01, sd * (M['out'] + M['w'] / 2), M['z'])), Vector(P(CANOPY_FRAMES_FT[0][1] - 0.05, y_bow, M['z'])), 0.015, seg=8)
+
+
+def standby_compass(bm):
+    s, y, z = STANDBY_COMPASS
+    box(bm, s - 0.08, s + 0.08, y - 0.08, y + 0.08, z - 0.07, z + 0.07)
+    z_bow = bow_height(CANOPY_FRAMES_FT[0][1], abs(y)) - WINDSCREEN_FRAME_DEPTH[0]
+    cylinder(bm, Vector(P(s, y, z + 0.07)), Vector(P(CANOPY_FRAMES_FT[0][1] - 0.05, y, z_bow)), 0.02, seg=8)
+
+
+def compass_face(bm):
+    s, y, z = STANDBY_COMPASS
+    box(bm, s + 0.08, s + 0.086, y - 0.05, y + 0.05, z - 0.04, z + 0.04)
+
+
+def inter_windscreen(bm):
+    """The rear cockpit's own windscreen on its panel's shroud (E20): the canopy's inside section above the shroud."""
+    s, z0 = INTER_WINDSCREEN_FT, PANEL_TOP[1] + REAR_SHIFT[1] + REAR_PANEL_RAISE
+    ring = [p for p in canopy_rings(s, s, grow=-0.06)[0] if p[2] > z0]
+    y0 = canopy_hw(s, z0) - 0.06
+    pts = [P(s, y0, z0)] + ring + [P(s, -y0, z0)]
+    bm.faces.new([bm.verts.new(p) for p in pts])
+
+
+# ---- the panel and console pictures (K4, K5, K7): simple faces drawn here, nothing copied from the pictures ----
+RGBF = lambda c: np.array(c) / 255  # noqa: E731
+PANEL_INK = {'panel': (172, 177, 182), 'black': (24, 24, 27), 'bezel': (84, 87, 91), 'face': (14, 14, 16),
+             'tick': (225, 225, 220), 'sky': (205, 205, 198), 'earth': (52, 44, 38), 'symbol': (240, 140, 30),
+             'lightFace': (218, 218, 212), 'knob': (120, 122, 126), 'label': (210, 210, 205), 'seam': (120, 124, 128),
+             'display': (186, 198, 182), 'fire': (205, 30, 30), 'amber': (230, 150, 30), 'green': (60, 200, 90),
+             'mapCase': (110, 114, 118)}
+
+
+class Canvas:
+    """A picture in feet: x across, y up from its own origin, `ppf` pixels per foot, drawn at SS times and averaged."""
+
+    def __init__(self, x0, x1, y0, y1, ppf, base):
+        self.x0, self.y0, self.ppf = x0, y0, ppf * SS
+        w, h = round((x1 - x0) * ppf) * SS, round((y1 - y0) * ppf) * SS
+        self.pix = np.empty((h, w, 3))
+        self.pix[:] = RGBF(PANEL_INK[base])
+
+    def window(self, x0, x1, y0, y1):
+        h, w, _ = self.pix.shape
+        c0, c1 = max(0, int((x0 - self.x0) * self.ppf)), min(w, int((x1 - self.x0) * self.ppf) + 1)
+        r0, r1 = max(0, int((y0 - self.y0) * self.ppf)), min(h, int((y1 - self.y0) * self.ppf) + 1)
+        xs = self.x0 + (np.arange(c0, c1) + 0.5) / self.ppf
+        ys = self.y0 + (np.arange(r0, r1) + 0.5) / self.ppf
+        X_, Y_ = np.meshgrid(xs, ys)
+        return (slice(r0, r1), slice(c0, c1)), X_, Y_
+
+    def rect(self, x0, x1, y0, y1, ink):
+        sl, _, _ = self.window(x0, x1, y0, y1)
+        self.pix[sl] = RGBF(PANEL_INK[ink])
+
+    def paint(self, sl, mask, ink):
+        self.pix[sl][mask] = RGBF(PANEL_INK[ink])
+
+    def ticks(self, cx, cy, r, n, r0, r1, width, ink, long_every=0, r0_long=None):
+        sl, X_, Y_ = self.window(cx - r, cx + r, cy - r, cy + r)
+        for k in range(n):
+            a = 2 * math.pi * k / n
+            inner = r0_long if long_every and k % long_every == 0 else r0
+            ax, ay, bx, by = cx + inner * math.sin(a), cy + inner * math.cos(a), cx + r1 * math.sin(a), cy + r1 * math.cos(a)
+            self.paint(sl, polyline_distance(X_, Y_, [(ax, ay), (bx, by)], closed=False) < width, ink)
+
+    def gauge(self, kind, cx, cy, r):
+        sl, X_, Y_ = self.window(cx - r, cx + r, cy - r, cy + r)
+        d = np.hypot(X_ - cx, Y_ - cy)
+        self.paint(sl, d < r, 'bezel')
+        face = d < r * 0.86
+        if kind == 'adi':  # the ball: light above the horizon, dark below, a white horizon and an orange aircraft symbol
+            self.paint(sl, face & (Y_ >= cy), 'sky')
+            self.paint(sl, face & (Y_ < cy), 'earth')
+            self.paint(sl, face & (np.abs(Y_ - cy) < r * 0.02), 'tick')
+            for k in (-2, -1, 1, 2):
+                self.paint(sl, face & (np.abs(Y_ - cy - k * r * 0.2) < r * 0.012) & (np.abs(X_ - cx) < r * (0.12 + 0.06 * abs(k))), 'tick')
+            wing = (np.abs(Y_ - cy + r * 0.04) < r * 0.03) & (np.abs(X_ - cx) < r * 0.45) & (np.abs(X_ - cx) > r * 0.1)
+            self.paint(sl, wing | (np.hypot(X_ - cx, Y_ - cy + r * 0.04) < r * 0.04), 'symbol')
+            self.ticks(cx, cy, r * 0.93, 12, r * 0.86, r * 0.98, r * 0.015, 'tick')
+        elif kind == 'hsi':  # the compass card's ticks round a black face, a lubber line and a white aircraft
+            self.paint(sl, face, 'face')
+            self.ticks(cx, cy, r, 36, r * 0.74, r * 0.84, r * 0.012, 'tick', long_every=3, r0_long=r * 0.66)
+            self.paint(sl, (np.abs(X_ - cx) < r * 0.015) & (Y_ > cy + r * 0.84) & (d < r * 0.95), 'symbol')
+            plane = ((np.abs(X_ - cx) < r * 0.025) & (np.abs(Y_ - cy) < r * 0.22)) | \
+                    ((np.abs(Y_ - cy - r * 0.04) < r * 0.025) & (np.abs(X_ - cx) < r * 0.2))
+            self.paint(sl, plane, 'tick')
+        else:  # a round gauge: a dark (or light) face with twelve ticks, no needle
+            light = kind == 'light'
+            self.paint(sl, face, 'lightFace' if light else 'face')
+            self.ticks(cx, cy, r, 12, r * 0.64, r * 0.8, r * 0.025, 'face' if light else 'tick')
+
+    def knobs(self, x0, x1, y0, y1, seed, r=0.018):
+        """A black switch panel with a few knobs and white label marks, placed by a fixed seed (a pattern, not a layout)."""
+        rng = np.random.default_rng(seed)
+        self.rect(x0, x1, y0, y1, 'black')
+        nx, ny = max(1, int((x1 - x0) / 0.11)), max(1, int((y1 - y0) / 0.11))
+        for i in range(nx):
+            for j in range(ny):
+                if rng.random() < 0.35:
+                    continue
+                cx = x0 + (i + 0.5) * (x1 - x0) / nx
+                cy = y0 + (j + 0.5) * (y1 - y0) / ny
+                sl, X_, Y_ = self.window(cx - 0.05, cx + 0.05, cy - 0.05, cy + 0.05)
+                self.paint(sl, np.hypot(X_ - cx, Y_ - cy) < r * (1 + rng.random()), 'knob')
+                self.paint(sl, (np.abs(Y_ - cy - 0.035) < 0.004) & (np.abs(X_ - cx) < 0.025), 'label')
+
+    def image(self, name):
+        return make_image(name, [down(self.pix)])
+
+
+def panel_picture():
+    c = Canvas(*PANEL_TEX['u'], *PANEL_TEX['v'], PANEL_TEX['ppf'], 'panel')
+    c.rect(PANEL_TEX['u'][0], PANEL_TEX['u'][1], PANEL_MAIN_BOTTOM_V - 0.012, PANEL_MAIN_BOTTOM_V - 0.004, 'seam')
+    for k, (u0, u1, v0, v1) in enumerate(PANEL_BLOCKS):
+        c.knobs(u0, u1, v0, v1, seed=k)
+    c.rect(-0.17, -0.02, -0.98, -0.88, 'display')  # the radio head's frequency card
+    for u0, u1, v0, v1 in PANEL_FRAMES:
+        c.rect(u0, u1, v0, v1, 'black')
+    for kind, u, v, r in PANEL_GAUGES:
+        c.gauge(kind, u, v, r)
+    for u, v, w, h, ink in PANEL_LAMPS:
+        c.rect(u - w / 2, u + w / 2, v - h / 2, v + h / 2, ink)
+    return c.image('cockpitPanel')
+
+
+CONSOLE_LEN = CONSOLE['s'][1] - CONSOLE['s'][0]
+# Console panels (K7): along the console from its front (ft), across it from its inboard edge as a share of its width
+CONSOLE_PANELS = {
+    'left': [(0.02, 0.41, 'knobs'), (0.46, 1.15, 'throttle'), (1.18, 1.29, 'knobs'), (1.31, 1.53, 'knobs'), (1.56, 2.33, 'switches')],
+    'right': [(0.02, 0.53, 'lamps'), (0.60, 1.20, 'knobs'), (1.25, 2.33, 'mapCase')],
+}
+
+
+def console_picture(side):
+    width = 0.42
+    c = Canvas(0, width, 0, CONSOLE_LEN, 300, 'panel')
+    for k, (a0, a1, kind) in enumerate(CONSOLE_PANELS[side]):
+        x0, x1 = 0.03, width - 0.03
+        if kind == 'mapCase':
+            c.rect(x0, x1, a0, a1, 'black')
+            c.rect(x0 + 0.02, x1 - 0.02, a0 + 0.02, a1 - 0.02, 'mapCase')
+        elif kind == 'throttle':  # the throttle quadrant: black with two light slots where the levers run (K7)
+            c.rect(x0, x1, a0, a1, 'black')
+            for y in THROTTLE['out']:
+                b = (y - CONSOLE['inboard']) / width * width
+                c.rect(b - 0.012, b + 0.012, THROTTLE['slot'][0] - CONSOLE['s'][0], THROTTLE['slot'][1] - CONSOLE['s'][0], 'seam')
+        elif kind == 'lamps':
+            c.rect(x0, x1, a0, a1, 'black')
+            for i in range(6):
+                for j in range(2):
+                    c.rect(x0 + 0.04 + j * 0.17, x0 + 0.17 + j * 0.17, a0 + 0.04 + i * 0.075, a0 + 0.09 + i * 0.075, 'amber' if (i + j) % 3 else 'fire')
+        elif kind == 'switches':
+            c.rect(x0, x1, a0, a1, 'seam')
+            for i in range(4):
+                c.rect(x0 + 0.05, x0 + 0.12, a0 + 0.08 + i * 0.17, a0 + 0.16 + i * 0.17, 'fire')
+            sl, X_, Y_ = c.window(0.15, 0.35, a0 + 0.3, a0 + 0.5)
+            c.paint(sl, np.hypot(X_ - 0.26, Y_ - a0 + -0.40) < 0.07, 'amber')
+        else:
+            c.knobs(x0, x1, a0, a1, seed=100 + k + (50 if side == 'right' else 0))
+    return c.image(f'cockpitConsole{side.title()}')
+
+
+def textured_part(obj, img, rough=0.6):
+    obj.data.materials.clear()
+    obj.data.materials.append(textured(f'cockpit_{obj.name}', img, rough=rough))
+
+
+panel_img = panel_picture()
+console_imgs = {'left': console_picture('left'), 'right': console_picture('right')}
+
+for seat_name, (ds, dz) in (('Front', (0.0, 0.0)), ('Rear', REAR_SHIFT)):
+    pz = dz + (REAR_PANEL_RAISE if seat_name == 'Rear' else 0.0)  # the panel's own raise (K8)
+    C = lambda name: f'cockpit{seat_name}{name}'  # noqa: E731
+    textured_part(part(C('Panel'), 'panel', lambda bm: board(bm, ds, pz), cockpit=True), panel_img, rough=0.5)
+    front_s = GLARE_SHIELD['front'] if seat_name == 'Front' else INTER_WINDSCREEN_FT
+    front_z = pchip(FUSELAGE, GLARE_SHIELD['front'], 2) if seat_name == 'Front' else PANEL_TOP[1] + pz
+    part(C('GlareShield'), 'black', lambda bm: glare_shield(bm, ds, pz, front_s, front_z), cockpit=True)
+    part(C('Pedestal'), 'black', lambda bm: pedestal(bm, ds, pz), cockpit=True)
+    s_knee = panel_point(0, PANEL_LOWER['knee_top'], ds, pz)[0]
+    ceiling_z = panel_point(0, PANEL_LOWER['knee_top'], ds, pz)[2] - 0.015
+    if seat_name == 'Front':
+        part(C('FootwellCeiling'), 'interior', lambda bm: footwell_ceiling(bm, TUB['front'], s_knee, ceiling_z), cockpit=True)
+    else:  # the shroud over the front seat's back, its underside the rear footwell's ceiling (K8)
+        sh0 = SEAT['headbox'][1] + 0.1
+        part(C('Shroud'), 'interior', lambda bm: shroud(bm, sh0, PANEL_TOP[0] + ds, ceiling_z, PANEL_TOP[1] + pz, SHROUD_FRONT_Z), cockpit=True)
+        part(C('FootwellCeiling'), 'interior', lambda bm: footwell_ceiling(bm, PANEL_TOP[0] + ds - 0.05, s_knee, ceiling_z), cockpit=True)
+    part(C('AoaIndexer'), 'black', lambda bm: aoa_indexer(bm, ds, pz, 'body'), cockpit=True)
+    for lamp in ('green', 'amber', 'fire'):
+        part(C(f'AoaLamp{lamp.title()}'), lamp, lambda bm, k=lamp: aoa_indexer(bm, ds, pz, k), cockpit=True)
+    for sd, side in ((1, 'Left'), (-1, 'Right')):
+        part(C(f'Console{side}'), 'interior', lambda bm, sd=sd: console(bm, ds, dz, sd), cockpit=True)
+        textured_part(part(C(f'Console{side}Top'), 'panel', lambda bm, sd=sd: console_top(bm, ds, dz, sd), cockpit=True),
+                      console_imgs[side.lower()])
+    part(C('ThrottleLevers'), 'metal', lambda bm: throttles(bm, ds, dz, 'lever'), cockpit=True)
+    part(C('ThrottleGrips'), 'grip', lambda bm: throttles(bm, ds, dz, 'grip'), cockpit=True)
+    part(C('SeatCushions'), 'cushion', lambda bm: seat(bm, ds, dz), cockpit=True)
+    part(C('SeatFrame'), 'seatFrame', lambda bm: seat_frame(bm, ds, dz), cockpit=True)
+    part(C('SeatHeadPad'), 'cushion', lambda bm: headbox_pad(bm, ds, dz), cockpit=True)
+    part(C('Harness'), 'harness', lambda bm: harness(bm, ds, dz), cockpit=True)
+    part(C('Buckle'), 'metal', lambda bm: buckle(bm, ds, dz), cockpit=True)
+    part(C('SeatHandles'), 'yellow', lambda bm: seat_handles(bm, ds, dz), cockpit=True)
+    part(C('StickBoot'), 'boot', lambda bm: stick(bm, ds, dz, 'boot'), cockpit=True)
+    part(C('StickShaft'), 'metal', lambda bm: stick(bm, ds, dz, 'shaft'), cockpit=True)
+    part(C('StickGrip'), 'grip', lambda bm: stick(bm, ds, dz, 'grip'), cockpit=True)
+    part(C('Pedals'), 'metal', lambda bm: pedals(bm, ds, dz, ceiling_z), cockpit=True)
+    part(C('Floor'), 'floor', lambda bm: box(bm, TUB['front'] if seat_name == 'Front' else TUB['step'], TUB['step'] if seat_name == 'Front' else TUB['aft'],
+                                             -wall_hw(12.0 + ds, floor_z(12.0 + ds)) + 0.01, wall_hw(12.0 + ds, floor_z(12.0 + ds)) - 0.01,
+                                             floor_z(12.0 + ds) + 0.002, floor_z(12.0 + ds) + 0.01), cockpit=True)
+
+# The front cockpit only: the gear lever, the bow's mirrors and the standby compass (K5, K6)
+part('cockpitFrontGearLever', 'metal', lambda bm: gear_lever(bm, 'lever'), cockpit=True)
+part('cockpitFrontGearKnob', 'interior', lambda bm: gear_lever(bm, 'knob'), cockpit=True)
+part('cockpitMirrorFrames', 'black', lambda bm: mirrors(bm, 'frame'), cockpit=True)
+part('cockpitMirrorGlass', 'mirror', lambda bm: mirrors(bm, 'glass'), cockpit=True)
+part('cockpitStandbyCompass', 'black', standby_compass, cockpit=True)
+part('cockpitStandbyCompassFace', 'panel', compass_face, cockpit=True)
+part('cockpitInterWindscreen', 'glass', inter_windscreen, cockpit=True)
+for name in ('cockpitFrontGearKnob',):  # the gear lever's knob is white (K5)
+    bpy.data.objects[name].data.materials.clear()
+    bpy.data.objects[name].data.materials.append(bsdf_material('cockpit_white', (230, 230, 226), rough=0.5))
+
+# ---- the eye checks (E10 against the canopy, glare shield and seats) ----
+print('cockpit checks (ft, deg):')
+for name, (es, ez), (ds, dz), pz in (('front', EYE_FRONT, (0, 0), 0), ('rear', EYE_REAR, REAR_SHIFT, REAR_SHIFT[1] + REAR_PANEL_RAISE)):
+    bow_s, bow_z = (CANOPY_FRAMES_FT[0][1], pchip(CANOPY, CANOPY_FRAMES_FT[0][1], 2) - WINDSCREEN_FRAME_DEPTH[0]) if name == 'front' else \
+        (INTER_WINDSCREEN_FT, pchip(CANOPY, INTER_WINDSCREEN_FT, 2) - 0.06)
+    lip_s, lip_z = PANEL_TOP[0] + ds + GLARE_SHIELD['lip_aft'], PANEL_TOP[1] + pz + GLARE_SHIELD['lip_up']
+    helmet_top = ez + 0.45  # E16: a helmet's top about 0.45 ft over the eye
+    print(f'  {name}: eye at {es:.2f} ft, {ez:.2f} ft; {ez - SILL_Z:.2f} ft over the sill, {ez - (SEAT["cushion_z"] + dz):.2f} ft over the cushion; '
+          f'glass {pchip(CANOPY, es, 2) - ez:.2f} ft over the eye, {pchip(CANOPY, es + 0.35, 2) - helmet_top:.2f} ft over a helmet')
+    print(f'    glare shield lip {math.degrees(math.atan2(ez - lip_z, es - lip_s)):.1f} deg below the eye line (seen over it: '
+          f'{"yes" if lip_z < ez else "NO"}); {"windshield bow" if name == "front" else "own windscreen"}\'s inside top '
+          f'{math.degrees(math.atan2(bow_z - ez, es - bow_s)):+.1f} deg')
+hb = SEAT['headbox']
+print(f'  front headbox top {hb[3]:.2f} ft at {hb[0]:.2f} to {hb[1]:.2f}: '
+      f'{math.degrees(math.atan2(hb[3] - EYE_REAR[1], EYE_REAR[0] - hb[1])):+.1f} deg from the rear eye; '
+      f'rear panel top {PANEL_TOP[1] + REAR_SHIFT[1] + REAR_PANEL_RAISE:.2f} ft')
 
 # ---------- size checks ----------
 bpy.context.view_layer.update()
@@ -1112,6 +1809,34 @@ def views(folder, painted):
         shoot(folder, 'side-alpha', grid_on=False, alpha=True, **side)
         shoot(folder, 'top-alpha', grid_on=False, alpha=True, **top)
 
+
+def cockpit_views(folder):
+    """The cockpit renders (plan Step 3d item 7): from each eye looking ahead as the Debrief's Cockpit camera does (55 deg
+    across the picture's height) and 15 deg down onto the panel, from above and behind the front seat with its canopy
+    away (near the angle of Dad's photo T9), and a cutaway side view sliced 0.75 ft left of the centreline."""
+    os.makedirs(folder, exist_ok=True)
+    res = (1600, 1000)
+    lens = 18 / math.tan(math.atan(math.tan(math.radians(55 / 2)) * res[0] / res[1]))  # 55 deg tall on a 36 mm wide sensor
+    for seat_name, (es, ez) in (('front', EYE_FRONT), ('rear', EYE_REAR)):
+        eye = Vector((X(es), 0, ez))
+        shoot(folder, f'eye-{seat_name}', eye, eye + Vector((10, 0, 0)), res=res, lens=lens, grid_on=False)  # the nose is +X
+        shoot(folder, f'eye-{seat_name}-down', eye, eye + Vector((10, 0, -10 * math.tan(math.radians(15)))), res=res, lens=lens, grid_on=False)
+    hidden = [bpy.data.objects[n] for n in ('canopyFront', 'canopyRear', 'canopyFrameSplit', 'canopyFrameAft')]
+    for o in hidden:
+        o.hide_render = True
+    shoot(folder, 'above-behind', Vector((X(14.6), 0, 7.6)), Vector((X(11.0), 0, 0.2)), res=(1100, 1500), lens=24, grid_on=False)
+    for o in hidden:
+        o.hide_render = False
+    cam.data.clip_start = 40 - 0.75  # the slice: nothing nearer the camera than 0.75 ft left of the centreline
+    bg.inputs['Strength'].default_value = 1.6  # more light from all round: the slice is otherwise deep in shade
+    shoot(folder, 'cutaway-side', (X(14.6), 40, 1.4), ortho=14.0, basis=((-1, 0, 0), (0, 0, 1)), res=(1800, 900), grid_on=False)
+    bg.inputs['Strength'].default_value = 0.55
+    cam.data.clip_start = 0.1
+
+
+if COCKPIT_ONLY:
+    cockpit_views(os.path.join(RENDER_DIR, 'cockpit'))
+    sys.exit(0)
 
 # Painted first (the master's own materials), then plain colours (each part's `plain` names, kept on the object).
 if not SILHOUETTES_ONLY:
