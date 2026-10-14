@@ -1,6 +1,6 @@
 # Design review brief 3: model and size the wingman's new control structure, and check it against the design gates
 
-*Filed 14 Oct 2026 by the Formation thread for plan D2 ("model and audit draft 4"), with the `fable-review-brief` skill. Not yet sent: it goes once Patrick has read spec 7e draft 4 and settled the technique list (plan D1). Renamed terms (skill section 3); scrubbed with `scrub.mjs check` before filing.*
+*Filed 14 Oct 2026 by the Formation thread for plan D2 ("model and audit draft 4"), with the `fable-review-brief` skill. Renamed terms (skill section 3); scrubbed with `scrub.mjs check` before filing. **Sent 14 Oct 2026** (Patrick: "okay rady for fable?") to one read-only agent, model Fable, effort high, with the whole text below in its prompt, on the technique list as drafted (the two candidates and Patrick's two readings marked "to confirm"). Not included as tables: today's N² chart and resource matrix (in words only, through R6, R9 and the structure list); Patrick chose to let it run and follow up only if the report needs them.*
 
 ---
 
