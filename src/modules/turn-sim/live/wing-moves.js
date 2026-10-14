@@ -397,7 +397,7 @@ export const FW_WING = Object.freeze({
   // ---- Lead's turn as he sees it, and his range (spec 7e.7, supervisor.js fwJob) ----
   turnStartDeg: 10, // Lead's turn starts once his seen bank passes 10° for 1 s ...
   turnEndDeg: 5, // ... and ends under 5° for 1 s; a reversal is his bank's sign changing past 10° (spec 7e.7, Fable F4; estimates)
-  turnHoldSec: 1,
+  turnHoldSec: 1, // ... each held 1 s (spec 7e.7, Fable F4; estimate)
   happyFt: Object.freeze([600, 650]), // the range he is happy at, slant (Patrick 14 Oct 2026)
   stretchedFt: 700, // the entry case: stretched past 700 ft (Patrick 14 Oct 2026: "lead if more than 700, lag if near 500 (? numbers are a guess)") ...
   tightFt: 560, // ... tight under 560 ft (an estimate between)
@@ -406,7 +406,7 @@ export const FW_WING = Object.freeze({
   arcTargetFt: 650, // s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft)
   aimSec: 10, // wanted closure = range error / 10 s (spec 7e.7: 75 ft off asks 7.5 ft/s); the swept place's power uses it too
   arcNearFt: 300, // the wanted closure at most 25 ft/s within 300 ft of the target arc ... (Fable F1, estimate)
-  arcNearFtps: 25,
+  arcNearFtps: 25, // ... 25 ft/s near (Fable F1, estimate)
   arcFarFtps: 60, // ... and 60 ft/s beyond (Fable F1, estimate)
   // the offset from Lead's circle d = d_ss + wanted / omega + kc (wanted - closing) / omega: kc 0.5 corrects the shortfall
   // without the half-gain trap (research formation-control-research-14oct.md sections 2 and 5; kc a guess)
@@ -427,7 +427,7 @@ export const FW_WING = Object.freeze({
   behind: Object.freeze({ downFt: 300, clearFt: 200 }),
   // ---- swept (Lead wings level, straight, climbing or descending; Patrick 14 Oct 2026, spec 7e.7) ----
   sweptFt: 625, // 625 ft at 45° (Patrick 14 Oct 2026)
-  sweptDeg: 45,
+  sweptDeg: 45, // ... 45° of sweep back from Lead's wing line (Patrick 14 Oct 2026)
   sweptLookSec: 8, // he steers at his place carried 8 s ahead along Lead's path, so the sideways error closes in about 8 s (estimate, near the aim loop's 0.1 rad/s)
   aimMaxFtps: 25, // fore and aft by power: the closure wanted at most ±25 ft/s (spec 7e.7)
   aimSlewFtps: 20, // the turn's offset slewed back to 0 at 20 ft/s (spec 7e.7)
@@ -441,7 +441,7 @@ export const FW_WING = Object.freeze({
   stackFt: -50, // his stack: 50 ft below Lead (Patrick 14 Oct 2026, spec 7e.7 swept)
   heightBandFt: 200, // within 200 ft of Lead's height (TS-80; a reference, not a wall: the guard may pass it); the high yo-yo's most
   vertGPerFt: 0.005, // 0.005 G per foot and 0.02 G per ft/s (spec 7e.7's starting gains, Fable F6, damping about 0.8) ...
-  vertGPerFtps: 0.02,
+  vertGPerFtps: 0.02, // ... and 0.02 G per ft/s of his height rate against Lead's (spec 7e.7, Fable F6)
   vertMaxG: 1, // ... at most 1 G either way (estimate)
   // The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the
   // height target to ±150 ft (down to close, up to open), held until the error is under 75 ft and the closure under 10 ft/s
@@ -494,19 +494,19 @@ export const FW_WING = Object.freeze({
     minFt: 500, // never planned inside 500 ft slant (Patrick, TS-208, TS-233)
     engageFt: 600, // the guard engages once the predicted pass is under 600 ft (spec 7e.7, estimate) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held 3 s (spec 7e.7, estimates)
-    releaseSec: 3,
+    releaseSec: 3, // ... held 3 s (spec 7e.7, estimate)
     lookSec: 5, // the pass predicted up to 5 s ahead (spec 7e.7: 3-5 s), every 0.25 s; the guard adds the 0.4 s he sees late
-    lookStepSec: 0.25,
+    lookStepSec: 0.25, // ... in 0.25 s steps (search effort)
     tighter: 1.3, // with Lead on his present turn and one step tighter: his turn rate 1.3 times (Fable F1, F13, estimate)
     missFt: Object.freeze([50, 300]), // pass-clear's height: enough to make the slant 600 ft over the guard's predicted pass, from his 50 ft stack to 300 ft (estimates)
-    missSlantFt: 600,
+    missSlantFt: 600, // ... the slant pass-clear's depth is sized to make (estimate)
     torquePct: 20, // "power off": 20% torque, well back but not idle, so the engine answers at once (estimate; TS-218, idle's spool-up lag)
     // The filter: his aim's turn is flown unless the pass it predicts comes inside the pass line, or he would come within
     // 100 ft of Lead's wing line; then the turn nearest it that keeps both (separation.js).
     passLineSec: 1.4, // the pass line: 500 ft + 1.4 s x the closure he sees (the 0.4 s he sees late and the 1 s smoothing), never under engageFt (TS-233; Fable F4)
     wingLineFt: 100, // never closer than 100 ft behind Lead's wing line, along Lead's path (TS-233; Fable F6, Q6)
     filterSteps: 20, // the turns tried each way, from none to his most, then refined 6 times (search effort)
-    filterRefine: 6,
+    filterRefine: 6, // ... and the refinements (search effort)
     filterHoldSec: 1, // power off (while closing) and pass-clear's pitch held a second after the filter last changed his turn (estimate)
     // Once engaged the filter stays engaged until his aim's own turn clears the pass line and the wing line by 50 ft (Fable
     // F12's margin) for 1 s (thread, round 4, estimate)
