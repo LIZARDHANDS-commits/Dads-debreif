@@ -154,8 +154,11 @@ function byType(row, giver, holder, swap = true) {
  * aircraft flying different patterns, after the rows that match (PFL, fly-through, joining, straight-in). Heights are
  * each one's own pattern height (PATTERN_HEIGHT_FT) within the shared ±100 ft margin (DECONFLICT.higherByFt):
  *  - one climbing or coming down through the other's pattern (100 ft or more off its own height, on the other's side),
- *    and not on final, gives way to one that is not: a CT-156 climbing through 3,000 ft on the upwind (the overtake
- *    near the departure end, review Finding 4) or coming down through it in its final turn;
+ *    and not past its perch (final turn or final), gives way to one that is not: a CT-156 climbing through 3,000 ft on
+ *    the upwind (the overtake near the departure end, review Finding 4) or coming down through it before its perch
+ *    (spec 4.19 item 6's words). In its final turn it is past the perch, the point of no return, and the next row
+ *    decides (V2.429, TR-165: told to go around there, a CT-156 levelled where it was and turned onto the centreline
+ *    about 100 ft above an Astra on its initial, inside the red, where with no move it passed some 500 ft above);
  *  - one past its perch (final turn or final) has right of way over one that is not (the rows' own "final and past the
  *    perch have right of way"; Patrick's card, Q1: the perch is the point of no return); both past it: the rows after;
  *  - one established in its own pattern at its own height has right of way over one that is not: an Astra joining
@@ -167,7 +170,7 @@ function byType(row, giver, holder, swap = true) {
  */
 function acrossPatterns(a, b) {
   const pick = (giver, holder, move, rule) => ({ giver: giver.id, holder: holder.id, move, rule });
-  const through = (f, o) => f.standing !== 'final' && Math.sign(o.ownPatternFt - f.ownPatternFt) * (f.alt - f.ownPatternFt) >= DECONFLICT.higherByFt;
+  const through = (f, o) => f.standing !== 'final' && f.standing !== 'final_turn' && Math.sign(o.ownPatternFt - f.ownPatternFt) * (f.alt - f.ownPatternFt) >= DECONFLICT.higherByFt;
   const established = (f) => f.onOwnPattern && !f.joining && IN_PATTERN.has(f.standing) && Math.abs(f.alt - f.ownPatternFt) < DECONFLICT.higherByFt;
   const pastPerch = (f) => f.standing === 'final_turn' || f.standing === 'final';
   // From the initial or the break, the fly-through (for an Astra, its own go-around: MOVES_BY_TYPE). On the climb-out
