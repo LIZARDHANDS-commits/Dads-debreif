@@ -14,25 +14,26 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
     - Rig lag results (`D13`): turn-rate $t_{63} = 0.15\text{–}0.25\text{ s}$ (confirming $K_\chi = 0.5\text{ /s}, K_e = 0.026^\circ/\text{ft}$ for `S2`, `D2`); vertical G $t_{63} = 0.15\text{ s}$.
     - Un-smoothed slant-closure ripple (`D25`): `21.66 ft/s` p2p in `T2` (`> 20 ft/s`), setting `S4`'s speed-brake retract threshold to `10 ft/s`.
   - **`S1` (Reference blender, lift cap order & urgency shaper):** scalar reference record & blender (`B08` in `src/modules/turn-sim/live/wingman/fw-reference.js`, carrying $h_T$ and $\dot{h}_T$ `D1`, `D5`), lift composer (`B13` `liftWithin` with `0.2 G` soft knee and cap order: 1. positive climb $\Delta G_v > 0$, 2. `1 G` level hold, 3. horizontal turn `D20`, `R6` closed, verified on 3.5 G forced cap test), and urgency G-onset shaper (`B14` `shapeFwLift` with $\dot{G}_{\max} = 1 + 3u\text{ G/s}$; close formation's `shape()` untouched).
-- **Nothing is running.** The overnight `/goal` loop paused at 02:28 AM due to a `429 RESOURCE_EXHAUSTED` quota limit right after `S0 + S1` completed.
+- **Round 5 (`B5`) Step 1 (`S2 + S3 + S3a + S3b + A1`, `98416ddb`):** built, verified, and merged (`14/15` target blocks `B01–B10, B12–B15` and `51/53` target signals built; `5/5` rig cases clean):
+  - **`S2` (Normal circle & line follower):** `B05` (`buildNormalReference`, `S25`), `B07` (`runArcLoop` with $\tau_s = \tau_r = 10\text{ s}$ `D21`, unmet closure `S29b` $\to$ `S27g` $\Delta v_{\text{ref}}$), `B09` (`steerFromRef`, $K_\chi = 0.5\text{ /s}, K_e = 0.026^\circ/\text{ft}$ `D2`), `B10` (`verticalFromRef` with $\dot{h}_T - \dot{h}$ damping `D1`), `B11` baseline (`powerFromRef` `0.3 /s` proportional speed loop `D23`), and `90°`/`180°` turn cases (`D26`).
+  - **`S3` (Separation guard `B12`):** single closing-pass predictor `leastPass` (up to `10 s` closing pass, `thenSec = 2.5`) using `S03`, `600 → 500 ft` $x^3$ smooth barrier, `350 ft` hard floor, vertical floor `S38` (`D16`), retiring `separationFilter` (`R8`, `R9`).
+  - **`S3a` (`B03` phase & case classifier + `B04` picker):** continuous `entry / turning / exit` weights (`S21`, `1.5 s` blend, no `1 s` hold), latched `tight / inBand / stretched / veryStretched` case (`S22`, `±50 ft` band `D17`, `6 s` `sideBlend`), phase-driven normal follower (`R7`, `R12`).
+  - **`S3b + A1` (`B06` technique scheduler + `T1` the miss + Audit 1):** `techniques/index.js` + `techniques/miss.js` (`3 s ≤ t_pass ≤ 10 s`, depth $h = \sqrt{625^2 - p^2}$ below Lead, `minG = 0.5 G` unload-roll-pull overbanking past `90°` when urgent, least outward turn mix $\Delta\omega$ `D4`, picture-based energy intent), verified across `5/5` `fw-rig.mjs` step cases (`T1`–`T5` all `0` bank flips, `minDist 650–682 ft`, `four-ship-probe` `2d5b5a8020839796`).
+- **Nothing is running.** All worktrees (`Dads-debreif-physics` and `../formation-b5-slices`) are clean at `98416ddb`.
 
-## Next, in order (Economized Serial Pipeline in `docs/modules/turn-sim/plan.md` — strictly 1 agent at a time, reusing `fw-slice-builder` + built-in self-verification)
+## Next, in order (`docs/modules/turn-sim/plan.md`)
 
-1. **Serial Batch A (`S2 → S3 → S3a → S3b + A1` in one continuous builder turn, reusing `fw-slice-builder` `1c41ba09`):**
-   - **`S2` (Normal circle & line follower):** `B05`, `B07` ($\tau_s = \tau_r = 10\text{ s}$ `D21`, unmet closure `S29b` $\to$ `S27g` $\Delta v_{\text{ref}}$, `0.3 /s` proportional speed loop `D23`), `B09` ($K_\chi = 0.5\text{ /s}, K_e = 0.026^\circ/\text{ft}$ `D2`), `B10` ($\dot{h}_T - \dot{h}$ damping `D1`), and `90°`/`180°` turn cases (`D26`).
-   - **`S3` (Separation guard `B12`):** single 3 s forward predictor using `S03`, `600 → 500 ft` smooth barrier, `350 ft` hard floor, vertical floor `S38` (`D16`), retiring `separationFilter` (`R8`, `R9`).
-   - **`S3a` (`B03` phase & case classifier):** continuous `entry / turning / exit` weights (`S21`, `3 s`), latched `tight / inBand / stretched / veryStretched` case (`S22`, `±50 ft` band `D17`), phase-driven normal follower (`R7`, `R12`).
-   - **`S3b + A1` (`B06` technique scheduler + `T1` the miss + Audit 1 self-check):** `techniques/index.js` + `techniques/miss.js` (`3 s ≤ t_pass ≤ 10 s`, depth $h = \sqrt{625^2 - p^2}$ below Lead, `minG = 0.5 G` unload-roll-pull overbanking past `90°` when urgent, least turn mix `D4`, picture-based energy intent), verified by `npm run build`, `turn-sim-numbers.mjs`, `draw.mjs`, `check.mjs`, `fw-rig.mjs`, and `four-ship-probe.mjs` (`14/15` blocks, `51/53` signals built).
-2. **Serial Batch B (`S4 → S5 → S6 → S7 + A2` in one continuous builder turn, reusing `fw-slice-builder` `1c41ba09`):**
-   - **`S4` (`B11` energy & power loop + `D24` drop-low-inside):** physics feed-forwards + `0.3 /s` speed loop (`D23`, `R4`, `R10`), speed brake (`> 60 ft/s` for `1 s`, in `< 10 ft/s` per `D25`, hold `≥ 3 s` `D8`), continuous drop-low-inside height term (`20 ft/kt` past `5 kt` slow, cap `-300 ft` `D24`).
+1. **Step 2 (`S4` — `B11` energy & power loop + `D24` drop-low-inside):**
+   - Complete `B11` (`powerFromRef`) with physics feed-forwards + `0.3 /s` speed loop (`D23`, `R4`, `R10`), speed brake (`S34`: out `> 60 ft/s` for `1 s`, in `< 10 ft/s` per `D25`, hold `≥ 3 s` `D8`), and continuous drop-low-inside height term (`20 ft/kt` past `5 kt` slow, cap `-300 ft` `D24`), reaching `15/15` blocks (`100%`).
+2. **Step 3 (`S5 → S6 → S7 + A2` — Techniques `T2–T7` + Audit 2 `C10`):**
    - **`S5` (`T2` high yo-yo + `T4` exit vertical):** `techniques/high-yoyo.js` and `techniques/exit-vertical.js`.
-   - **`S6` (Abeam to `0°` & `T3` lag-abeam):** widen band to `0°` sweep (`R14`) + `techniques/lag-abeam.js` (track crossing + LOS rate backup `D18`).
+   - **`S6` (Abeam to `0°` & `T3` lag-abeam):** widen band to `0°` sweep (`R14`) + `techniques/lag-abeam.js` (track crossing `S15` + LOS rate `S16` backup `D18`).
    - **`S7 + A2` (`T5` S-turns, `T6` cut-across, `T7` behind 3/9 + Audit 2 `C10` self-check):** `techniques/s-turns.js`, `cut-across.js`, `behind-3-9.js` (`15/15` blocks, `53/53` signals built).
-3. **Serial Batch C (`S8a → S8b → T30 → CR` in one continuous builder turn, reusing `fw-slice-builder` `1c41ba09`):**
+3. **Step 4 (`S8a → S8b → T30 → CR`):**
    - Climbs/descents (`S8a` / `T29b`), aggressive Lead to `4 G` / `90°/s` (`S8b` / `T29d`), blended move-out from close (`T30` / `T8`), and dead-code removal (`CR`).
-4. **Serial Step D (`T29r + Systems Engineering Plots` — 1 single `flash` run):**
+4. **Step 5 (`T29r + Systems Engineering Plots` — `flash`):**
    - `fw-systems-plot-agent` (`flash`) wires `T29r` HUD readout + `D3b` phase-plane plot and runs the full systems-engineering diagram/plot suite (`draw.mjs`, `fw_loops.py`, `fw-rig.mjs`, `ripple.mjs`, `faults.mjs`).
-5. **Serial Step E (`T31` Consolidated Docs, Log & Walkthrough — Orchestrator, 0 extra subagent spawns):**
+5. **Step 6 (`T31` Consolidated Docs, Log & Walkthrough — Orchestrator):**
    - Orchestrator (`pro`) audits final diff, merges to `formation-close-wingman-b2`, updates `plan.md`, `b5-assumptions-decisions-log.md`, `README.md`, and `formation-handover-14oct.md` in one pass, and delivers the final architecture walkthrough.
 
 ## Patrick's rulings on 14 Oct (all in `TS-233` and `TS-234` in `decisions.md`, and in `spec.md` §7e and §7a)
@@ -55,11 +56,11 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 | Fable's `3a` (`D1–D20`) and `3b` (`D21–D26`) model & audit reports | `Pat's claude work/formation-review-12oct/fable-draft-4-model-report-14oct-mapped.md`, `fable-draft-4-model-report-3b-14oct-mapped.md` |
 | The control model (current + target `B01–B15` / `S01–S45` diagrams, N², ledger) | `docs/modules/turn-sim/control-model.md` (drawn by `tools/control-map/draw.mjs` from `tools/control-map/signals.mjs`) |
 | Every tuning number and its source | `docs/modules/turn-sim/numbers.md` (`tools/turn-sim-numbers.mjs`); tables in `src/modules/turn-sim/live/wing-moves.js` |
-| The code | `src/modules/turn-sim/live/wingman/`: `fighting-wing.js`, `fw-reference.js`, `perception.js`, `separation.js`, `supervisor.js`, `shaper.js`, `close-formation.js` |
+| The code | `src/modules/turn-sim/live/wingman/`: `fighting-wing.js`, `fw-reference.js`, `perception.js`, `separation.js`, `supervisor.js`, `shaper.js`, `close-formation.js`, `techniques/` |
 
 ## The checks
 
-- **Build & numbers:** `npm run build` (no local unit/browser tests; GitHub CI not watched per Patrick); `node tools/turn-sim-numbers.mjs` (`789 rows`).
-- **Control model:** `node tools/control-map/draw.mjs --check` (no diff) and `node tools/control-map/check.mjs --tag cm` (`6/15` blocks built, `33/53` signals built).
-- **Rig (`S0` lags & cap order):** `node tools/fw-rig.mjs --s0-lags`.
+- **Build & numbers:** `npm run build` (no local unit/browser tests; GitHub CI not watched per Patrick); `node tools/turn-sim-numbers.mjs` (`795 rows`).
+- **Control model:** `node tools/control-map/draw.mjs --check` (no diff) and `node tools/control-map/check.mjs --tag cm` (`14/15` blocks built, `51/53` signals built).
+- **Rig (`S0` lags & 5 step cases):** `node tools/fw-rig.mjs --s0-lags`.
 - **Close & 4-ship non-regression:** `node "Pat's claude work/formation-review-12oct/four-ship-probe.mjs" file:///C:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif-physics/` (`2d5b5a8020839796` for both `{}` and `{"fwWing":"live"}`).
