@@ -30,7 +30,7 @@ import { WINGSPAN_FT, LENGTH_FT, pairSlot } from '../slots.js';
 import { CLOSE_WING, FW_WING, FW_SEE } from '../wing-moves.js';
 import { KT_TO_FTPS } from '../../../../core/units.js';
 import { DEG } from '../../../../core/angles.js';
-import { add3, sub3, scale3, cross3, len3 } from '../attitude.js';
+import { add3, sub3, scale3, cross3, dot3, len3 } from '../attitude.js';
 
 const C = CLOSE_WING;
 
@@ -299,7 +299,7 @@ export function fwJob(j, seen, { shortKt = 0 } = {}) {
 
 /** The guard at the start: off. */
 export function startFwGuard() {
-  return { on: false, phase: null, vert: -1, missFt: 0, clearSec: 0, losLeast: Infinity, predFt: Infinity };
+  return { on: false, missFt: 0, clearSec: 0, predFt: Infinity };
 }
 
 /**
@@ -313,7 +313,7 @@ export function leastPass(a, b, horizonSec, extra = null) {
   let least = len3(sub3(pa, pb));
   let horiz = Math.hypot(pa.x - pb.x, pa.y - pb.y);
   // B5 round 3: how far b stays behind a's wing line (along a's path, + behind), the least over the look (Fable F6)
-  let behind = -dot3v(sub3(pb, pa), va) / Math.max(len3(va), 1e-9);
+  let behind = -dot3(sub3(pb, pa), va) / Math.max(len3(va), 1e-9);
   // ... and b's vertical demand as a known term (Fable F3): extra = { acc (ft/s², a vector), maxFt (how far it moves him at
   // most, his height target) }; the height it gives is added to b's place, so the slant counts it.
   const accLen = extra ? len3(extra.acc) : 0;
@@ -337,12 +337,10 @@ export function leastPass(a, b, horizonSec, extra = null) {
       least = d;
       horiz = Math.hypot(pa.x - pbH.x, pa.y - pbH.y);
     }
-    behind = Math.min(behind, -dot3v(sub3(pbH, pa), va) / Math.max(len3(va), 1e-9));
+    behind = Math.min(behind, -dot3(sub3(pbH, pa), va) / Math.max(len3(va), 1e-9));
   }
   return { leastFt: least, horizFt: horiz, behindLeastFt: behind };
 }
-
-const dot3v = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 
 /**
  * One step of the guard. g: last step's; seen: perception.js seeFw's; ownOmega: his own turn now (rad/s vector, he feels
@@ -358,21 +356,14 @@ export function fwGuard(g, seen, ownOmega) {
   const predFt = Math.min(pass.leastFt, seen.slant);
   if (!g.on) {
     if (predFt >= FG.engageFt && seen.slant >= FG.minFt) return { ...g, predFt };
-    // Engaged: the miss below Lead unless already above him; deep enough to make the slant missSlantFt over the pass.
-    const vert = seen.heightFt > FG.aboveFt ? 1 : -1;
+    // Engaged: the miss deep enough to make the slant missSlantFt over the pass.
     const need = Math.sqrt(Math.max(0, FG.missSlantFt ** 2 - pass.horizFt ** 2));
-    return { on: true, phase: 'miss', vert, missFt: Math.min(FG.missFt[1], Math.max(FG.missFt[0], need)), clearSec: 0, losLeast: seen.losDps, predFt };
+    return { on: true, missFt: Math.min(FG.missFt[1], Math.max(FG.missFt[0], need)), clearSec: 0, predFt };
   }
   const clear = predFt > FG.releaseFt;
   const clearSec = clear ? g.clearSec + STEP_SEC : 0;
   if (clearSec >= FG.releaseSec) return { ...startFwGuard(), predFt };
-  const losLeast = Math.min(g.losLeast, seen.losDps);
-  // The reversal onto Lead's circle: a definite rise in the line of sight, with Lead behind his 3/9 line and the pass
-  // predicted outside engageFt (the miss made). Reversing, a pass predicted inside minFt again takes him back to the miss
-  // (the dead band between the two: no flicker), so the guard never sits inside 500 ft aiming at Lead.
-  const cue = seen.losDps > losLeast + FG.losRiseDps && seen.aspectDeg < 90 && predFt >= FG.engageFt && seen.closure < FG.reverseClosureFtps;
-  const reverse = g.phase === 'reverse' ? predFt >= FG.minFt : cue;
   const need = Math.sqrt(Math.max(0, FG.missSlantFt ** 2 - pass.horizFt ** 2));
   const missFt = Math.max(g.missFt, Math.min(FG.missFt[1], need)); // deepened if the pass gets closer, never given back while engaged
-  return { ...g, phase: reverse ? 'reverse' : 'miss', missFt, clearSec, losLeast, predFt };
+  return { ...g, missFt, clearSec, predFt };
 }
