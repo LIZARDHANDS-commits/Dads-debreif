@@ -429,9 +429,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.sweptDeg | `45` | 45° of sweep back from Lead's wing line (Patrick 14 Oct 2026) |
 | FW_WING.aimMaxFtps | `25` | level range closure cap ±25 ft/s (spec 7e §7.7) |
 | FW_WING.aimSlewFtps | `20` | turn offset slewed back to 0 at 20 ft/s when wings level (spec 7e §7.7) |
-| FW_WING.sTurnFt | `550` | S-turns trigger slant range in level flight (kept until S5 moves it to FW_STURN; estimate) |
-| FW_WING.sTurnClosureFtps | `15` | S-turns trigger closure in level flight (kept until S5; estimate) |
-| FW_WING.sTurnDoneFt | `600` | S-turns release range in level flight (kept until S5; estimate) |
+| FW_WING.sTurnClosureFtps | `15` | tight-closing threshold in B03 range classification and turn exit (spec 7e §7.6; estimate) |
 | FW_WING.stackFt | `-50` | his stack: 50 ft below Lead (Patrick 14 Oct 2026, spec 7e.7 swept) |
 | FW_WING.heightBandFt | `200` | within 200 ft of Lead's height settle band (TS-80; a reference, not a wall) |
 | FW_WING.vertGPerFt | `0.005` | 0.005 G per foot of height error (spec 7e §7.8, crossover 0.68 rad/s; estimate) |
@@ -441,16 +439,12 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.lowFt | `300` | continuous drop-low-inside cap 300 ft below stack (Patrick 14 Oct 2026, TS-233, Fable D24; estimate) |
 | FW_WING.lowStartKt | `5` | continuous drop-low-inside starts past 5 kt slow inside a turn (Patrick 14 Oct 2026, Fable D24; estimate) |
 | FW_WING.lowFtPerKt | `20` | continuous drop-low-inside slope: 20 ft/kt past 5 kt slow (100 ft low at 10 kt slow, capped at -300 ft at 20 kt slow, blended over 4.3 s; Fable D24; estimate) |
-| FW_WING.yoyo | `Object.freeze({` | High yo-yo (kept until S7 replaces with techniques/yo-yo.js): |
-| FW_WING.…slowKt | `10` | speed deficit trigger (kept until S7; estimate) |
-| FW_WING.…powerBackKt | `5` | power-back trigger (kept until S7; estimate) |
-| FW_WING.…excessFtps | `20` | excess arc closure trigger (kept until S7; estimate) |
+| FW_WING.yoyo | `Object.freeze({` | ---- T4: high yo-yo technique (B06; techniques/yo-yo.js, spec 7e §7.9.4, TS-233, Fable D6, 3b §7) ---- |
 | FW_WING.…minFt | `100` | minimum yo-yo climb height: 100 ft (estimate) |
 | FW_WING.…exitArcFt | `150` | exit arc error threshold: 150 ft (estimate) |
 | FW_WING.…onCircleFt | `150` | on-circle offset threshold: 150 ft (estimate) |
 | FW_WING.…downEndFt | `50` | return-to-stack threshold: 50 ft (estimate) |
 | FW_WING.…highFt | `100` | "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233) |
-| FW_WING.…ownerHoldSec | `2` | pitch owner hold time: 2 s (kept until S7; estimate) |
 | FW_WING.…cueClosureFtps | `15` | closure trigger threshold: 15 ft/s (Fable D6; estimate) |
 | FW_WING.…cueDwellSec | `2` | closure dwell time before firing: 2 s (Fable D6; estimate) |
 | FW_WING.…topClosureFtps | `5` | closure threshold to top out and descend: 5 ft/s (Fable D6; estimate) |
@@ -494,7 +488,8 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.…sideHoldSec | `3` | guard side choice S41 held for at least 3 s so it never flickers left/right (spec 7e §7.8b, Fable §2; estimate) |
 | FW_WING.picker | `Object.freeze({` | ---- technique picker (B04; supervisor.js, spec 7e §7.10, Fable D5, D6) ---- |
 | FW_WING.…noRestartSec | `3` | 3 s cooldown after a technique finishes before the same technique can re-fire (spec 7e §7.10, Fable D6; estimate) |
-| FW_WING.…pathBlendSec | `6` | scalar path blend time >= 6 s (3 / ω_c for steering crossover 0.52 rad/s; Fable D5; estimate) |
+| FW_WING.…entryPathSec | `1.5` | scalar path blend time on technique entry (matching phaseBlendSec 1.5 s; estimate) |
+| FW_WING.…pathBlendSec | `6` | scalar path blend time >= 6 s on hand-back to normal follower (3 / ω_c for steering crossover 0.52 rad/s; Fable D5; estimate) |
 | FW_WING.…heightBlendSec | `4.3` | scalar height blend time >= 4.3 s on entry (3 / ω_c for vertical crossover 0.68 rad/s; Fable D5; estimate) |
 | FW_WING.miss | `Object.freeze({` | ---- T1: the miss / pass-clear technique (B06; techniques/miss.js, spec 7e §7.9.1, TS-233, Fable D1, D4, D6, 3b §7) ---- |
 | FW_WING.…clearSlantFt | `625` | target 3D pass clearance D = 625 ft so horizontal + vertical clears the 500 ft bubble with margin (spec 7e §7.9.1; estimate) |
@@ -527,6 +522,31 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.…urgency | `0.5` | technique urgency: 0.5 (Fable 3b §7; estimate) |
 | FW_WING.…energyIntent | `-0.5` | energy intent bleed: -0.5 (Fable 3b §7; estimate) |
 | FW_WING.…maxRunSec | `15` | longest-run timeout: 15 s (estimate) |
+| FW_WING.lagAbeam | `Object.freeze({` | ---- T3: lag pursuit from abeam technique (B06; techniques/lag-abeam.js, spec 7e §7.9.3, TS-233, Fable D6, D18) ---- |
+| FW_WING.…minSweepDeg | `0` | abeam sweep band lower bound behind 3/9 line: 0° (TS-233, spec 7e §7.9.3; estimate) |
+| FW_WING.…maxSweepDeg | `20` | abeam sweep band upper bound: 20° (spec 7e §7.9.3; estimate) |
+| FW_WING.…minSlantFt | `450` | minimum slant range for abeam cue: 450 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…maxSlantFt | `1050` | maximum slant range for abeam cue: 1,050 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…rollCueDps | `8` | Lead seen roll rate toward #2 to cue lag pursuit early: 8°/s (spec 7e §7.9.3; estimate) |
+| FW_WING.…bankCueDeg | `5` | Lead seen bank toward #2 to cue lag pursuit: 5° (spec 7e §7.9.3; estimate) |
+| FW_WING.…dwellSteps | `2` | cue dwell steps: 2 (Fable D6; estimate) |
+| FW_WING.…tailAimFt | `650` | lag pursuit aim point distance behind Lead on his track: 650 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…clearSlantFt | `625` | target 3D pass clearance D = 625 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…minDepthFt | `120` | minimum vertical pass depth below Lead: 120 ft (estimate) |
+| FW_WING.…maxDepthFt | `275` | maximum vertical pass depth below Lead: 275 ft (estimate) |
+| FW_WING.…maxRateFtps | `55` | maximum planned vertical profile rate: 55 ft/s (Fable D1; estimate) |
+| FW_WING.…lagOutDeg | `15` | gentle outward lag course bias away from Lead's turn before crossing track: 15° (SMM 12.29 Fig 12.20; estimate) |
+| FW_WING.…lagTurnRadps | `0` | zero turn-rate feed-forward during lag leg so #2 flies straight/gentle lag until crossing track (estimate) |
+| FW_WING.…crossOffsetFt | `180` | geometric track-crossing offset threshold behind Lead: 180 ft (Fable D18; estimate) |
+| FW_WING.…reversalSweepDeg | `25` | sweep angle threshold behind Lead for track-crossing reversal: 25° (Fable D18; estimate) |
+| FW_WING.…losRippleDps | `2.5` | steady-turn LOS rate ripple baseline (reversal backup cue >= 2x ripple = 5°/s, S15, Fable D18; estimate) |
+| FW_WING.…doneCircleFt | `100` | capture completion circle offset tolerance: 100 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…doneChiErrDeg | `5` | capture completion course error tolerance: 5° (spec 7e §7.9.3; estimate) |
+| FW_WING.…doneSweepDeg | `25` | capture completion minimum sweep behind 3/9 line: 25° (spec 7e §7.9.3; estimate) |
+| FW_WING.…doneDwellSec | `2` | completion dwell time: 2 s (Fable D6; estimate) |
+| FW_WING.…urgency | `0.5` | technique urgency: 0.5 (spec 7e §7.9.3; estimate) |
+| FW_WING.…energyIntent | `0` | energy intent keep: 0 (spec 7e §7.9.3; estimate) |
+| FW_WING.…maxRunSec | `20` | longest-run timeout: 20 s (spec 7e §7.9.3; estimate) |
 | FW_WING.cutAcross | `Object.freeze({` | ---- T5: cut-across technique (B06; techniques/cut-across.js, spec 7e §7.9.5, TS-233, Fable D6) ---- |
 | FW_WING.…cueSlantFt | `1000` | slant range cue threshold: 1,000 ft (TS-233; estimate) |
 | FW_WING.…cueClosureFtps | `0` | closure cue threshold: not closing <= 0 ft/s (estimate) |

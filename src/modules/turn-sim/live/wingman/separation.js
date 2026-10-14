@@ -150,11 +150,11 @@ export function stepFwGuard(prev, sit, raw) {
   const horizon = FG.lookSec;
   const leadAsIs = { p: leadNow, v: leadV, omega: seen.turn.omega };
   const leadTighter = { p: leadNow, v: leadV, omega: scale3(seen.turn.omega, FG.tighter) };
-  const thenSec = 2.5;
+  const thenSec = sit.job?.into ? null : 2.5;
 
   const predFor = (om, vg) => {
     const me = { p: ownP, v: ownV, omega: scale3(out, om), thenSec };
-    const maxFt = Math.max(Math.abs(vertErrFt), Math.abs(vg - vertGCmd) > 1e-4 ? 250 : 0);
+    const maxFt = Math.max(Math.abs(vertErrFt), Math.abs(vg) > 0.15 || Math.abs(vg - vertGCmd) > 1e-4 ? 250 : 0);
     const extra = maxFt > 1e-3 ? { acc: scale3(out, vg * G_FTPS2), maxFt } : null;
     const a = leastPass(leadAsIs, me, horizon, extra);
     if (a.leastFt >= FG.capOpenStartFt) {

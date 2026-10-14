@@ -44,7 +44,8 @@ export const FW_CUT_ACROSS_TECHNIQUE = Object.freeze({
   step(ctx, state) {
     const C = FW_WING.cutAcross;
     const turnDir = ctx.phase?.dir || Math.sign(ctx.seen.leadBankDeg) || ctx.seen.levelSide || -1;
-    const inwardBiasDeg = turnDir * C.chiMaxInDeg * clamp01((ctx.seen.slant - C.targetArcFt) / 300);
+    const extraInDeg = Math.max(0, C.chiMaxInDeg - FW_WING.chiMaxOutDeg);
+    const inwardBiasDeg = turnDir * extraInDeg * clamp01((ctx.seen.slant - C.targetArcFt) / 300);
 
     const normalRef = ctx.normalRef;
     const chiWantedDeg = normalRef.chiWantedDeg + inwardBiasDeg;
@@ -53,8 +54,8 @@ export const FW_CUT_ACROSS_TECHNIQUE = Object.freeze({
     const rateMag = Math.min(40, Math.sqrt(2 * 32.174 * 0.5 * Math.abs(hErr)) * 0.65);
     const heightRateTargetFtps = Math.abs(hErr) > 5 ? Math.sign(hErr) * rateMag : 0;
 
-    const abort = ctx.seen.sweepDeg < 10;
-    const done = ctx.seen.slant < C.doneSlantFt && ctx.seen.closure < C.doneClosureFtps;
+    const abort = !ctx.phase?.turning || ctx.seen.sweepDeg < 15;
+    const done = ctx.seen.slant < C.doneSlantFt || (ctx.seen.slant < C.cueSlantFt && ctx.seen.closure >= C.doneClosureFtps);
 
     const ref = makeFwReference({
       ...normalRef,

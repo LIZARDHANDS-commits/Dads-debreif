@@ -64,7 +64,7 @@ export const FW_EXIT_VERTICAL_TECHNIQUE = Object.freeze({
     const activeState = signChanged ? buildExitVertPlan(ctx) : { ...state };
 
     const horiz = Math.sqrt(Math.max(0, ctx.seen.slant ** 2 - ctx.seen.heightFt ** 2));
-    const maxH = Math.sqrt(Math.max(0, E.maxConeFt ** 2 - horiz ** 2));
+    const maxH = horiz < E.maxConeFt ? Math.sqrt(Math.max(0, E.maxConeFt ** 2 - horiz ** 2)) : E.maxHeightFt;
     const hT = clamp(activeState.heightTargetFt, -Math.min(E.maxHeightFt, maxH), Math.min(E.maxHeightFt, maxH));
     activeState.heightTargetFt = hT;
 
@@ -78,12 +78,18 @@ export const FW_EXIT_VERTICAL_TECHNIQUE = Object.freeze({
     const done = (doneHoldSec >= E.doneDwellSec) || newTurn;
 
     const normalRef = ctx.normalRef;
+    const speedOffsetKt =
+      activeState.energyIntent < 0
+        ? Math.min(normalRef.speedOffsetKt, -5)
+        : activeState.energyIntent > 0
+          ? Math.max(normalRef.speedOffsetKt, 5)
+          : normalRef.speedOffsetKt;
     const ref = makeFwReference({
       ...normalRef,
       pathKind: 'line',
       heightTargetFt: activeState.heightTargetFt,
       heightRateTargetFtps,
-      speedOffsetKt: activeState.energyIntent < 0 ? -5 : activeState.energyIntent > 0 ? 5 : normalRef.speedOffsetKt,
+      speedOffsetKt,
       energyIntent: activeState.energyIntent,
       urgency: E.urgency,
       capChangeG: 0,

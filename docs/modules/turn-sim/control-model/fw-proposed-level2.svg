@@ -102,7 +102,6 @@
 <text x="26" y="679.5" font-size="10.5"  fill="#1d2433">onset 1 + 3u G/s; soft cap knee 0.2 G (tuning); exit</text>
 <text x="26" y="693" font-size="10.5"  fill="#1d2433">vertical and technique cue bands/dwells 12 ft per ft/s</text>
 <text x="26" y="706.5" font-size="10.5"  fill="#1d2433">(physics); D6 bands and dwells (tuning)</text>
-<rect x="440" y="530.5" width="410" height="45" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<rect x="440" y="530.5" width="410" height="31.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="547.5" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it removes</text>
-<text x="450" y="561" font-size="10.5"  fill="#1d2433">Removes: yoyo.slowKt; yoyo.powerBackKt; yoyo.excessFtps</text>
 </svg>

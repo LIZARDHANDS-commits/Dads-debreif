@@ -225,10 +225,11 @@ const B5 = [
   ]),
   b5('climb', null, [{ label: 'Straight climb, 40 s', press: (f) => f.pressFw('climb'), sec: 40 }, { label: 'Descend, 40 s', press: (f) => f.pressFw('descend'), sec: 40 }]),
   b5('turn-button', null, [{ label: 'Turn button: 90° into #2 in fighting wing', press: (f) => f.press('delayed90', -1), sec: 'done' }]),
-  // T29m part 2: abeam Lead (625 ft, the swept place's range, Patrick 14 Oct 2026; abeam an estimate of his "abeam 1")
-  // with Lead turning into him: today's known-bad baseline (he matches Lead's bank; the thread's reading of the technique:
-  // lag pursuit toward Lead's tail, the miss, then reverse and capture). A measuring case, not a flying change.
-  b5('into-abeam', { abeamFt: 625, sweepDeg: 20 }, [turnFw(-1, 'Level turn into #2 from nearly abeam (625 ft, 20° swept), 30 s'), wingsLevel]),
+  // T29m part 2 / S6: abeam Lead (625 ft, 10° sweep behind 3/9 line, TS-233, R14) with Lead turning into him:
+  // lag pursuit toward Lead's tail, the miss, then reverse and capture (Spec 7e §7.9.3).
+  b5('into-abeam', { abeamFt: 625, sweepDeg: 10 }, [turnFw(-1, 'Level turn into #2 from abeam (625 ft, 10° swept), 30 s'), wingsLevel]),
+  b5('away-very-stretched', 1150, [turnFw(1, 'Level turn away from #2, very stretched (1,150 ft), 30 s'), wingsLevel]),
+  b5('level-tight', 520, [{ label: 'Wings level from tight (520 ft), 30 s', press: (f) => f.pressFw('wingsLevel'), sec: 30 }]),
   b5('outside-cone', 1300, [turnFw(-1, 'Level turn into #2 from outside the cone (1,300 ft), 30 s'), wingsLevel]),
   b5('echelon-to-fw', null, [{ label: 'Echelon to fighting wing', press: (f) => f.change('fw'), sec: 'done' }], 'echelon'),
 ];

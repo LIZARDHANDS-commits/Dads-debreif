@@ -21,7 +21,7 @@ export const FW_YOYO_TECHNIQUE = Object.freeze({
     const closure = ctx.arc?.cActual ?? ctx.seen.closure;
     const predPass = ctx.guard?.predFt ?? ctx.seen.slant;
     const inWindow = ctx.phase?.phase === 'turning' &&
-      ((ctx.arc?.dFt ?? 0) < -30) &&
+      ((ctx.arc?.dFt ?? 0) > 30) &&
       (closure > Y.cueClosureFtps) &&
       (predPass < 620 || ctx.seen.sweepDeg < 25);
     const dwellSec = inWindow ? (mem.dwellSec ?? 0) + STEP_SEC : 0;
@@ -75,7 +75,7 @@ export const FW_YOYO_TECHNIQUE = Object.freeze({
     const closureSettled = Math.abs(closure) < Y.doneClosureFtps;
     const isDone = stage === 'descend' && inReturnBand && closureSettled;
     const doneHoldSec = isDone ? state.doneHoldSec + STEP_SEC : 0;
-    const done = isDone;
+    const done = isDone || !ctx.phase?.turning;
 
     const normalRef = ctx.normalRef;
     const ref = makeFwReference({

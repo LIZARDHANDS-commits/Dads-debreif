@@ -318,19 +318,7 @@ export function fwJob(j, seen, { shortKt = 0, arcErrAbs = Infinity, chiErrAbs = 
   const turning = phase === 'entry' || phase === 'turning';
   const weights = stepPhaseWeights(j.weights, phase, STEP_SEC);
   const caseLabel = makeCaseLabel(phase, range, into);
-
-  if (!turning) {
-    const tooTight = seen.slant < FJ.sTurnFt || (seen.closure > FJ.sTurnClosureFtps && seen.slant < FJ.happyFt[1]);
-    if (!sTurn && tooTight) {
-      sTurn = true;
-      side = -seen.levelSide;
-    } else if (sTurn && seen.slant >= FJ.sTurnDoneFt && seen.closure < FJ.exitSettleFtps) {
-      sTurn = false;
-      side = seen.levelSide;
-    } else if (sTurn && seen.levelSide === side && Math.abs(seen.levelLeftFt) > FJ.sweptFt * Math.cos(FJ.sweptDeg * DEG) / 2) {
-      side = -side;
-    }
-  }
+  sTurn = false;
 
   const targetSide = side || seen.levelSide || -1;
   const maxSideStep = (2 * STEP_SEC) / Math.max(FJ.sideBlendSec, 1e-6);
@@ -376,8 +364,8 @@ export function startFwPicker() {
 
 /**
  * One step of B04 (Technique Picker, S23). Polls FW_TECHNIQUES in priority order, runs at most one active technique at a
- * time, enforces noRestartSec (3 s) and maxRunSec, and slides the blend weight S23 (0 -> 1 -> 0) over pathBlendSec (6 s)
- * and heightBlendSec (4.3 s / stackReturnSec 15 s).
+ * time, enforces noRestartSec (3 s) and maxRunSec, and slides the blend weight S23 (0 -> 1 -> 0) over entryPathSec (1.5 s)
+ * on entry, pathBlendSec (6 s) on hand-back, and heightBlendSec (4.3 s / stackReturnSec 15 s).
  */
 export function stepFwPicker(picker, ctx, dt = STEP_SEC, techniques = FW_TECHNIQUES) {
   const P = FJ.picker;
@@ -444,7 +432,7 @@ export function stepFwPicker(picker, ctx, dt = STEP_SEC, techniques = FW_TECHNIQ
 
   const targetW = activeId ? 1 : 0;
   const weight = stepFwBlendWeight(p0.weight, targetW, dt, {
-    pathSec: P.pathBlendSec,
+    pathSec: activeId ? P.entryPathSec : P.pathBlendSec,
     heightSec: P.heightBlendSec,
     returnHeightSec: FJ.stackReturnSec,
   });

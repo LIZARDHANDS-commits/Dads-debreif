@@ -91,7 +91,7 @@ export const FW_MISS_TECHNIQUE = Object.freeze({
     const hErr = nextState.heightTargetFt - ctx.seen.heightFt;
     const nearBottom = Math.abs(hErr) < 35 || Math.sign(hErr) !== nextState.vertSign;
     const passedBottom = nextState.passedBottom || nearBottom || ctx.seen.closure <= 0;
-    const clearNow = p > M.donePassFt && ctx.seen.closure < 0 && passedBottom;
+    const clearNow = p > M.donePassFt && ctx.seen.closure <= M.cueClosureFtps && passedBottom;
     const doneHoldSec = clearNow ? nextState.doneHoldSec + STEP_SEC : 0;
     const done = doneHoldSec >= M.doneDwellSec;
 

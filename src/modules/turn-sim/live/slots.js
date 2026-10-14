@@ -154,8 +154,11 @@ const widen = (marginFt, marginDeg) => Object.freeze({
 });
 /** What the sim will fly at all (450-1,250 ft, 25-65°): 50 ft and 5° inside FW_REGION, so the fighting wing buttons keep working. */
 export const FW_LIMITS = widen(FW_BAND.flyMarginFt, FW_BAND.flyMarginDeg);
-/** Where the pair is still recognised as fighting wing (400-1,300 ft, 20-70°; judge.js classifier). */
-export const FW_REGION = widen(FW_BAND.seeMarginFt, FW_BAND.seeMarginDeg);
+/** Where the pair is still recognised as fighting wing (400-1,300 ft, 0-70° behind the 3/9 line so Lead may manoeuvre with #2 abeam; TS-233, R14; judge.js classifier). */
+export const FW_REGION = Object.freeze({
+  rangeFt: Object.freeze([FW_BAND.rangeFt[0] - FW_BAND.seeMarginFt[0], FW_BAND.rangeFt[1] + FW_BAND.seeMarginFt[1]]),
+  sweepDeg: Object.freeze([0, FW_BAND.sweepDeg[1] + FW_BAND.seeMarginDeg]),
+});
 /**
  * The judge's other regions, where a pair is recognised as nearest to line abreast or a close formation (judge.js
  * classifier; generous on purpose, estimates; TS-142). In position is judged separately, on the bands and IN_POSITION.

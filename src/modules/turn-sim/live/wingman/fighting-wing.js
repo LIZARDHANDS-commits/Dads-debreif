@@ -599,8 +599,8 @@ export function stepFwWingman(w, refSt) {
   const arcLoop = runArcLoop(w, seen, job, V, plane.omegaL, now, cone, arc);
   const { normalRef, chiOwnDeg, eTrackFt, dropLowFt, lowCounted } = buildNormalReference(w, seen, job, stC, V, u, plane, now, cone, arc, arcLoop);
 
-  // Step B04 Technique Picker & B06 Active Technique (T1: pass-clear in S3b; writes S23, S24, S26)
-  const pickerCtx = { seen, guard: w.guard, phase: job, arc, normalRef, V };
+  // Step B04 Technique Picker & B06 Active Technique (T1-T7 registered in techniques/index.js; writes S23, S24, S26)
+  const pickerCtx = { seen, guard: w.guard, phase: job, arc: { ...arc, cActual: arcLoop.cActual }, normalRef, V, chiOwnDeg };
   const picker = probeActive ? startFwPicker() : stepFwPicker(w.picker, pickerCtx, STEP_SEC);
 
   // Step B08 Scalar Reference Blender (S25 + S26 -> S27a-S27g)
