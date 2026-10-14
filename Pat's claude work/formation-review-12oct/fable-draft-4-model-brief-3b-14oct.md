@@ -1,6 +1,6 @@
 # Design review brief 3b: today's wiring, and reconciling your tables with it
 
-*Filed 14 Oct 2026 by the Formation thread, a supplement to brief 3 (`fable-draft-4-model-brief-14oct.md`), at Patrick's ask ("like we want it to evaluate our system we're designing, right?"). To be sent to the same Fable agent once its brief 3 report has landed (never mid-run), so it has its own tables in front of it; if that agent can't be continued, a fresh run gets brief 3's report pasted in above this. Renamed terms; scrubbed with `scrub.mjs check` before filing. Source: `docs/modules/turn-sim/control-model.md` sections 1, 5 and 10.*
+*Filed 14 Oct 2026 by the Formation thread, a supplement to brief 3 (`fable-draft-4-model-brief-14oct.md`), at Patrick's ask ("like we want it to evaluate our system we're designing, right?"). To be sent to the same Fable agent once its brief 3 report has landed (never mid-run), so it has its own tables in front of it; if that agent can't be continued, a fresh run gets brief 3's report pasted in above this. Renamed terms; scrubbed with `scrub.mjs check` before filing. Source: `docs/modules/turn-sim/control-model.md` sections 1, 2, 5 and 10. Patrick added (14 Oct 2026): "Tell it to draw the updated systems diagram for its reccomendaiton, give it the "before" and "after" pics of our architecture and the planned model". Pictures can't go to Fable (text only; embedded images are a filter trigger, skill section 2), so the diagrams go as their boxes, the form they are drawn from, and its diagram comes back as mermaid for the thread to render.*
 
 ---
 
@@ -95,6 +95,54 @@ Power back → the climb-out-of-plane trigger; filter "wing line out of reach" �
 - The vertical-asked → guard-prediction feeder and the speed → offset feeder stay.
 - Techniques write only the reference; the loops read only the reference.
 
+## The architecture diagrams, written out
+
+These are the project's block diagrams, written as their boxes. Each numbered layer feeds the next; the cross-links between boxes are the N² table above. Boxes on one line sit side by side in the same layer.
+
+### Before: the trail cone today (level 1)
+
+1. **Lead**: flies his own programme; never reads #2.
+2. **Perception**: the picture 0.4 s late (slant, closure over 1 s, line-of-sight rate over 0.5 s, aspect, HCA, sweep, height against Lead, Lead's bank, G and turn circle) · **Lead dead-reckoned**: Lead carried 0.4 s round his seen turn (your F5); #2's own position and velocity now · **Arc frame**: in a turn, the arc s behind Lead round his circle, the offset d inside it, and the arc closure from the velocities (your F10).
+3. **Guard**: a second predictor of the pass, from the 0.4 s old picture: on under 600 ft predicted or 500 ft now, off over 700 ft for 3 s; sets pass clear's depth, freezes the power integral, skips the aim blend, opens the G cap under 500 ft · **Jobs**: turning or level from Lead's seen bank; the entry case (a label only); the swept side at the exit; S-turns; the quick fix; low inside; the eased height target.
+4. **Arc loop**: d = d_ss + c*/ω + kc(c* − c)/ω, c* = (s − 650)/10 s within ±25/±60 ft/s, d within ±400 ft slewed 60 ft/s; aim 3 s ahead on the circle d inside Lead's; power's P = arc error/15 s · **Swept aim**: Lead level: aim at the swept place carried 8 s ahead; power's P = how far behind his place/10 s within ±25 ft/s · **Turn toward Lead first**: on Lead's bank passing 10° toward him, aim 20° outward of Lead's circle for 2.5 s, eased out over 1 s · **Nose behind**: while the filter finds the wing line out of reach, aim where Lead was 1 s ago and go in and down 300 ft.
+5. **Steering**: the aim (against Lead) eased over 1.5 s every step; the aim line's turn (0.5 s) fed forward × V, capped at 1.5 × Lead's turn rate + 3°/s; plus 0.05 G per degree to the aim line; in Lead's turn plane · **Height owner**: one owner: pass clear, in and down, the climb-out-of-plane, else the stack family; a 2 s hold except pass clear and in and down · **Vertical PD**: 0.005 G per ft and 0.02 G per ft/s on height against Lead's target, square to Lead's turn plane, within ±1 G.
+6. **Separation filter**: the aim's turn, unless its predicted pass is under 500 ft + 1.4 s × closure (at least 600 ft) or within 100 ft of Lead's wing line; then the nearest of 41 turns that keeps both, steer-behind side first · **G cap**: Lead's G + 1.5 (estimate) under the stall warning; what the aircraft gives while the guard's pass is under 500 ft or the filter needs more (flagged) · **Lift**: the 1 G hold and the vertical first, the turn gives way at the cap; unload, roll, pull past 20° off; never under 0.5 G · **Power**: wanted speed = Lead's + P; the relays (filter cut, climb's way down, low inside); idle and the speed brake.
+7. **Engine**: throttle travel in about 0.25 s; 3.5 s spool-up from idle · **Aircraft (#2)**: G eased at the trainer's onset, roll at the asked rate (up to 60°/s) within the trainer's, lift held under the stall warning.
+
+### The reference design: the close-formation wingman (level 1)
+
+1. **Lead**.
+2. **Perception**: the whole picture 0.3 s late: deviation on three axes and their rates (0.1 s); Lead's bank, roll and G dead-reckoned 0.3 s; his place's motion as Lead rolls and turns.
+3. **Supervisor**: on station, small move, large move (the three axes' shares eased in and out at 0.5 per second), out before up, off station; each with a dead band · **Station change and deconfliction**: the places a change flies through; never within a wingspan, ahead of the wing line or with wings overlapping.
+4. **Holding power (feed-forward)**: the power model at the briefed speed + his place's speed, his G, Lead's climb, his place's climb and his own climb · **Power lead (feed-forward)**: torque for his place's acceleration as Lead's turn builds or eases · **Three axes**: a pace cascade (0.4 ft/s per ft, at most 8 ft/s, a braking taper), then P and D per axis (G on the plane, bank on the line, torque on the hinge); no I.
+5. **Shaper (the hand)**: pressure sizes per job, eased between jobs; torque rate limits; trims held at a limit.
+6. **Lift**: Lead's lift at his G and bank 0.3 s ahead + his place's motion + the corrections.
+7. **Engine** · **Aircraft (#2)**: as above.
+
+### The planned model: the recommended structure from the project's control model (level 1; proposed, not built)
+
+1. **Lead**.
+2. **Perception**: as today; Lead carried across the delay.
+3. **Phase**: level, entry, turning, exit from Lead's roll as seen (no 1 s hold); the case read at each start; a reversal is an exit then an entry.
+4. **Reference path**: Lead's circle d inside or out (turning: the arc loop), or the swept line; limits 20° out, 12° in · **Arc loop**: today's form; owns closure in a turn · **Energy intent**: keep, gain or bleed, from the phase and case and the guard's graded bleed request.
+5. **Path follower**: wanted course = tangent + (2/π)χmax atan(k × distance off); the path's turn fed forward; a course gain · **Vertical (one owner)**: PD on the target of one owner (stack, exit vertical, climb-out-of-plane, pass clear); changes blended · **Power (one owner)**: drag of the G asked and of the climb fed forward + the intent + a slow trim on speed; idle and the speed brake by intent.
+6. **Guard (taper)**: one predictor; nothing at or over 600 ft; 600-500 ft the allowed closing speed shrinks to none at 500 ft; the least change to turn or height; under 500 ft firm, G past the estimate flagged; asks to bleed, never sets power.
+7. **Lift**: within the cap in the instructor's order.
+8. **Aircraft (#2) and engine**: as today.
+
+### After: the proposed design in brief 3 (level 1)
+
+1. **Lead**.
+2. **Perception**: Lead 0.4 s late and dead-reckoned; his own state now; every signal on this one rule.
+3. **Supervisor**: the phase from Lead's roll, blended about 1.5 s; the technique picker (priority, one at a time, the no-restart time, each technique's longest run).
+4. **Normal follower** (the path: Lead's circle offset d, or the swept line) · **Arc loop** (sets d, within ±250 ft) · **Technique** (when one runs: its plan, sized once) · **Energy intent** (−1 to +1).
+5. **The reference**: path, approach limits, height target, energy intent, urgency, any cap change; the normal follower's and the technique's blended by a weight sliding 0 → 1 → 0.
+6. **One set of loops**, reading only the reference: **steering** (the path's turn fed forward + a course gain) · **vertical** (one PD, blended targets) · **power** (G-asked and climb drag fed forward + roll-in lead + intent + slow trim).
+7. **Guard**: one predictor; a constraint on the turn and height commands (gentle near 550 ft, firm close to 500 ft); a graded request to bleed.
+8. **G cap and lift**: the cap opened smoothly by the guard, flagged; at the cap the turn keeps its share, the height demand gives way first, then the level-flight hold.
+9. **Shaper**: G onset by urgency (about 1 to 4 G/s), roll.
+10. **Engine** · **Aircraft (#2)**.
+
 ## What we ask
 
 1. **Reconcile.** For each of today's cells and feeders above: kept, changed (how), or dropped (why), in the proposed design as your report modelled it.
@@ -102,7 +150,8 @@ Power back → the climb-out-of-plane trigger; filter "wing line out of reach" �
 3. **Gaps.** Any link today's design needs, or the close-formation pattern shows, that your tables lack; and any new link with no stated purpose.
 4. **Re-check** C1 (one owner per control), C5 (interaction) and C6 (switches) on the reconciled tables.
 5. **Revise** your tables where this changes them: give only the rows that change, with the reason.
+6. **Draw your recommended structure** as a diagram the project can render: a mermaid flowchart (`flowchart TB`), one node per block, each edge labelled with what passes. Use one edge style for physics (`-->`), another for limits and requests (`-.->`) and a third for any decision or switch state (`==>`), and group the layers with subgraphs as in the level-1 diagrams above. Then give the same diagram as a short boxes-and-arrows list. If the loops need it, add a second, level-2 diagram for the loops alone (each loop's inputs, gains and output). A mermaid diagram is a drawing notation; it is fine to write, even though no code is wanted.
 
-Please give: the reconciliation table; the classification of your N² cells; the gaps; the three gate re-checks; the changed rows; and any new findings, each marked "fix before building", "can wait" or "note", with its evidence and your confidence.
+Please give: the reconciliation table; the classification of your N² cells; the gaps; the three gate re-checks; the changed rows; the diagram (mermaid, then the list); and any new findings, each marked "fix before building", "can wait" or "note", with its evidence and your confidence.
 
 You are working on your own: nobody is watching, and nobody can answer a question while you work. Finish the whole task before you stop. Don't end with a plan for what you would do next, or with a question asking whether to carry on; do that work. If a question comes up, finish everything that doesn't depend on it, state the assumption you made, and list the question at the end. The tables and findings are the deliverable: report them and stop, and don't write code. Keep to what is asked here; anything else you notice goes in a short "Notes" section at the end. Please remove all mannered prose: say what you mean in plain, direct words.
