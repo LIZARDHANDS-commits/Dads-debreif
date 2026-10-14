@@ -51,6 +51,9 @@ import { tacnavRoutes, checkedAirspace } from '../../airfields/airspace/model.js
 import { createAirspaceLog } from './airspace-log.js';
 import { createModelFeed, gridPoints } from './model-clouds.js';
 import { siteFor, noSourceWords } from './sites/index.js';
+import { createMrmsFeed } from './mrms-feed.js';
+import { squareBounds, CANADA_WORDS, DEFAULT_RADAR_DETAIL } from './mrms-model.js';
+import { coverageCanvas } from './radar3d.js';
 
 const LAYERS_KEY = 'map-layers';
 const BACKGROUND = '#05090d';
@@ -212,6 +215,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     onTrails: (trails) => change(setTrafficOption(layers, { trails })),
     onModelHour: (ms) => setModelHour(ms), // the 3D slider's model hour: the HRDPS cloud picture follows it
     onRainToGround: (on) => view3dSettings?.update({ rainToGround3d: on }), // the Rain to ground button, kept in the SOF's "view3d" settings
+    onRadarDetail: (value) => view3dSettings?.update({ radarDetail3d: value }), // "3D radar detail" (SOF-67), kept in the same settings; pushScene asks the feed again
     // The Approaches button and its field picker, kept in the same settings; the 2D map draws the same field's final courses.
     onApproaches: ({ on, field, runway, manual }) => {
       view3dSettings?.update({ approaches3d: on, approachField3d: field, approachRunway3d: runway, approachRunways3d: manual });
@@ -364,6 +368,58 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     },
   });
 
+  // The 3D radar's heights (SOF-67): NOAA MRMS echo tops (Performance) or 3D reflectivity (High), read by our own GRIB2 reader in a background worker, only while the
+  // 3D view is shown and the base has the source. The worker is made when first needed and ended when the 3D view closes, so its memory goes with it.
+  let mrmsWorker = null; // { worker, pending: Map(id -> { resolve, reject }) }
+  let mrmsAsk = 0;
+  const radarDetail = () => view3dSettings?.get().radarDetail3d ?? DEFAULT_RADAR_DETAIL;
+  let radarDetailShown = radarDetail();
+  function endMrmsWorker() {
+    if (!mrmsWorker) return;
+    for (const { reject } of mrmsWorker.pending.values()) reject(new Error('worker ended'));
+    mrmsWorker.worker.terminate();
+    mrmsWorker = null;
+  }
+  function mrmsDecode(request) {
+    if (!mrmsWorker) {
+      const worker = new Worker(new URL('./mrms-worker.js', import.meta.url), { type: 'module' });
+      const held = { worker, pending: new Map() };
+      worker.onmessage = (event) => {
+        const answer = held.pending.get(event.data?.id);
+        if (!answer) return;
+        held.pending.delete(event.data.id);
+        answer.resolve(event.data);
+      };
+      worker.onerror = (event) => {
+        event.preventDefault?.(); // said in words on the view (the reason "decoder failed"), not as a page error
+        for (const { reject } of held.pending.values()) reject(new Error('worker failed'));
+        held.pending.clear();
+        if (mrmsWorker === held) mrmsWorker = null;
+        worker.terminate();
+      };
+      mrmsWorker = held;
+    }
+    const held = mrmsWorker;
+    const id = ++mrmsAsk;
+    return new Promise((resolve, reject) => {
+      held.pending.set(id, { resolve, reject });
+      held.worker.postMessage({ id, ...request }, [request.gz]);
+    });
+  }
+  const mrmsFeed = createMrmsFeed({
+    fetch: fetchNet,
+    timers,
+    now,
+    decode: mrmsDecode,
+    square: () => ({ lat: home.lat, lon: home.lon, halfFt: AREA_FT / 2 }),
+    mode: radarDetail,
+    paused: () => document.hidden,
+    onChange: () => {
+      if (threeOn && !disposed) view3d.touch();
+    },
+  });
+  const mrmsCanvases = new Map(); // set id -> its ground picture (radar3d.js coverageCanvas) or null, the last one only
+
   /**
    * The "3D area" setting (Dad, 8 Oct 2026): sets the square's size (scene3d-model.js `setAreaNm`) and, when it changed, starts the square's things over: the model is asked
    * again over the new square (the same 13 x 13 points, so the same Open-Meteo calls, about 1,200; a change counts against the free daily 10,000), the pictures are asked
@@ -378,6 +434,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     if (threeOn) {
       syncFeeds3d();
       askAnchors();
+      mrmsFeed.refresh(); // the radar heights over the new square
     }
     view3d.setArea();
   }
@@ -422,6 +479,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     else frontsFeed.stop();
     if (site.sources.modelClouds) modelFeed.start(); // asks for the model clouds and winds at once, then when a newer run can be out (HRDPS about 0500, 1100, 1700, 2300Z; HRRR every 3 hours) while the view is open
     else modelFeed.stop();
+    if (site.sources.radarHeights) {
+      mrmsFeed.start(); // the MRMS radar heights at once, then every 6 minutes while the view is open
+    } else {
+      mrmsFeed.stop();
+      endMrmsWorker();
+    }
   }
   function start3dFeeds() {
     syncFeeds3d();
@@ -432,6 +495,8 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   function stop3dFeeds() {
     for (const feed of Object.values(feeds3d)) feed.enable(false);
     frontsFeed.stop();
+    mrmsFeed.stop();
+    endMrmsWorker();
     cancelAnchors?.();
     cancelAnchors = null;
   }
@@ -767,6 +832,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   function wakeFeeds() {
     radar.wake();
     for (const feed of Object.values(feeds)) feed.wake();
+    if (threeOn) mrmsFeed.wake();
   }
 
   // ---- The 3D view (SOF-39) ----------------------------------------------------------------------------
@@ -788,7 +854,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     view3d.setScene({
       airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs', rainToGround: view3dSettings?.get().rainToGround3d ?? true, approaches: approachChoice(),
       mouseLeft: view3dSettings?.get().mouseLeft3d ?? 'move', airspaceHidden: view3dSettings?.get().airspaceHidden3d ?? {}, // the 3D mouse and the Airspace tab's choices (Dad, 8 Oct 2026)
+      radarDetail: radarDetail(), // "3D radar detail" (SOF-67)
     });
+    if (radarDetail() !== radarDetailShown) {
+      radarDetailShown = radarDetail();
+      if (threeOn) mrmsFeed.refresh(); // the other mode's files are asked for at once
+    }
   }
 
   /**
@@ -948,6 +1019,21 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       list.push({ id, image: s.image, bbox: req.bbox, alpha });
       parts.push(`${id}:${idOf(s.image)}:${req.key}:${alpha}`);
     }
+    // Where the MRMS radar heights have no coverage (grey hatching, never clear air) and the strip north of 55° N with its words (SOF-67), while they are drawn.
+    const mv = site.sources.radarHeights && layers.on.radar ? mrmsFeed.view(t) : null;
+    if (mv?.set) {
+      let pic = mrmsCanvases.get(mv.set.id);
+      if (pic === undefined) {
+        mrmsCanvases.clear();
+        pic = coverageCanvas(document, mv.set);
+        mrmsCanvases.set(mv.set.id, pic);
+      }
+      if (pic) {
+        const b = squareBounds(mv.set.lat, mv.set.lon, mv.set.halfFt);
+        list.push({ id: 'mrms', image: pic.canvas, bbox: [b.west, b.south, b.east, b.north], alpha: 1 });
+        parts.push(`mrms:${mv.set.id}`);
+      }
+    }
     return { sig: parts.join('|'), list };
   }
 
@@ -999,7 +1085,15 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     parts.push(`fronts:${fronts.status}:${fronts.key}`);
     if (fronts.status === 'nosource') lines.push({ id: 'fronts', text: fronts.words, symbol: '⚠', tone: 'caution' });
     else lines.push({ id: 'fronts', text: fronts.words, symbol: fronts.status === 'ok' ? (fs.failed ? '⚠' : '✓') : fronts.status === 'loading' ? '⟳' : '⚠', tone: fronts.status === 'ok' && !fs.failed ? 'ok' : fronts.status === 'loading' ? 'busy' : 'bad' });
-    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines, modelCloud, anchors };
+    // The radar heights (SOF-67): NOAA MRMS when it answers, else the flat radar in the model cloud, said in words. No source at this base: amber, never a tick.
+    const heights = site.sources.radarHeights ?? null;
+    const mrms = heights
+      ? mrmsFeed.view(t)
+      : { state: 'nosource', set: null, line: { text: noSourceWords('Radar heights'), symbol: '⚠', tone: 'caution' }, notes: [], reason: 'no source for this base', sig: 'nosource' };
+    lines.push({ id: 'mrms', ...mrms.line });
+    if (heights && heights.checkedHere === false) lines.push({ id: 'mrms-canada', text: CANADA_WORDS, symbol: '⚠', tone: 'caution' }); // until Dad's Moose Jaw comparison (plan item 6)
+    parts.push(`mrms:${mrms.sig}`);
+    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines, modelCloud, anchors, mrms };
   }
 
   function stopThree() {
@@ -1193,6 +1287,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         if (threeOn) {
           syncFeeds3d(); // and so are the 3D pictures
           enable3dSources(); // for the sources the new base has
+          mrmsFeed.refresh(); // the radar heights round the new home
           askAnchors();
         }
         goHome();
@@ -1301,6 +1396,9 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       modelFeed.stop();
       for (const feed of Object.values(feeds3d)) feed.stop();
       frontsFeed.stop();
+      mrmsFeed.dispose();
+      endMrmsWorker();
+      mrmsCanvases.clear();
       cancelAnchors?.();
       cancelAnchors = null;
       view3d.dispose();

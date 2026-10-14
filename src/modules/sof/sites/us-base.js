@@ -52,6 +52,9 @@ export const US_RADAR = Object.freeze({
   credit: 'NOAA NCEP MRMS (public domain, US Government)',
 });
 
+/** The 3D radar's heights (SOF-67): NOAA MRMS echo tops and 3D reflectivity from its public AWS bucket (mrms-model.js), read by our own GRIB2 reader. */
+export const US_RADAR_HEIGHTS = Object.freeze({ name: 'NOAA MRMS', credit: 'NOAA MRMS (public domain, US Government)', checkedHere: true });
+
 /** The US bases' satellite picture: NASA GIBS, GOES-East ABI band 13 infrared (a frame every 10 minutes; feeds.js US_LAYERS says why infrared). */
 export const US_SATELLITE = Object.freeze({
   name: 'NASA GIBS GOES-East infrared',
@@ -153,6 +156,7 @@ export function usBase({ icao, name, shortName, usualAlternates, alternatesSourc
       notams: US_NOTAMS,
       alerts: US_ALERTS,
       fronts: CYMJ.sources.fronts, // WPC CODSUS through the relay covers the whole US
+      radarHeights: US_RADAR_HEIGHTS, // the 3D radar's heights (SOF-67)
     }),
     // No lightning picture: a plain link to Blitzortung's map (lightningmaps.org), labelled as an outside site the tool does not check (map-model.js `lightningMapLink`).
     lightningLink: 'blitzortung',

@@ -78,6 +78,7 @@ import { APPROACH_GROUPS, CORRIDOR, ESTIMATE, ESTIMATE_WORDS, HOLD_DRAW, fieldAp
 import { approachesOf, loadApproachesFor, APPROACHES_LOADING_WORDS, APPROACHES_FAILED_WORDS } from './sites/approaches-load.js';
 import { RUNWAY_IN_USE, RUNWAY_MODES, fieldsForRunways, shownSignature } from './runway-in-use.js';
 import { cellFt } from './weather3d-model.js';
+import { RADAR_DETAIL_OPTIONS, RADAR_DETAIL_VALUES } from './mrms-model.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { airportsFor, AIRPORTS, RUNWAY_ENDS_SOURCES } from '../../airfields/airports-data.js';
 import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from '../../airfields/airspace/model.js';
@@ -167,11 +168,11 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * only, for the cards), getRunways() (each field's runway in use from its METAR wind, Map icao -> runway-in-use.js `runwayInUse`; a field missing from it has
  * no METAR), onAirspaceHidden(choices) (the Airspace tab's choices changed, airspace-filter.js's { ICAO: { kinds, ids } } for every base: the caller keeps them in
  * the "view3d" settings and gives them back through setScene; the airspace log is never given them), win }.
- * Returns { element, show(), hide(), setScene({ airfields, heightScale, cloudStyle, rainToGround, approaches: { on, field, runway, manual }, mouseLeft, airspaceHidden }), refreshApproaches(), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
+ * Returns { element, show(), hide(), setScene({ airfields, heightScale, cloudStyle, rainToGround, approaches: { on, field, runway, manual }, mouseLeft, airspaceHidden, radarDetail }), refreshApproaches(), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), onRainToGround = /** @type {(on: boolean) => void} */ (() => {}), onApproaches = /** @type {(choice: { on: boolean, field: string, runway: string, manual: Record<string, string> }) => void} */ (() => {}), onCorridors = /** @type {(results: Map<string, any>) => void} */ (() => {}), onAirspaceHidden = /** @type {(choices: Record<string, { kinds: readonly string[], ids: readonly string[] }>) => void} */ (() => {}), getRunways = /** @type {() => Map<string, any>} */ (() => new Map()), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), onRainToGround = /** @type {(on: boolean) => void} */ (() => {}), onRadarDetail = /** @type {(value: string) => void} */ (() => {}), onApproaches = /** @type {(choice: { on: boolean, field: string, runway: string, manual: Record<string, string> }) => void} */ (() => {}), onCorridors = /** @type {(results: Map<string, any>) => void} */ (() => {}), onAirspaceHidden = /** @type {(choices: Record<string, { kinds: readonly string[], ids: readonly string[] }>) => void} */ (() => {}), getRunways = /** @type {() => Map<string, any>} */ (() => new Map()), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -202,8 +203,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['freezing', 'Freezing level', 'The 0 °C level, a faint sheet across the area'],
     ['flow', 'Wind flow', 'Faint streaks drifting with the model wind at 850, 700 and 500 hPa, like Windy: they move only while this view is shown (they step every 2 seconds with reduced motion)'],
     ['satellite', 'Satellite', satelliteTitle()],
-    ['radar', 'Radar', 'Radar as see-through blocks standing in the model cloud over each return, from its base to its top, or from the ground where the model has no cloud there (the radar picture on the ground has its own switch in the map’s Layers menu)'],
-    ['rain', 'Rain to ground', 'A faint, streaked rain curtain under each radar block, from the model cloud base to the ground (the radar does not say whether the precipitation reaches the ground)'],
+    ['radar', 'Radar', 'Radar with its real heights from NOAA MRMS (3D radar detail: Performance columns to the measured echo tops, or High’s see-through volume at 12 heights); when MRMS cannot be had, see-through blocks standing in the model cloud over each return, said in words (the radar picture on the ground has its own switch in the map’s Layers menu)'],
+    ['rain', 'Rain to ground', 'A faint, streaked rain curtain under each radar block in the model cloud, from its base to the ground (only when the MRMS heights are unavailable; the radar does not say whether the precipitation reaches the ground)'],
     ['lightning', 'Lightning', 'Lightning cells as thin bolts from the ground to the model cloud top'],
     ['fronts', 'Fronts', `${FRONTS_CREDIT}: surface fronts on the ground with a faint wall, and the H and L pressure centres`],
   ]);
@@ -258,8 +259,17 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const weatherStatus = h('ul', { class: 'sof-3d-wx-status', 'aria-label': 'Weather pictures in 3D' });
   const weatherKeyBody = h('div', { class: 'sof-3d-model-key-body' });
   const weatherKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Weather key'), weatherKeyBody);
+  // "3D radar detail" (SOF-67): Performance (default) or High, kept in the SOF's "view3d" settings by the caller.
+  const radarDetailId = `sof-3d-radar-detail-${nextViewId++}`;
+  const radarDetailPicker = h('select', {
+    id: radarDetailId,
+    class: 'sof-3d-appr-field',
+    title: 'Performance: NOAA MRMS echo tops, one column a cell of about 4 km from the ground to its 18 dBZ top, its 30 dBZ core stronger (about 1 to 2.5 MB an update). High: NOAA MRMS reflectivity at 12 heights, every 1 km cell as a see-through volume (about 8 to 10 MB an update on a quiet day, more in storms).',
+    onchange: () => onRadarDetail(radarDetailPicker.value),
+  }, RADAR_DETAIL_OPTIONS.map((o) => h('option', { value: o.value }, o.label)));
   const weatherPanel = h('div', { class: 'sof-3d-model sof-3d-wx', role: 'group', 'aria-label': 'Weather layers' },
     h('div', { class: 'sof-3d-model-row' }, WEATHER_BUTTONS.map((k) => toggleButtons.get(k).button), weatherKey),
+    h('div', { class: 'sof-3d-model-row' }, h('label', { for: radarDetailId }, '3D radar detail'), radarDetailPicker),
     weatherStatus);
   const modelFoot = h('div', { class: 'sof-3d-model-row' }, modelNote, modelKey);
   const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelWarn, modelControls, modelDetail, modelFoot, modelCredit);
@@ -2522,8 +2532,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
      * The airfields, the height scale, the cloud style and the Rain to ground choice to show ({ airfields: scene3d-model.js `sceneAirfields`, heightScale,
      * cloudStyle: 'slabs' | 'levels', rainToGround: boolean }). Drawn again only when they differ.
      */
-    setScene({ airfields: next = [], heightScale = scale, cloudStyle: style = cloudStyle, rainToGround = toggles.rain, approaches = null, mouseLeft: mouse = mouseLeft, airspaceHidden = null } = {}) {
+    setScene({ airfields: next = [], heightScale = scale, cloudStyle: style = cloudStyle, rainToGround = toggles.rain, approaches = null, mouseLeft: mouse = mouseLeft, airspaceHidden = null, radarDetail = null } = {}) {
       setMouseLeft(mouse); // the "3D mouse" setting
+      if (RADAR_DETAIL_VALUES.includes(radarDetail) && radarDetailPicker.value !== radarDetail) radarDetailPicker.value = radarDetail; // the stored "3D radar detail"
       if (airspaceHidden && typeof airspaceHidden === 'object' && JSON.stringify(airspaceHidden) !== JSON.stringify(hiddenChoices)) { // the Airspace tab's stored choices
         hiddenChoices = withHidden(airspaceHidden, null, null); // cleaned (airspace-filter.js); no base is changed
         syncFilter();

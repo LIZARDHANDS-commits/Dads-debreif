@@ -8,6 +8,10 @@
 // Stale and failed data (SPEC-sof, "3D view"): radar shafts and lightning bolts are drawn only for a picture that is not stale (a stale precipitation column is never drawn as
 // current); the satellite sheet follows the 2D layer: a stale picture is drawn fainter and the status line says STALE; a picture that failed leaves nothing. The fronts are
 // fronts.js's: old or missing fronts are not drawn and the view says "Fronts unavailable".
+//
+// Radar with its real heights (SOF-67, V2.430): while NOAA MRMS answers (mrms-feed.js, a set no older than 20 minutes) the radar is drawn from it (radar3d.js: Performance
+// columns to the measured echo tops, or High's see-through volume), cell by cell, never merged; the blocks in the model cloud below (SOF-56, SOF-57's merging) are the
+// fallback when it cannot be had, and the key says why.
 import { h } from '../../ui-kit/dom.js';
 import { drawGeoImage } from './map-draw.js';
 import { AREA_FT } from './scene3d-model.js';
@@ -18,6 +22,8 @@ import {
   FLOW_FT_PER_S_PER_KT, pictureCells, reduceToCells, shafts, bolts, satellitePixels, frontGeometry, createFlow,
 } from './weather3d-model.js';
 import { buildShafts, buildBolts, buildSatelliteSheet, buildFronts, buildFlow } from './weather3d.js';
+import { buildRadarColumns, buildRadarVolume } from './radar3d.js';
+import { performanceColumns, volumeColumns, northStrip, coverageMask, MIN_DRAW_DBZ, NORTH_WORDS } from './mrms-model.js';
 import { readTotalCloud } from './cloud-field.js';
 import { CLOUD_SHEET_PX } from './model-clouds.js';
 import { FRONTS_CREDIT } from './fronts.js';
@@ -54,6 +60,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
   let facts = { radar: null, lightning: null, satellite: null, fronts: null, flow: null };
   let shown = true;
   let sheetFade = 1;
+  let heightsNow = null; // the radar heights' line as of the last update ("Radar heights: NOAA MRMS, 0508Z (3 min ago)"), for the key
   // The radar and lightning cells last read, one picture each: { key, cells }. A model-hour or terrain change re-works only the heights and the drawing, not the picture.
   const cellCache = { radar: null, lightning: null };
   // The radar blocks and lightning bolts last drawn (weather3d-model.js `shafts` and `bolts`, feet), for the approaches' corridor check (approaches-model.js); null when not drawn.
@@ -198,10 +205,35 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         return cells;
       };
 
-      // Radar blocks in the cloud, each with its rain curtain to the ground (always built; the "Rain to ground" switch shows or hides them)
+      // The radar with its real heights from NOAA MRMS when it answers (SOF-67): Performance columns or High's volume, cell by cell, never merged. Else the
+      // fallback below, labelled with why (mrms-feed.js `view`).
+      const mrms = weather.mrms ?? null;
+      const set = mrms?.set ?? null;
+      heightsNow = mrms && mrms.state !== 'nosource' ? mrms.line.text : null;
+      if (set) {
+        place('radar', `mrms|${set.id}|${standing}`, () => {
+          const ground = groundAt ?? (() => groundFt);
+          const strip = northStrip(set.lat, set.lon, set.halfFt);
+          const mask = coverageMask(set);
+          let open = 0;
+          for (let k = 0; k < mask.length; k++) open += mask[k] ? 0 : 1;
+          const base = { mrms: true, mode: set.mode, time: set.time, notes: set.notes ?? [], line: mrms.line.text, cellKm: (2 * set.halfFt) / set.n / 3280.84, north: strip.share, gapShare: mask.length ? open / mask.length : 0 };
+          if (set.mode === 'high') {
+            drawnLists.radar = volumeColumns(set, { groundAt: ground });
+            facts.radar = { ...base, count: drawnLists.radar.length, shares: set.shares, levelsKm: set.levelsKm, gaps: set.gaps };
+            return buildRadarVolume(T, { set, scale, groundFt });
+          }
+          const { columns } = performanceColumns(set, { groundAt: ground });
+          drawnLists.radar = columns;
+          facts.radar = { ...base, count: columns.length, tall: columns.filter((c) => !c.flat).length, cores: columns.filter((c) => c.coreTopFt !== null).length, flats: columns.filter((c) => c.flat).length, highestFt: columns.reduce((m, c) => Math.max(m, c.flat ? 0 : c.topFt), 0) };
+          return buildRadarColumns(T, { columns, scale });
+        });
+      }
+
+      // Fallback: radar blocks in the cloud, each with its rain curtain to the ground (always built; the "Rain to ground" switch shows or hides them)
       const radar = weather.radar;
-      const radarOn = Boolean(radar && radar.image && radar.on !== false && !radar.stale);
-      place('radar', radarOn ? `${radar.id}|${modelKey}|${standing}` : 'off', () => {
+      const radarOn = !set && Boolean(radar && radar.image && radar.on !== false && !radar.stale);
+      if (!set) place('radar', radarOn ? `${radar.id}|${modelKey}|${standing}|${mrms?.line?.text ?? ''}` : 'off', () => {
         drawnLists.radar = null;
         if (!radarOn) {
           facts.radar = null;
@@ -304,7 +336,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       return read ? readTotalCloud(read.image) : null;
     },
     /** What is drawn, for the key: { radar, lightning, satellite, fronts, flow }, each null when not drawn; the radar's says whether its rain curtains are shown (`rainShown`). */
-    summary: () => ({ ...facts, radar: facts.radar ? { ...facts.radar, rainShown: toggles.rain !== false } : null }),
+    summary: () => ({ ...facts, radar: facts.radar ? { ...facts.radar, rainShown: toggles.rain !== false, line: heightsNow } : null }),
     /**
      * The radar blocks and lightning bolts as last built, for the approaches' corridor check: { radar: [block] | null, lightning: [bolt] | null } (null: not drawn,
      * because there is no fresh picture). They are built whatever the Radar and Lightning buttons show, so the check does not depend on what is switched on.
@@ -350,13 +382,15 @@ export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-We
   if (summary.satellite) {
     out.push(`Satellite: ${satelliteWords} laid as a faint sheet where it is bright (cloud) at ${formatFeet(Math.round(summary.satellite.heightFt / 100) * 100)} ft${summary.satellite.modelHeight ? (summary.satellite.slabs ? ', the highest model cloud top' : ', the highest model cloud level') : ` (${formatFeet(SATELLITE_DEFAULT_FT)} ft where the model has no cloud: an estimate)`}.${summary.satellite.stale ? ' STALE: drawn fainter.' : ''}`);
   }
-  if (summary.radar) {
+  if (summary.radar?.mrms) {
+    out.push(...mrmsKeyWords(summary.radar, scale));
+  } else if (summary.radar) {
     const r = summary.radar;
     const rain = r.rain ? (r.rainShown === false ? ' Rain to ground is off: the faint rain curtains under the blocks are hidden.' : ' Under each block a faint, streaked rain curtain reaches the ground (switch: Rain to ground); the radar does not say whether the precipitation reaches the ground (virga is not told apart).') : '';
     const bare = r.count - r.withModelTop;
     const noCloud = bare > 0 ? ` ${bare} with no model cloud here: drawn from the ground up to ${formatFeet(RADAR_DEFAULT_AGL_FT)} ft above it (an estimate).` : '';
     const merged = Number.isFinite(r.cells) ? `${r.cells} cells as ${r.blocks} blocks` : `${r.count} drawn`;
-    out.push(`Radar: a see-through block for each run of neighbouring radar cells with the same colour and cloud heights (a cell is about 5 NM; heights within ${formatFeet(SHAFT_MERGE_FT)} ft of each other, an estimate), in the radar's colour, standing in the model cloud over it, from the cloud's base to its top (the lowest model cloud there; a model estimate).${rain}${noCloud} ${merged}. Not drawn when the radar picture is stale.`);
+    out.push(`${r.line ? `${r.line}. ` : ''}Radar: a see-through block for each run of neighbouring radar cells with the same colour and cloud heights (a cell is about 5 NM; heights within ${formatFeet(SHAFT_MERGE_FT)} ft of each other, an estimate), in the radar's colour, standing in the model cloud over it, from the cloud's base to its top (the lowest model cloud there; a model estimate).${rain}${noCloud} ${merged}. Not drawn when the radar picture is stale.`);
   }
   if (summary.lightning) {
     out.push(`Lightning: a bolt for each lit lightning cell, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). ${summary.lightning.count} drawn.`);
@@ -367,5 +401,27 @@ export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-We
   if (summary.flow) {
     out.push(`Wind flow: ${summary.flow.count} faint streaks drifting with the model wind at 850, 700 and 500 hPa, at those levels' heights. Their speed follows the wind (${FLOW_FT_PER_S_PER_KT} ft a second for each knot, so 50 kt crosses the square in about 90 seconds: a picture of the flow, not its true speed; an estimate).`);
   }
+  return out;
+}
+
+/** NOAA's dBZ colours in words (map-model.js legendItems' MRMS words). */
+const DBZ_COLOUR_WORDS = "NOAA's dBZ colours: blue is light, then green, yellow and orange, red, and pink to purple is the strongest";
+const pct = (share) => `${Math.round(share * 100)} %`;
+
+/** The key's words for the radar with its real heights from NOAA MRMS (SOF-67): what is drawn, how, the estimates named, the gaps and the edge said. */
+export function mrmsKeyWords(r, scale) {
+  const out = [];
+  const km = Math.round(r.cellKm * 10) / 10;
+  if (r.line) out.push(`${r.line}.`);
+  if (r.mode === 'high') {
+    const seen = (r.levelsKm ?? []).map((k, l) => `${k} km ${r.shares?.[l] === null || r.shares?.[l] === undefined ? 'no data' : pct(r.shares[l])}`).join(', ');
+    out.push(`Radar heights (High): NOAA MRMS reflectivity at ${r.levelsKm.length} heights (${r.levelsKm.join(', ')} km above sea level: an estimate for the levels), as one see-through volume over the square: every cell about ${km} km at every height, never merged, in ${DBZ_COLOUR_WORDS}, fainter for light echoes and more solid for strong ones (from ${MIN_DRAW_DBZ} dBZ; the opacities are estimates). The strength is blended between heights and between cells (so edges are soft); the 1 km height is drawn down to the ground. Heights ×${scale}. Where MRMS sees each height (share of the square): ${seen}.`);
+  } else {
+    out.push(`Radar heights (Performance): NOAA MRMS echo tops and composite reflectivity, cell by cell, never merged: each cell about ${km} km with an echo of ${MIN_DRAW_DBZ} dBZ or more (an estimate) is one see-through column from the ground to its measured 18 dBZ echo top (km above sea level), in ${DBZ_COLOUR_WORDS} for its strongest echo; a narrower, stronger core runs up to its 30 dBZ top. An echo weaker than 18 dBZ has no measured top and lies as a flat tile on the ground. ${r.count} cells: ${r.tall} with a top (highest ${formatFeet(Math.round(r.highestFt / 100) * 100)} ft), ${r.cores} with a 30 dBZ core, ${r.flats} flat. Heights ×${scale}.`);
+  }
+  for (const note of r.notes ?? []) out.push(`${note}.`);
+  if (r.gapShare > 0) out.push(`Grey hatching on the ground: no MRMS radar coverage there (${pct(r.gapShare)} of the square${r.north > 0 ? ', the strip north of 55° N included' : ''}): not clear air, the radar cannot see it.`);
+  if (r.north > 0) out.push(`${NORTH_WORDS}: the northern ${pct(r.north)} of the square, hatched darker on the ground with those words.`);
+  out.push(`NOAA MRMS (Multi-Radar Multi-Sensor) merges every radar's tilts onto a 1 km grid every 2 minutes (US radars, and Canadian radars by a search summary, unchecked); read from NOAA's public bucket by our own GRIB2 reader. The flat radar picture on the ground is the map's own (its Layers menu).`);
   return out;
 }
