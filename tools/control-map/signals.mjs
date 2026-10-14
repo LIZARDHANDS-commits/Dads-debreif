@@ -67,6 +67,8 @@ export const BLOCKS = Object.freeze([
  * 'hidden' (contains his own motion).
  */
 export const SIGNALS = Object.freeze([
+  // what he can see of the aircraft he flies off (TS-211: position, velocity and body up only)
+  { id: 'leadSeen', name: 'Lead as seen (position, velocity, body up)', unit: 'ft, ft/s', frame: 'world', writers: ['lead'], readers: ['fw.perception', 'cf.perception'], delay: 'none', smoothing: 'none', limits: '', trace: null, traceNote: 'the gauge records Lead as an aircraft (generic columns)', source: 'TS-211' },
   // fighting wing: what he sees
   { id: 'slant', name: 'Slant range', unit: 'ft', frame: 'slant', writers: ['fw.perception'], readers: ['fw.guard', 'fw.jobs', 'fw.power'], delay: 'picture04', smoothing: 'none', limits: '', trace: 'slantFt', source: 'SMM 12.2 para 7; 500 ft is slant (Patrick 14 Oct 2026)' },
   { id: 'closureSlant', name: 'Slant closure', unit: 'ft/s, + closing', frame: 'slant', writers: ['fw.perception'], readers: ['fw.guard', 'fw.jobs', 'fw.filter', 'fw.power'], delay: 'picture04', smoothing: '1 s (FW_SEE.closureSec)', limits: '', trace: 'closureFtps', source: 'SMM 12.2 para 5 ("subtle"); R2' },
@@ -430,3 +432,110 @@ export const QUESTIONS = Object.freeze([
     rec: '(b) in the turn and at the entry, except while the guard asks for pass-clear (then the vertical first); for the path-follower slice to measure.',
   },
 ]);
+
+/**
+ * The recommended structure (the T29t review's section 2.7 with Patrick's rulings of 14 Oct 2026: the guard tapers from
+ * 600 ft to 500 ft; into him from in position he flies straight ahead until on the circle he wants, lag first goes; the exit
+ * vertical may use any height while the slant stays 500-1,000 ft behind the wing line; model now, analysis per slice).
+ * PROPOSED, NOT BUILT.
+ */
+export const PROPOSED = Object.freeze([
+  { id: 'lead', layer: 0, name: 'Lead', does: 'His programme; never reads #2' },
+  { id: 'p.sight', layer: 1, name: 'Sight (seeFw)', does: 'As today: the picture 0.4 s late; Lead carried across the delay (D-Lead, question 1)' },
+  { id: 'p.phase', layer: 2, name: 'Phase', does: 'Level, Entry, Turning, Exit from Lead\'s roll as seen (no 1 s hold); the case read at each start; a reversal is an exit then an entry (review 2.1)' },
+  { id: 'p.path', layer: 3, name: 'Reference path', does: 'Lead\'s circle d inside or out (Turning: the arc loop), or the swept line; into him from in position: straight ahead until on the circle he wants (ruling); limits 20° out, 12° in (TS-233)' },
+  { id: 'p.arc', layer: 3, name: 'Arc loop', does: 'Today\'s form: d = d_ss + c*/ω + kc(c* − c)/ω; owns closure in a turn (R5)' },
+  { id: 'p.intent', layer: 3, name: 'Energy intent', does: 'Keep, gain or bleed from the phase and case, and the guard\'s graded bleed request' },
+  { id: 'p.steer', layer: 4, name: 'Path follower', does: 'Wanted course = tangent + (2/π)χmax atan(k × distance off); the path\'s turn fed forward (physics); course gain (review 2.2)' },
+  { id: 'p.vertical', layer: 4, name: 'Vertical (one owner)', does: 'PD on the target of one owner: stack, exit vertical (any height, slant 500-1,000 ft, behind the wing line: ruling), yo-yo (Turning), pass-clear; changes blended' },
+  { id: 'p.power', layer: 4, name: 'Power (one owner)', does: 'Drag of the G asked and the climb fed forward + the intent + a slow trim on speed; idle and the boards by intent' },
+  { id: 'p.guard', layer: 5, name: 'Guard rail (taper)', does: 'One predictor; does nothing at or over 600 ft; 600-500 ft the allowed closing speed shrinks to none at 500 ft (phased); the least change to turn or height; under 500 ft firm, G past the estimate flagged (ruling); asks bleed, never sets power' },
+  { id: 'p.lift', layer: 6, name: 'Lift', does: 'Within the cap in Patrick\'s order (question 2): geometry first; unload, roll, pull' },
+  { id: 'p.aircraft', layer: 7, name: '#2 point mass and engine', does: 'As today (stepLead)' },
+]);
+
+/** The pictures: rows of block ids, and edges { from, to, label, kind: signal | delay | ff | hidden | cross | feedback }. */
+export const DIAGRAMS = Object.freeze({
+  fw: {
+    title: 'Fighting wing today (Live, after the tidy): level 1',
+    rows: [['lead'], ['fw.perception', 'fw.leadNow', 'fw.arc'], ['fw.guard', 'fw.jobs'], ['fw.aimTurn', 'fw.aimSwept', 'fw.lagFirst', 'fw.noseBehind', 'fw.yoyo'], ['fw.steer', 'fw.pitchOwner', 'fw.vertical'], ['fw.filter', 'fw.gcap', 'fw.lift', 'fw.power', 'ac.speedHold'], ['ac.engine', 'ac.pointMass']],
+    edges: [
+      { from: 'lead', to: 'fw.perception', label: 'Lead, 0.4 s late', kind: 'delay' },
+      { from: 'fw.perception', to: 'fw.leadNow', label: 'Lead seen', kind: 'signal' },
+      { from: 'fw.leadNow', to: 'fw.arc', label: 'Lead now', kind: 'signal' },
+      { from: 'fw.perception', to: 'fw.guard', label: 'picture 0.4 s', kind: 'delay' },
+      { from: 'fw.perception', to: 'fw.jobs', label: 'bank, slant, closure', kind: 'signal' },
+      { from: 'fw.arc', to: 'fw.aimTurn', label: 's, arc closure', kind: 'signal' },
+      { from: 'fw.jobs', to: 'fw.aimTurn', label: 'turning', kind: 'signal' },
+      { from: 'fw.jobs', to: 'fw.aimSwept', label: 'level, side', kind: 'signal' },
+      { from: 'fw.aimTurn', to: 'fw.steer', label: 'aim point', kind: 'signal' },
+      { from: 'fw.aimSwept', to: 'fw.steer', label: 'aim point', kind: 'signal' },
+      { from: 'fw.lagFirst', to: 'fw.steer', label: 'aim blended', kind: 'signal' },
+      { from: 'fw.noseBehind', to: 'fw.steer', label: 'aim replaced', kind: 'signal' },
+      { from: 'fw.jobs', to: 'fw.pitchOwner', label: 'stack, quick fix, low', kind: 'signal' },
+      { from: 'fw.yoyo', to: 'fw.pitchOwner', label: 'climb', kind: 'signal' },
+      { from: 'fw.pitchOwner', to: 'fw.vertical', label: 'height target', kind: 'signal' },
+      { from: 'fw.steer', to: 'fw.filter', label: 'turn ask (hidden feedback)', kind: 'hidden' },
+      { from: 'fw.vertical', to: 'fw.filter', label: 'vertical ask (physics)', kind: 'ff' },
+      { from: 'fw.vertical', to: 'fw.lift', label: 'vertical G', kind: 'signal' },
+      { from: 'fw.filter', to: 'fw.lift', label: 'turn flown', kind: 'signal' },
+      { from: 'fw.gcap', to: 'fw.lift', label: 'cap', kind: 'signal' },
+      { from: 'fw.aimTurn', to: 'fw.power', label: 'residual', kind: 'signal' },
+      { from: 'fw.jobs', to: 'fw.power', label: 'low inside: MAX', kind: 'cross' },
+      { from: 'fw.power', to: 'ac.speedHold', label: 'wanted KIAS', kind: 'signal' },
+      { from: 'ac.speedHold', to: 'ac.engine', label: 'throttle (+ G drag)', kind: 'ff' },
+      { from: 'fw.power', to: 'ac.engine', label: '20%, MAX, idle', kind: 'cross' },
+      { from: 'fw.lift', to: 'ac.pointMass', label: 'lift', kind: 'signal' },
+      { from: 'ac.engine', to: 'ac.pointMass', label: 'thrust', kind: 'signal' },
+      { from: 'ac.pointMass', to: 'fw.perception', label: 'his picture, 0.4 s', kind: 'feedback' },
+      { from: 'ac.pointMass', to: 'fw.leadNow', label: 'his own state, now', kind: 'feedback' },
+      ...CROSSLINKS.filter((x) => x.from !== 'fw.vertical').map((x) => ({ from: x.from, to: x.to, label: x.signal, kind: 'cross' })),
+    ],
+  },
+  cf: {
+    title: 'Close formation (Live, flown and approved): level 1',
+    rows: [['lead'], ['cf.perception'], ['cf.supervisor', 'cf.station'], ['cf.holding', 'cf.powerLead', 'cf.law'], ['cf.shaper'], ['cf.lift'], ['ac.engine', 'ac.pointMass']],
+    edges: [
+      { from: 'lead', to: 'cf.perception', label: 'Lead, 0.3 s late', kind: 'delay' },
+      { from: 'cf.perception', to: 'cf.supervisor', label: 'deviation, rates', kind: 'signal' },
+      { from: 'cf.station', to: 'cf.perception', label: 'the place', kind: 'signal' },
+      { from: 'cf.supervisor', to: 'cf.law', label: 'job, masks (eased)', kind: 'signal' },
+      { from: 'cf.perception', to: 'cf.holding', label: 'his G, climbs, place speed', kind: 'ff' },
+      { from: 'cf.perception', to: 'cf.powerLead', label: 'place acceleration', kind: 'ff' },
+      { from: 'cf.perception', to: 'cf.law', label: 'deviation, rates', kind: 'signal' },
+      { from: 'cf.holding', to: 'cf.shaper', label: 'holding torque', kind: 'ff' },
+      { from: 'cf.powerLead', to: 'cf.law', label: 'power lead', kind: 'ff' },
+      { from: 'cf.law', to: 'cf.shaper', label: 'corrections', kind: 'signal' },
+      { from: 'cf.shaper', to: 'cf.lift', label: 'G, bank-off', kind: 'signal' },
+      { from: 'cf.perception', to: 'cf.lift', label: 'Lead\'s lift ahead, place motion', kind: 'ff' },
+      { from: 'cf.shaper', to: 'ac.engine', label: 'torque', kind: 'signal' },
+      { from: 'cf.lift', to: 'ac.pointMass', label: 'lift', kind: 'signal' },
+      { from: 'ac.engine', to: 'ac.pointMass', label: 'thrust', kind: 'signal' },
+      { from: 'ac.pointMass', to: 'cf.perception', label: 'his picture, 0.3 s', kind: 'feedback' },
+    ],
+  },
+  proposed: {
+    title: 'Fighting wing, the recommended structure (PROPOSED, NOT BUILT): level 1',
+    rows: [['lead'], ['p.sight'], ['p.phase'], ['p.path', 'p.arc', 'p.intent'], ['p.steer', 'p.vertical', 'p.power'], ['p.guard'], ['p.lift'], ['p.aircraft']],
+    edges: [
+      { from: 'lead', to: 'p.sight', label: 'Lead, 0.4 s late', kind: 'delay' },
+      { from: 'p.sight', to: 'p.phase', label: 'Lead\'s roll, range, closure', kind: 'signal' },
+      { from: 'p.phase', to: 'p.path', label: 'circle or line, case', kind: 'signal' },
+      { from: 'p.phase', to: 'p.intent', label: 'keep, gain, bleed', kind: 'signal' },
+      { from: 'p.phase', to: 'p.vertical', label: 'owner, target', kind: 'signal' },
+      { from: 'p.arc', to: 'p.path', label: 'd', kind: 'signal' },
+      { from: 'p.path', to: 'p.steer', label: 'path, its turn', kind: 'ff' },
+      { from: 'p.intent', to: 'p.power', label: 'intent', kind: 'signal' },
+      { from: 'p.intent', to: 'p.vertical', label: 'exit vertical', kind: 'signal' },
+      { from: 'p.steer', to: 'p.power', label: 'G asked: its drag', kind: 'ff' },
+      { from: 'p.vertical', to: 'p.power', label: 'climb: its power', kind: 'ff' },
+      { from: 'p.steer', to: 'p.guard', label: 'turn ask', kind: 'signal' },
+      { from: 'p.vertical', to: 'p.guard', label: 'vertical ask', kind: 'ff' },
+      { from: 'p.guard', to: 'p.intent', label: 'graded bleed request', kind: 'ff' },
+      { from: 'p.guard', to: 'p.lift', label: 'least-change turn, height', kind: 'signal' },
+      { from: 'p.power', to: 'p.aircraft', label: 'throttle', kind: 'signal' },
+      { from: 'p.lift', to: 'p.aircraft', label: 'lift', kind: 'signal' },
+      { from: 'p.aircraft', to: 'p.sight', label: 'his picture', kind: 'feedback' },
+    ],
+  },
+});
