@@ -144,8 +144,10 @@ export function altitudeCheck(flight, { refAt = null } = {}) {
     } else if (used !== 'none') {
       const c = used === 'start' ? startFt : endFt;
       biasAt = () => c;
-    } else if (p.start.length + p.end.length) {
-      // Too few fixes in each phase alone: all of them together, one constant (low confidence).
+    } else if (p.start.length + p.end.length >= ALTITUDE_CHECK.minPhaseFixes) {
+      // Too few fixes in each phase alone: all of them together, one constant (low confidence). Under minPhaseFixes in all, nothing: a
+      // track whose logging started in the air can carry one or two slow steps there (a GPS hiccup at start-up) that read as ground
+      // fixes thousands of feet up; taken as its ground, the whole formation was moved by it (Dad's Cobra flight, 14 Oct 2026, V2.434).
       const c = median([...p.start.map((fx) => fx.altFt - ref.at(fx, 'start')), ...p.end.map((fx) => fx.altFt - ref.at(fx, 'end'))].filter(isNum));
       if (isNum(c)) {
         used = 'all';
@@ -182,7 +184,7 @@ export function correctAltitudes(flight, check, choices = {}) {
     const s = check?.ships?.[slot];
     const info = { source: check?.source ?? 'none', used: s?.used ?? 'none', startN: s?.startN ?? 0, endN: s?.endN ?? 0, startFt: null, endFt: null, driftFt: null, confidence: 'none', why: '', corrected: false };
     if (!s || !s.biasAt) {
-      info.why = s && s.startN + s.endN ? 'no usable ground fixes' : 'no fixes on the ground';
+      info.why = s && s.startN + s.endN ? `too few fixes on the ground (${s.startN + s.endN})` : 'no fixes on the ground';
     } else if (!several) {
       info.why = 'no other ship with ground fixes to compare with';
     } else {
