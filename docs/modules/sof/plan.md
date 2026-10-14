@@ -68,6 +68,13 @@ Dad and Patrick agreed it on 7 Oct. Each phase is its own pull request and is us
   4. Any other ECCC or Open-Meteo cloud data found that adds real detail, used only after it is written here first.
   Failure and stale words for each piece, as in Weather fidelity 2.
   Built in V2.184 (SOF-46). Part 4: GeoMet has no HRDPS cloud-by-level or cloud base/top layers; its humidity by level (`HRDPS.CONTINENTAL.PRES_HR.<level>`, 28 levels) could make a 2.5 km picture per level later (future idea, not built).
+- [ ] **Weather fidelity 4: radar with its real heights, from NOAA MRMS (Dad, 14 Oct 2026: "I care about intensity, and location, and altitude"; Dad picked "MRMS, two modes"; proposed, waits on Dad's yes to the spec; SOF-67, SOF-R29; research in `radar-3d-research.md`):**
+  1. Read NOAA MRMS from its public AWS bucket for the 3D view at every base (Moose Jaw is inside MRMS's grid): the 18 and 30 dBZ echo tops, and reflectivity at 12 heights. Our own GRIB2 reader (PNG-packed, the browser's own unzip), no new library, in a background worker, cropped to the 3D square.
+  2. A "3D radar detail" setting: **Performance** (default) draws each about 4 km cell as one column from the ground to its measured 18 dBZ top, with its 30 dBZ core marked; **High** draws every 1 km cell at every height as a see-through volume, coloured by its strength at that height.
+  3. Drop the run-merging of radar cells (SOF-57's "N cells as M blocks"); radar heights no longer come from the model cloud (SOF-56) while MRMS answers.
+  4. Failure, stale and untrusted-reply behaviour as written in the spec; the model-cloud heights come back, labelled, when MRMS can't be used.
+  5. Docs: spec, decision, requirement, `csp-hosts.md` (the new host), README, and one light check in `testing.md`.
+  Radar tilts (NEXRAD Level II, US only) stay on the future list: they need a bzip2 decoder, a new library for Patrick's yes.
 
 ## Step 2c. The SOF at seven US T-6 bases (Dad, 7 Oct 2026; Patrick approved building it; Fable plan 7 Oct)
 

@@ -235,6 +235,32 @@ A picture of the weather round home for situational awareness. It never decides 
 - **Approaches (SOF-58, V2.200):** an Approaches switch (off by default) draws the selected field's published approaches from the FAA CIFP, with fix labels ("ZODEN FAF 3,500+"), localizer, glidepath, VOR courses and arcs and the missed approach; the key lists each approach's corridor words; alternate cards at US bases list the published approaches and whether one is non-GPS. Military and Canadian fields show only an estimated centreline and 3° path, said in the key.
 - **Runway in use (SOF-59, V2.201):** approaches and their corridor check follow each field's runway in use, chosen from the METAR wind (all runways when calm, light, variable, missing or stale, said in words), with "All runways" and a hand-picked runway per field in the Approaches key.
 - **Mouse and airspace filter (SOF-61, V2.203):** left-drag moves the 3D map and right-drag or Ctrl-drag turns it (setting "3D mouse" swaps); "Show or hide airspace" hides airspace by kind or by name, per base.
+- **Radar with its real heights (SOF-67, proposed 14 Oct 2026, waits on Dad's yes; plan Step 2b, Weather fidelity 4; research in `radar-3d-research.md`):**
+  - **Source:** NOAA MRMS (Multi-Radar Multi-Sensor) from its public AWS bucket `noaa-mrms-pds` (anonymous, readable from a browser, no relay). It is NOAA's merge of every radar's tilts (US radars and Canadian radars) onto a 0.01° grid (about 1 km), a file about every 2 minutes, covering 20° to 55° N. Used for the 3D view at every base, Moose Jaw included. The 2D map keeps its own radar (ECCC at Moose Jaw, the MRMS picture at the US bases) and its words.
+    - **Performance:** `EchoTop_18` and `EchoTop_30` (the height the 18 and 30 dBZ echo reaches, km above sea level) and `MergedReflectivityQCComposite` (the strongest echo in each column).
+    - **High:** `MergedReflectivityQC` at 12 heights: 1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16 and 18 km above sea level (an estimate for the levels: enough to show a storm's layers, about 8 to 10 MB an update on a quiet day).
+    - Asked every 6 minutes while the 3D view is open (the radar's REFRESH_MS), newest file first.
+  - **Reading it:** our own GRIB2 reader for MRMS's PNG-packed fields (the browser's own unzip and inflate, no new library), run in a background worker, cropped to the 3D square as it is read; the values are dBZ, and kilometres above sea level for the echo tops (−1 no echo, −3 no coverage).
+  - **Drawing (setting "3D radar detail", Weather panel):**
+    - **Performance (default):** cells about 4 km across. Each cell with an echo is one column from the ground to its 18 dBZ top, in the composite's colour. Where there is a 30 dBZ top, the column's core is drawn stronger up to it.
+    - **High:** every 1 km cell at every one of the 12 heights, drawn as a see-through volume (a 3D texture in three.js), coloured by the echo's strength at that height. A storm shows its rain shaft, core and anvil at their measured heights.
+    - Both modes use NOAA's dBZ colours and key (the US MRMS scale, already in `map-model.js`), and neither merges cells into runs (SOF-57's merging is retired for MRMS). The heights scale ×5 like the rest of the view.
+    - The key says "Radar heights: NOAA MRMS, HHMMZ (N min ago)".
+  - **The square's edge:** MRMS stops at 55° N. At Moose Jaw a 600 or 900 NM square reaches past it, and that strip reads "No MRMS radar north of 55° N" on the ground. Radar coverage gaps (−3) are not drawn as clear air.
+  - **When data fails (safety item):**
+    - A file that is missing, late, corrupt or fails the checks: the last good set stays, labelled with its time, until it is 20 minutes old (radar stale, D67).
+    - Then, or with nothing good yet, the 3D radar falls back to today's drawing from the flat radar (cells standing in the model cloud, SOF-56). It is labelled "Radar heights unavailable (NOAA MRMS: <reason>), heights from model cloud".
+    - A High-mode level that fails leaves a gap at that height, named in the key; three or more failed levels drop to Performance for that update, said in words.
+    - Never frozen, never silent.
+  - **Untrusted replies:** each file is checked before use:
+    - size under a limit (an estimate, about 3 MB gzipped a file);
+    - GRIB2 edition 2, MRMS's grid of 7000 × 3500 at 0.01°, data template 5.41 (PNG);
+    - the product and level it was asked for;
+    - values in range (dBZ −40 to 90; tops 0 to 25 km).
+    - Anything else is a failure for that file.
+  - **Cost:** about 1 to 2.5 MB an update in Performance and about 8 to 10 MB in High (larger on a stormy day). One file is decoded at a time in the worker.
+  - **Allowed hosts:** `noaa-mrms-pds.s3.amazonaws.com` is added to `csp-hosts.md` (connect-src).
+  - **Not in this step:** single-radar tilts (NEXRAD Level II, US only; a bzip2 decoder is a new library, Patrick's yes), ECCC's per-radar CAPPI, and storm tracks.
 - **When data fails:** no METAR, no decks for that field and its pin says "No METAR". Open-Meteo failing: the last good answer stays, marked "refresh failed, showing the HHMMZ answer", until it is 3 hours old; then, or with no good answer yet, model clouds and winds are removed (never frozen), the view says "Model clouds unavailable, showing METAR decks only" with the time of the last good answer. Radar or lightning stale or failed: as on the 2D map. Nothing in the 3D view raises or clears a caution.
 - **Untrusted replies:** Open-Meteo's reply is checked field by field (numbers in range, arrays the expected length); anything else is dropped and counts as a failure. A `null` value is "no data" for that one value (no cloud, level skipped, no barb); more than half nulls counts as a failure ("Model data incomplete").
 - **Live aircraft (phase 4, SOF-40 relay):** the same Traffic toggle and feed as the 2D map (no second poller). Each aircraft at its position and barometric altitude (× the height scale), pointing along its track. Any `TEX2` (T-6) is the shared CT-156 model drawn large with its callsign tag always on and a drop line to the ground (Dad, 7 Oct: "a noticeable T6 for any aircraft with TEX2"); others are small muted stand-ins, tagged on hover or with labels on. Stale aircraft fade and go as in 2D; a relay failure removes them (never frozen) and says "Traffic unavailable". Credit "Aircraft: adsb.lol (ODbL 1.0)" shown while they are.

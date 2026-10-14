@@ -25,7 +25,7 @@ Dad's words: "I noticed on SOF, radar is shown in blocks... do these longer bloc
 
 - **Today (V2.196 onward, SOF-56):** the radar feeds are flat pictures (ECCC rain or snow rate at Moose Jaw; NOAA MRMS base reflectivity, the lowest tilt, at the US bases), so no radar height is used. A 3D block's height is the model cloud's base and top over the return (or the ground to 8,000 ft above it, an estimate, with no model cloud), and neighbouring cells of one colour and like heights are merged into longer blocks (`weather3d-model.js` `mergeShafts`) to keep the drawing light.
 - **What Dad wants:** intensity, location and altitude from the radar itself, at the best fidelity; no run-merging of cells; a High mode for capable computers (with a lighter mode kept).
-- **Being researched (14 Oct 2026):** (1) radar echo tops; (2) reflectivity at several heights (a 3D mosaic or CAPPIs); (3) splitting blocks by the model cloud's layers; and radar tilts (elevation scans, the beam height of each tilt) for both Moose Jaw and the US bases. Findings are in `radar-3d-research.md` in this folder (14 Oct 2026); next, Dad's pick and a plan.
+- **Being researched (14 Oct 2026):** (1) radar echo tops; (2) reflectivity at several heights (a 3D mosaic or CAPPIs); (3) splitting blocks by the model cloud's layers; and radar tilts (elevation scans, the beam height of each tilt) for both Moose Jaw and the US bases. Findings are in `radar-3d-research.md` in this folder (14 Oct 2026); Dad picked "MRMS, two modes" (14 Oct 2026): proposed as plan Step 2b Weather fidelity 4, SOF-67, SOF-R29, waiting on his yes to the spec. Radar tilts (NEXRAD Level II, US only) stay here: they need a bzip2 decoder, a new library for Patrick's yes.
 
 ## Feature Ideas for the SOF
 
