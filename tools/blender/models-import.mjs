@@ -23,16 +23,18 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEST = join(ROOT, 'public', 'models', 'ct156');
 // The sheet layout this app reads (3d-work ct156/build/app_layout.json "layout"); raised there when the app must change.
 const LAYOUT = 1;
-// The parts the app takes from each file: src/ui-kit/ct156-model.js EXTERIOR_PARTS and GEAR_PARTS, and the cockpit's
-// parts (ct156-cockpit-model.js takes every part the file has; these are the ones it has today).
+// The parts the app takes from each file: src/ui-kit/ct156-model.js EXTERIOR_PARTS and GEAR_PARTS with the prop's
+// blade, tip and cuffs (PROP_PARTS; the cuffs High only, an empty part in Performance) and the gear lamp (since 3d-work
+// delivery 423e5eb), and the cockpit's parts (ct156-cockpit-model.js takes every part the file has; these are the ones it
+// has today).
 const PARTS = {
-  'ct156-exterior.glb': ['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut'],
-  'ct156-gear.glb': ['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor'],
+  'ct156-exterior.glb': ['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut', 'blade', 'bladeTip', 'bladeCuff'],
+  'ct156-gear.glb': ['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor', 'gearLamp'],
   'ct156-cockpit.glb': ['body', 'canopy-rails', 'forward-bow', 'pcl', 'seat', 'shade', 'stick'],
 };
 // The pictures the app loads by name beside the High files (the cockpit's are named by each part, ct156_ao).
 const HIGH_PICTURES = ['ct156-exterior-ao.jpg', 'ct156-exterior-bump.jpg', 'ct156-exterior-dirt.jpg', 'ct156-gear-ao.jpg'];
-const POINTS = { eyes: 2, reference: 12, hinges: 19, faces: 10 };
+const POINTS = { eyes: 2, reference: 12, hinges: 25, faces: 10 }; // hinges: blade1 to blade4 and the two gear lamps since 423e5eb
 
 const args = process.argv.slice(2);
 const CHECK_ONLY = args.includes('--check');

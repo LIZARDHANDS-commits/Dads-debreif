@@ -1,7 +1,7 @@
 {
  "units": "ft",
  "frame": "nose +X, left +Y, up +Z from the spinner's axis, origin at the model's origin",
- "delivery": "ct156-2026-10-14-b2012a8",
+ "delivery": "ct156-2026-10-14-423e5eb",
  "eyes": {
   "front": [
    3.0088,
@@ -342,6 +342,90 @@
    ],
    "positive": "code turnProp: turns about +X (PROP_TURN)",
    "travel": "code"
+  },
+  "blade1": {
+   "at": [
+    13.71,
+    0.0,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "positive": "pitch up: the leading edge forward, right-handed about the blade's outward axis (the prop turns right-handed about +X, clockwise from the cockpit)",
+   "travel": "code: modelled feathered, 86 deg at the 30 in station (case study p081); running 23 deg there (F28), so turn -63 deg from the model; low pitch stop 15.1 deg; twist 0.7 deg an inch, less outboard"
+  },
+  "blade2": {
+   "at": [
+    13.71,
+    0.0,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "positive": "pitch up: the leading edge forward, right-handed about the blade's outward axis (the prop turns right-handed about +X, clockwise from the cockpit)",
+   "travel": "code: modelled feathered, 86 deg at the 30 in station (case study p081); running 23 deg there (F28), so turn -63 deg from the model; low pitch stop 15.1 deg; twist 0.7 deg an inch, less outboard"
+  },
+  "blade3": {
+   "at": [
+    13.71,
+    0.0,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "positive": "pitch up: the leading edge forward, right-handed about the blade's outward axis (the prop turns right-handed about +X, clockwise from the cockpit)",
+   "travel": "code: modelled feathered, 86 deg at the 30 in station (case study p081); running 23 deg there (F28), so turn -63 deg from the model; low pitch stop 15.1 deg; twist 0.7 deg an inch, less outboard"
+  },
+  "blade4": {
+   "at": [
+    13.71,
+    0.0,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "positive": "pitch up: the leading edge forward, right-handed about the blade's outward axis (the prop turns right-handed about +X, clockwise from the cockpit)",
+   "travel": "code: modelled feathered, 86 deg at the 30 in station (case study p081); running 23 deg there (F28), so turn -63 deg from the model; low pitch stop 15.1 deg; twist 0.7 deg an inch, less outboard"
+  },
+  "gearLampLeft": {
+   "at": [
+    0.5078,
+    3.05,
+    -2.5775
+   ],
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "positive": "code setGear: +90 deg up (the head swings aft and up into the wing), 0 down",
+   "travel": "code (ALL-34): with the gear; lit only with all three legs down (CFAFM p190)"
+  },
+  "gearLampRight": {
+   "at": [
+    0.5078,
+    -3.05,
+    -2.5775
+   ],
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "positive": "code setGear: +90 deg up (the head swings aft and up into the wing), 0 down",
+   "travel": "code (ALL-34): with the gear; lit only with all three legs down (CFAFM p190)"
   }
  },
  "faces": {
@@ -46555,6 +46639,24 @@
    0.0,
    0.45,
    -2.933,
+   1.0
+  ],
+  "gearLamp": [
+   1.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.5078,
+   3.05,
+   -2.5775,
    1.0
   ],
   "gearMainDoor": [

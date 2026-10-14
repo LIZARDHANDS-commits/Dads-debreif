@@ -1,17 +1,17 @@
 {
  "format": 1,
  "layout": 1,
- "name": "ct156-2026-10-14-b2012a8",
- "made": "2026-10-14T00:44:58.315Z",
+ "name": "ct156-2026-10-14-423e5eb",
+ "made": "2026-10-14T01:47:09.618Z",
  "draft": false,
  "refused": false,
  "master": {
-  "commit": "b2012a8a9b6476ea0adb013f50355650c03daae8",
-  "branch": "ct156-flight-fixes",
-  "master_last_changed_in": "62acd41e0e2ceade2dd9e7a677de342d63f71cff",
+  "commit": "423e5eb99728c91c9fd98cedd5c502e5bfedd850",
+  "branch": "ct156-prop-lamps-deliver",
+  "master_last_changed_in": "ad9c44d8635c1534665a279cc636e41e440c2c2f",
   "file": "ct156/ct156.blend",
-  "sha256": "5d2eecc0c683d6c6fc51674c8976c6101cdc18a2e2e0d2a347a3c84c077503b9",
-  "bytes": 2979109,
+  "sha256": "30d32c457785b334f09f174b1a00b2bbbd1a5d8bf7cf71a651dc35e928f46b47",
+  "bytes": 2937591,
   "uncommitted_changes": []
  },
  "blender": "5.2.2 LTS",
@@ -19,8 +19,8 @@
  "files": [
   {
    "path": "high/ct156-cockpit-ao-body.jpg",
-   "bytes": 931581,
-   "sha256": "81847e61c2da9bdbb38fbb0538d0ac3a86ae1680dd6f6b714570302436eaf2b2"
+   "bytes": 940467,
+   "sha256": "2108276c985fe5ef6e8aeec38e1184b4d6469f95ee971da35df1fa6d7f0e35c0"
   },
   {
    "path": "high/ct156-cockpit-ao-canopy-rails.jpg",
@@ -29,8 +29,8 @@
   },
   {
    "path": "high/ct156-cockpit-ao-forward-bow.jpg",
-   "bytes": 102310,
-   "sha256": "ace031fedde672c0ab54818a260a12bbfe2ca23cd0565a8964e8b649ac59184e"
+   "bytes": 102286,
+   "sha256": "dca43ddde5376725dc7e11874ee0f906d4889939bfdf7a4a25ea210871046638"
   },
   {
    "path": "high/ct156-cockpit-ao-pcl.jpg",
@@ -44,8 +44,8 @@
   },
   {
    "path": "high/ct156-cockpit-ao-shade.jpg",
-   "bytes": 303325,
-   "sha256": "4f2261175121d2a0b761b0f2dc6651ff8460daf21f7fb210cf317b0ab88dfe6d"
+   "bytes": 303370,
+   "sha256": "5d9cdbeb0c8aec00cb6aa665ffc29d9e22057d4606c866917c0681167e0e0cbf"
   },
   {
    "path": "high/ct156-cockpit-ao-stick.jpg",
@@ -54,43 +54,43 @@
   },
   {
    "path": "high/ct156-cockpit.glb",
-   "bytes": 3097812,
-   "sha256": "e6a31c965464c3e12d5851501786fa87c9664892b2ba924cbab3d513ee69e5cf"
+   "bytes": 3097860,
+   "sha256": "a4e260a9dd24a7767da43c28bb144b5c67b7d9eaa0d7069da071f98aef1ea306"
   },
   {
    "path": "high/ct156-exterior-ao.jpg",
-   "bytes": 1023492,
-   "sha256": "823e4447fc81ed2b8bf88cc173847b3442737d710522e61d9ed97972a24eeace"
+   "bytes": 1067233,
+   "sha256": "7a2b28ce8018cc21c2c14130a989f3099421da58a599f1eb63aa8a8a025cb290"
   },
   {
    "path": "high/ct156-exterior-bump.jpg",
-   "bytes": 369039,
-   "sha256": "dd2f4307245943ca6f75f054e39eac3e0937f3392f950ccec1fe962032dc9e1d"
+   "bytes": 370188,
+   "sha256": "b9ab273f1d400e1971efd525f60622922bd26515ff575d145dcdd351220ff986"
   },
   {
    "path": "high/ct156-exterior-dirt.jpg",
-   "bytes": 38724,
-   "sha256": "cfae1696bc4d2588bb59065d7ede4503198ad37ec66cbb4700a417d13dfd3a06"
+   "bytes": 40342,
+   "sha256": "cf790492492c68aae4ec9a7a20735072c5f97db877649a9c32db3de609bccf6f"
   },
   {
    "path": "high/ct156-exterior.glb",
-   "bytes": 796684,
-   "sha256": "e32b752514f31211062845621ac46e80cbfe840b3278e2d312b8417a48a6f020"
+   "bytes": 862516,
+   "sha256": "a91470bfd5850e5e419fb1c29a085f1097b44d73dd2f758c76282a9d4d87b3c4"
   },
   {
    "path": "high/ct156-gear-ao.jpg",
-   "bytes": 193362,
-   "sha256": "887b397fd6ef7d5a92d719ccb3b7db611933a8fe8e27fd35cad427e7c9999d5f"
+   "bytes": 204235,
+   "sha256": "0ec2e308528a3ae1ce8c606968b63a513159cba69edb69eb18c6357fa6f703aa"
   },
   {
    "path": "high/ct156-gear.glb",
-   "bytes": 94724,
-   "sha256": "a2ebdbc58f4ae848d6e1ff78794bfb7bc60377c1f148d688611555587c0864db"
+   "bytes": 149680,
+   "sha256": "91dfe3271ceadbd389507fb4d62157c62fae1049bfcb759927258928a9b4566d"
   },
   {
    "path": "performance/ct156-cockpit-ao-body.jpg",
-   "bytes": 325286,
-   "sha256": "9528c1ad276829c6645a39e6b831a1cb8d65b35265c8949808bd2c44f9ff0cf9"
+   "bytes": 327996,
+   "sha256": "8c0be43e36332e76c84a876e38af5c9e7c985b5ec3f81aab1725f0bbd94b1416"
   },
   {
    "path": "performance/ct156-cockpit-ao-canopy-rails.jpg",
@@ -99,8 +99,8 @@
   },
   {
    "path": "performance/ct156-cockpit-ao-forward-bow.jpg",
-   "bytes": 32519,
-   "sha256": "736c2b3a10bdd8ffb76f5ef4837e1112dc0e54be0bb80ddbb48e79a119ac59a4"
+   "bytes": 32540,
+   "sha256": "d277eb1a980ac3155aaa4784705e2de2d1f32766ea26c5724d325b7bc7a90f1d"
   },
   {
    "path": "performance/ct156-cockpit-ao-pcl.jpg",
@@ -114,8 +114,8 @@
   },
   {
    "path": "performance/ct156-cockpit-ao-shade.jpg",
-   "bytes": 76998,
-   "sha256": "773a03669e6db4d3ba616b83980d719c38ff8eaba597f1bf1103d352c6a03dff"
+   "bytes": 77017,
+   "sha256": "6422d50c6633639ed9d256acb2971a464e5526da99671f36d7831c5a4e639c66"
   },
   {
    "path": "performance/ct156-cockpit-ao-stick.jpg",
@@ -124,33 +124,33 @@
   },
   {
    "path": "performance/ct156-cockpit.glb",
-   "bytes": 1417568,
-   "sha256": "9716323ff21fc4a7d6e23007332b01eb9aebf85f253345c5b0166dbde54cd475"
+   "bytes": 1417612,
+   "sha256": "5de31777d895c06df7cdf9a31a98130417851d0cbac0cc7fd4c688167685028e"
   },
   {
    "path": "performance/ct156-exterior-ao.jpg",
-   "bytes": 340238,
-   "sha256": "834d59665f5c2952843e75627f7d94ba9c8f48732047955388ec74f4c700b46b"
+   "bytes": 355856,
+   "sha256": "8819e78bf07c3d43faf3ce0107b000344a34a21291eb50e664d172a8b2ed7ea7"
   },
   {
    "path": "performance/ct156-exterior.glb",
-   "bytes": 796684,
-   "sha256": "1dc38f3624238bfb193cc28d505f340104d3009b3c9df2d8bed383f3e68d8bb9"
+   "bytes": 829616,
+   "sha256": "c2e51af847f94352ecba3ad9525623e1bc5a33ea80fdb844e79a5bc8030d4264"
   },
   {
    "path": "performance/ct156-gear-ao.jpg",
-   "bytes": 55390,
-   "sha256": "bcbc0a2fb3a7c72953d35b2fac47491e8181f4a7ecc8e2498e529abc9a0f75c9"
+   "bytes": 59016,
+   "sha256": "82831af76902ada07f7c38e3781233b336f4fc5fb04cbbd9340bd373a4d2e718"
   },
   {
    "path": "performance/ct156-gear.glb",
-   "bytes": 94724,
-   "sha256": "dace1de38d7e1e71574945fa41f3a789d9ebccad45d5884ead5b9ac0b0fdc92c"
+   "bytes": 99120,
+   "sha256": "2c2dca0d9383c8951f8d98eb6bfab2ecffcfd4d1fa4abb9289d4f3d286f27f9d"
   },
   {
    "path": "ct156-points.json",
-   "bytes": 443781,
-   "sha256": "7ea26563806d488b57f1e4d710cf32397371332da026871bdc8395565adf6662"
+   "bytes": 446491,
+   "sha256": "5430e39f9d3c995104dcdf18568175111a55796c6be8d20d027af0e9af4c1104"
   }
  ],
  "glb": [
@@ -158,12 +158,15 @@
    "file": "high/ct156-exterior.glb",
    "kind": "exterior",
    "level": "high",
-   "triangles": 26412,
+   "triangles": 27352,
    "parts": {
     "aileron": 21,
     "airframe": 4723,
     "antenna": 2512,
     "beacon": 440,
+    "blade": 274,
+    "bladeCuff": 512,
+    "bladeTip": 154,
     "bowFront": 260,
     "elevator": 616,
     "fin": 340,
@@ -178,12 +181,12 @@
     "spinnerRing": 64,
     "vent": 308
    },
-   "geometry_sha256": "1f830076bb2a01d34e140de0126ac9e52cd4ca90fe3c782ec37f41e61d98275b",
+   "geometry_sha256": "b68567e22d5d24a973785b01dd694c4c877eb3769fcb08d0ff006e4011da47b7",
    "generator": "Khronos glTF Blender I/O v5.2.40",
    "validator": {
     "errors": 0,
     "warnings": 0,
-    "infos": 23,
+    "infos": 26,
     "hints": 0
    }
   },
@@ -191,20 +194,21 @@
    "file": "high/ct156-gear.glb",
    "kind": "gear",
    "level": "high",
-   "triangles": 2260,
+   "triangles": 3076,
    "parts": {
     "gearInboardDoor": 172,
+    "gearLamp": 816,
     "gearMain": 848,
     "gearMainDoor": 136,
     "gearNose": 964,
     "gearNoseDoor": 140
    },
-   "geometry_sha256": "b5677c6ace064759e7c5efa8082542d3c9ff37104775bbde529236754bbde439",
+   "geometry_sha256": "96ded660a3c69f4da59da3185cda00de32b5c398ac5a09a2cfd415f70fb9ed83",
    "generator": "Khronos glTF Blender I/O v5.2.40",
    "validator": {
     "errors": 0,
     "warnings": 0,
-    "infos": 14,
+    "infos": 17,
     "hints": 0
    }
   },
@@ -222,7 +226,7 @@
     "shade": 580,
     "stick": 1776
    },
-   "geometry_sha256": "b34c742ce900839581708c7d142b71b3e37fb7e45fe3e9352cb32ebc07dbd461",
+   "geometry_sha256": "12b1e7bce027f52296805030c3b195fef7c882bc4169cd4e1708b03742ae92aa",
    "generator": "Khronos glTF Blender I/O v5.2.40",
    "validator": {
     "errors": 0,
@@ -235,12 +239,15 @@
    "file": "performance/ct156-exterior.glb",
    "kind": "exterior",
    "level": "performance",
-   "triangles": 26412,
+   "triangles": 26840,
    "parts": {
     "aileron": 21,
     "airframe": 4723,
     "antenna": 2512,
     "beacon": 440,
+    "blade": 274,
+    "bladeCuff": 0,
+    "bladeTip": 154,
     "bowFront": 260,
     "elevator": 616,
     "fin": 340,
@@ -255,12 +262,12 @@
     "spinnerRing": 64,
     "vent": 308
    },
-   "geometry_sha256": "1f830076bb2a01d34e140de0126ac9e52cd4ca90fe3c782ec37f41e61d98275b",
+   "geometry_sha256": "4dd0f888739dd3b86a953b040f45739681ddfc27e87ae6de466fca1886dc609b",
    "generator": "Khronos glTF Blender I/O v5.2.40",
    "validator": {
     "errors": 0,
     "warnings": 0,
-    "infos": 23,
+    "infos": 25,
     "hints": 0
    }
   },
@@ -268,20 +275,21 @@
    "file": "performance/ct156-gear.glb",
    "kind": "gear",
    "level": "performance",
-   "triangles": 2260,
+   "triangles": 2298,
    "parts": {
     "gearInboardDoor": 172,
+    "gearLamp": 38,
     "gearMain": 848,
     "gearMainDoor": 136,
     "gearNose": 964,
     "gearNoseDoor": 140
    },
-   "geometry_sha256": "b5677c6ace064759e7c5efa8082542d3c9ff37104775bbde529236754bbde439",
+   "geometry_sha256": "b4e5b5722e1e034ae46e89c3c082a54eb734afd3fe8528906c384f928fb50d0f",
    "generator": "Khronos glTF Blender I/O v5.2.40",
    "validator": {
     "errors": 0,
     "warnings": 0,
-    "infos": 14,
+    "infos": 16,
     "hints": 0
    }
   },
@@ -299,7 +307,7 @@
     "shade": 580,
     "stick": 640
    },
-   "geometry_sha256": "3cade69b49c21e964471ecfb90005a75fc4a2704f118ebeb434c968ad44218de",
+   "geometry_sha256": "cfecaa85d876b4717c88d29bb395d479708d926334e31d6a3122c2ebef1d1763",
    "generator": "Khronos glTF Blender I/O v5.2.40",
    "validator": {
     "errors": 0,
@@ -313,7 +321,7 @@
   {
    "file": "high/ct156-exterior-ao.jpg",
    "size": 4096,
-   "mean": 0.33734,
+   "mean": 0.35069,
    "width": 4096,
    "height": 4096,
    "memory_mb": 89.5
@@ -321,7 +329,7 @@
   {
    "file": "performance/ct156-exterior-ao.jpg",
    "size": 2048,
-   "mean": 0.33792,
+   "mean": 0.35128,
    "width": 2048,
    "height": 2048,
    "memory_mb": 22.4
@@ -329,7 +337,7 @@
   {
    "file": "high/ct156-exterior-bump.jpg",
    "size": 4096,
-   "mean": 0.59579,
+   "mean": 0.59585,
    "width": 4096,
    "height": 4096,
    "memory_mb": 89.5
@@ -337,7 +345,7 @@
   {
    "file": "high/ct156-exterior-dirt.jpg",
    "size": 1024,
-   "mean": 0.05648,
+   "mean": 0.05676,
    "width": 1024,
    "height": 1024,
    "memory_mb": 5.6
@@ -345,7 +353,7 @@
   {
    "file": "high/ct156-gear-ao.jpg",
    "size": 1024,
-   "mean": 0.58632,
+   "mean": 0.58848,
    "width": 1024,
    "height": 1024,
    "memory_mb": 5.6
@@ -353,7 +361,7 @@
   {
    "file": "performance/ct156-gear-ao.jpg",
    "size": 512,
-   "mean": 0.58627,
+   "mean": 0.58841,
    "width": 512,
    "height": 512,
    "memory_mb": 1.4
@@ -361,27 +369,27 @@
   {
    "file": "high/ct156-cockpit-ao-body.jpg",
    "size": 2048,
-   "mean": 0.20513,
+   "mean": 0.20654,
    "width": 2048,
    "height": 2048,
    "memory_mb": 22.4,
    "islands": {
-    "covered_share": 0.1885,
-    "island_mean": 0.6194,
-    "island_black_share": 0.1795
+    "covered_share": 0.1893,
+    "island_mean": 0.6202,
+    "island_black_share": 0.1788
    }
   },
   {
    "file": "performance/ct156-cockpit-ao-body.jpg",
    "size": 1024,
-   "mean": 0.20673,
+   "mean": 0.20825,
    "width": 1024,
    "height": 1024,
    "memory_mb": 5.6,
    "islands": {
-    "covered_share": 0.1885,
-    "island_mean": 0.6194,
-    "island_black_share": 0.1795
+    "covered_share": 0.1893,
+    "island_mean": 0.6202,
+    "island_black_share": 0.1788
    }
   },
   {
@@ -491,7 +499,7 @@
   {
    "file": "high/ct156-cockpit-ao-shade.jpg",
    "size": 2048,
-   "mean": 0.29129,
+   "mean": 0.29131,
    "width": 2048,
    "height": 2048,
    "memory_mb": 22.4,
@@ -504,7 +512,7 @@
   {
    "file": "performance/ct156-cockpit-ao-shade.jpg",
    "size": 1024,
-   "mean": 0.2916,
+   "mean": 0.29161,
    "width": 1024,
    "height": 1024,
    "memory_mb": 5.6,
@@ -548,7 +556,7 @@
  "points": {
   "eyes": 2,
   "reference": 12,
-  "hinges": 19,
+  "hinges": 25,
   "faces": 10
  },
  "checks": {
@@ -611,14 +619,14 @@
   "budgets": [
    {
     "check": "high/Outside",
-    "got": 28762,
+    "got": 30890,
     "want": 100000,
     "pass": true,
     "status": "pass"
    },
    {
     "check": "high/Gear",
-    "got": 3920,
+    "got": 5552,
     "want": 15000,
     "pass": true,
     "status": "pass"
@@ -639,14 +647,14 @@
    },
    {
     "check": "performance/Outside",
-    "got": 28762,
+    "got": 30378,
     "want": 10000,
     "pass": false,
     "status": "known gap (chunks 3, 4 and 9)"
    },
    {
     "check": "performance/Gear",
-    "got": 3920,
+    "got": 4000,
     "want": 4000,
     "pass": true,
     "status": "pass"
@@ -834,9 +842,18 @@
    }
   ],
   "mesh": {
-   "parts": 90,
+   "parts": 101,
    "hand_edited": [
     "aoaProbe",
+    "blade",
+    "blade2",
+    "blade3",
+    "blade4",
+    "bladeCuffs",
+    "bladeTip",
+    "bladeTip2",
+    "bladeTip3",
+    "bladeTip4",
     "bowFront",
     "coamings",
     "dorsal",
@@ -861,6 +878,10 @@
     "transponderBlade",
     "gearInboardDoorLeft",
     "gearInboardDoorRight",
+    "gearLampLeft",
+    "gearLampLeftPerf",
+    "gearLampRight",
+    "gearLampRightPerf",
     "gearMainDoorLeft",
     "gearMainDoorRight",
     "gearMainLeft",
@@ -928,6 +949,15 @@
     ],
     "beacon": [
      "beacon"
+    ],
+    "blade": [
+     "blade"
+    ],
+    "bladeCuff": [
+     "bladeCuffs"
+    ],
+    "bladeTip": [
+     "bladeTip"
     ],
     "bowFront": [
      "bowFront"
@@ -1014,6 +1044,10 @@
     "gearInboardDoor": [
      "gearInboardDoorLeft"
     ],
+    "gearLamp": [
+     "gearLampLeft",
+     "gearLampLeftPerf"
+    ],
     "gearMainDoor": [
      "gearMainDoorLeft"
     ],
@@ -1033,13 +1067,19 @@
    "flapInRight": "flapInLeft",
    "flapOutRight": "flapOutLeft",
    "gearInboardDoorRight": "gearInboardDoorLeft",
+   "gearLampRight": "gearLampLeft",
+   "gearLampRightPerf": "gearLampLeftPerf",
    "gearMainDoorRight": "gearMainDoorLeft",
    "gearMainRight": "gearMainLeft",
    "gearNoseDoorRight": "gearNoseDoorLeft"
   },
   "code": {
-   "blade": "blade (prop blades, ct156-model.js)",
-   "bladeTip": "bladeTip (the blades' tips)",
+   "blade2": "blade 1's delivered shape (exterior/blade), drawn by the app's code turned 90 deg about the prop's axis (ct156-model.js PROP arms)",
+   "blade3": "blade 1's delivered shape, drawn by the app's code turned 180 deg about the prop's axis",
+   "blade4": "blade 1's delivered shape, drawn by the app's code turned 270 deg about the prop's axis",
+   "bladeTip2": "blade 1's delivered tip (exterior/bladeTip), drawn by the app's code turned 90 deg about the prop's axis",
+   "bladeTip3": "blade 1's delivered tip, drawn by the app's code turned 180 deg about the prop's axis",
+   "bladeTip4": "blade 1's delivered tip, drawn by the app's code turned 270 deg about the prop's axis",
    "coamings": "coamings (seen from outside)",
    "flapInWellLeft": "flapInWell",
    "flapInWellRight": "flapInWell, mirrored",
@@ -1087,6 +1127,7 @@
  "notes": [
   "the outside's picture layout was made afresh (a part had none)",
   "the gear's picture layout was made afresh (a part had none)",
+  "the gear's High and Performance versions (the lamps) baked in two passes",
   "the cockpit's body: picture layout made afresh (it had none)",
   "the cockpit's body: its High and Performance versions baked in two passes",
   "the cockpit's canopy-rails: picture layout made afresh (it had none)",
@@ -1099,5 +1140,5 @@
   "the cockpit's stick: picture layout made afresh (it had none)",
   "the cockpit's stick: its High and Performance versions baked in two passes"
  ],
- "imported": "2026-10-14T00:45:54.717Z"
+ "imported": "2026-10-14T01:47:40.220Z"
 }
