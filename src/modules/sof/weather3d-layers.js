@@ -10,8 +10,8 @@
 // fronts.js's: old or missing fronts are not drawn and the view says "Fronts unavailable".
 //
 // Radar with its real heights (SOF-67, V2.430): while NOAA MRMS answers (mrms-feed.js, a set no older than 20 minutes) the radar is drawn from it (radar3d.js: Performance
-// columns to the measured echo tops, or High's see-through volume), cell by cell, never merged; the blocks in the model cloud below (SOF-56, SOF-57's merging) are the
-// fallback when it cannot be had, and the key says why.
+// columns to the measured echo tops, or High's see-through volume, drawn as nested shells since V2.432, SOF-69), cell by cell, never merged; the blocks in the model
+// cloud below (SOF-56, SOF-57's merging) are the fallback when it cannot be had, and the key says why.
 import { h } from '../../ui-kit/dom.js';
 import { drawGeoImage } from './map-draw.js';
 import { AREA_FT } from './scene3d-model.js';
@@ -22,8 +22,8 @@ import {
   FLOW_FT_PER_S_PER_KT, pictureCells, reduceToCells, shafts, bolts, satellitePixels, frontGeometry, createFlow,
 } from './weather3d-model.js';
 import { buildShafts, buildBolts, buildSatelliteSheet, buildFronts, buildFlow } from './weather3d.js';
-import { buildRadarColumns, buildRadarVolume } from './radar3d.js';
-import { performanceColumns, volumeColumns, northStrip, coverageMask, MIN_DRAW_DBZ, NORTH_WORDS } from './mrms-model.js';
+import { buildRadarColumns, buildRadarVolume, CONTOUR_FT } from './radar3d.js';
+import { performanceColumns, volumeColumns, northStrip, coverageMask, MIN_DRAW_DBZ, NORTH_WORDS, HIGH_SHELL_DBZ } from './mrms-model.js';
 import { readTotalCloud } from './cloud-field.js';
 import { CLOUD_SHEET_PX } from './model-clouds.js';
 import { FRONTS_CREDIT } from './fronts.js';
@@ -416,7 +416,7 @@ export function mrmsKeyWords(r, scale) {
   if (r.line) out.push(`${r.line}.`);
   if (r.mode === 'high') {
     const seen = (r.levelsKm ?? []).map((k, l) => `${k} km ${r.shares?.[l] === null || r.shares?.[l] === undefined ? 'no data' : pct(r.shares[l])}`).join(', ');
-    out.push(`Radar heights (High): NOAA MRMS reflectivity at ${r.levelsKm.length} heights (${r.levelsKm.join(', ')} km above sea level: an estimate for the levels), as one see-through volume over the square: every cell about ${km} km at every height, never merged, in ${DBZ_COLOUR_WORDS}, fainter for light echoes and more solid for strong ones (from ${MIN_DRAW_DBZ} dBZ; the opacities are estimates). The strength is blended between heights and between cells (so edges are soft); the 1 km height is drawn down to the ground. Heights ×${scale}. Where MRMS sees each height (share of the square south of its 55° N edge): ${seen}.`);
+    out.push(`Radar heights (High): NOAA MRMS reflectivity at ${r.levelsKm.length} heights (${r.levelsKm.join(', ')} km above sea level: an estimate for the levels), as one see-through volume over the square: every cell about ${km} km at every height, never merged, drawn as nested see-through shells where the echo reaches ${HIGH_SHELL_DBZ.join(', ')} dBZ, each in NOAA's colour for that strength (blue, green, yellow, red from the outside in): faint where a shell faces you, brighter at its outline, with faint lines every ${formatFeet(CONTOUR_FT)} ft above sea level (the strengths, opacities and lines are estimates). Echo from ${MIN_DRAW_DBZ} dBZ up to the first shell draws no shell; the flat radar picture on the ground shows it. The strength is smoothed a little across cells for drawing and blended between heights; the 1 km height is drawn down to the ground. Heights ×${scale}. Where MRMS sees each height (share of the square south of its 55° N edge): ${seen}.`);
   } else {
     out.push(`Radar heights (Performance): NOAA MRMS echo tops and composite reflectivity, cell by cell, never merged: each cell about ${km} km with an echo of ${MIN_DRAW_DBZ} dBZ or more (an estimate) is one see-through column from the ground to its measured 18 dBZ echo top (km above sea level), in ${DBZ_COLOUR_WORDS} for its strongest echo; a narrower, stronger core runs up to its 30 dBZ top. An echo weaker than 18 dBZ has no measured top and lies as a flat tile on the ground. ${r.count} cells: ${r.tall} with a top (highest ${formatFeet(Math.round(r.highestFt / 100) * 100)} ft), ${r.cores} with a 30 dBZ core, ${r.flats} flat. Heights ×${scale}.`);
   }

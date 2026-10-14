@@ -353,6 +353,18 @@ export function dbzColour(dbz) {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 }
 
+/**
+ * High draws the storm as nested see-through shells (SOF-69; Dad, 14 Oct 2026): each is the surface where the echo reaches one of these strengths (dBZ), drawn in
+ * NOAA's own colour for that strength (`dbzColour`), so the shells read blue, green, yellow and red from the outside in, as in Dad's picture. 10 dBZ is light echo
+ * and anvil (NOAA's blue band starts at 5); 20 dBZ is where NOAA's green starts, about where rain is plain on radar; 40 and 50 dBZ are the usual radar weather
+ * steps to heavy and to extreme (NWS and FAA intensity words: under 30 light, 30 to 40 moderate, over 40 heavy, 50 and over extreme; from memory, not checked
+ * against a manual in the project files) and where NOAA's yellow and red start. Estimates for the look, all above MIN_DRAW_DBZ: echo between MIN_DRAW_DBZ and the
+ * first shell is inside the volume's box but draws no shell; the map's own flat radar picture on the ground under the shells shows it.
+ */
+export const HIGH_SHELL_DBZ = Object.freeze([10, 20, 40, 50]);
+/** [r, g, b] 0 to 255 for each of HIGH_SHELL_DBZ: NOAA's colour for that strength. */
+export const shellColours = () => HIGH_SHELL_DBZ.map((dbz) => dbzColour(dbz));
+
 /** No column is shorter than this above the ground (feet): an echo top at or under the ground still shows. An estimate for the look, as weather3d-model.js SHAFT_MIN_FT. */
 export const COLUMN_MIN_FT = 600;
 
