@@ -1,48 +1,34 @@
-// Fighting wing on the live wingman (B5; spec 7e, TS-233): the second technique beside close formation's. Each step he
-// sees Lead 0.4 s late (perception.js seeFw), the guard predicts the pass (separation.js fwGuard), the jobs say what Lead is
-// doing (supervisor.js fwJob: turning or level, the entry case, the swept side, the S-turns, the stack's height target),
-// and this file works out his lift and power for his own point mass (fluid-lead.js stepLead, Lead's, TS-225). The parts,
-// in the order a step runs them:
-//  1. Lead now (leadNowOf): Lead carried across the 0.4 s he sees late, round his turn (Fable F5); his own state he knows.
-//  2. The range in a turn (arcRange): the arc s behind Lead round Lead's circle and his offset d inside it, with the closure
-//     from the velocities (Fable F10). Slant range can't tell behind from ahead, so it is not used in a turn.
-//  3. The aim (aimInTurn, aimSwept). In Lead's turn: the arc loop (Fable F1) sets d, the offset where his own speed holds
-//     station plus what the wanted closure needs, and he follows the circle d inside Lead's, aiming 3 s ahead on it (SMM
-//     12.30 para 74, "on, or around, the preceding aircraft's turn circle"). With Lead level: his swept place, 625 ft at
-//     45° (Patrick 14 Oct 2026), fore and aft by power. Each also gives the closure the aim can't make, for power.
-//  4. Two overrides of the aim (lagFirst, noseBehind): lag first on a turn into him (CNATRA P-357 section 701; SMM 12.29
-//     Fig 12.20); and while Lead's wing line is out of reach, the nose behind Lead, in and down (Patrick 14 Oct 2026).
-//  5. Steering (steerToAim): the aim line's turn fed forward plus P on the angle to it, a pursuit law, not a PID (Fable
-//     F16); a change of aim blended over 1.5 s.
-//  6. The vertical (highYoYo, nextOwner, heightTargetFt, verticalFor): one pitch owner at a time (Fable F7, F9), pass-clear
-//     first, then the nose behind's in and down, the high yo-yo, then the stack's family (the stack, the quick fix, low
-//     inside), each PD on his height against Lead's, square to Lead's turn plane.
-//  7. The separation filter (separation.js separationFilter): the least change to his turn that keeps the predicted pass
-//     outside the pass line and him behind Lead's wing line.
-//  8. His lift (gCap, liftWithin): within his G, the turn giving way first, and unload, roll, pull.
-//  9. Power (powerAsk; not power.js powerFor): Lead's speed plus the closure the aim can't give; off while the filter holds and he is closing; MAX
-//     low inside; back on the yo-yo's way down; idle and the boards.
-// 10. The step (stepLead) and the trace.
-// Steering works in Lead's turn plane, his lift plane in a turn ("So can lead and 2 follows", Patrick 14 Oct 2026); his
-// bank is not capped (Patrick 14 Oct 2026: "2 can also go inverted in fighting wing of course, only if required"). His G:
-// no more than Lead's + 1.5 (estimate); the guard and the filter may pull to what the aircraft gives, flagged. His roll at
-// no more than 60°/s (estimate; stepLead keeps the T-6A's own).
+// Fighting wing on the live wingman (B5; spec 7e, TS-233): the second technique beside close formation's.
+// Exports: setFwAnalysis, startFwWing, stepFwWingman, liftWithin.
+// Imports: core/angles, core/units, core/flight-math, core/t6-performance, live/flight, live/fluid-lead, live/power,
+// live/rates, live/wing-moves, live/attitude, live/wingman/perception, live/wingman/supervisor, live/wingman/separation,
+// live/wingman/fw-reference, live/wingman/shaper.
+// Depended on by: live/wingman/wingman.js, tools/fw-rig.mjs, tools/formation-gauge.mjs, tools/formation-flight-checks.mjs.
 //
-// How it came to be (rounds 1-4, 13-14 Oct 2026): `Pat's claude work/formation-review-12oct/fighting-wing-code-history.md`.
+// Each step he sees Lead 0.4 s late dead-reckoned across 0.4 s along his seen turn while knowing his own state now
+// (perception.js seeFw, B02, R1), the guard predicts the pass (separation.js fwGuard), the jobs say what Lead is doing
+// (supervisor.js fwJob), the reference record is blended across technique switches (fw-reference.js, B08, R2), the lift
+// composer (liftWithin, B13, R6) trims in Patrick's priority order (1. positive climb, 2. 1 G level hold, 3. horizontal
+// turn) over a 0.2 G soft knee with unload-roll-pull and 0.5 G floor, the urgency shaper (shaper.js shapeFwLift, B14, D18)
+// scales G onset from 1.0 to 4.0 G/s (1 + 3u G/s), and stepLead advances his T-6A point mass (B15).
+//
 // Frames and units: feet, seconds, x east, y north, z up; G; torque %. Memory is never changed in place. Numbers:
 // wing-moves.js FW_SEE and FW_WING.
 import { DEG } from '../../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../../core/units.js';
+import { softMin } from '../../../../core/flight-math.js';
 import { availableG, shakerG, tasToIasKt } from '../../../../core/t6-performance.js';
 import { STEP_SEC } from '../flight.js';
 import { leadStateOf, stepLead } from '../fluid-lead.js';
 import { throttleAtTorque } from '../power.js';
 import { ROLL } from '../rates.js';
-import { FW_SEE, FW_WING } from '../wing-moves.js';
+import { FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
-import { seenOf, startFwSight, seeFw, aheadOnTurn } from './perception.js';
+import { seenOf, startFwSight, seeFw } from './perception.js';
 import { startFwJob, fwJob } from './supervisor.js';
 import { startFwGuard, fwGuard, separationFilter } from './separation.js';
+import { makeFwReference, blendFwReferences, stepFwBlendWeight } from './fw-reference.js';
+import { shapeFwLift } from './shaper.js';
 
 const W = FW_WING;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
@@ -72,7 +58,12 @@ const ease3 = (y, x, sec) => {
  */
 export function startFwWing(aircraft, refSt, { blockFt }) {
   const st = leadStateOf(aircraft, blockFt);
-  const sight = startFwSight(seenOf(refSt), seenOf(st), { ownAcc: vec(aircraft.accFtps2), g: refSt.g ?? 1, ...(ANALYSIS.extraDelaySec ? { extraSec: ANALYSIS.extraDelaySec } : {}) });
+  const sight = startFwSight(seenOf(refSt), seenOf(st), {
+    ownAcc: vec(aircraft.accFtps2),
+    g: refSt.g ?? 1,
+    ...(ANALYSIS.extraDelaySec ? { extraSec: ANALYSIS.extraDelaySec } : {}),
+    ...(ANALYSIS.delayMode === 'picture' ? { picture: true } : {}),
+  });
   const aimDir = unit3(sub3(refSt.pm, st.pm));
   const first = seeFw(sight, seenOf(refSt), seenOf(st)).seen;
   return {
@@ -80,6 +71,9 @@ export function startFwWing(aircraft, refSt, { blockFt }) {
     offFt: 0, // the aim loop's offset from Lead's circle (ft, + inside), slewed
     aimOff: null, // his aim against Lead's place (ft, world axes), blended across a change of aim
     powerI: 0, // the power loop's integral (ft/s of speed), held at its limits
+    shapedG: st.g ?? 1, // B14 urgency shaper's slewed G command
+    blendW: 0, // B08 reference blend weight (1 -> 0 over blendSec)
+    prevRef: null, // B08 outgoing reference record (S26)
     ...(ANALYSIS.probe ? { probe: ANALYSIS.probe } : {}),
     ...(ANALYSIS.delayMode === 'picture' ? { picture: true } : {}),
   };
@@ -104,12 +98,10 @@ function turnPlaneOf(seen) {
   return { omegaL, turning, out };
 }
 
-/** Lead now: { leadNow, leadV } carried FW_SEE.delaySec round his seen turn (Fable F5); { ownP, ownV } his own, now. */
+/** Lead now (S01, S02) from seeFw's one-delay dead-reckoning (B02, R1); { ownP, ownV } his own state now (S08), or as seen in picture mode. */
 function leadNowOf(seen, st, picture = false) {
-  // analysis only (delayMode 'picture'): the whole picture as he saw it, Lead not carried across, himself as seen
   if (picture) return { leadNow: seen.lead.p, leadV: seen.lead.v, ownP: seen.own.p, ownV: seen.own.v };
-  const leadDR = aheadOnTurn(seen.lead, seen.turn, FW_SEE.delaySec);
-  return { leadNow: leadDR.p, leadV: leadDR.v, ownP: st.pm, ownV: st.vel };
+  return { leadNow: seen.lead.p, leadV: seen.lead.v, ownP: st.pm, ownV: st.vel };
 }
 
 /**
@@ -350,17 +342,19 @@ function heightTargetFt(owner, guard, yoyo, job) {
 
 /**
  * The vertical (spec 7e.7): PD on his height against Lead's at dz, square to Lead's turn plane (vertGPerFt, vertGPerFtps,
- * within vertMaxG). His lift is given its share first: hold is 1 G's share square to his path plus the vertical, so a hard
- * turn never takes the height away (one pitch owner, Fable F7). Returns { dz, errFt, aV (ft/s²), hold (G, a vector) }.
+ * within vertMaxG). Returns { dz, errFt, aV (ft/s²), hold (G, a vector), hold1G, vertVec, vertG, terms } so B13 (liftWithin)
+ * can trim positive climb first, then 1 G hold, then turn (Patrick's ruling R6, D17).
  */
 function verticalFor(dz, now, st, u, out) {
   const errFt = dot3(sub3(add3(now.leadNow, scale3(Z, dz)), st.pm), out); // + he has to go toward the normal (up)
   const errRate = -dot3(sub3(st.vel, now.leadV), out);
   const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
   const aV = scale3(out, vertG * G_FTPS2);
-  const hold = add3(perp3(Z, u), scale3(perp3(aV, u), 1 / G_FTPS2));
+  const hold1G = perp3(Z, u);
+  const vertVec = scale3(perp3(aV, u), 1 / G_FTPS2);
+  const hold = add3(hold1G, vertVec);
   const terms = { errRate, pG: W.vertGPerFt * errFt, dG: W.vertGPerFtps * errRate, vertG, limit: Math.abs(W.vertGPerFt * errFt + W.vertGPerFtps * errRate) > W.vertMaxG };
-  return { dz, errFt, aV, hold, terms };
+  return { dz, errFt, aV, hold, hold1G, vertVec, vertG, terms };
 }
 
 /** Who has pitch, for the trace (Fable Q7): the owner's name, or within the stack's family the jobs' choice. */
@@ -383,28 +377,55 @@ function gCap(seen, st, guard, filterPull) {
   return { capNormal, cap };
 }
 
+/** Largest share s in [0, 1] of trim with |fixed + s * trim| <= limG. */
+function scaleToCap(fixed, trim, limG) {
+  if (len3(add3(fixed, trim)) <= limG + 1e-9) return { vec: trim, s: 1 };
+  if (len3(fixed) >= limG) return { vec: { x: 0, y: 0, z: 0 }, s: 0 };
+  const a = dot3(trim, trim);
+  const b = 2 * dot3(fixed, trim);
+  const c = dot3(fixed, fixed) - limG * limG;
+  const s = a > 1e-12 ? Math.max(0, Math.min(1, (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a))) : 0;
+  return { vec: scale3(trim, s), s };
+}
+
 /**
- * His lift (G, a vector): what holds him up and the vertical (hold), then the turn (aTurn, ft/s²), within the cap with the
- * turn giving way, never what holds him up. Unload, roll, pull: while his wings are more than pullWithinDeg off where the
- * lift is wanted he pulls only its share along them (a pilot never pulls hard with his wings the wrong way; fw-live.js does
- * the same); never under minG.
+ * Lift composer (B13, R6, D17, S43; spec 7e.9): composes 3D lift vector (G) from 1 G hold, vertical demand, and horizontal
+ * turn (aTurn, ft/s²), trimming over a 0.2 G soft knee (W.capKneeG, softMin) in Patrick's priority order:
+ *  1. positive climb (vertG > 0) gives way first ('climb');
+ *  2. 1 G level hold gives way second ('hold') — #2 accepts temporary descent before giving up turn;
+ *  3. horizontal turn gives way last ('turn').
+ * Unload, roll, pull: while his wings are more than pullWithinDeg off where the lift is wanted he pulls only its share
+ * along them; never under minG (0.5 G). Returns { lift, capGaveWay, rawG, gLim }.
  */
-function liftWithin(aTurn, hold, cap, bodyUp) {
-  let turn = scale3(aTurn, 1 / G_FTPS2);
+export function liftWithin(aTurn, hold, cap, bodyUp, vert = null) {
+  const turn = scale3(aTurn, 1 / G_FTPS2);
   let lift = add3(hold, turn);
-  if (len3(lift) > cap) {
-    // the largest share s of the turn with |hold + s turn| = cap
-    const a = dot3(turn, turn);
-    const b = 2 * dot3(hold, turn);
-    const c = dot3(hold, hold) - cap * cap;
-    const s = a > 1e-12 ? Math.max(0, (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a)) : 0;
-    turn = scale3(turn, Math.min(1, s));
-    lift = add3(hold, turn);
+  const rawG = len3(lift);
+  let capGaveWay = 'none';
+  const gLim = rawG > cap - W.capKneeG ? softMin(rawG, cap, W.capKneeG) : rawG;
+  if (rawG > cap - W.capKneeG && rawG > gLim + 1e-9) {
+    const hold1G = vert?.hold1G ?? hold;
+    const vertVec = vert?.vertVec ?? { x: 0, y: 0, z: 0 };
+    const vertG = vert?.vertG ?? 0;
+    const fixed1 = add3(hold1G, turn);
+    if (vertG > 0 && len3(vertVec) > 1e-9 && len3(fixed1) <= gLim + 1e-9) {
+      lift = add3(fixed1, scaleToCap(fixed1, vertVec, gLim).vec);
+      capGaveWay = 'climb';
+    } else {
+      const holdRem = vertG > 0 ? hold1G : hold;
+      if (len3(turn) <= gLim + 1e-9) {
+        lift = add3(turn, scaleToCap(turn, holdRem, gLim).vec);
+        capGaveWay = 'hold';
+      } else {
+        lift = len3(turn) > 1e-9 ? scale3(unit3(turn), gLim) : { x: 0, y: 0, z: 0 };
+        capGaveWay = 'turn';
+      }
+    }
   }
   const along = dot3(lift, bodyUp);
   if (len3(lift) > 1e-9 && along < len3(lift) * Math.cos(W.pullWithinDeg * DEG)) lift = scale3(unit3(lift), Math.max(W.minG, along));
   if (len3(lift) < W.minG) lift = len3(lift) > 1e-9 ? scale3(unit3(lift), W.minG) : scale3(unit3(hold), W.minG);
-  return lift;
+  return { lift, capGaveWay, rawG, gLim };
 }
 
 /**
@@ -467,8 +488,8 @@ export function stepFwWingman(w, refSt) {
   const ownOmega = scale3(cross3(st.vel, st.accPerp ?? { x: 0, y: 0, z: 0 }), 1 / (Vf * Vf)); // he feels his own turn
   const guard = fwGuard(w.guard, seen, ownOmega);
   const plane = turnPlaneOf(seen);
-  // short of energy (the ruling "Drop low inside, MAX"): Lead's indicated speed from what he sees of his true speed
-  const leadKias = tasToIasKt(len3(seen.lead.v) / KT_TO_FTPS, seen.lead.p.z);
+  // short of energy (the ruling "Drop low inside, MAX"): Lead's indicated speed from seeFw (S06)
+  const leadKias = seen.leadKias;
   const job = fwJob(w.job, seen, { shortKt: leadKias - st.kias });
   const now = leadNowOf(seen, st, Boolean(w.picture));
   const cone = coneFrame(seen.lead.v);
@@ -494,24 +515,43 @@ export function stepFwWingman(w, refSt) {
   }
   const pitch = pitchLabel(owner, yoyo, job);
 
-  // his lift, his power, the step
+  // Reference record (S25/S26) and blender (B08, S27a-S27f), lift composer (B13, S43), urgency shaper (B14, S45), and plant (B15)
   const { capNormal, cap } = gCap(seen, st, guard, flt.filterPull);
-  const lift = liftWithin(flt.aTurn, vert.hold, cap, st.bodyUp);
   const pw = powerAsk(w, seen, job, st, guard, aim, arc.closing, flt, owner, pitch, leadKias);
+  const jobName = jobLabel(flt.engaged, job);
+  const urgencyRaw = guard.on || aimed.behindOn || flt.filterOn ? 1 : 0;
+  const activeRef = makeFwReference({
+    aimLateralFt: aim.offFt,
+    closureTargetFtps: aim.cTarget ?? 0,
+    heightTargetFt: vert.dz,
+    kiasDeltaKt: pw.wantKias - leadKias,
+    gCapAsk: cap,
+    urgency: urgencyRaw,
+  });
+  const switched = w.lastJobName != null && w.lastJobName !== jobName;
+  const prevRef = switched ? w.activeRef ?? null : w.prevRef ?? null;
+  const blendW = guard.on || aimed.behindOn ? 0 : switched && prevRef ? 1 : stepFwBlendWeight(w.blendW ?? 0, STEP_SEC, W.blendSec);
+  const ref = blendFwReferences(activeRef, prevRef, blendW);
+
+  const composed = liftWithin(flt.aTurn, vert.hold, ref.gCapAsk, st.bodyUp, vert);
+  const shaped = shapeFwLift(w.shapedG ?? st.g, composed.lift, ref.urgency, STEP_SEC, W);
+  const lift = shaped.lift;
+  const cmdGDrag = { lift, g: shaped.shapedG, wantKias: pw.wantKias, idle: pw.idle, boards: pw.boards };
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...pw.ask });
-  const gAsk = len3(lift);
+  const gAsk = len3(composed.lift);
   const { arcFt, dFt } = arc;
   // the trace's controller terms (plan T29m part 2; T29r's trace half): the turn asked, flown after the filter and granted
   // after the cap (G, in the turn plane, + left), who won it, the cap and whether it bound, unload-roll-pull, each loop's
   // terms; numbers rounded for the trace only
   const side = unit3(cross3(plane.out, u));
   const r3 = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 1000) / 1000);
-  const liftDir = len3(lift) > 1e-9 ? unit3(lift) : null;
+  const liftDir = len3(composed.lift) > 1e-9 ? unit3(composed.lift) : null;
   const ctl = {
     steerAngleDeg: r3(steer.terms.angleDeg), steerPG: r3(steer.terms.pG), steerFfG: r3(steer.terms.ffG),
     aimTurnDps: r3(steer.terms.aimTurnDps), aimTurnRawDps: r3(steer.terms.aimTurnRawDps), aimJumpFt: r3(steer.terms.aimJumpFt),
-    turnAskG: r3(dot3(steer.aTurn0, side) / G_FTPS2), turnFlownG: r3(dot3(flt.aTurn, side) / G_FTPS2), turnGrantedG: r3(dot3(lift, side)),
-    turnWinner: flt.filterOn ? 'filter' : 'steer', capG: r3(cap), capBind: len3(add3(vert.hold, scale3(flt.aTurn, 1 / G_FTPS2))) > cap + 1e-9,
+    turnAskG: r3(dot3(steer.aTurn0, side) / G_FTPS2), turnFlownG: r3(dot3(flt.aTurn, side) / G_FTPS2), turnGrantedG: r3(dot3(composed.lift, side)),
+    turnWinner: flt.filterOn ? 'filter' : 'steer', capG: r3(ref.gCapAsk), capBind: composed.capGaveWay !== 'none',
+    capGaveWay: composed.capGaveWay, urgency: r3(ref.urgency), onsetGps: r3(shaped.onsetGps),
     urp: Boolean(liftDir) && dot3(liftDir, st.bodyUp) < Math.cos(W.pullWithinDeg * DEG) - 1e-9,
     arcDssFt: r3(aim.terms?.dssFt), arcFfFt: r3(aim.terms?.ffFt), arcKcFt: r3(aim.terms?.kcFt), arcWantFt: r3(aim.terms?.wantFt), arcLimit: aim.terms?.limit ?? null,
     vertErrFt: r3(vert.errFt), vertRateFtps: r3(vert.terms.errRate), vertPG: r3(vert.terms.pG), vertDG: r3(vert.terms.dG), vertG: r3(vert.terms.vertG), vertLimit: vert.terms.limit,
@@ -523,14 +563,16 @@ export function stepFwWingman(w, refSt) {
       ...w, st: next, sight: mem, guard, job, aimDir: steer.d, aimTurn: steer.aimTurn, t: w.t + STEP_SEC, offFt: aim.offFt, aimOff: steer.aimOff,
       powerI: pw.powerI, filterSide: flt.filterSide, filterHold: flt.filterHold, yoyo, owner, lineShort: flt.lineShort, powerBack: pw.powerBack,
       behindOn: aimed.behindOn, idle: pw.idle, boards: pw.boards, filterEngaged: flt.engaged, filterClearSec: flt.engageClear, lagSec: lag.lagSec, leadBankDeg: lag.bNow,
+      shapedG: shaped.shapedG, blendW, prevRef, activeRef: ref, lastJobName: jobName, cmdGDrag,
     },
     trace: {
-      t: w.t + STEP_SEC, job: jobLabel(flt.engaged, job), aim: aimed.aimKind, offFt: Math.round(aim.offFt), predFt: Math.round(guard.predFt),
+      t: w.t + STEP_SEC, job: jobName, aim: aimed.aimKind, offFt: Math.round(aim.offFt), predFt: Math.round(guard.predFt),
       slant: seen.slant, closure: seen.closure, losDps: seen.losDps, aspectDeg: seen.aspectDeg, hcaDeg: seen.hcaDeg,
       heightTargetFt: Math.round(vert.dz), wantKias: pw.wantKias, gAsk, overEstimate: guard.on && gAsk > capNormal + 1e-6,
       cWantFtps: guard.on ? null : aim.cTarget, cActualFtps: aim.cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt),
       pitchOwner: pitch, lineShort: flt.lineShort, passFt: flt.passFt == null ? null : Math.round(flt.passFt), yoyoFt: yoyo.phase === 'up' ? Math.round(yoyo.hFt) : null,
       omNomDps: flt.omNom, omPickDps: flt.omPick, brakes: pw.boards ? (pw.idle ? 'IDLE + BOARDS' : 'BOARDS') : pw.idle ? 'IDLE' : null,
+      capGaveWay: composed.capGaveWay, cmdGDrag,
       ctl,
     },
   };

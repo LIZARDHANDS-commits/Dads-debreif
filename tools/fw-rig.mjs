@@ -1,24 +1,29 @@
-// The scripted-Lead rig (plan T29m part 2, the control-systems analysis plan's CA3 and method M2): #2's live fighting wing
-// technique (live/wingman/fighting-wing.js) flown on the real point mass (fluid-lead.js stepLead) against a Lead who flies
-// a script (straight and level, or a steady level turn away from #2), with no formation session. After #2 settles, a step
-// is added at one summing point (fighting-wing.js setFwAnalysis's probe) and his response recorded, so each loop's real
-// response can be set beside its linear model (tools/flight-design/fw_loops.py, plan criterion C11). A measuring tool: it
-// changes nothing in flight, and nothing here is a test.
-//   node tools/fw-rig.mjs                    every case; writes tools/flight-design/results/fw-rig.json
+// The scripted-Lead rig (plan T29m part 2, CA3 / M2, and Plan B5 S0/S1 verification):
+// Exports: none (CLI tool).
+// Imports: node:fs, live/fluid-lead, live/wingman/fighting-wing, live/wingman/perception, live/wingman/fw-reference,
+// live/wingman/shaper, live/flight, core/t6-performance, core/units, core/angles, live/wing-moves, live/moves,
+// live/formation, live/rates, live/attitude.
+// Depended on by: CLI verification and tools/flight-design/results/fw-rig.json.
+//
+// Usage:
+//   node tools/fw-rig.mjs                    every case + S0/S1 checks; writes tools/flight-design/results/fw-rig.json
 //   node tools/fw-rig.mjs --case vertical-T1 one case, printed
-// Numbers: 200 KIAS at the 8,000 ft block (moves.js KIAS_OUTSIDE_LAB, formation.js LIVE_DEFAULTS.blockFt); the swept place
-// 625 ft at 45°, 50 ft below (FW_WING, Patrick 14 Oct 2026); Lead's turn 60° (TS-65's academic 60°/2 G). Step sizes are
-// small on purpose (estimates), to stay near linear: 40 ft of height, 60 ft of aim, 5 ft/s of wanted closure, 3 KIAS.
+//   node tools/fw-rig.mjs --s0-lags          S0 plant lags (D13), closure ripple (D25), and S1 cap/shaper checks (C8)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { leadStateOf, stepLead } from '../src/modules/turn-sim/live/fluid-lead.js';
-import { startFwWing, stepFwWingman, setFwAnalysis } from '../src/modules/turn-sim/live/wingman/fighting-wing.js';
+import { startFwWing, stepFwWingman, setFwAnalysis, liftWithin } from '../src/modules/turn-sim/live/wingman/fighting-wing.js';
+import { seenOf, startFwSight, seeFw } from '../src/modules/turn-sim/live/wingman/perception.js';
+import { makeFwReference, blendFwReferences, stepFwBlendWeight } from '../src/modules/turn-sim/live/wingman/fw-reference.js';
+import { shapeFwLift } from '../src/modules/turn-sim/live/wingman/shaper.js';
 import { STEP_SEC } from '../src/modules/turn-sim/live/flight.js';
+import { ROLL } from '../src/modules/turn-sim/live/rates.js';
 import { iasToTasKt } from '../src/core/t6-performance.js';
-import { KT_TO_FTPS } from '../src/core/units.js';
+import { G_FTPS2, KT_TO_FTPS } from '../src/core/units.js';
+import { DEG } from '../src/core/angles.js';
 import { FW_WING } from '../src/modules/turn-sim/live/wing-moves.js';
 import { KIAS_OUTSIDE_LAB } from '../src/modules/turn-sim/live/moves.js';
 import { LIVE_DEFAULTS } from '../src/modules/turn-sim/live/formation.js';
-import { cross3, unit3, add3, scale3, sub3, dot3 } from '../src/modules/turn-sim/live/attitude.js';
+import { cross3, unit3, add3, scale3, sub3, dot3, perp3, len3 } from '../src/modules/turn-sim/live/attitude.js';
 
 const Z = { x: 0, y: 0, z: 1 };
 const KIAS = KIAS_OUTSIDE_LAB;
@@ -90,13 +95,229 @@ function run(name) {
   };
 }
 
-const args = process.argv.slice(2);
-const one = args.includes('--case') ? args[args.indexOf('--case') + 1] : null;
-const names = one ? [one] : Object.keys(CASES);
-const results = names.map(run);
-for (const r of results) console.log(`${r.name.padEnd(12)} ${r.what}: final ${r.final}, peak ${r.peak} (overshoot ${r.overshootPct}%), 63% at ${r.t63Sec} s | trim s ${r.trim.sFt} d ${r.trim.dFt} slant ${r.trim.slantFt} height ${r.trim.heightFt} (${r.trim.job}) | filter acting ${r.filterStepsAfter} recorded steps, guard ${r.guardOnAfter}`);
-if (!one) {
-  mkdirSync('tools/flight-design/results', { recursive: true });
-  writeFileSync('tools/flight-design/results/fw-rig.json', `${JSON.stringify({ made: 'tools/fw-rig.mjs', kias: KIAS, blockFt: BLOCK, tasFtps: TAS, settleSec: SETTLE, afterSec: AFTER, cases: results }, null, 1)}\n`);
-  console.log('wrote tools/flight-design/results/fw-rig.json');
+/** Measure achieved horizontal turn-rate lag behind a step dOmegaRadps at trim bankDeg (D13: ~0.18 s linear model). */
+function measureTurnRateLag(label, bankDeg, dOmegaRadps) {
+  const g0 = 1 / Math.cos(bankDeg * DEG);
+  let st = leadStateOf(aircraftAt(0, 0, 0, 0, { bankDeg: -bankDeg, g: g0 }), BLOCK);
+  const warmSteps = Math.round(6 / STEP_SEC);
+  const runSteps = Math.round(6 / STEP_SEC);
+  const omega0 = (G_FTPS2 * Math.tan(bankDeg * DEG)) / TAS;
+  const stepCmd = (s, dw) => {
+    const V = len3(s.vel);
+    const u = unit3(s.vel);
+    const left = unit3(cross3(Z, u));
+    const aTurn = scale3(left, (omega0 + dw) * V);
+    const hold1G = perp3(Z, u);
+    const comp = liftWithin(aTurn, hold1G, 6.0, s.bodyUp, { hold1G, vertVec: { x: 0, y: 0, z: 0 }, vertG: 0 });
+    return stepLead(s, { lift: comp.lift, roll: { ...ROLL, maxRateDps: FW_WING.rollDps }, holdKias: KIAS });
+  };
+  for (let i = 0; i < warmSteps; i++) st = stepCmd(st, 0);
+  const omOf = (s) => {
+    const vxy2 = s.vel.x * s.vel.x + s.vel.y * s.vel.y;
+    const crossZ = s.vel.x * (s.accPerp?.y ?? 0) - s.vel.y * (s.accPerp?.x ?? 0);
+    return crossZ / Math.max(vxy2, 1);
+  };
+  const omBase = omOf(st);
+  const trace = [];
+  for (let i = 1; i <= runSteps; i++) {
+    st = stepCmd(st, dOmegaRadps);
+    trace.push({ t: +(i * STEP_SEC).toFixed(3), dOm: omOf(st) - omBase });
+  }
+  const final = trace[trace.length - 1].dOm;
+  const t63 = trace.find((x) => Math.abs(x.dOm) >= 0.632 * Math.abs(final))?.t ?? null;
+  const t90 = trace.find((x) => Math.abs(x.dOm) >= 0.9 * Math.abs(final))?.t ?? null;
+  return { label, bankDeg, stepRadps: dOmegaRadps, achievedRadps: +final.toFixed(4), t63Sec: t63, t90Sec: t90, modelTauSec: 0.18 };
 }
+
+/** Measure achieved vertical acceleration lag behind a step dVertG at trim bankDeg (D13: ~0.20 s linear model). */
+function measureVertGLag(label, bankDeg, dVertG) {
+  const g0 = 1 / Math.cos(bankDeg * DEG);
+  let st = leadStateOf(aircraftAt(0, 0, 0, 0, { bankDeg: -bankDeg, g: g0 }), BLOCK);
+  const warmSteps = Math.round(6 / STEP_SEC);
+  const runSteps = Math.round(6 / STEP_SEC);
+  const omega0 = (G_FTPS2 * Math.tan(bankDeg * DEG)) / TAS;
+  const stepCmd = (s, dvG) => {
+    const V = len3(s.vel);
+    const u = unit3(s.vel);
+    const left = unit3(cross3(Z, u));
+    const aTurn = scale3(left, omega0 * V);
+    const hold1G = perp3(Z, u);
+    const vertVec = scale3(perp3(Z, u), dvG);
+    const hold = add3(hold1G, vertVec);
+    const comp = liftWithin(aTurn, hold, 6.0, s.bodyUp, { hold1G, vertVec, vertG: dvG });
+    return stepLead(s, { lift: comp.lift, roll: { ...ROLL, maxRateDps: FW_WING.rollDps }, holdKias: KIAS });
+  };
+  for (let i = 0; i < warmSteps; i++) st = stepCmd(st, 0);
+  const vz0 = st.vel.z;
+  let prevVz = vz0;
+  const trace = [];
+  for (let i = 1; i <= runSteps; i++) {
+    st = stepCmd(st, dVertG);
+    const azG = (st.vel.z - prevVz) / STEP_SEC / G_FTPS2;
+    prevVz = st.vel.z;
+    trace.push({ t: +(i * STEP_SEC).toFixed(3), azG });
+  }
+  const t63 = trace.find((x) => Math.sign(dVertG) * x.azG >= 0.632 * Math.abs(dVertG))?.t ?? null;
+  const t90 = trace.find((x) => Math.sign(dVertG) * x.azG >= 0.9 * Math.abs(dVertG))?.t ?? null;
+  return { label, bankDeg, stepVertG: dVertG, t63Sec: t63, t90Sec: t90, modelTauSec: 0.2 };
+}
+
+/** Measure steady-state ripple of dead-reckoned slant closure (S14, D25) and arc closure (S20) at bankDeg. */
+function measureSteadyClosureRipple(label, bankDeg) {
+  const g0 = 1 / Math.cos(bankDeg * DEG);
+  const omega = (G_FTPS2 * Math.tan(bankDeg * DEG)) / Math.max(TAS, 1);
+  const R = omega > 1e-6 ? TAS / omega : 1e9;
+  const arcBack = 650;
+  const angBack = omega > 1e-6 ? arcBack / R : 0;
+  let L = leadStateOf(aircraftAt(0, 0, 0, 0, { bankDeg: -bankDeg, g: g0 }), BLOCK);
+  let two = leadStateOf(
+    omega > 1e-6
+      ? aircraftAt(-R * Math.sin(angBack), R * (1 - Math.cos(angBack)), -50, -angBack, { bankDeg: -bankDeg, g: g0 })
+      : aircraftAt(-650, -200, -50, 0),
+    BLOCK,
+  );
+  let sight = startFwSight(seenOf(L), seenOf(two), { g: g0 });
+  const warmSteps = Math.round(6 / STEP_SEC);
+  const sampleSteps = Math.round(10 / STEP_SEC);
+  const slantClosures = [];
+  const arcClosures = [];
+  for (let i = 0; i < warmSteps + sampleSteps; i++) {
+    const res = seeFw(sight, seenOf(L), seenOf(two));
+    sight = res.mem;
+    const seen = res.seen;
+    if (i >= warmSteps) {
+      slantClosures.push(seen.closure);
+      if (seen.turn.centre && Number.isFinite(seen.turn.radiusFt)) {
+        const relP = sub3(two.pm, seen.lead.p);
+        const nL = unit3(seen.lead.v);
+        const inward = unit3(seen.turn.aPerp);
+        const x = dot3(relP, nL);
+        const y = dot3(relP, inward);
+        const r = Math.hypot(seen.turn.radiusFt - y, x);
+        const radialIn = scale3(add3(scale3(inward, y - seen.turn.radiusFt), scale3(nL, x)), 1 / Math.max(r, 1));
+        const axis = unit3(cross3(nL, inward));
+        const tangent = unit3(cross3(axis, radialIn));
+        arcClosures.push((seen.turn.radiusFt * dot3(two.vel, tangent)) / Math.max(r, 1) - len3(seen.lead.v));
+      } else {
+        arcClosures.push(dot3(two.vel, unit3(seen.lead.v)) - len3(seen.lead.v));
+      }
+    }
+    L = stepLead(L, leadAsk(L, bankDeg));
+    two = stepLead(two, leadAsk(two, bankDeg));
+  }
+  const stats = (arr) => {
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const p2p = Math.max(...arr) - Math.min(...arr);
+    const std = Math.sqrt(arr.reduce((s, x) => s + (x - mean) ** 2, 0) / arr.length);
+    return { meanFtps: +mean.toFixed(4), p2pFtps: +p2p.toFixed(4), stdFtps: +std.toFixed(4) };
+  };
+  return { label, bankDeg, slantClosureS14: stats(slantClosures), arcClosureS20: stats(arcClosures) };
+}
+
+/** Verify Slice 1 B08 reference blender, B13 3-stage cap trimming (C8 forced 3.5 G Lead turn), and B14 urgency shaper. */
+function verifyS1LiftAndShaper() {
+  // C8 forced 3.5 G Lead turn: horizontal turn demand 3.35 G (matching 3.5 G total with 1 G level hold), positive climb +0.6 G
+  const hold1G = { x: 0, y: 0, z: 1 };
+  const vertVec = { x: 0, y: 0, z: 0.6 };
+  const hold = add3(hold1G, vertVec);
+  const aTurn = { x: 0, y: 3.35 * G_FTPS2, z: 0 };
+  const bodyUp = unit3(add3(hold, { x: 0, y: 3.35, z: 0 }));
+  const vertInfo = { hold1G, vertVec, vertG: 0.6 };
+
+  // Stage 1: cap = 3.7 G -> |hold1G + turn| = 3.496 G <= gLim < |hold + turn| = 3.719 G -> positive climb gives way first
+  const c1 = liftWithin(aTurn, hold, 3.7, bodyUp, vertInfo);
+  // Stage 2: cap = 3.45 G -> |turn| = 3.35 G <= gLim < |hold1G + turn| = 3.496 G -> 1 G hold gives way second
+  const c2 = liftWithin(aTurn, hold, 3.45, bodyUp, vertInfo);
+  // Stage 3: cap = 3.1 G -> gLim < |turn| = 3.35 G -> horizontal turn gives way last
+  const c3 = liftWithin(aTurn, hold, 3.1, bodyUp, vertInfo);
+  // Unload-roll-pull: wings level (bodyUp = Z) while asking for 60° banked 2 G lift (> 20° off)
+  const urpRes = liftWithin({ x: 0, y: Math.sqrt(3) * G_FTPS2, z: 0 }, hold1G, 5.0, Z, { hold1G, vertVec: { x: 0, y: 0, z: 0 }, vertG: 0 });
+
+  // B14 urgency shaper: u = 0 -> 1.0 G/s, u = 1 -> 4.0 G/s
+  const sh0 = shapeFwLift(1.0, { x: 0, y: 0, z: 3.0 }, 0, 1.0);
+  const sh1 = shapeFwLift(1.0, { x: 0, y: 0, z: 3.0 }, 1, 1.0);
+
+  // B08 reference blender: 1 -> 0 over 1.5 s
+  const rA = makeFwReference({ aimLateralFt: -100, heightTargetFt: -50, urgency: 0 });
+  const rB = makeFwReference({ aimLateralFt: 100, heightTargetFt: -200, urgency: 1 });
+  const bMid = blendFwReferences(rA, rB, 0.5);
+  const wAfter15 = stepFwBlendWeight(1.0, 1.5, 1.5);
+
+  return {
+    c8Forced35G: {
+      stage1ClimbGivesWay: { capGaveWay: c1.capGaveWay, turnKeptG: +c1.lift.y.toFixed(3), vertZKeptG: +c1.lift.z.toFixed(3) },
+      stage2HoldGivesWay: { capGaveWay: c2.capGaveWay, turnKeptG: +c2.lift.y.toFixed(3), holdZKeptG: +c2.lift.z.toFixed(3) },
+      stage3TurnGivesWay: { capGaveWay: c3.capGaveWay, turnKeptG: +c3.lift.y.toFixed(3), holdZKeptG: +c3.lift.z.toFixed(3) },
+      unloadRollPull: { rawAskedG: 2.0, grantedGAt60DegOff: +len3(urpRes.lift).toFixed(3) },
+    },
+    b14UrgencyShaper: {
+      u0OnsetGps: sh0.onsetGps,
+      u0ShapedGAfter1s: +sh0.shapedG.toFixed(3),
+      u1OnsetGps: sh1.onsetGps,
+      u1ShapedGAfter1s: +sh1.shapedG.toFixed(3),
+    },
+    b08ReferenceBlender: {
+      midAimLateralFt: bMid.aimLateralFt,
+      midHeightTargetFt: bMid.heightTargetFt,
+      weightAfter15s: wAfter15,
+    },
+  };
+}
+
+function runS0S1Checks() {
+  const turnLags = [
+    measureTurnRateLag('turnLag-T1-002', 30, 0.02),
+    measureTurnRateLag('turnLag-T1-005', 30, 0.05),
+    measureTurnRateLag('turnLag-T2-002', 60, 0.02),
+    measureTurnRateLag('turnLag-T2-005', 60, 0.05),
+  ];
+  const vertLags = [
+    measureVertGLag('vertLag-T1-pos02', 30, 0.2),
+    measureVertGLag('vertLag-T1-neg02', 30, -0.2),
+    measureVertGLag('vertLag-T2-pos02', 60, 0.2),
+    measureVertGLag('vertLag-T2-neg02', 60, -0.2),
+  ];
+  const ripples = [
+    measureSteadyClosureRipple('ripple-T1-30deg', 30),
+    measureSteadyClosureRipple('ripple-T2-60deg', 60),
+  ];
+  const s1Checks = verifyS1LiftAndShaper();
+  return { turnLags, vertLags, ripples, s1Checks };
+}
+
+const args = process.argv.slice(2);
+const s0Only = args.includes('--s0-lags');
+const one = args.includes('--case') ? args[args.indexOf('--case') + 1] : null;
+
+if (s0Only) {
+  const checks = runS0S1Checks();
+  console.log('=== S0 Plant Lags (D13) ===');
+  for (const t of checks.turnLags) {
+    console.log(`  ${t.label.padEnd(18)} bank=${t.bankDeg}° step=${t.stepRadps} rad/s -> achieved=${t.achievedRadps} rad/s, t63=${t.t63Sec} s (model ~${t.modelTauSec} s), t90=${t.t90Sec} s`);
+  }
+  for (const v of checks.vertLags) {
+    console.log(`  ${v.label.padEnd(18)} bank=${v.bankDeg}° step=${v.stepVertG} G -> t63=${v.t63Sec} s (model ~${v.modelTauSec} s), t90=${v.t90Sec} s`);
+  }
+  console.log('=== S0 Steady-State Closure Ripple (D25) ===');
+  for (const r of checks.ripples) {
+    console.log(`  ${r.label.padEnd(18)} S14 slant closure p2p=${r.slantClosureS14.p2pFtps} ft/s (std=${r.slantClosureS14.stdFtps}) | S20 arc closure p2p=${r.arcClosureS20.p2pFtps} ft/s (std=${r.arcClosureS20.stdFtps})`);
+  }
+  console.log('=== S1 Lift Composer (B13, C8) & Shaper (B14) & Blender (B08) ===');
+  console.log(`  C8 3.5G stage 1 (climb): ${JSON.stringify(checks.s1Checks.c8Forced35G.stage1ClimbGivesWay)}`);
+  console.log(`  C8 3.5G stage 2 (hold):  ${JSON.stringify(checks.s1Checks.c8Forced35G.stage2HoldGivesWay)}`);
+  console.log(`  C8 3.5G stage 3 (turn):  ${JSON.stringify(checks.s1Checks.c8Forced35G.stage3TurnGivesWay)}`);
+  console.log(`  URP at 60° off:          ${JSON.stringify(checks.s1Checks.c8Forced35G.unloadRollPull)}`);
+  console.log(`  B14 shaper:              ${JSON.stringify(checks.s1Checks.b14UrgencyShaper)}`);
+  console.log(`  B08 blender:             ${JSON.stringify(checks.s1Checks.b08ReferenceBlender)}`);
+} else {
+  const names = one ? [one] : Object.keys(CASES);
+  const results = names.map(run);
+  for (const r of results) console.log(`${r.name.padEnd(12)} ${r.what}: final ${r.final}, peak ${r.peak} (overshoot ${r.overshootPct}%), 63% at ${r.t63Sec} s | trim s ${r.trim.sFt} d ${r.trim.dFt} slant ${r.trim.slantFt} height ${r.trim.heightFt} (${r.trim.job}) | filter acting ${r.filterStepsAfter} recorded steps, guard ${r.guardOnAfter}`);
+  if (!one) {
+    const s0s1 = runS0S1Checks();
+    mkdirSync('tools/flight-design/results', { recursive: true });
+    writeFileSync('tools/flight-design/results/fw-rig.json', `${JSON.stringify({ made: 'tools/fw-rig.mjs', kias: KIAS, blockFt: BLOCK, tasFtps: TAS, settleSec: SETTLE, afterSec: AFTER, cases: results, s0Lags: { turnLags: s0s1.turnLags, vertLags: s0s1.vertLags, ripples: s0s1.ripples }, s1Checks: s0s1.s1Checks }, null, 1)}\n`);
+    console.log('wrote tools/flight-design/results/fw-rig.json');
+  }
+}
+
