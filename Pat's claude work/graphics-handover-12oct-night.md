@@ -5,7 +5,23 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (14 Oct 2026, early morning): chunk 8b delivered and imported, the chunk 9 design reviewed and merged; read `3d-work` `ct156/plan.md` first (its decisions log, newest first)
+## Latest (14 Oct 2026, morning): Round 3 + `#101` delivered and imported (`V2.435`), chunk 9/10 decisions locked (`/grill-me`), 20-item visual audit & cheatsheet ready; read `3d-work` `ct156/plan.md` first
+
+- **Stage 1 — Round 3 (`#102`) + Chunk 9 delivery gate (`#101`) delivered and imported:**
+  - In `3d-work` (`.claude/worktrees/round-3`, branch `ct156-round-3`, PR **#102**, commit `ed1dcfd`): updated `ct156/README.md` (`6bde02c`) and cherry-picked `#101` (`21c5365` → `ed1dcfd`, Performance outside two-pass shadow baking, `save_data` Raw/Non-Color PNG saving, and `picture_gates.py`). Ran `node ct156/build/deliver.mjs` → produced `ct156/deliveries/ct156-2026-10-14-ed1dcfd` (`0` validator errors/warnings across all 6 `.glb` files, `6/6` dimensional checks pass, `11/11` seams at `0.00 in`, `forward-bow` AO island mean `0.4732` verified clean).
+  - In `Dads-debreif` (`Dads-debreif-prop`, branch `shared-3d-ct156-round3`, commit `796be5d9`, **V2.435**, stacked on #1036): imported `ct156-2026-10-14-ed1dcfd` via `npm run models:import` (all of `#94` `look-fixes` and `#102` `round-3` are now in the app); removed withdrawn `bladeCuff` / `propCuff` (`F29`) from `models-import.mjs`, `ct156-model.js`, `three-aircraft.js`, and `docs/modules/shared/spec.md` to match `3d-work` `7bd9b52`; `1,596` unit tests pass (`0` failed) and `npm run build` passes.
+- **Patrick's `/grill-me` rulings for Chunks 9 & 10 (locked 14 Oct 2026):**
+  1. **Outside picture size (9c/9d, decision 1):** **4k detail (normal) picture + 2k packed mask picture** for High outside (`2k` detail + `1k` mask for Performance).
+  2. **Performance outside budget (9b, decision 2):** **`<= 15,000` triangles, aiming lower** by hand-reducing rings and sides on heavy parts (`fuselage`/`fuselageCut`, `stubs`, `airframe`, `frames`, `rootFillet*`, `spinner`, `elevator`, `speedBrake`, `coamings`, `vent`) while keeping the silhouette and thin parts intact.
+  3. **Remaining `'code'` parts in `app_layout.json` (decision 3):** **Move all 18 remaining `'code'` parts (`stubs`, `speedBrake`, `coamings`, `floor`, `speedBrakeWell`, `flapInWell*`, `flapOutWell*`, `gearInboardWell*`, `gearLegWell*`, `gearNoseWell`, `tub`, and `helmetFront`/`helmetRear`/`*Perf`) into `'deliver'` / `'code_mirrors'` in chunk 9** before 9c/9d, and trim `gearNoseWell` (`z <= +0.55 ft` at `x = 9.0..12.6 ft`) and `coamings` (`x = 5.8..6.8 ft`) below the lowered chunk 3 nose cowl to eliminate the exterior nose/cowl poke-throughs seen in the app.
+  4. **Wear strength & multi-option comparison sheets (9a/9d/9e/10, decisions 4 & 5):** **Medium wear (`1.0`)** active default, with **3-way comparison sheets and tunable constants** for wear strength (`0.55 / 1.0 / 1.55`), 9a `EN5` edge bevel width (`0.04 / 0.08 / 0.14 in`), 9d normal relief depth (`0.6 / 1.0 / 1.4`), and chunk 10 `EN7` panel sheen variation (`0.0 / 0.06 / 0.12`); no third-party Ucupaint download.
+  5. **Chunk 10 boundary & agent economy:** Include `EN18` (live corner shadows toggle, off by default), stop before deleting legacy procedural fallback files (`Step 3b item 10`), and run with low parallelism (1–2 agents max at a time; `flash` for spec-driven tasks/checks, Argon/Opus for complex 3D topology and visual critique) to avoid `429 RESOURCE_EXHAUSTED` rate limits.
+- **Prepared reference files in `3d-work`:**
+  - `scratch/refs-cheatsheet.md`: complete master-feet coordinates (`x, y, z`), dimensions, citations, and object triangle breakdown for Chunk 9a, 9b, and Decision 3.
+  - `scratch/overnight-decisions-log.md` and `ct156/agent-findings.md`: all decisions, multi-option specs, and the **20-item Reference-vs-Model Visual Audit** comparing Round 3 renders against 22+ CT-156 reference photos.
+  - Note: `.claude/worktrees/deliver-chunk9` has a stashed WIP (`git stash list`) for Wave 1B `app_layout.json` and `delivery-checks.json`.
+
+## Earlier (14 Oct 2026, early morning): chunk 8b delivered and imported, the chunk 9 design reviewed and merged; read `3d-work` `ct156/plan.md` first (its decisions log, newest first)
 
 - **Chunk 8b** (`3d-work` #87, verified): the light line over the EADI closed (the lamp strip's plate stood above the
   rail's lip), the rear hood dark grey (E3), the prop's blades off the CT-156 photos (the CFAFM drawing's are about a
