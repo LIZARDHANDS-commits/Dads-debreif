@@ -81,31 +81,40 @@ Each item below has an active working estimate in the code (`TS-233` / `spec.md`
   - Rig check (`fw-rig.mjs`): `power-T1` `t63 = 3.45 s` (matching $\tau = 1/0.3 = 3.33\text{ s}$ + `0.12 s` engine lag), `0%` overshoot; all `30 s`, `90°`, and `180°` gauge turns end within `15 KIAS` of Lead at roll-out and settle (`D26`).
 
 ### `S5` — Exit vertical & S-turns (`T6`, `T7`)
-- **Status:** Pending build.
+- **Status:** **Plugins & `FW_WING` sub-tables built & verified in Wave 1 (`1e33a17c`); `B04` picker registration & `b5-level-tight` gauge run in Wave 2.**
+- **What was built in Wave 1 (`1e33a17c`):**
+  - `src/modules/turn-sim/live/wingman/techniques/exit-vertical.js` (`T6`, priority 6): cues in `exit` phase when `|s - 650| > 150 ft` or `|closure| > 20 ft/s` for 2 steps (deferring to `s-turns` when tight and cone-limited); sizes vertical target $h_T = \text{stack} - (\Delta s / 10\text{ s}) \times 12\text{ ft/(ft/s)}$ (`±350 ft` cap, `[500, 1000] ft` cone slant cap) with smooth profile rate $\dot{h}_T$ (`D1`) and energy intent (`+0.5` dive / `-0.5` climb); done when `|s - 650| <= 50 ft` and `|closure| <= 10 ft/s` for `5 s`.
+  - `src/modules/turn-sim/live/wingman/techniques/s-turns.js` (`T7`, priority 7): cues in `level`/`exit` phase when `slant < 575 ft` or (`closure > 15 ft/s` and `slant < 650 ft`) for 2 steps; sizes heading swing `12°–30°` from $\cos\psi = 1 - \Delta s / (V \cdot 10\text{ s})$, alternates legs every `6 s` or across cone edges (`32°`/`58°`) with `-0.5` bleed intent; aborts on new turn, done when `slant >= 650 ft` and `closure <= 5 ft/s` for `5 s`.
+  - `FW_WING.exitVert` and `FW_WING.sTurn` frozen tables added in `wing-moves.js` (`LEDGER` prefixes added in `signals.mjs`, `886 rows` in `numbers.md`, `0` missing sources).
 
 ### `S6` — Abeam band & lag pursuit from abeam (`T3`)
-- **Status:** Pending build.
+- **Status:** Next in Wave 2 (`slots.js` `sweep >= 0°` gate + `techniques/lag-abeam.js` + `B04` registration of `T1–T7`).
 
 ### `S7` — High yo-yo, cut-across & back behind the 3/9 line (`T4`, `T5`, `T2`)
-- **Status:** Pending build.
+- **Status:** **Plugins & `FW_WING` sub-tables built & verified in Wave 1 (`1e33a17c`); `B04` picker registration, legacy inline retirement & `b5-away-very-stretched` gauge run in Wave 2.**
+- **What was built in Wave 1 (`1e33a17c`):**
+  - `src/modules/turn-sim/live/wingman/techniques/behind-39.js` (`T2`, priority 2): cues when `sweep < 0°` or predicted cross-ahead within `3 s` for 2 steps; sizes vertical pass depth below Lead (`100–300 ft` for `625 ft` slant), `35°` inward/lag course bias, `-0.5` bleed intent, `0.5` urgency; done when `sweep >= 15°` and `slant >= 500 ft` for `2 s`.
+  - `src/modules/turn-sim/live/wingman/techniques/yo-yo.js` (`T4`, priority 4): cues in `turning` when inside circle (`d < -30 ft`) and `closure > 15 ft/s` for `2 s` (`predPass < 620 ft` or `sweep < 25°`); climbs `12 ft/(ft/s)` above Lead (`100–450 ft`, bounded by `1,000 ft` slant) with `-0.5` bleed intent, tops out when `closure < 5 ft/s` for `5 s`, and descends back onto circle **ending stacked low** (`-50 ft`); done within `50 ft` of stack with `|closure| < 10 ft/s`.
+  - `src/modules/turn-sim/live/wingman/techniques/cut-across.js` (`T5`, priority 5): cues in `turning` when `slant > 1,000 ft` and `closure <= 0 ft/s` for `3 s`; opens inward approach cap to `45°`, `-150 ft` lead offset, `-150 ft` dive, `+15 kt` speed offset, `+1.0` gain intent; aborts if `sweep < 10°`, done when `slant < 900 ft` and `closure < 30 ft/s`.
+  - `FW_WING.behind39`, `FW_WING.yoyo` (updated), and `FW_WING.cutAcross` frozen tables added in `wing-moves.js` and `signals.mjs`.
 
 ### `A2` — Structure audit 2 (after `S7`)
-- **Status:** Pending audit.
+- **Status:** Next in Wave 2 (`C10` count + gauge verification).
 
 ### `S8a` — `T29b`: Climbs and descents
-- **Status:** Pending build.
+- **Status:** Pending build (Wave 3).
 
 ### `S8b` — `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals)
-- **Status:** Pending build.
+- **Status:** Pending build (Wave 3).
 
 ### `T29r` — Controller HUD readout & phase-plane plot
-- **Status:** Pending build.
+- **Status:** Pending build (Wave 3).
 
 ### `T30` — Blended hand-over close ↔ fighting wing & `T8` (`moving-out`)
-- **Status:** Pending build.
+- **Status:** Pending build (Wave 3).
 
 ### `CR` & `T31` — Whole-B5 code review, B5's one test & Checkpoint G
-- **Status:** Pending build.
+- **Status:** Pending build (Wave 3).
 
 ---
 
@@ -131,7 +140,7 @@ Each item below has an active working estimate in the code (`TS-233` / `spec.md`
 | **D3** | Guard predictor uses Lead's bank 0.4 s stale | `S0` | **Built (`54655fde`)** | `seeFw` / `leadNowOf` extrapolates Lead's seen bank by seen roll rate (`S03`, capped `±70°`) |
 | **D4** | Miss vertical reach vs cue time & floor G | `S3b` | **Built (`e25b131d`)** | $3\text{ s} \le t_{\text{pass}} \le 10\text{ s}$; `minG = 0.5 G` roll-and-pull; least turn mix $\Delta\omega$ in `techniques/miss.js` |
 | **D5** | Blend scalar loop inputs (`B08`) over $\ge 6\text{ s}$ path / $\ge 4.3\text{ s}$ height | `S1` / `S3b` | **Built (`e25b131d`)** | `fw-reference.js` blends scalar loop inputs; `B07` runs on measured $(s, d)$ |
-| **D6** | Explicit hysteresis bands ($\ge 2\times$ ripple) and dwells on all technique cues | `S3b, S5–S7` | **`T1` Built (`e25b131d`)** / `T2–T7` in `S5–S7` | Applied to `T1` (`pass-clear`) with `3 s` no-restart timer; `T2–T7` in `S5–S7` |
+| **D6** | Explicit hysteresis bands ($\ge 2\times$ ripple) and dwells on all technique cues | `S3b, S5–S7` | **`T1, T2, T4–T7` Plugins Built (`1e33a17c`)** / `T3` & `B04` wiring in Wave 2 | Applied to `T1` (`pass-clear`), `T2` (`behind-39`), `T4` (`yo-yo`), `T5` (`cut-across`), `T6` (`exit-vertical`), `T7` (`s-turns`); `T3` (`lag-abeam`) in Wave 2 |
 | **D7** | Re-cut slice order so perception (`S0`) and plumbing (`S1`) precede follower/guard | `S0, S1` | **Built (`54655fde`)** | `S0` and `S1` landed first on `formation-b5-slices` and merged into `formation-close-wingman-b2` |
 | **D8** | Speed brake out $> 60\text{ ft/s}$ for 1 s under bleed $\le -0.5$, in $< 20\text{ ft/s}$, hold $\ge 3\text{ s}$ | `S4` | **Built (`S4`)** | Implemented in `B11` (`S34`); retract set to `10 ft/s` per `S0` `D25` ripple (`21.66 ft/s`), held $\ge 3\text{ s}$ |
 | **D9** | $\pm 250\text{ ft}$ offset saturation hands unmet closure to energy/speed | `S2` | **Built (`e25b131d`)** | Generalized by `D21` via `S29b` ($w - \omega \cdot d_{\text{cmd}}$) $\to$ `S27g` ($\Delta v_{\text{ref}}$) |
