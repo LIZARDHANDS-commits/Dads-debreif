@@ -245,3 +245,11 @@ Acceptance:
 - rerun the gauge (helpers in `formation-review-12oct/`);
 - check the keep-unchanged checks itself (the default gauge byte-identical, the Old law's b5 entries, the 4-ship);
 - then merge into b2 behind the switch, bump the version, and give Patrick the version and what to fly.
+
+### 14 Oct 2026, after midnight UTC: recorded formation flying, how hard fighting wing is flown, round 4 reported
+
+**Recorded formation flying.** Patrick uploaded two of his four-ship ForeFlight logs (one ship each). The Debrief's example flight (`original/assets`, 2 Jun 2026) turned out to be a real four-ship with every ship recorded (#3 and #4 on Sentry pucks: bank, pitch and G recorded). How each rung can use it is in the plan, 12.4 "Recorded formation flying", with what it is not (Patrick: "this isnt perfect"). Folder, numbers and `pair-geometry.mjs`: `formation-track-logs/`. For the round 4 audit: set the gauge's numbers beside the real wingmen's (range, aspect, height, closure, G), as a reference only.
+
+**How hard (Patrick, TS-233, spec 7e 1c):** fighting wing can be chill (academic, smooth 60°/2 G, the default and the gauge so far) or aggressive (cloud, a threat); the point is that Lead can make the formation very manoeuvrable. A four-ship is flown more gently than a two-ship. The aggressive Lead's numbers and where they are checked are on the waiting list.
+
+**Round 4 reported** (head d2db61c1 on `formation-fighting-wing-b5`; final tag r4ls4, 9e5c860f): 4 of 8 cases pass the acceptance (into and away in position, away tight, reversal), none under 500 ft; failing on job switches (into and away stretched, outside the cone, 4-5) and into tight (93°, ends 2,429 ft back). The delay margin into in position is about 0.1 s, under the 0.2 s target. Its unsure points: the yo-yo's height band (±200 ft used), "in" in "in and down", the hysteresis changing labels not flying, and into-tight with Lead level needs Patrick's word. Audit next, as above.

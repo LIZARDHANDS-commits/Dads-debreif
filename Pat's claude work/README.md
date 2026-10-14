@@ -270,6 +270,6 @@ Formation screenshots at V2.90.
 
 ### formation-track-logs/
 
-- [README.md](formation-track-logs/README.md): Patrick's four-ship track logs (23 Sep 2026 as #2, 14 Aug 2026 as #4), what one ship's track can and can't say, and the example four-ship measured as pairs (13 Oct 2026).
+- [README.md](formation-track-logs/README.md): Patrick's four-ship track logs (23 Sep 2026 as #2, 14 Aug 2026 as #4), what one ship's track can and can't say, and the example four-ship measured as pairs (14 Oct 2026).
 - [pair-geometry.mjs](formation-track-logs/pair-geometry.mjs): a wingman's range, angle off the tail, height and closure off the ship he flies off, from two tracks of one sortie (the example four-ship by default).
 - Track files: [2026-09-23-four-ship-as-no2.kml](formation-track-logs/2026-09-23-four-ship-as-no2.kml), [2026-08-14-four-ship-as-no4.kml](formation-track-logs/2026-08-14-four-ship-as-no4.kml)
