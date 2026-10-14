@@ -27,6 +27,7 @@ import {
   loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh, webglSupported, worldToScreen,
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
+import { createT38aModel } from '../../../ui-kit/t38a-model.js';
 import { createCockpitMount, aimCockpitCamera, PANEL_REDRAW_MS } from '../../../ui-kit/ct156-cockpit.js';
 import { createAircraftShadows } from '../../../ui-kit/aircraft-shadows.js';
 import { buildAirspace } from '../../../ui-kit/airspace3d.js';
@@ -126,6 +127,7 @@ export function createView3d(canvas, {
         gl = createPicture(module, glCanvas);
         THREE = module;
         gl.terrain = createTerrainLayer({ THREE, scene: gl.scene, timers, doc: gl.doc, redraw: () => surface.requestDraw() });
+        gl.redraw = () => surface.requestDraw(); // a T-38A's file arriving after its ship was first drawn (t38a-model.js onReady)
       } catch {
         onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
         return;
@@ -305,8 +307,10 @@ function clearGroup(group) {
   }
 }
 
-// A ship's model made see-through for a filled gap: its own copies of the materials, so other ships keep theirs.
+// A ship's model made see-through for a filled gap: its own copies of the materials, so other ships keep theirs. A T-38A
+// (Aircraft "T-38A Talon", shared plan Step 3d item 6) ghosts its own copies when its file is in (ui-kit t38a-model.js).
 function ghostModel(THREE, options) {
+  if (options.t38a) return { mesh: createT38aModel(THREE, { lengthFt: options.lengthFt, ghost: GHOST_OPACITY, onReady: options.onReady }), copies: [] };
   const mesh = createCt156Model(THREE, options);
   const copies = [];
   mesh.traverse((o) => {
@@ -554,12 +558,16 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   // Fight do, so the shared seat helpers (eye, cockpit) land in the seat; otherwise the plane size setting, as before.
   const lengthFt = cockpit ? CT156_UNIT_LENGTH : on.planeSize3d * CT156_UNIT_LENGTH;
   const rootScale = cockpit ? CT156_LENGTH_FT / CT156_UNIT_LENGTH : 1;
-  const key = `${paint}|${lengthFt}|${rootScale}`;
+  // Aircraft "T-38A Talon" (Dad, 14 Oct 2026; shared plan Step 3d item 6) draws each ship as the T-38A at its own length
+  // against the CT-156's, in the overview and in Chase; in the Cockpit camera every ship stays the CT-156, whose cockpit
+  // is the one built (DB-21).
+  const t38a = (!cockpit || cockpit.chase) && on.model3d === 't38a';
+  const key = `${t38a ? 't38a' : paint}|${lengthFt}|${rootScale}`;
   const ghosted = new Set();
   let ridden = null;
   for (const s of ships) {
     const ghost = s.estimated && !s.ridden;
-    if ((!cockpit && on.model3d !== 't6') || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
+    if ((!cockpit && on.model3d !== 't6' && on.model3d !== 't38a') || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
     const store = ghost ? gl.ghosts : gl.ships;
     let entry = store.get(s.slot);
     if (entry && entry.key !== key) {
@@ -570,8 +578,11 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
       entry = null;
     }
     if (!entry) {
-      const options = { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt };
-      entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: createCt156Model(THREE, options) };
+      const options = { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt, t38a, onReady: () => gl.redraw?.() };
+      const solid = () => (t38a
+        ? createT38aModel(THREE, { lengthFt, fallback: () => createCt156Model(THREE, options), onReady: options.onReady }) // the CT-156 until the file is in
+        : createCt156Model(THREE, options));
+      entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: solid() };
       entry.mesh.rotation.order = attitudeEuler(s).order;
       entry.mesh.scale.setScalar(rootScale);
       scene.add(entry.mesh);

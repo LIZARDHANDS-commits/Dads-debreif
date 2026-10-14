@@ -42,3 +42,13 @@ Leave off the render folder to build and save only (under a minute). With it, th
 ## Where the master lives
 
 Until Dad's sessions can reach the private repo `3d-work`, the build script and the sources table live here and the `.blend` stays in the session's scratch folder. Once they can, the master moves to `3d-work/t38/` with its sources table, as the CT-156's did (ALL-38), and this folder keeps only what the app's side needs.
+
+## The model files for the app
+
+From a freshly built master (shared plan Step 3d item 6; Dad, 14 Oct 2026: "add it into the KML as a choice for how to display aircraft"):
+
+```
+<scratch>/bpy-venv/bin/python tools/blender/t38/export_t38.py -- <scratch>/t38.blend public/models
+```
+
+writes `public/models/t38a-exterior.glb` (High: every part, the paint pictures full size; about 1.4 MB) and `t38a-exterior-lite.glb` (parts over 1,000 triangles decimated to 30 %, paint pictures halved; about 0.5 MB). Both in feet, nose +X with the radome tip at x 0, left +Y, up +Z, the ground at `GROUND_Z` (exported Z-up); `src/ui-kit/t38a-model.js` loads them. Run it again after any change to the build script and commit the two files with it.

@@ -104,7 +104,7 @@ The Astra's process applied to the T-38: [t38a-plan.md](t38a-plan.md). Dad's thr
 - [ ] 3. Renders and a fix list from Patrick and Dad. **Renders and overlays made** (14 Oct 2026; plain and painted, kept out of the repo): the side and top silhouettes laid over T3 and T2 fit within about 0.2 ft; what still differs is the first fix list in `sources.md`. The fix list from Patrick and Dad looking at the renders is still to come.
 - [ ] 4. Refine, before and after.
 - [ ] 5. Paint. **Step 3d note: Beale paint for renders (Dad's pick), first pass, not yet seen by Patrick or Dad** (14 Oct 2026): gloss black, red markings, bare-metal tail cone, read off Dad's profile print and photo (rows D1 to D13 in `sources.md`), for renders and checking. The fin band's stars are dark on both pictures where the plan said white (a question for Dad), and the serial's year can't be read, so only "247" is drawn. Whether the delivered model carries its paint is a question for Patrick at delivery (item 6).
-- [ ] 6. First delivery (High and light files) and first use in the module Patrick names.
+- [x] 6. First delivery (High and light files) and first use in the module Patrick names. **First delivery done, not yet seen by Patrick (14 Oct 2026, V2.433):** the first-pass outside and Beale paint exported by `tools/blender/t38/export_t38.py` into `public/models/t38a-exterior.glb` (High, about 1.4 MB) and `t38a-exterior-lite.glb` (about 0.5 MB, not used yet), loaded by `src/ui-kit/t38a-model.js`; first use the Debrief's 3D Aircraft choice "T-38A Talon" (DB-32). Refined files replace these after the fix list.
 - [ ] 7. Cockpit, once the outside is signed off.
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
