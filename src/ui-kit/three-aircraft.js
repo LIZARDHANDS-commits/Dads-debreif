@@ -370,7 +370,7 @@ function propBlurMaterial(THREE) {
 /** Shows a T-6 model's prop as turning: its blades hidden and its disc given the blurred look. Only this model changes. */
 export function blurProp(THREE, mesh) {
   const ct = mesh.userData?.ct156;
-  const blades = ct ? new Set([ct.kit.geo.blade, ct.kit.geo.bladeTip]) : new Set();
+  const blades = ct ? new Set([ct.kit.geo.blade, ct.kit.geo.bladeTip, ct.kit.geo.bladeCuff]) : new Set(); // the root cuffs turn with them
   const material = propBlurMaterial(THREE);
   let used = false;
   mesh.traverse((o) => {

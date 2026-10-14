@@ -122,7 +122,32 @@ export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null
     shader.fragmentShader = fs;
   };
   m.customProgramCacheKey = () => `ct156-ao-direct${dirt ? '-dirt' : ''}`;
+  if (m.userData.ct156Bands) paintBands(m, m.userData.ct156Bands); // painted bands (the prop's tips) stay
   return m.userData.ct156Grain ? paintGrain(m, m.userData.ct156Grain) : m; // a painted surface keeps its grain
+}
+
+/**
+ * Paints bands across a part by the shader, by how far along one of the geometry's own axes each point is, so the
+ * bands need no picture and keep a sharp edge between the faces' corners (the prop's red, white and red tips along the
+ * blade's span: ct156-model.js PROP_TIP_BANDS). `bands`: [[from, to, [r, g, b]], ...] in the geometry's own units, the
+ * colour linear (THREE.Color's r, g, b); `axis` 'x', 'y' or 'z'. Keeps whatever the material's shader already does,
+ * and survives aoShaded's copy (it is kept in userData). Returns the material.
+ */
+export function paintBands(material, { axis = 'y', bands = [] } = {}) {
+  material.userData.ct156Bands = { axis, bands };
+  const before = material.onBeforeCompile, key = material.customProgramCacheKey;
+  const f = (v) => Number(v).toFixed(6);
+  const paint = bands.map(([a, b, [r, g, bl]]) => `\tif ( vCt156Along >= ${f(a)} && vCt156Along < ${f(b)} ) diffuseColor.rgb = vec3( ${f(r)}, ${f(g)}, ${f(bl)} );`).join('\n');
+  material.onBeforeCompile = (shader, renderer) => {
+    before?.call(material, shader, renderer);
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float vCt156Along;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n\tvCt156Along = position.${axis};`);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vCt156Along;')
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${paint}`);
+  };
+  material.customProgramCacheKey = () => `${key?.call(material) ?? ''}-ct156-bands-${axis}-${bands.flat(2).map(f).join('-')}`;
+  material.needsUpdate = true;
+  return material;
 }
 
 /**
