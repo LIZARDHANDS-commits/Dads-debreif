@@ -523,6 +523,8 @@ How it was built, beyond 1-8 (each an estimate until Patrick says otherwise):
 
 ## 7d. The rejoins from fighting wing on the live wingman (B4's first part; draft 1, 14 Oct 2026, not approved)
 
+**To be rewritten after 7e draft 4** (Patrick 14 Oct 2026, card "Keep it; move at B4 only if as good"): TRJ keeps flying as it does today through B5; this section becomes TRJ (and SARJ) as techniques in 7e's new structure, with the same plan, numbers and windows, and TRJ moves onto the live wingman only if it flies at least as well (plan B4).
+
 Patrick's order (14 Oct 2026): fighting wing first (B5), then "TRJ and SARJ from fighting wing", then line abreast and HTRJ. This section is that middle rung. The rejoins from line abreast, and HTRJ, are the next rung's.
 
 **1. The goal.** From fighting wing, #2 gets into echelon or route (or, on SARJ, line astern) quickly and safely, and never hits Lead. Lead never waits. With a predicted collision, #2 overshoots behind and below; he never tries to save the rejoin.
