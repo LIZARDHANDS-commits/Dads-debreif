@@ -59,6 +59,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 | The research (barriers, the pilot model, the delay budget) | `docs/references/formation-control-research-14oct.md`; the manual sweep in `docs/references/smm-fighting-wing-and-pursuit.md` |
 | Recorded formation flying (a reference only) | `Pat's claude work/formation-track-logs/README.md` |
 | Every tuning number and its source | `docs/modules/turn-sim/numbers.md` (`tools/turn-sim-numbers.mjs`); the tables are in `src/modules/turn-sim/live/wing-moves.js` |
+| Thread pages (claude.ai, private to Patrick; find them with the Artifact list) | Formation Sim Architecture (the control model's diagrams on top; below is history), Handling Ratify List (rulings in force, numbers waiting for his word), OODA Loop Workspace Map, How Lead Flies. Formation Rough Spots is retired and the Close-In Wingman Spec doc is frozen (14 Oct). The repo is the master; the pages are views |
 | The code | `src/modules/turn-sim/live/wingman/`: `fighting-wing.js` (the technique, split into named parts), `separation.js` (the guard and the filter), `supervisor.js`, `perception.js`, `close-formation.js` |
 
 ## The checks (run in the background; the gauge is a measuring tool, not a test)
