@@ -52,12 +52,12 @@ Each step is one pull request in this repo by Dad's thread (one writer: `tools/b
 ## Questions for Patrick (one at a time; his idea is always an option)
 
 1. **Which T-38:**
-   - (a) T-38A, as Dad asked (the older model; the outside is nearly the same);
-   - (b) T-38C, what the US bases fly today;
-   - (c) one outside for both, with the paint and small fittings as the difference;
-   - (d) your idea.
+   - (b) T-38A only;
+   - (c) T-38C, what the US bases fly today;
+   - (d) one outside for both, with the paint and small fittings as the difference;
+   - (e) your idea.
 
-   Working answer: (c), built from the T-38A drawings Dad sent and labelled T-38.
+   **Dad's pick: (b) T-38A only** (14 Oct 2026: "T-38A only"), exactly as in his drawings; needs Patrick's yes with the plan.
 2. **Where it is used first:**
    - (a) the SOF's 3D live traffic at the US bases, for aircraft the feed identifies as T-38s;
    - (b) Traffic, as another type;

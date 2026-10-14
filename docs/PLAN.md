@@ -153,7 +153,7 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 ## Waiting on Patrick
 
-- [ ] **T-38 Talon model: yes or no to the plan, and which T-38 (Dad's ask, 14 Oct 2026; `modules/shared/t38a-plan.md`, shared plan Step 3d).** Built the Astra's way, in Dad's thread. Working answers until you say: one outside for the T-38A and C, first used in the SOF's 3D live traffic at the US bases, USAF white.
+- [ ] **T-38 Talon model: yes or no to the plan, and which T-38 (Dad's ask, 14 Oct 2026; `modules/shared/t38a-plan.md`, shared plan Step 3d).** Built the Astra's way, in Dad's thread. Dad picked the T-38A only. Working answers until you say: first used in the SOF's 3D live traffic at the US bases, USAF white.
 
 - [ ] **CT-102B Astra II model: its height, and where its files live (Dad's ask, approved by you 13 Oct 2026, relayed by Dad; `modules/shared/ct102-astra-plan.md`, plan Step 3c).** Dad picked the Astra II (Grob G 120TP) and Blender, and chose to work without `3d-work` (13 Oct 2026: "We will just work without 3D work"), so its build script and sources table live in `tools/blender/ct102b/`; say if you want them moved next to the CT-156 under ALL-38. First outside built and rendered, not yet seen by you. One number to rule on: its height, 2.64 m (EASA and UK CAA type sheets) against 2.7 m (RCAF page and Wikipedia) and 2.62 m (Grob); the model uses 2.64 m. The shape inside the published sizes is all estimates until Dad's photos or a scaled three-view come in.
 
