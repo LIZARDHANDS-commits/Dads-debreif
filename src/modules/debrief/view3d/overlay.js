@@ -160,16 +160,23 @@ export function drawCaption(ctx, camera, on, datum, groundSource = 'tracks') {
 }
 
 // The Cockpit and Chase cameras' caption (DB-21, DB-22): whose seat (or which ship the Chase is behind), that the attitude is an estimate, a GPS gap and whether its path is
-// estimated, and what the wind and the altimeter are. words: cockpit.js COCKPIT_CAPTION.
-export function drawCockpitCaption(ctx, { slot, seat, chase = false, gap, windKnown }, words) {
+// estimated, what the wind and the altimeter are, and an optional note on a line of its own (the T-38A's static gauges,
+// DB-33). words: cockpit.js COCKPIT_CAPTION.
+export function drawCockpitCaption(ctx, { slot, seat, chase = false, gap, windKnown, note = null }, words) {
   ctx.save();
   ctx.font = '12px system-ui, sans-serif';
   const where = chase ? `Chase: behind #${slot}` : `Cockpit: #${slot} ${seat === 'rear' ? 'rear' : 'front'} seat`;
   outlined(ctx, `${where} · ${words.always}`, 14, 22, TEXT);
   outlined(ctx, `${windKnown ? 'nose into the model wind' : '(no wind)'} · ${words.altitude}`, 14, 40, TEXT);
+  let y = 58;
   if (gap) {
     ctx.font = '600 12px system-ui, sans-serif';
-    outlined(ctx, gap === 'filled' ? words.filled : words.gap, 14, 58, '#ffcc66');
+    outlined(ctx, gap === 'filled' ? words.filled : words.gap, 14, y, '#ffcc66');
+    y += 18;
+  }
+  if (note) { // a line of its own under the rest, in the same style (the T-38A's static gauges, DB-33)
+    ctx.font = '12px system-ui, sans-serif';
+    outlined(ctx, note, 14, y, TEXT);
   }
   ctx.restore();
 }

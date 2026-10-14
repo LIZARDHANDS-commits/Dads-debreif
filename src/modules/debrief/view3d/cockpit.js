@@ -24,12 +24,13 @@ import { wrapPi, headingRadToCompassDeg } from '../../../core/angles.js';
 import { KT_TO_FTPS, FTPS_TO_KT } from '../../../core/units.js';
 import { shipBank, believedEstimatedG, estIasWithWindKt, TURN_WINDOW_S } from '../readouts.js';
 
-/** What the cockpit's caption always says, and what it adds in a gap (DB-21, DB-9). */
+/** What the cockpit's caption always says, what it adds in a gap (DB-21, DB-9), and in the T-38A's cockpit (DB-33). */
 export const COCKPIT_CAPTION = Object.freeze({
   always: 'attitude estimated from the GPS track',
   gap: 'GPS gap',
   filled: 'GPS gap: estimated path',
   altitude: 'altimeter shows GPS altitude',
+  t38a: 'T-38A cockpit: instruments not working yet',
 });
 
 /**
