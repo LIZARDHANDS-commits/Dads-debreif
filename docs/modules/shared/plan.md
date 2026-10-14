@@ -99,11 +99,11 @@ The CT-156's process applied to the Astra II (Grob G 120TP): [ct102-astra-plan.m
 The Astra's process applied to the T-38: [t38a-plan.md](t38a-plan.md). Dad's thread would build it in its own files (`tools/blender/t38/`). Dad's picks: the T-38A, first used in the Debrief (KML viewer), in the Beale AFB paint.
 
 - [x] 0. Patrick's yes, and the answers to the plan's questions (14 Oct 2026).
-- [ ] 1. Sources table: public sizes, then sizes measured off the scaled drawings Dad sent (measuring only, kept out of the repo).
-- [ ] 2. First outside in Blender, by script, in real feet, with named points and hinges; size checks.
-- [ ] 3. Renders and a fix list from Patrick and Dad.
+- [x] 1. Sources table: public sizes, then sizes measured off the scaled drawings Dad sent (measuring only, kept out of the repo). **First pass, not yet seen by Patrick or Dad** (14 Oct 2026, [`tools/blender/t38/sources.md`](../../../tools/blender/t38/sources.md)): length, span and height from the USAF fact sheets, the wing planform, tail areas and gear tread from a flight-mechanics textbook's T-38 appendix (all read through search summaries; the pages themselves could not be opened); the shape measured off Peeters' 1/72 drawings (T3) and Cullen's three-view (T2), each view scaled on its own to the published sizes. Both drawings show the published length runs to the pitot boom's tip. Where they disagree (fin sweep, tailplane height, which line is level) both are written down.
+- [x] 2. First outside in Blender, by script, in real feet, with named points and hinges; size checks. **First pass, not yet seen by Patrick or Dad** (14 Oct 2026, [`tools/blender/t38/build_t38.py`](../../../tools/blender/t38/build_t38.py), Blender 5.2): length, span and height on the fact-sheet figures; wing area on the textbook's 170 ft²; the measured tailplane 2.8% under and the fin 1% over the textbook's areas. The master `.blend` stays out of the repo until `3d-work` access.
+- [ ] 3. Renders and a fix list from Patrick and Dad. **Renders and overlays made** (14 Oct 2026; plain and painted, kept out of the repo): the side and top silhouettes laid over T3 and T2 fit within about 0.2 ft; what still differs is the first fix list in `sources.md`. The fix list from Patrick and Dad looking at the renders is still to come.
 - [ ] 4. Refine, before and after.
-- [ ] 5. Paint.
+- [ ] 5. Paint. **Step 3d note: Beale paint for renders (Dad's pick), first pass, not yet seen by Patrick or Dad** (14 Oct 2026): gloss black, red markings, bare-metal tail cone, read off Dad's profile print and photo (rows D1 to D13 in `sources.md`), for renders and checking. The fin band's stars are dark on both pictures where the plan said white (a question for Dad), and the serial's year can't be read, so only "247" is drawn. Whether the delivered model carries its paint is a question for Patrick at delivery (item 6).
 - [ ] 6. First delivery (High and light files) and first use in the module Patrick names.
 - [ ] 7. Cockpit, once the outside is signed off.
 
