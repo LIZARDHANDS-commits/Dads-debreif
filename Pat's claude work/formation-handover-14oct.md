@@ -21,7 +21,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
    - each technique on one card: source, assess, plan (sized once from the error and his energy), execute, monitor, hand back with a blend, 3-5 numbers, its gauge case;
    - techniques plan the path and the energy intent, and the same loops fly it;
    - phased handovers everywhere, and the guard as a barrier;
-   - G onset smooth, constant and deliberate;
+   - G onset smooth and deliberate, scaled by urgency (about 1 G/s usually, up to 4 G/s to avoid hitting);
    - all TS-233 rulings folded in, with a picture.
 2. **An Opus agent audits the draft,** read-only, against the control model and the rig (Patrick: "Spec 7e, then he will audit it"). In a new session, brief a fresh agent from the control model, the method plan and the review. Then Patrick approves.
 3. **Round 5, re-cut from draft 4, in slices behind Live** (Old the default). Each slice must meet gates C1-C11 (`control-systems-analysis-plan.md` §7) before Patrick flies it. If one struggles, stop, analyse, and Patrick ratifies the fix. Run the method plan's measurements on each slice. The tapered guard comes first.
