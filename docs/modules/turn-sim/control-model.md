@@ -4,7 +4,7 @@
 
 **What this is.** The control-systems model of #2, the live wingman, in fighting wing and close formation: every controller, what it senses and commands, how the controllers share the controls, how they are tuned, and a first cut of each loop's speed and margins. Plan T29m part 1 (Patrick 14 Oct 2026: "build the system we asked originally, including its reccomendations"); the method is `Pat's claude work/formation-review-12oct/control-systems-analysis-plan.md`. It describes the code as built and changes nothing in flight. Every number here comes from the code, a ruling, a manual page or standard physics, or is an estimate; the loop margins are all estimates until part 2's rig checks them against the sim. The thread, the rule book (`AGENTS.md`), spec 7b and 7e and TS-233 win over anything here.
 
-**Status.** formation-close-wingman-b2 at 8509fcff: the T29t tidy (482f0857) and the powerFor to powerAsk rename (db651dec). 14 Oct 2026, plan T29m part 1 (Opus, high). An estimate of the code as built, read by hand; the trace columns and the ledger are checked by check.mjs. Nothing here changes how anything flies.
+**Status.** formation-close-wingman-b2 at c65159fe (the T29t tidy 482f0857, the powerAsk rename db651dec) with part 2's trace columns and probe (flying unchanged). 14 Oct 2026, plan T29m parts 1 and 2 (Opus, high). An estimate of the code as built, read by hand; the trace columns and the ledger are checked by check.mjs. Nothing here changes how anything flies.
 
 **How it stays true to the code.** One master list (`tools/control-map/signals.mjs`) holds every block, signal, rule, switch and number role. This page and its pictures are drawn from it (`draw.mjs`), and a check (`check.mjs`) compares it with a gauge run's trace columns and with the code's tuning tables, failing on a missing row, an unknown column or an unlisted number. When a wingman file changes, run the check; if it fails, the master list changes in the same piece of work. The steps are in `tools/control-map/README.md`.
 
@@ -35,6 +35,9 @@
 - **R10 (confirmed).** Close formation: holdingTorque and powerLeadPct fed forward into torque, Lead's lift and his place's motion into the one lift vector, three pilotAxis loops on what is left; job changes eased (masks, caps). The cross-feed pattern working.
 - **R11 (new).** The aim is eased every step, not only at a change of aim. steerToAim eases his aim's offset against Lead (world axes) over 1.5 s every step, so in a steady turn the aim point lags Lead's rotation by atan(ω × 1.5 s): about 12° at 60°/2 G, 26° at 4 G. In the cm run the commanded and flown offset differ by a median 90-400 ft in the steady part of the turns away, outside the filter. A likely contributor; part 2's rig confirms or clears it.
 - **R12 (new).** Three signals the spec meant for the supervisor are read by nothing: line of sight (the guard's reversal cue went with the tidy), aspect and HCA. Trace only.
+- **R13 (new (part 2)).** The rig confirms the linear models where the filter is quiet: the vertical, steering on the swept line and the speed hold (straight and level) each match their model within 30% in time and 10 points of overshoot. One model fix: the vertical's D acts on his height rate, not on the error, so a change of target goes through P only (no 19% overshoot; 1% in both). In Lead's 60° turn the arc loop and the offset can't be checked linearly at all: at the trim the code settles to (604 ft of arc, 102 ft inside, 228 ft low) the filter flies him half the time.
+- **R14 (new (part 2)).** Truly abeam (0-15° of sweep at 625 ft) the formation reads "other", not fighting wing, and refuses Lead's fighting wing presses; the gauge's abeam case sits at 20°, the nearest it accepts. From there, Lead turning into him: #2 banks the same way as Lead 92% of the first 10 s (to 52-90° against Lead's 60°), the filter flies 98% of the turn, and he ends 49° ahead of Lead's 3/9 line, 302 ft low and 23.5 kt slow, the throttle changing owner 37 times.
+- **R15 (new (part 2)).** Patrick's "overcontrolling ... aimpoint and roll and G" measured: G onset up to 1.7-3.3 G/s in every academic turn (1-5 s a turn over 1 G/s), 2-137 aim jumps a turn (into tight 137), 3-24.5 s a turn over Lead's G + 0.5. "Too low": 8-25 s a turn more than 100 ft below the stack, lowest 240-315 ft in the turns. Energy: into tight loses 27 kt against Lead for 40 G·s of G over Lead's. Torque: up to 36 swings of 30 points a turn.
 
 ## 2. Block diagrams
 
@@ -311,7 +314,7 @@ Every item of `Pat's claude work/formation-review-12oct/fighting-wing-code-histo
 
 ## 6. The switching map (today's code)
 
-"Crossings" counts how often #2's trigger signal crossed the switch's on line in the fighting wing set (the cm gauge run, 11 traces); "wobble" is its spread about its own 2 s trend at a crossing; a band under about twice the wobble will chatter (an estimate, plan C6). Made by `tools/control-map/ripple.mjs`; switches whose trigger the gauge doesn't trace wait for part 2.
+"Crossings" counts how often #2's trigger signal crossed the switch's on line in the fighting wing set (the cm gauge run, 12 traces with the abeam case); "wobble" is its spread about its own 2 s trend at a crossing; a band under about twice the wobble will chatter (an estimate, plan C6). Made by `tools/control-map/ripple.mjs`; switches whose trigger the gauge doesn't trace wait for part 2.
 
 | Switch | Block | Trigger | On | Off | Hold | Changes | Flies or label | Crossings, wobble, band ÷ wobble (cm run) | Note |
 |---|---|---|---|---|---|---|---|---|---|
@@ -319,22 +322,22 @@ Every item of `Pat's claude work/formation-review-12oct/fighting-wing-code-histo
 | entryCase | Jobs (fwJob) | slant, slant closure | tight < 560 ft or closure > 20 ft/s; stretched > 700 ft | at each turn start or reversal | the turn | the job label only | label | part 2 | R7; the gauge's "in position" 780 ft start reads stretched |
 | exitSide | Jobs (fwJob) | slant, slant closure at the turn end | tight: slant < 600 or closure > 15 → outside; stretched: > 700 or opening > 10 → inside | - | until the next turn | the swept side | yes | part 2 | SMM Fig 12.23 |
 | sTurn | Jobs (fwJob) | slant, slant closure | slant < 550 or (closure > 15 and slant < 650) | slant ≥ 600 and closure < 10 | side swapped at half the swept lateral | the swept side, back and forth | yes | 2 crossings of 550 (`slantFt`); wobble 43.3; band 50 = 1.16 × wobble | Patrick 14 Oct 2026 |
-| quickFix | Jobs (fwJob) | slant error from 625, slant closure | error > 150 ft and closure < 10 (down); closure > 20 and error < 75 (up) | \|error\| < 75 and \|closure\| < 10 | target eased 2 s, back over 15 s | height target ±150 ft (level only) | yes | 35 crossings of 20 (`closureFtps`); wobble 6.3; band 10 = 1.58 × wobble | Fable F7 |
+| quickFix | Jobs (fwJob) | slant error from 625, slant closure | error > 150 ft and closure < 10 (down); closure > 20 and error < 75 (up) | \|error\| < 75 and \|closure\| < 10 | target eased 2 s, back over 15 s | height target ±150 ft (level only) | yes | 39 crossings of 20 (`closureFtps`); wobble 6.8; band 10 = 1.47 × wobble | Fable F7 |
 | lowInside | Jobs (fwJob) | short of Lead's KIAS | > 5 kt | < 1 kt | - | height −300 ft, power MAX (stack family has pitch) | yes | part 2 | TS-233 "Drop low inside, MAX" |
 | lagFirst | Lag first | Lead's seen bank toward his side | crossing 10° | timer 2.5 s + 1 s ease | the timer | aim 20° outward of Lead's circle | yes | part 2 | Goes: ruling 14 Oct 2026 ("fly straight ahead until I'm on the turn circle I want") |
 | noseBehind | Nose behind | the filter's lineShort (last step) | lineShort | lineShort false and 200 ft behind the wing line | - | aim where Lead was 1 s ago; pitch in and down 300 ft | yes | part 2 | A switch driven by a switch (R9) |
 | yoyo | High yo-yo | slow-to-hold, powerBack, arc closure excess | > 10 kt and power back and > 20 ft/s over the arc loop's want | on circle (arc error and d < 150 ft), well behind, opening, or Lead's turn over; down ends within 50 ft of the stack | - | height target +100 to +200 ft, then down with power back | yes | part 2 | Three inputs from three blocks |
 | ownerHold | Pitch owner | the owner wanted | a new owner | - | 2 s, except pass-clear and in and down at once | which height target the PD flies | yes | part 2 | Fable F9 |
-| guard | Guard (fwGuard) | the guard's own predicted pass (0.4 s old picture), slant | < 600 ft predicted or < 500 ft now | > 700 ft for 3 s | 3 s | pass-clear wanted (with the filter's hold); power I frozen; aim not blended; G cap opened under 500 ft | yes | 35 crossings of 600 (`predFt`); wobble 25.7; band 100 = 3.89 × wobble | Replaced by the taper ruling (14 Oct 2026) |
-| filterFailing | Separation filter | his aim's predicted pass and wing-line distance | pass < 500 + 1.4 s × closure (≥ 600 ft) or < 100 ft behind the wing line | the same line, no hysteresis | none | replaces his turn with the nearest clearing one | yes | 127 crossings of 600 (`passFt`); wobble 46.8; band 0 = 0 × wobble | The working switch: no band at all (F3 of the review) |
+| guard | Guard (fwGuard) | the guard's own predicted pass (0.4 s old picture), slant | < 600 ft predicted or < 500 ft now | > 700 ft for 3 s | 3 s | pass-clear wanted (with the filter's hold); power I frozen; aim not blended; G cap opened under 500 ft | yes | 41 crossings of 600 (`predFt`); wobble 28.1; band 100 = 3.55 × wobble | Replaced by the taper ruling (14 Oct 2026) |
+| filterFailing | Separation filter | his aim's predicted pass and wing-line distance | pass < 500 + 1.4 s × closure (≥ 600 ft) or < 100 ft behind the wing line | the same line, no hysteresis | none | replaces his turn with the nearest clearing one | yes | 132 crossings of 600 (`passFt`); wobble 49.5; band 0 = 0 × wobble | The working switch: no band at all (F3 of the review) |
 | filterEngaged | Separation filter | the same | failing | clear by 50 ft for 1 s | 1 s | the job label "guard-filter" only | label | part 2 | History: fe258241 moved job counts, not the flying |
 | filterSide | Separation filter | the cost of each candidate | the other side clears and costs less by more than one full turn range | - | cost penalty, no time dwell | which way the filter turns him | yes | part 2 | The either-or that breaks at +0.2 s (review F8) |
 | filterHold | Separation filter | the filter acted | it changed his turn | 1 s after | 1 s | power to 20% while closing; pass-clear wanted with the guard on | yes | part 2 | R9 |
-| powerCut | Power (powerAsk) | filter hold and arc closure sign | held and closing > 0 | closure ≤ 0 or hold over | none on the closure sign | throttle to 20% torque | yes | 34 crossings of 0 (`cActualFtps`); wobble 3.4; band 0 = 0 × wobble | Toggled 30 times in the turn away from in position (review F3) |
+| powerCut | Power (powerAsk) | filter hold and arc closure sign | held and closing > 0 | closure ≤ 0 or hold over | none on the closure sign | throttle to 20% torque | yes | 42 crossings of 0 (`cActualFtps`); wobble 3.3; band 0 = 0 × wobble | Toggled 30 times in the turn away from in position (review F3) |
 | downPower | Power (powerAsk) | yo-yo down and faster than Lead | both | either | - | throttle to 20% | yes | part 2 |  |
 | lowMax | Power (powerAsk) | low inside with the stack family on pitch | both | either | - | MAX | yes | part 2 |  |
-| idle | Power (powerAsk) | closure (arc in a turn, else slant), where, not slow | > 40 ft/s and (slant < 650 or closing on the pass line) | < 25 ft/s | band 15 ft/s | throttle 0 (3.5 s spool-up) | yes | 11 crossings of 40 (`cActualFtps`); wobble 22.1; band 15 = 0.68 × wobble | brakes.slowKt 0 acts as a relay on speed (review F12) |
-| boards | Power (powerAsk) | as idle | > 60 ft/s | < 35 ft/s | band 25 ft/s | boards out | yes | 10 crossings of 60 (`cActualFtps`); wobble 28.9; band 25 = 0.86 × wobble |  |
+| idle | Power (powerAsk) | closure (arc in a turn, else slant), where, not slow | > 40 ft/s and (slant < 650 or closing on the pass line) | < 25 ft/s | band 15 ft/s | throttle 0 (3.5 s spool-up) | yes | 13 crossings of 40 (`cActualFtps`); wobble 22.1; band 15 = 0.68 × wobble | brakes.slowKt 0 acts as a relay on speed (review F12) |
+| boards | Power (powerAsk) | as idle | > 60 ft/s | < 35 ft/s | band 25 ft/s | boards out | yes | 13 crossings of 60 (`cActualFtps`); wobble 24.7; band 25 = 1.01 × wobble |  |
 | capOpen | G cap | guard pass < 500 ft, or the filter needs more | either | neither | none | G cap from Lead + 1.5 to the aircraft's | yes | part 2 | A step in the cap |
 | unloadRollPull | Lift (liftWithin) | wings off the wanted lift | > 20° | ≤ 20° | none | pulls only the share along the wings | yes | part 2 | A kink, continuous in value |
 | turnPlane | Steering (steerToAim) | Lead's seen turn rate | > 1°/s | ≤ 1°/s | none | steering and the vertical in Lead's turn plane or the level plane | yes | part 2 |  |
@@ -345,7 +348,7 @@ Every item of `Pat's claude work/formation-review-12oct/fighting-wing-code-histo
 | cfTelegraph | Shaper (the hand) | Lead's seen roll rate | > 1°/s | ≤ 1°/s | none | torque rate 20%/s × reach | yes | part 2 | A step in a rate limit |
 | cfDeconflict | Station change and deconfliction | his place against Lead | wings overlap, within a span + 2 ft, ahead of 5 ft behind the 3/9 line | dead bands 1-5 ft | dead bands | the place he aims at | yes | part 2 | spec 7c.3 |
 
-**What it shows.** The filter's working line has no band at all and was crossed 127 times with a 47 ft wobble. Idle and the boards have bands smaller than their trigger's wobble (0.7 and 0.9 times). The power cut trips on the sign of the closure, which crossed zero 34 times. These are exactly the places the round 4 gauge counted flicker and torque reversals, and the review's delay sweep broke on (its F8: the filter's choice of side). Two switches change only a label (the filter's engagement, the entry case) and one the trace only (the aim's kind).
+**What it shows.** The filter's working line has no band at all and was crossed 132 times with a 50 ft wobble. Idle's band is smaller than its trigger's wobble (0.7 times) and the boards' only equal to it (1.0). The power cut trips on the sign of the closure, which crossed zero 42 times. These are exactly the places the round 4 gauge counted flicker and torque reversals, and the review's delay sweep broke on (its F8: the filter's choice of side). Two switches change only a label (the filter's engagement, the entry case) and one the trace only (the aim's kind).
 
 ## 7. Bandwidth and delay: a first cut
 
@@ -610,9 +613,9 @@ A blend is the wrong tool for safety: half of a safe command plus half of an uns
 
 | Today's switch | Evidence | Phased version | What it fixes | Tuning values |
 |---|---|---|---|---|
-| The filter's working line (500 ft + 1.4 s × closure, at least 600 ft; engaged until clear by 50 ft for 1 s) | 127 crossings, 47 ft wobble, no band | Patrick's taper, the constraint form: nothing at or over 600 ft, the allowed closing speed shrinking to none at 500 ft | The flicker, the rail flying him at the ideal, the label-only hysteresis | Removes 5 (engage and release lines, their holds); adds 1-2 (the taper's shape and time) |
-| The power cut (20% torque while the filter held and closing) | 34 crossings of zero closure; 30 toggles in one turn (review F3) | The guard's graded bleed request into the energy intent, by the taper's weight | The power relay fighting the G | Removes 2; adds 0-1 |
-| Idle and the boards (40/25 and 60/35 ft/s) | Bands 0.7 and 0.9 × the wobble | Idle: a phased throttle reduction by closure excess. The boards are a physical step (Patrick: "a very large step change in drag"), so keep the switch, with a band of at least twice the wobble and a minimum time out | Idle chatter; boards in and out | About the same |
+| The filter's working line (500 ft + 1.4 s × closure, at least 600 ft; engaged until clear by 50 ft for 1 s) | 132 crossings, 50 ft wobble, no band | Patrick's taper, the constraint form: nothing at or over 600 ft, the allowed closing speed shrinking to none at 500 ft | The flicker, the rail flying him at the ideal, the label-only hysteresis | Removes 5 (engage and release lines, their holds); adds 1-2 (the taper's shape and time) |
+| The power cut (20% torque while the filter held and closing) | 42 crossings of zero closure; 30 toggles in one turn (review F3) | The guard's graded bleed request into the energy intent, by the taper's weight | The power relay fighting the G | Removes 2; adds 0-1 |
+| Idle and the boards (40/25 and 60/35 ft/s) | Bands 0.7 and 1.0 × the wobble | Idle: a phased throttle reduction by closure excess. The boards are a physical step (Patrick: "a very large step change in drag"), so keep the switch, with a band of at least twice the wobble and a minimum time out | Idle chatter; boards in and out | About the same |
 | The G cap opening (Lead + 1.5 to the aircraft's, when the guard's pass is under 500 ft or the filter needs more) | A step in the cap | The cap rises with the taper's weight between about 550 and 500 ft | A G step at the bubble | Adds 0 (shares the taper) |
 | The arc loop's closure limit (25 ft/s within 300 ft, 60 beyond) | A step in a saturation | A smooth limit from 25 to 60 over about 200-400 ft (softMin) | A jump in the wanted closure | Same count |
 | Lead's turn start (10° held 1 s) | Starts 1.4 s after the roll is seen | The phase weight grows with Lead's seen bank and roll (review 2.1: no hold) | A late entry; lag first's reason to exist | Removes 1 |
@@ -662,7 +665,7 @@ A blend is the wrong tool for safety: half of a safe command plus half of an uns
 | Speed → the offset | d_ss = R(1 − V2/V_L): his speed handed to the offset (R5) | There | Keep; it is what lets power serve energy and the arc loop own closure |
 
 **Which existing links are the harmful kind:**
-- **Power back → the yo-yo's trigger** (R9): a relay's state as a trigger; it ties the yo-yo to the power cut's 34 crossings.
+- **Power back → the yo-yo's trigger** (R9): a relay's state as a trigger; it ties the yo-yo to the power cut's 42 crossings.
 - **The filter's lineShort → the nose behind** (R9): a search result switching an aim override.
 - **The filter's hold → the power cut** (R9): pulling 3.5 G with power cut, the opposite of Patrick's rule (review F5), toggling 30 times in one turn.
 - **The guard on → pass-clear's pitch, the aim blend, the power integral** (R8, R9): a second predictor's switch changing three loops' structure; with the filter's hold it is what takes him 300 ft low (review F6).
@@ -688,7 +691,7 @@ The planner stays in reserve. The linear margins are large (section 7), so a pla
 ## 11. Notes and ideas (revelations and things that might work, each with its evidence)
 
 - **R11, the aim blend is always on.** `steerToAim` eases the aim against Lead every step, so in a steady turn the aim lags Lead's rotation by about atan(ω × 1.5 s): about 12° at 60°/2 G, 26° at 4 G. Evidence: in the cm run, outside the filter, the commanded and flown offsets differ by a median 90-400 ft in the steady part of the turns away (a scratch count). It might be part of why the turns end far back. Idea: blend only across a change of aim, with a weight that ends; part 2's rig can show the difference before anyone changes the flying.
-- **The fragility is in the switches, measured.** Linear margins of seconds (section 7) against 0.1 s in the full sim; the filter's line crossed 127 times. This supports the review's F8 and the taper ruling, and means round 5's guard-rail slice should move the delay margin most.
+- **The fragility is in the switches, measured.** Linear margins of seconds (section 7) against 0.1 s in the full sim; the filter's line crossed 132 times. This supports the review's F8 and the taper ruling, and means round 5's guard-rail slice should move the delay margin most.
 - **Power's arc term does nothing to closure (R5 corrected).** A whole N² cell and a tuning value that can go, with no loss.
 - **Close formation's line axis is twice as stiff in a 60° turn.** Its bank-to-lift gain is multiplied by Lead's G, so the loop's crossover doubles in a 2 G turn and its linear margin drops to about 18°. It flies well today; if part 2 or Patrick's flying ever shows a lateral hunt in steep close turns, dividing by Lead's G (a fixed lift per foot) is the candidate. A flying change, for Patrick only.
 - **Three seen cues feed nothing (R12).** Line of sight, aspect and HCA are traced but read by nobody since the tidy. The phase could use the manual's own reversal cue, a definite increase in line of sight (SMM 16.20 para 65b(2)), and HCA ≈ 2 × aspect as the "on the circle" test (SMM 16.16, Fable F10) for "captured".
@@ -698,23 +701,140 @@ The planner stays in reserve. The linear margins are large (section 7), so a pla
 
 ## 12. Questions for Patrick
 
-The thread relays these one at a time; each has a working answer in the model until he replies.
+**Answered since part 1 (TS-233):**
 
-**Q1. Where does #2's 0.4 s sit in fighting wing? Today it is on Lead only (he knows his own motion now); close formation delays the whole picture.**
-- (a) Lead only, as now: matches "0.4 s after he sees Lead's bank and nose start"
-- (b) the whole picture, as close formation: the textbook pilot; less margin
-- (c) split: Lead 0.4 s, his own motion felt sooner (0.1-0.2 s, an estimate)
-- (d) your own picture
-- *Recommended:* (a) as the working answer, with (b) measured beside it in each slice (the table already has both); decide once a slice shows a difference.
+- Where the 0.4 s sits: "a", Lead only, dead-reckoned, his own state known at once; round 5 brings slant, closure, the guard and the jobs onto that rule; the whole picture measured beside it each slice (the gauge's --delay-mode picture).
+- At the G cap: "airpeed then vertical then turn": he holds a smooth, steady G and lets the speed bleed; G onset smooth, constant and deliberate; reaching the cap rare.
 
-**Q2. At the G cap, which gives way first: the turn (today) or the vertical? Your tool order is geometry first, then the vertical.**
-- (a) the turn gives way (today): height held, geometry suffers
-- (b) the vertical gives way: geometry first, as your order
-- (c) shared in proportion
-- (d) your own
-- *Recommended:* (b) in the turn and at the entry, except while the guard asks for pass-clear (then the vertical first); for the path-follower slice to measure.
+**Open** (the thread relays these one at a time; each has a working answer until he replies):
 
-## 13. Untested, unseen and unsure
+**Q1. What G onset is "smooth, constant and deliberate" for #2 in fighting wing? Today he reaches 1.7-3.3 G/s (smoothed) in every academic turn.**
+- (a) about Lead's own academic roll-in, about 1 G/s at most (the gauge's working line)
+- (b) gentler, about 0.5 G/s
+- (c) the aircraft's onset (4 G/s) whenever the guard needs it, about 1 G/s otherwise
+- (d) your own number
+- *Recommended:* (c): about 1 G/s as round 5's working line in the academic set, the guard alone allowed more; it is what the gauge now counts.
+
+**Q2. Truly abeam (0-15° of sweep) the formation calls #2 "other", not fighting wing, and refuses Lead's turn presses. Should abeam count as fighting wing for Lead's moves?**
+- (a) yes: anywhere behind Lead's 3/9 line out to the cone's range counts, so Lead can always manoeuvre
+- (b) no: keep today's band; the gauge's abeam case sits at 20°
+- (c) your own
+- *Recommended:* (a): Lead never waits for #2 (TS-233), so a press should never be refused for #2's place; a screen and formation change for the thread, not this kit.
+
+## 13. Part 2: the measuring kit, and what it shows of today's faults
+
+Patrick, his first flight of V2.433 Live (14 Oct 2026): "hes overcontrolling his aimpoint and roll and G way too much. I think we need to have 'gentle handovers' between switches. hes also holding too much low stack in general ... the excess G and fast onset is bleeding his energy ... in FW we basically assess the error, make a plan, smoothly execute the plan/monitor perofmrance/adjust as requied". The kit below measures exactly those, on today's code, as the known-bad baseline for round 5.
+
+**What was added (flying unchanged).** Every default gauge trace (32) and every live b5 trace (11) is unchanged apart from added columns (`Pat's claude work/formation-review-12oct/gauge-trace-compare.mjs`, shown first catching one changed G value). The 4-ship probe still gives 2d5b5a8020839796 with default options and with fwWing 'live'.
+- **Controller columns** in the gauge's traces: each loop's terms, each control's ask against its grant, the winner, the limits (table below). Close formation's P and D per axis, its feed-forwards and its asks against what the hand gave.
+- **Fault measures and counts per press,** printed by the gauge and kept in each trace's `faults` key: the G onset, aim jumps, wrong-way roll, time over Lead's G + 0.5, torque swings of 30 points, time more than 100 ft below the stack, speed lost against Lead for the G used over his, the filter's and the guard's share, each control's owner changes with their mean hold, and each loop's time at a limit. Every threshold is an estimate, named in `tools/formation-gauge.mjs`.
+- **An analysis probe and delay flags** (`fighting-wing.js` `setFwAnalysis`, never set in flying). The gauge's `--extra-delay s` and `--delay-mode lead|picture` (the whole picture late: Patrick kept "lead" and asked for "picture" to be measured beside it each slice). The probe adds a step at `cWant`, `aimLateral`, `heightTarget` or `wantKias`.
+- **The scripted-Lead rig** `tools/fw-rig.mjs`: the real technique on the real point mass against a Lead flying a script, with a probe step after he settles.
+- **The abeam case** `b5-into-abeam` in the gauge's b5 set: today's known-bad baseline.
+
+| Gauge column | Block | Unit | What it shows |
+|---|---|---|---|
+| `fwSteerAngleDeg` | Steering (steerToAim) | ° | angle from his path to the aim line |
+| `fwSteerPG` | Steering (steerToAim) | G | steering P term (toward the aim line) |
+| `fwSteerFfG` | Steering (steerToAim) | G | the aim line's turn fed forward, along P's direction (R3: hidden feedback) |
+| `fwAimTurnDps` | Steering (steerToAim) | °/s | the aim line's turn as fed forward (after the cap) |
+| `fwAimTurnRawDps` | Steering (steerToAim) | °/s | the aim line's turn before the cap |
+| `fwAimJumpFt` | Steering (steerToAim) | ft per step | how far his aim moved against Lead this step (jumps) |
+| `fwTurnAskG` | Steering (steerToAim) | G, + left | turn asked by steering |
+| `fwTurnFlownG` | Separation filter | G, + left | turn after the filter |
+| `fwTurnGrantedG` | Lift (liftWithin) | G, + left | turn granted after the cap and unload-roll-pull |
+| `fwTurnWinner` | Separation filter | name | who won the turn: steer or filter |
+| `fwCapG` | G cap | G | the G cap this step |
+| `fwCapBind` | Lift (liftWithin) | 0/1 | the cap cut the turn |
+| `fwUrp` | Lift (liftWithin) | 0/1 | unload, roll, pull acting |
+| `fwArcDssFt` | Arc loop (aimInTurn) | ft | arc loop: the station-holding offset d_ss |
+| `fwArcFfFt` | Arc loop (aimInTurn) | ft | arc loop: wanted closure over Lead's turn rate (its feed-forward) |
+| `fwArcKcFt` | Arc loop (aimInTurn) | ft | arc loop: the shortfall term |
+| `fwArcWantFt` | Arc loop (aimInTurn) | ft | arc loop: offset wanted, before the slew |
+| `fwArcLimit` | Arc loop (aimInTurn) | name | arc loop limit binding: offset, slew or closure |
+| `fwVertErrFt` | Vertical PD | ft | vertical: height error (target less his height) |
+| `fwVertRateFtps` | Vertical PD | ft/s | vertical: his height rate against Lead's (D acts on this, not on the error) |
+| `fwVertPG` | Vertical PD | G | vertical P term |
+| `fwVertDG` | Vertical PD | G | vertical D term |
+| `fwVertG` | Vertical PD | G | vertical ask after its ±1 G limit |
+| `fwVertLimit` | Vertical PD | 0/1 | vertical at its limit |
+| `fwPowerKind` | Power (powerAsk) | name | who won the throttle: hold, cut, max, yoyoDown, idle |
+| `fwPowerPFtps` | Power (powerAsk) | ft/s | power P (the closure the aim can't give) |
+| `fwPowerIFtps` | Power (powerAsk) | ft/s | power I |
+| `fwPowerBandClip` | Power (powerAsk) | 0/1 | the 15 KIAS band clipping P + I |
+| `fwGuardOn` | Guard (fwGuard) | 0/1 | the guard on |
+| `fwFilterOn` | Separation filter | 0/1 | the filter changed his turn |
+| `fwFilterEngaged` | Separation filter | 0/1 | the filter engaged (a label) |
+| `fwLeadG` | Sight (seeFw) | G | Lead's G as he sees it |
+| `fwLeadGFlown` | Lead | G | Lead's G as flown (the gauge's) |
+| `cfPlaneP` | Three axes (closeLaw) | G | plane axis P |
+| `cfPlaneD` | Three axes (closeLaw) | G | plane axis D |
+| `cfPlaneI` | Three axes (closeLaw) | G | plane axis trim |
+| `cfLineP` | Three axes (closeLaw) | G (out) | line axis P |
+| `cfLineD` | Three axes (closeLaw) | G (out) | line axis D |
+| `cfHingeP` | Three axes (closeLaw) | torque % | hinge axis P |
+| `cfHingeD` | Three axes (closeLaw) | torque % | hinge axis D |
+| `cfLeadPct` | Power lead (feed-forward) | torque % | the power lead (feed-forward) |
+| `cfHoldPct` | Holding power (feed-forward) | torque % | the holding power (feed-forward) |
+| `cfAskUpG` | Three axes (closeLaw) | G | up correction asked (granted: the shaper's, in gWant) |
+| `cfAskLeftG` | Three axes (closeLaw) | G | left correction asked |
+| `cfAskTorquePct` | Three axes (closeLaw) | torque % | torque asked (granted: torquePct) |
+| `cfFfUpG` | Sight (perceive) | G | his place's motion fed forward, up |
+| `cfFfLeftG` | Sight (perceive) | G | his place's motion fed forward, left |
+| `cfGAheadG` | Sight (perceive) | G | Lead's G dead-reckoned 0.3 s ahead |
+| `cfJob` | Supervisor | name | the supervisor's job |
+
+### 13.1 Today's faults, case by case (the cm run; `tools/control-map/faults.mjs`)
+
+| Case | Press | G onset max (G/s) | Time over 1 G/s (s) | Aim jumps | Wrong-way roll (s) | Over Lead's G + 0.5 (s) | Torque swings | Below −150 ft (s), lowest | Speed lost against Lead (kt), for G·s over his | Filter acting, guard on (share) | Throttle owner changes |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| away-in-position | Level turn away from #2, in position, 30 s | 1.8 | 3 | 38 | 0 | 6.2 | 33 | 11.3 (-290) | 3.9 (6.6) | 0.24, 0.59 | 44 |
+| away-in-position | Wings level, 30 s | 2 | 1.4 | 3 | 0 | 2.4 | 9 | 29.4 (-306) | -0.9 (3.2) | 0.04, 1 | 8 |
+| away-stretched | Level turn away from #2, stretched (950 ft), 30 s | 2.3 | 5.1 | 38 | 0.3 | 10 | 6 | 7.8 (-278) | 4.3 (11.7) | 0.13, 0.55 | 5 |
+| away-stretched | Wings level, 30 s | 2.1 | 1 | 33 | 0 | 0.9 | 5 | 22.9 (-288) | -12.2 (1.8) | 0.02, 0.22 | 8 |
+| away-tight | Level turn away from #2, tight (520 ft), 30 s | 2.7 | 3.5 | 2 | 0.8 | 5.2 | 33 | 19.9 (-304) | 5.4 (6.5) | 0.33, 0.7 | 45 |
+| away-tight | Wings level, 30 s | 2.9 | 1 | 2 | 0 | 1.4 | 0 | 19.9 (-303) | -7.6 (3) | 0, 1 | 2 |
+| climb | Straight climb, 40 s | 0.5 | 0 | 0 | 0 | 0 | 1 | 0 (-149) | -1.5 (0.9) | 0, 0 | 0 |
+| climb | Descend, 40 s | 3 | 3 | 3 | 0 | 6 | 5 | 11.2 (-162) | -4.2 (11.8) | 0.45, 0.66 | 6 |
+| echelon-to-fw | Echelon to fighting wing | 1.2 | 0.2 | - | 0 | 0.6 | 1 | 0 (-3) | 0.5 (0.7) | 0, 0 | 0 |
+| into-abeam | Level turn into #2 from nearly abeam (625 ft, 20° swept), 30 s | 3.2 | 3.1 | 2 | 0 | 2.7 | 28 | 12.2 (-315) | 23.5 (5.7) | 0.98, 0.98 | 37 |
+| into-abeam | Wings level, 30 s | 2.2 | 0.8 | 1 | 0 | 0.9 | 1 | 20.1 (-302) | -20.5 (2.1) | 0.1, 1 | 1 |
+| into-in-position | Level turn into #2, in position, 30 s | 2.1 | 2.1 | 7 | 2.9 | 8.6 | 3 | 14.9 (-240) | -8.7 (12.1) | 0.08, 0.25 | 6 |
+| into-in-position | Wings level, 30 s | 2 | 0.5 | 34 | 0 | 2.2 | 15 | 6.8 (-183) | 8.1 (3) | 0.02, 0.5 | 14 |
+| into-stretched | Level turn into #2, stretched (950 ft), 30 s | 1.7 | 1.5 | 33 | 1.5 | 5.9 | 36 | 17.4 (-299) | 7.1 (8) | 0.28, 0.37 | 41 |
+| into-stretched | Wings level, 30 s | 2.2 | 0.9 | 1 | 0 | 1 | 4 | 19.8 (-305) | -9.1 (1.9) | 0.02, 1 | 8 |
+| into-tight | Level turn into #2, tight (520 ft), 30 s | 3.3 | 1.3 | 137 | 0 | 24.5 | 3 | 24.5 (-300) | 27 (40.1) | 0.48, 0.22 | 5 |
+| into-tight | Wings level, 30 s | 1.2 | 0.3 | 46 | 0 | 7.8 | 0 | 18.8 (-326) | -37 (10.2) | 0, 0 | 2 |
+| outside-cone | Level turn into #2 from outside the cone (1,300 ft), 30 s | 2 | 1.7 | 37 | 1.9 | 7.5 | 15 | 16.4 (-297) | 3.3 (9.4) | 0.22, 0.48 | 30 |
+| outside-cone | Wings level, 30 s | 1.9 | 1 | 4 | 0 | 2 | 3 | 30 (-306) | -1.8 (2.9) | 0.04, 1 | 0 |
+| reversal-mid-entry | Level turn away from #2, 3 s of it | 1.3 | 0.9 | 25 | 0 | 0.3 | 1 | 0 (-28) | -2.9 (0.3) | 0, 0 | 0 |
+| reversal-mid-entry | Reversal mid-entry (now into #2), 30 s | 2.2 | 2 | 13 | 1.8 | 6.6 | 9 | 11.5 (-302) | 5.4 (9.2) | 0.33, 0.5 | 16 |
+| reversal-mid-entry | Wings level, 30 s | 2.1 | 0.9 | 4 | 0 | 2.2 | 3 | 29.4 (-304) | 0.8 (2.9) | 0.04, 1 | 0 |
+| turn-button | Turn button: 90° into #2 in fighting wing | 3 | 6.6 | - | 1.8 | 5.3 | 5 | 0 (-129) | 0 (12) | 0, 0 | 0 |
+
+**Reading it, in Patrick's words:**
+- **"Overcontrolling ... G" and "fast onset":** the smoothed G onset reaches 1.7-3.3 G/s in every academic turn and spends 1-5 s a turn over 1 G/s. Lead's own academic roll-in builds about 1 G over his roll. He is over Lead's G + 0.5 for 3-25 s of a 30 s turn (into tight 24.5 s).
+- **"Overcontrolling his aimpoint":** 2-137 aim jumps a turn (more than 25 ft against Lead in one step), the aim line's turn reaching up to 109°/s before its cap. R11's every-step aim blend and the overrides (lag first, the nose behind, the filter) are where they come from.
+- **"Gentle handovers between switches":** the throttle changes owner up to 37 times in a turn (into from nearly abeam); the turn's winner flips between steering and the filter up to 16 times in a wings-level settle.
+- **"Too much low stack":** 7-30 s a press more than 100 ft below his 50 ft stack, lowest 183-326 ft, in every academic turn case. The pitch owners commanding 300 ft (review F6) hold him there.
+- **"The excess G ... is bleeding his energy":** into tight loses 27 kt against Lead for 40 G·s over Lead's G. The turns away lose 4-5 kt for 7-12 G·s.
+- **"Abeam, Lead turning into him, he just matches his bank":** confirmed (R14). From nearly abeam he banks the same way as Lead 92% of the first 10 s, the filter flies 98% of the turn, and he ends 49° ahead of Lead's 3/9 line, 302 ft low and 23.5 kt slow.
+
+### 13.2 The rig against the linear models (plan C11)
+
+<!-- made by tools/flight-design/fw_loops.py rig_check from results/fw-rig.json (tools/fw-rig.mjs); every model row an estimate -->
+
+| Rig case | What steps | Rig: final, peak, overshoot %, 63% (s) | Linear model: final, peak, overshoot %, 63% (s) | Verdict |
+|---|---|---|---|---|
+| vertical-T1 | height against Lead (ft) for a 40 ft step in the height target | 1, 1.014, 1, 4.85 | 1.0, 1.013, 1, 4.62 | holds |
+| steering-T1 | his lateral place (ft, out) for a 60 ft step in the swept aim | 0.979, 0.982, 0, 9.25 | 0.989, 0.992, 0, 7.45 | holds |
+| power-T1 | his KIAS for a 3 KIAS step in the wanted speed | -0.136, 0.558, 310, 2.45 | -0.137, 0.577, -, 2.59 | holds |
+| offset-T2 | his offset d inside Lead's circle (ft) for a 60 ft step in the aim's offset | 4.581, 4.721, 3, 19.55 | -, -, -, - | not checkable linearly: the filter flies him at this trim (filter acting 217 of 400 recorded steps after the step; trim s 604 ft, d 102 ft, height -228 ft) |
+| arc-T2 | his arc closure (ft/s) for a 5 ft/s step in the wanted closure | -1.083, -3.394, 213, 0.25 | -, -, -, - | not checkable linearly: the filter flies him at this trim (filter acting 199 of 400 recorded steps after the step; trim s 604 ft, d 102 ft, height -228 ft) |
+
+**Reading it.** Where the filter is quiet (straight and level), today's loops behave as their linear models say, so part 1's table holds for them (R13). The one fix was the vertical's model (D acts on his height rate, not the error), which changes its answer to a new target, not its margins. In Lead's 60° turn the arc loop and the offset can't be checked linearly: at the trim today's code settles to, the filter flies him half the time. That is the review's F3 measured on a single loop, and the reason round 5's guard-rail slice (the taper) comes first.
+
+## 14. Untested, unseen and unsure
 
 - **Nothing here was flown or seen in the app;** it reads the code and one gauge run.
 - **Every loop margin is an estimate.** These are hand linearisations at fixed trim points, with the G onset and roll as small lags (0.05 s, from reading `easeValue`: rate limits, nearly transparent when small) and the limits and slews left out. Part 2's rig checks each against the sim (plan C11).

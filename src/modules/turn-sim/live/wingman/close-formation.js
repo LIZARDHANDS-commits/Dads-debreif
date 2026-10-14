@@ -208,7 +208,16 @@ export function closeLaw(mem, seen, job, { st, side, key, holdPct, held, place =
   const lead = powerLeadPct(seen, st, key, holdPct);
   // Under Lead he does not come up until he is out (supervisor.js upOk): no correction upward.
   const upCorrG = job.upOk ? up.out : Math.min(0, up.out);
+  // Each loop's terms for the trace (plan T29m part 2; T29r): P on what each loop is shown, D on its rate, the trim, in the
+  // loop's own units (plane G; line G along out, away from Lead; hinge torque %), as pilotAxis forms them (its threshold
+  // is off, CLOSE_WING.deadFt and deadFtps 0, so P reads the deviation and D the rate as they are)
+  const terms = {
+    planeP: -C.plane.kp * ePlane, planeD: -C.plane.kd * seen.rate.plane, planeI: -(up.mem.i ?? 0),
+    lineP: -roll.kp * eOut, lineD: -roll.kd * rOut, lineI: -(out.mem.i ?? 0),
+    hingeP: -fore.kp * eFwd, hingeD: -fore.kd * rFwd, hingeI: -(pwr.mem.i ?? 0), lead,
+  };
   return {
+    terms,
     mem: { plane: up.mem, side: out.mem, fore: pwr.mem },
     // basePct: the setting the turn needs now, the holding power and the power lead (what the shaper sizes his corrections
     // around); telegraph: he sees Lead rolling, so his hand moves the throttle at the telegraph's rate (B2), quicker the

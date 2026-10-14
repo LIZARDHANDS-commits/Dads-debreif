@@ -256,6 +256,14 @@ const pieces = {
   })(),
   ADDS: T(['Added by the recommended structure', 'Value', 'Role', 'Source'], M.ADDS.map((a) => [a.name, a.value, a.role, a.source])),
   QUESTIONS: M.QUESTIONS.map((q, i) => `**Q${i + 1}. ${q.q}**\n${q.options.map((o) => `- ${o}`).join('\n')}\n- *Recommended:* ${q.rec}`).join('\n\n'),
+  ANSWERED: M.ANSWERED.map((a) => `- ${a}`).join('\n'),
+  CTLCOLS: T(['Gauge column', 'Block', 'Unit', 'What it shows'], M.CONTROLLER_COLUMNS.map((c) => [`\`${c.col}\``, nameOf(c.block), c.unit, c.what])),
+  RIGCHECK: existsSync('tools/flight-design/results/fw-rig-check.md') ? readFileSync('tools/flight-design/results/fw-rig-check.md', 'utf8').trim() : '(run tools/fw-rig.mjs, then tools/flight-design/fw_loops.py)',
+  FAULTS: (() => {
+    const fj = existsSync('tools/control-map/results/faults.json') ? JSON.parse(readFileSync('tools/control-map/results/faults.json', 'utf8')) : { rows: [] };
+    return T(['Case', 'Press', 'G onset max (G/s)', 'Time over 1 G/s (s)', 'Aim jumps', 'Wrong-way roll (s)', 'Over Lead\'s G + 0.5 (s)', 'Torque swings', 'Below −150 ft (s), lowest', 'Speed lost against Lead (kt), for G·s over his', 'Filter acting, guard on (share)', 'Throttle owner changes'],
+      fj.rows.map((r) => [r.case, r.press, r.onsetMaxGps, r.onsetFastSec, r.aimJumps ?? '-', r.wrongWaySec, r.overLeadSec, r.torqueSwings, `${r.lowSec} (${r.lowestFt})`, `${r.kiasLostVsLead} (${r.gExcessGs})`, `${r.filterShare}, ${r.guardShare}`, r.changes?.powerKind ?? 0]));
+  })(),
   SVGS: '',
 };
 

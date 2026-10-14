@@ -105,6 +105,8 @@ export function stepWingman(w, refSt) {
       t: next.t, job: job.kind, dev: seen.dev, rate: seen.rate, under: seen.under,
       gWant: seen.gAhead + seen.ffUpG + hand.mem.upCorrG, leftG: seen.ffLeftG + hand.mem.leftCorrG,
       torquePct: hand.mem.torquePct, holdPct, flags: hand.flags,
+      // the loops' terms and each control asked against granted by the hand (plan T29m part 2; T29r's trace half)
+      terms: law.terms, asked: { upCorrG: law.want.upCorrG, leftCorrG: law.want.leftCorrG, torquePct: law.want.torquePct }, ffUpG: seen.ffUpG, ffLeftG: seen.ffLeftG, gAheadG: seen.gAhead,
       change: route ? { i: route.i, n: route.places.length, key: target.key } : null, guard: guarded.guard,
     },
   };
