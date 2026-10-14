@@ -177,3 +177,17 @@ Each item below has an active working estimate in the code (`TS-233` / `spec.md`
 | **R14** | Widen fighting-wing band to `0°` sweep (truly abeam) and build `lag-abeam` (`T3`) | `S6` | Planned (`S6`) | Built in `slots.js` and `techniques/lag-abeam.js` |
 | **R15** | Eliminate baseline over-control faults (G onset, aim jumps, 300 ft low, torque swings) | `S2–T31` | In progress (`S0–S4` built) | `0` aim jumps, `< 5` torque swings, `±15 KIAS` met; final sign-off at `A2` and `T31` |
 
+---
+
+## 5. Subagent & Audit Recommendations, Questions & Corrections Ledger
+
+Every recommendation, question, or correction raised by a `flash` or `pro` subagent (`fw-slice-builder`, `fw-slice-verifier`, `fw-structure-auditor`, `fw-systems-plot-agent`, `fw-refs-docs-expert`) is logged below with its disposition:
+
+| Wave / Slice | Agent & Tier | Kind | Finding / Recommendation / Question | Disposition & Commit |
+|---|---|---|---|---|
+| **Docs (`D4/D5`)** | `fw-refs-docs-expert` (`pro`) | **Correction** | Identified 4 stale pre-`3b` lines in `spec-7e-draft-4.md` (`D12` integrator wording vs `D23` proportional loop; `D24` discrete `-300 ft` vs continuous `20 ft/kt`; miss `0 G` wording vs `minG = 0.5 G` roll-and-pull; `T2 behind-39` numbering). | **Resolved in Docs (`84f4d965`):** Reconciled across `spec-7e-draft-4.md`, `spec.md` §7e, `decisions.md` `TS-233`, and `plan.md`. |
+| **Chunk 1 (`S0`)** | `fw-slice-builder` (`pro`) + `fw-slice-verifier` (`flash`) | **Measurement & Recommendation** | `fw-rig.mjs --s0-lags` measured turn-rate lag $t_{63} = 0.15\text{–}0.25\text{ s}$ (confirming $K_\chi = 0.5\text{ /s}, K_e = 0.026^\circ/\text{ft}$ for `S2`, `D2`) and un-smoothed slant-closure ripple `21.66 ft/s` p2p in `T2` (`> 20 ft/s` `D25` threshold) $\to$ recommended setting `S4` speed-brake retract threshold `boardsOffFtps = 10 ft/s`. | **Resolved in Code (`54655fde` & `568a56c3`):** Confirmed $K_\chi = 0.5\text{ /s}$ in `S2` and set `FW_WING.brakes.boardsOffFtps = 10` in `S4`. |
+| **Chunk 1 (`S1`)** | `fw-slice-verifier` (`flash`) | **Verification** | Forced `3.5 G` Lead rig test confirmed `B13` (`liftWithin`) trims positive climb $\Delta G_v > 0$ first (`stage 1`), `1 G` level hold second (`stage 2`), and horizontal turn last (`stage 3`), with `four-ship-probe.mjs` hash `2d5b5a8020839796` unchanged. | **Verified (`54655fde`):** Gate `C8` closed. |
+| **Step 1 (`A1`)** | Orchestrator (`pro`) | **Correction / Observation** | In `S3b`, `miss.js` needed a picture-based energy intent (`-0.5 / 0 / +0.5` based on whether `#2` is inside/ahead vs outside/behind) and `replanTighterFt = 50 ft` one-shot re-plan so tightening passes don't under-shoot `625 ft`. | **Resolved in Code (`e25b131d`)** and logged in **Section 1 (#3)** for Patrick's live seat check at Checkpoint G. |
+| **Wave 1 (`S5 + S7`)** | `fw-slice-builder` (`flash`, `a3fe02cb`) | **2-Strike Escalation & Correction** | Adding `FW_WING.{behind39, cutAcross, exitVert, sTurn}` in `wing-moves.js` caused `check.mjs --tag cm` to fail (54 un-ledgered tuning numbers) because `tools/control-map/signals.mjs` lacked prefix `LEDGER` entries for those 4 new sub-tables. Builder obeyed Disjoint Ownership & `0080` and returned the exact 4 `LEDGER` lines to Orchestrator. | **Resolved in Code (`1e33a17c`):** Orchestrator audited the 6 files, added the 4 `LEDGER` prefixes in `tools/control-map/signals.mjs`, and verified `check.mjs --tag cm` (`PASSED`, `249` numbers, `123` ledger entries). |
+
