@@ -1,0 +1,240 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 1353" width="1288" height="1353" font-family="Helvetica, Arial, sans-serif">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="16" y="30" font-size="17" font-weight="bold" fill="#222">Fighting wing today: level 2, each controller</text>
+<text x="16" y="50" font-size="12" fill="#555">formation-close-wingman-b2 at 8509fcff: the T29t tidy (482f0857) and the powerFor to powerAsk rename (db651dec). Numbers read from the code's tables.</text>
+<rect x="16" y="70" width="410" height="153" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">#2 point mass</text>
+<text x="26" y="100.5" font-size="10.5"  fill="#5a6378">fluid-lead.js stepLead</text>
+<text x="26" y="114" font-size="10.5"  fill="#1d2433">Does: G eased at the T-6A onset (T6A_G_ONSET), roll at the</text>
+<text x="26" y="127.5" font-size="10.5"  fill="#1d2433">asked rate (fighting wing 60°/s, estimate) within the</text>
+<text x="26" y="141" font-size="10.5"  fill="#1d2433">T-6A's, lift held under the stick shaker (the one physical</text>
+<text x="26" y="154.5" font-size="10.5"  fill="#1d2433">limit), point mass in two half steps</text>
+<text x="26" y="168" font-size="10.5"  fill="#1d2433">Senses: Lift asked (fighting wing); Idle and boards; Lift</text>
+<text x="26" y="181.5" font-size="10.5"  fill="#1d2433">asked (close formation)</text>
+<text x="26" y="195" font-size="10.5"  fill="#1d2433">Commands: His own state</text>
+<text x="26" y="208.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): rollDps 60</text>
+<rect x="440" y="70" width="410" height="112.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">Speed hold (inner)</text>
+<text x="450" y="100.5" font-size="10.5"  fill="#5a6378">fluid-lead.js holdThrottle</text>
+<text x="450" y="114" font-size="10.5"  fill="#1d2433">Does: Throttle for a wanted KIAS: 0.2 kt/s per kt off, at</text>
+<text x="450" y="127.5" font-size="10.5"  fill="#1d2433">most 3 kt/s (LEAD.speedHold, estimates), plus the drag at</text>
+<text x="450" y="141" font-size="10.5"  fill="#1d2433">his present G fed forward (dragPerWeight)</text>
+<text x="450" y="154.5" font-size="10.5"  fill="#1d2433">Senses: Wanted speed</text>
+<text x="450" y="168" font-size="10.5"  fill="#1d2433">Commands: Throttle</text>
+<rect x="864" y="70" width="410" height="85.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">Engine</text>
+<text x="874" y="100.5" font-size="10.5"  fill="#5a6378">fluid-lead.js engineStep</text>
+<text x="874" y="114" font-size="10.5"  fill="#1d2433">Does: Throttle travel in about 0.25 s; 3.5 s spool-up from</text>
+<text x="874" y="127.5" font-size="10.5"  fill="#1d2433">idle (handling.js ENGINE, TS-218)</text>
+<text x="874" y="141" font-size="10.5"  fill="#1d2433">Senses: Throttle; Idle and boards</text>
+<rect x="864" y="167.5" width="410" height="180" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="184.5" font-size="12.5" font-weight="bold" fill="#1d2433">Sight (seeFw)</text>
+<text x="874" y="198" font-size="10.5"  fill="#5a6378">perception.js seeFw</text>
+<text x="874" y="211.5" font-size="10.5"  fill="#1d2433">Does: The picture 0.4 s late: slant, closure (1 s), line of</text>
+<text x="874" y="225" font-size="10.5"  fill="#1d2433">sight rate (0.5 s), aspect, HCA, sweep, height against Lead,</text>
+<text x="874" y="238.5" font-size="10.5"  fill="#1d2433">Lead's bank, G (0.1 s) and turn circle</text>
+<text x="874" y="252" font-size="10.5"  fill="#1d2433">Senses: Lead as seen (position, velocity, body up)</text>
+<text x="874" y="265.5" font-size="10.5"  fill="#1d2433">Commands: Slant range; Slant closure; Line of sight rate;</text>
+<text x="874" y="279" font-size="10.5"  fill="#1d2433">Aspect angle; Heading crossing angle; Height against Lead;</text>
+<text x="874" y="292.5" font-size="10.5"  fill="#1d2433">Lead's bank (seen); Lead's G (seen); Lead's turn (ω, radius,</text>
+<text x="874" y="306" font-size="10.5"  fill="#1d2433">centre); Short of Lead's speed</text>
+<text x="874" y="319.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): delaySec 0.4; extraDelaySec 0;</text>
+<text x="874" y="333" font-size="10.5"  fill="#1d2433">closureSec 1; losSec 0.5; gSec 0.1; historySec 6</text>
+<rect x="440" y="194.5" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="211.5" font-size="12.5" font-weight="bold" fill="#1d2433">Lead now</text>
+<text x="450" y="225" font-size="10.5"  fill="#5a6378">fighting-wing.js leadNowOf</text>
+<text x="450" y="238.5" font-size="10.5"  fill="#1d2433">Does: Lead carried 0.4 s round his seen turn (Fable F5); his</text>
+<text x="450" y="252" font-size="10.5"  fill="#1d2433">own position and velocity as they are now (R1)</text>
+<text x="450" y="265.5" font-size="10.5"  fill="#1d2433">Senses: Lead's turn (ω, radius, centre)</text>
+<text x="450" y="279" font-size="10.5"  fill="#1d2433">Commands: Lead now (position, velocity)</text>
+<rect x="16" y="235" width="410" height="166.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="252" font-size="12.5" font-weight="bold" fill="#1d2433">Arc range (s, d)</text>
+<text x="26" y="265.5" font-size="10.5"  fill="#5a6378">fighting-wing.js arcRange</text>
+<text x="26" y="279" font-size="10.5"  fill="#1d2433">Does: In a turn: arc s behind Lead round his circle, offset</text>
+<text x="26" y="292.5" font-size="10.5"  fill="#1d2433">d inside it, and the arc closure from the velocities (Fable</text>
+<text x="26" y="306" font-size="10.5"  fill="#1d2433">F10)</text>
+<text x="26" y="319.5" font-size="10.5"  fill="#1d2433">Senses: Lead's bank (seen); Lead's turn (ω, radius, centre);</text>
+<text x="26" y="333" font-size="10.5"  fill="#1d2433">Lead now (position, velocity); His own state; Lead turning</text>
+<text x="26" y="346.5" font-size="10.5"  fill="#1d2433">(job)</text>
+<text x="26" y="360" font-size="10.5"  fill="#1d2433">Commands: Arc s behind Lead; Offset d inside Lead's circle;</text>
+<text x="26" y="373.5" font-size="10.5"  fill="#1d2433">Arc closure</text>
+<text x="26" y="387" font-size="10.5"  fill="#1d2433">Numbers (from the code): turnFrameDeg 5</text>
+<rect x="440" y="305.5" width="410" height="193.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="322.5" font-size="12.5" font-weight="bold" fill="#1d2433">Guard (fwGuard)</text>
+<text x="450" y="336" font-size="10.5"  fill="#5a6378">separation.js fwGuard</text>
+<text x="450" y="349.5" font-size="10.5"  fill="#1d2433">Does: Second predictor of the pass, from the seen (0.4 s</text>
+<text x="450" y="363" font-size="10.5"  fill="#1d2433">old) picture: on under 600 ft predicted or 500 ft now, off</text>
+<text x="450" y="376.5" font-size="10.5"  fill="#1d2433">over 700 ft for 3 s; sets pass-clear's depth, freezes the</text>
+<text x="450" y="390" font-size="10.5"  fill="#1d2433">power integral, skips the aim blend, opens the G cap under</text>
+<text x="450" y="403.5" font-size="10.5"  fill="#1d2433">500 ft</text>
+<text x="450" y="417" font-size="10.5"  fill="#1d2433">Senses: Slant range; Slant closure; Lead's turn (ω, radius,</text>
+<text x="450" y="430.5" font-size="10.5"  fill="#1d2433">centre)</text>
+<text x="450" y="444" font-size="10.5"  fill="#1d2433">Commands: Predicted pass (guard); Guard on</text>
+<text x="450" y="457.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): guard.engageFt 600; guard.releaseFt</text>
+<text x="450" y="471" font-size="10.5"  fill="#1d2433">700; guard.releaseSec 3; guard.missFt.0 50; guard.missFt.1</text>
+<text x="450" y="484.5" font-size="10.5"  fill="#1d2433">300; guard.missSlantFt 600</text>
+<rect x="864" y="359.5" width="410" height="234" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="376.5" font-size="12.5" font-weight="bold" fill="#1d2433">Jobs (fwJob)</text>
+<text x="874" y="390" font-size="10.5"  fill="#5a6378">supervisor.js fwJob</text>
+<text x="874" y="403.5" font-size="10.5"  fill="#1d2433">Does: Turning or level from Lead's seen bank; the entry case</text>
+<text x="874" y="417" font-size="10.5"  fill="#1d2433">(a label, R7); the swept side at the exit; S-turns; the</text>
+<text x="874" y="430.5" font-size="10.5"  fill="#1d2433">quick fix; low inside; the eased height target</text>
+<text x="874" y="444" font-size="10.5"  fill="#1d2433">Senses: Slant range; Slant closure; Height against Lead;</text>
+<text x="874" y="457.5" font-size="10.5"  fill="#1d2433">Lead's bank (seen); Short of Lead's speed</text>
+<text x="874" y="471" font-size="10.5"  fill="#1d2433">Commands: Job label; Lead turning (job); Height target; Low</text>
+<text x="874" y="484.5" font-size="10.5"  fill="#1d2433">inside</text>
+<text x="874" y="498" font-size="10.5"  fill="#1d2433">Numbers (from the code): turnStartDeg 10; turnEndDeg 5;</text>
+<text x="874" y="511.5" font-size="10.5"  fill="#1d2433">turnHoldSec 1; happyFt.0 600; happyFt.1 650; stretchedFt</text>
+<text x="874" y="525" font-size="10.5"  fill="#1d2433">700; tightFt 560; sTurnFt 550; sTurnClosureFtps 15;</text>
+<text x="874" y="538.5" font-size="10.5"  fill="#1d2433">sTurnDoneFt 600; stackFt -50; heightBandFt 200; quickFixFt</text>
+<text x="874" y="552" font-size="10.5"  fill="#1d2433">150; quickFixFtps 20; quickFixHeightFt 150; quickReleaseFt</text>
+<text x="874" y="565.5" font-size="10.5"  fill="#1d2433">75; quickReleaseFtps 10; quickSec 2; stackReturnSec 15;</text>
+<text x="874" y="579" font-size="10.5"  fill="#1d2433">lowFt 300; lowStartKt 5; lowEndKt 1</text>
+<rect x="16" y="413.5" width="410" height="220.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="430.5" font-size="12.5" font-weight="bold" fill="#1d2433">Arc loop (aimInTurn)</text>
+<text x="26" y="444" font-size="10.5"  fill="#5a6378">fighting-wing.js aimInTurn</text>
+<text x="26" y="457.5" font-size="10.5"  fill="#1d2433">Does: d = d_ss + c*/ω + kc(c* − c)/ω, c* = (s − 650)/10 s</text>
+<text x="26" y="471" font-size="10.5"  fill="#1d2433">within ±25/±60 ft/s, d within ±400 ft slewed 60 ft/s; aim 3</text>
+<text x="26" y="484.5" font-size="10.5"  fill="#1d2433">s ahead on the circle d inside Lead's; power's P = arc</text>
+<text x="26" y="498" font-size="10.5"  fill="#1d2433">error/15 s</text>
+<text x="26" y="511.5" font-size="10.5"  fill="#1d2433">Senses: Lead's bank (seen); Lead's turn (ω, radius, centre);</text>
+<text x="26" y="525" font-size="10.5"  fill="#1d2433">Lead now (position, velocity); Arc s behind Lead; Arc</text>
+<text x="26" y="538.5" font-size="10.5"  fill="#1d2433">closure; Wanted closure c*; Lead turning (job)</text>
+<text x="26" y="552" font-size="10.5"  fill="#1d2433">Commands: Wanted closure c*; Offset command d_cmd; Closure</text>
+<text x="26" y="565.5" font-size="10.5"  fill="#1d2433">the aim can't give; Aim point</text>
+<text x="26" y="579" font-size="10.5"  fill="#1d2433">Numbers (from the code): arcTargetFt 650; aimSec 10;</text>
+<text x="26" y="592.5" font-size="10.5"  fill="#1d2433">arcNearFt 300; arcNearFtps 25; arcFarFtps 60; arcKc 0.5;</text>
+<text x="26" y="606" font-size="10.5"  fill="#1d2433">arcOffsetMaxFt 400; arcSlewFtps 60; minTurnRadps 0.03;</text>
+<text x="26" y="619.5" font-size="10.5"  fill="#1d2433">circleLookSec 3; circleLeastFt 500; routeFt 120</text>
+<rect x="440" y="511" width="410" height="166.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="528" font-size="12.5" font-weight="bold" fill="#1d2433">Swept aim (aimSwept)</text>
+<text x="450" y="541.5" font-size="10.5"  fill="#5a6378">fighting-wing.js aimSwept</text>
+<text x="450" y="555" font-size="10.5"  fill="#1d2433">Does: Lead level: aim at the swept place (625 ft at 45°)</text>
+<text x="450" y="568.5" font-size="10.5"  fill="#1d2433">carried 8 s ahead; power's P = how far behind his place/10 s</text>
+<text x="450" y="582" font-size="10.5"  fill="#1d2433">within ±25 ft/s</text>
+<text x="450" y="595.5" font-size="10.5"  fill="#1d2433">Senses: Lead now (position, velocity); His own state; Lead</text>
+<text x="450" y="609" font-size="10.5"  fill="#1d2433">turning (job)</text>
+<text x="450" y="622.5" font-size="10.5"  fill="#1d2433">Commands: Wanted closure c*; Closure the aim can't give; Aim</text>
+<text x="450" y="636" font-size="10.5"  fill="#1d2433">point</text>
+<text x="450" y="649.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): sweptFt 625; sweptDeg 45;</text>
+<text x="450" y="663" font-size="10.5"  fill="#1d2433">sweptLookSec 8; aimMaxFtps 25; aimSlewFtps 20</text>
+<rect x="864" y="605.5" width="410" height="139.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="622.5" font-size="12.5" font-weight="bold" fill="#1d2433">Lag first</text>
+<text x="874" y="636" font-size="10.5"  fill="#5a6378">fighting-wing.js lagFirst</text>
+<text x="874" y="649.5" font-size="10.5"  fill="#1d2433">Does: On Lead's bank passing 10° toward him: aim 20° outward</text>
+<text x="874" y="663" font-size="10.5"  fill="#1d2433">of Lead's circle for 2.5 s, eased out over 1 s. Goes (ruling</text>
+<text x="874" y="676.5" font-size="10.5"  fill="#1d2433">14 Oct 2026)</text>
+<text x="874" y="690" font-size="10.5"  fill="#1d2433">Senses: Lead's bank (seen)</text>
+<text x="874" y="703.5" font-size="10.5"  fill="#1d2433">Commands: Aim point</text>
+<text x="874" y="717" font-size="10.5"  fill="#1d2433">Numbers (from the code): lagFirst.deg 20; lagFirst.sec 2.5;</text>
+<text x="874" y="730.5" font-size="10.5"  fill="#1d2433">lagFirst.easeSec 1</text>
+<rect x="16" y="646" width="410" height="139.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="663" font-size="12.5" font-weight="bold" fill="#1d2433">Nose behind</text>
+<text x="26" y="676.5" font-size="10.5"  fill="#5a6378">fighting-wing.js noseBehind</text>
+<text x="26" y="690" font-size="10.5"  fill="#1d2433">Does: While the filter finds the wing line out of reach: aim</text>
+<text x="26" y="703.5" font-size="10.5"  fill="#1d2433">where Lead was 1 s ago and go 300 ft down</text>
+<text x="26" y="717" font-size="10.5"  fill="#1d2433">Senses: Lead now (position, velocity); Wing line out of</text>
+<text x="26" y="730.5" font-size="10.5"  fill="#1d2433">reach; Lead turning (job)</text>
+<text x="26" y="744" font-size="10.5"  fill="#1d2433">Commands: Aim point</text>
+<text x="26" y="757.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): behind.downFt 300; behind.clearFt</text>
+<text x="26" y="771" font-size="10.5"  fill="#1d2433">200; guard.lagSec 1</text>
+<rect x="440" y="689.5" width="410" height="193.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="706.5" font-size="12.5" font-weight="bold" fill="#1d2433">Steering (steerToAim)</text>
+<text x="450" y="720" font-size="10.5"  fill="#5a6378">fighting-wing.js steerToAim</text>
+<text x="450" y="733.5" font-size="10.5"  fill="#1d2433">Does: Aim (against Lead) eased over 1.5 s every step; the</text>
+<text x="450" y="747" font-size="10.5"  fill="#1d2433">aim line's turn (0.5 s) fed forward × V, capped at 1.5 ω_L +</text>
+<text x="450" y="760.5" font-size="10.5"  fill="#1d2433">3°/s; plus 0.05 G per degree to the aim line; in Lead's turn</text>
+<text x="450" y="774" font-size="10.5"  fill="#1d2433">plane</text>
+<text x="450" y="787.5" font-size="10.5"  fill="#1d2433">Senses: Lead's turn (ω, radius, centre); Lead now (position,</text>
+<text x="450" y="801" font-size="10.5"  fill="#1d2433">velocity); His own state; Offset command d_cmd; Aim point;</text>
+<text x="450" y="814.5" font-size="10.5"  fill="#1d2433">Guard on</text>
+<text x="450" y="828" font-size="10.5"  fill="#1d2433">Commands: Aim line turn fed forward; Turn ask (aim's)</text>
+<text x="450" y="841.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): gPerDeg 0.05; aimTurnSec 0.5;</text>
+<text x="450" y="855" font-size="10.5"  fill="#1d2433">aimTurnCap.k 1.5; aimTurnCap.plusDps 3; turnPlaneRadps</text>
+<text x="450" y="868.5" font-size="10.5"  fill="#1d2433">0.0175; blendSec 1.5</text>
+<rect x="864" y="757" width="410" height="180" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="774" font-size="12.5" font-weight="bold" fill="#1d2433">High yo-yo</text>
+<text x="874" y="787.5" font-size="10.5"  fill="#5a6378">fighting-wing.js highYoYo</text>
+<text x="874" y="801" font-size="10.5"  fill="#1d2433">Does: Inside Lead's turn, slow-to-hold &gt; 10 kt, power back</text>
+<text x="874" y="814.5" font-size="10.5"  fill="#1d2433">and gaining &gt; 20 ft/s: climb h = (V² − (ωr)²)/2g, at least</text>
+<text x="874" y="828" font-size="10.5"  fill="#1d2433">100 ft, at most 200 ft; then down</text>
+<text x="874" y="841.5" font-size="10.5"  fill="#1d2433">Senses: Height against Lead; Lead's turn (ω, radius,</text>
+<text x="874" y="855" font-size="10.5"  fill="#1d2433">centre); Arc s behind Lead; Offset d inside Lead's circle;</text>
+<text x="874" y="868.5" font-size="10.5"  fill="#1d2433">Arc closure; Lead turning (job); Power back (flag)</text>
+<text x="874" y="882" font-size="10.5"  fill="#1d2433">Commands: Yo-yo height</text>
+<text x="874" y="895.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): yoyo.slowKt 10; yoyo.powerBackKt 5;</text>
+<text x="874" y="909" font-size="10.5"  fill="#1d2433">yoyo.excessFtps 20; yoyo.minFt 100; yoyo.exitArcFt 150;</text>
+<text x="874" y="922.5" font-size="10.5"  fill="#1d2433">yoyo.onCircleFt 150; yoyo.downEndFt 50; yoyo.ownerHoldSec 2</text>
+<rect x="16" y="797.5" width="410" height="139.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="814.5" font-size="12.5" font-weight="bold" fill="#1d2433">Pitch owner</text>
+<text x="26" y="828" font-size="10.5"  fill="#5a6378">fighting-wing.js takePitch, nextOwner, heightTargetFt</text>
+<text x="26" y="841.5" font-size="10.5"  fill="#1d2433">Does: One owner: pass-clear, in and down, yo-yo, else the</text>
+<text x="26" y="855" font-size="10.5"  fill="#1d2433">stack family (stack, quick fix, low inside); a 2 s hold</text>
+<text x="26" y="868.5" font-size="10.5"  fill="#1d2433">except pass-clear and in and down</text>
+<text x="26" y="882" font-size="10.5"  fill="#1d2433">Senses: Height against Lead; Predicted pass (guard); Filter</text>
+<text x="26" y="895.5" font-size="10.5"  fill="#1d2433">hold (1 s); Guard on; Yo-yo height</text>
+<text x="26" y="909" font-size="10.5"  fill="#1d2433">Commands: Height target; Pitch owner</text>
+<text x="26" y="922.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): yoyo.highFt 100</text>
+<rect x="440" y="895" width="410" height="139.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="912" font-size="12.5" font-weight="bold" fill="#1d2433">Vertical PD</text>
+<text x="450" y="925.5" font-size="10.5"  fill="#5a6378">fighting-wing.js verticalFor</text>
+<text x="450" y="939" font-size="10.5"  fill="#1d2433">Does: 0.005 G/ft and 0.02 G per ft/s on height against</text>
+<text x="450" y="952.5" font-size="10.5"  fill="#1d2433">Lead's target, square to Lead's turn plane, within ±1 G</text>
+<text x="450" y="966" font-size="10.5"  fill="#1d2433">Senses: Lead now (position, velocity); His own state; Height</text>
+<text x="450" y="979.5" font-size="10.5"  fill="#1d2433">target</text>
+<text x="450" y="993" font-size="10.5"  fill="#1d2433">Commands: Vertical G ask</text>
+<text x="450" y="1006.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): vertGPerFt 0.005; vertGPerFtps</text>
+<text x="450" y="1020" font-size="10.5"  fill="#1d2433">0.02; vertMaxG 1</text>
+<rect x="16" y="949" width="410" height="247.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="966" font-size="12.5" font-weight="bold" fill="#1d2433">Separation filter</text>
+<text x="26" y="979.5" font-size="10.5"  fill="#5a6378">separation.js separationFilter, passJudge, searchTurn, engagedNext</text>
+<text x="26" y="993" font-size="10.5"  fill="#1d2433">Does: His aim's turn, unless its predicted pass is under 500</text>
+<text x="26" y="1006.5" font-size="10.5"  fill="#1d2433">ft + 1.4 s × closure (at least 600 ft) or within 100 ft of</text>
+<text x="26" y="1020" font-size="10.5"  fill="#1d2433">Lead's wing line: then the nearest of 41 turns (bisected 6</text>
+<text x="26" y="1033.5" font-size="10.5"  fill="#1d2433">times) that keeps both, lag side first</text>
+<text x="26" y="1047" font-size="10.5"  fill="#1d2433">Senses: Slant closure; Lead's G (seen); Lead's turn (ω,</text>
+<text x="26" y="1060.5" font-size="10.5"  fill="#1d2433">radius, centre); Lead now (position, velocity); His own</text>
+<text x="26" y="1074" font-size="10.5"  fill="#1d2433">state; Aim line turn fed forward; Turn ask (aim's);</text>
+<text x="26" y="1087.5" font-size="10.5"  fill="#1d2433">Predicted pass (filter); Lead turning (job); Vertical G ask</text>
+<text x="26" y="1101" font-size="10.5"  fill="#1d2433">Commands: Turn flown; Predicted pass (filter); Wing line out</text>
+<text x="26" y="1114.5" font-size="10.5"  fill="#1d2433">of reach; Filter hold (1 s); Filter needs more G; Job label</text>
+<text x="26" y="1128" font-size="10.5"  fill="#1d2433">Numbers (from the code): guard.minFt 500; guard.lookSec 5;</text>
+<text x="26" y="1141.5" font-size="10.5"  fill="#1d2433">guard.lookStepSec 0.25; guard.tighter 1.3; guard.passLineSec</text>
+<text x="26" y="1155" font-size="10.5"  fill="#1d2433">1.4; guard.wingLineFt 100; guard.filterSteps 20;</text>
+<text x="26" y="1168.5" font-size="10.5"  fill="#1d2433">guard.filterRefine 6; guard.filterHoldSec 1;</text>
+<text x="26" y="1182" font-size="10.5"  fill="#1d2433">guard.engage.marginFt 50; guard.engage.releaseSec 1</text>
+<rect x="864" y="949" width="410" height="139.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="966" font-size="12.5" font-weight="bold" fill="#1d2433">G cap</text>
+<text x="874" y="979.5" font-size="10.5"  fill="#5a6378">fighting-wing.js gCap</text>
+<text x="874" y="993" font-size="10.5"  fill="#1d2433">Does: Lead's G + 1.5 (estimate) under the shaker; what the</text>
+<text x="874" y="1006.5" font-size="10.5"  fill="#1d2433">aircraft gives while the guard's pass is under 500 ft or the</text>
+<text x="874" y="1020" font-size="10.5"  fill="#1d2433">filter needs more (flagged)</text>
+<text x="874" y="1033.5" font-size="10.5"  fill="#1d2433">Senses: Lead's G (seen); Predicted pass (guard); Filter</text>
+<text x="874" y="1047" font-size="10.5"  fill="#1d2433">needs more G; Guard on</text>
+<text x="874" y="1060.5" font-size="10.5"  fill="#1d2433">Commands: G cap</text>
+<text x="874" y="1074" font-size="10.5"  fill="#1d2433">Numbers (from the code): overLeadG 1.5</text>
+<rect x="440" y="1046.5" width="410" height="112.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="1063.5" font-size="12.5" font-weight="bold" fill="#1d2433">Lift (liftWithin)</text>
+<text x="450" y="1077" font-size="10.5"  fill="#5a6378">fighting-wing.js liftWithin</text>
+<text x="450" y="1090.5" font-size="10.5"  fill="#1d2433">Does: 1 G hold + the vertical first, the turn gives way at</text>
+<text x="450" y="1104" font-size="10.5"  fill="#1d2433">the cap; unload, roll, pull past 20° off; never under 0.5 G</text>
+<text x="450" y="1117.5" font-size="10.5"  fill="#1d2433">Senses: His own state; Turn flown; Vertical G ask; G cap</text>
+<text x="450" y="1131" font-size="10.5"  fill="#1d2433">Commands: Lift asked (fighting wing)</text>
+<text x="450" y="1144.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): minG 0.5; pullWithinDeg 20</text>
+<rect x="864" y="1100.5" width="410" height="220.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="1117.5" font-size="12.5" font-weight="bold" fill="#1d2433">Power (powerAsk)</text>
+<text x="874" y="1131" font-size="10.5"  fill="#5a6378">fighting-wing.js powerAsk</text>
+<text x="874" y="1144.5" font-size="10.5"  fill="#1d2433">Does: Wanted KIAS = Lead's + P (aim residual) + I (level</text>
+<text x="874" y="1158" font-size="10.5"  fill="#1d2433">only, 15 s), within 15 KIAS; 20% torque while the filter</text>
+<text x="874" y="1171.5" font-size="10.5"  fill="#1d2433">held and closing; MAX low inside; 20% on the yo-yo's way</text>
+<text x="874" y="1185" font-size="10.5"  fill="#1d2433">down; idle over 40 ft/s, boards over 60 ft/s</text>
+<text x="874" y="1198.5" font-size="10.5"  fill="#1d2433">Senses: Slant range; Slant closure; His own state; Arc</text>
+<text x="874" y="1212" font-size="10.5"  fill="#1d2433">closure; Wanted closure c*; Closure the aim can't give;</text>
+<text x="874" y="1225.5" font-size="10.5"  fill="#1d2433">Filter hold (1 s); Guard on; Lead turning (job); Low inside</text>
+<text x="874" y="1239" font-size="10.5"  fill="#1d2433">Commands: Wanted speed; Power back (flag); Throttle; Idle</text>
+<text x="874" y="1252.5" font-size="10.5"  fill="#1d2433">and boards</text>
+<text x="874" y="1266" font-size="10.5"  fill="#1d2433">Numbers (from the code): powerBandKias 15; powerSec 15;</text>
+<text x="874" y="1279.5" font-size="10.5"  fill="#1d2433">powerArcSec 15; brakes.idleFtps 40; brakes.idleOffFtps 25;</text>
+<text x="874" y="1293" font-size="10.5"  fill="#1d2433">brakes.boardsFtps 60; brakes.boardsOffFtps 35; brakes.slowKt</text>
+<text x="874" y="1306.5" font-size="10.5"  fill="#1d2433">0; guard.torquePct 20</text>
+</svg>
