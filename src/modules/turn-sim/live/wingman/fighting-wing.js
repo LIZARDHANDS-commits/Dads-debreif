@@ -23,7 +23,7 @@ import { throttleAtTorque } from '../power.js';
 import { ROLL } from '../rates.js';
 import { FW_SEE, FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
-import { seenOf, startFwSight, seeFw, aheadOnTurn, rotate3 } from './perception.js';
+import { seenOf, startFwSight, seeFw, aheadOnTurn } from './perception.js';
 import { startFwGuard, fwGuard, startFwJob, fwJob, leastPass } from './supervisor.js';
 
 const W = FW_WING;
@@ -187,14 +187,6 @@ export function stepFwWingman(w, refSt) {
       const want = Math.max(-W.arcOffsetMaxFt, Math.min(W.arcOffsetMaxFt, dRaw));
       offFt = w.offFt + Math.max(-W.arcSlewFtps * STEP_SEC, Math.min(W.arcSlewFtps * STEP_SEC, want - w.offFt));
       residual = Math.max(-W.powerBandKias * KT_TO_FTPS, Math.min(W.powerBandKias * KT_TO_FTPS, eArc / W.powerArcSec));
-      if (W.speedFf && !straight && dFt != null) {
-        // Round 4 (the web research: US Navy CNATRA P-357 section 310, power back a little first in a turn into him, on again
-        // at the roll-out): the speed that holds station at his offset, V_L (1 - d / R), fed forward, its change from Lead's
-        // smoothly held within speedFfKt (arctan saturation, as Wang et al. 2023)
-        const Lff = W.speedFfKt * KT_TO_FTPS;
-        const x = (-len3(leadV) * dFt) / seen.turn.radiusFt;
-        residual += ((2 * Lff) / Math.PI) * Math.atan((Math.PI * x) / (2 * Lff));
-      }
       cTarget = cArc;
     } else {
       const want = Math.max(-W.offsetMaxFt, Math.min(W.offsetMaxFt, (cWant + W.aimClosureGain * (cWant - closing)) / omega));
@@ -218,21 +210,6 @@ export function stepFwWingman(w, refSt) {
       const rT = Math.max(W.circleLeastFt, seen.turn.radiusFt - offFt);
       const ang = Math.min(Math.PI / 2, (V * W.circleLookSec) / rT);
       target = add3(c, add3(scale3(radial, rT * Math.cos(ang)), scale3(tangent, rT * Math.sin(ang))));
-      if (W.pathCaps) {
-        // The path law's caps (Fable F7, second review; Q1's working answer): the angle of his line to that point off the
-        // local tangent, at most +20° outward (lag: "slightly toward Lead's tail") and -12° inward (lead).
-        const toT = perp3(sub3(target, st.pm), axis);
-        const dist = Math.max(len3(toT), 1);
-        const a = Math.atan2(dot3(toT, radial), dot3(toT, tangent));
-        // Round 4 (Patrick 14 Oct 2026, his rulings on Fable's questions: very stretched he may cut across Lead's turn, then
-        // reset onto a lead, lag or pure circle): beyond pathOpenFt of arc behind the inward cap is open, eased back to
-        // pathInDeg by pathCloseFt
-        const sBehind = arcFt ?? 0;
-        const open = W.pathOpenFt == null ? 0 : Math.max(0, Math.min(1, (sBehind - W.pathCloseFt) / (W.pathOpenFt - W.pathCloseFt)));
-        const inCap = W.pathInDeg * DEG + open * (Math.PI / 2 - W.pathInDeg * DEG);
-        const ac = Math.max(-inCap, Math.min(W.pathOutDeg * DEG, a));
-        target = add3(st.pm, scale3(add3(scale3(tangent, Math.cos(ac)), scale3(radial, Math.sin(ac))), dist));
-      }
     }
     aimKind = offFt > W.routeFt / 4 ? 'lead' : offFt < -W.routeFt / 4 ? 'lag' : 'pure';
   } else {
@@ -283,11 +260,7 @@ export function stepFwWingman(w, refSt) {
   if (B.on && job.turning) {
     behindOn = w.behindOn ? Boolean(w.lineShort) || behindNowFt < B.clearFt : Boolean(w.lineShort);
     if (behindOn) {
-      // the point on Lead's circle his arc target behind him (650 ft), else where Lead was guard.lagSec ago
-      target =
-        B.onCircle && seen.turn.centre && Number.isFinite(seen.turn.radiusFt)
-          ? add3(seen.turn.centre, rotate3(sub3(leadNow, seen.turn.centre), unit3(seen.turn.omega), -W.arcTargetFt / seen.turn.radiusFt))
-          : sub3(leadNow, scale3(leadV, W.guard.lagSec));
+      target = sub3(leadNow, scale3(leadV, W.guard.lagSec));
       aimKind = 'behind';
     }
   }
@@ -442,7 +415,6 @@ export function stepFwWingman(w, refSt) {
           engageClear = clearBy ? engageClear + STEP_SEC : 0;
           if (engageClear >= H.releaseSec) engaged = false;
         }
-        if (engaged) filterHold = Math.max(filterHold, W.guard.filterHoldSec * (H.holdsPower ? 1 : 0));
       }
       if (W.guard.wingLine) {
         if (nom.pass < passLine || !lineOk(nom)) {

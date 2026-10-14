@@ -387,20 +387,6 @@ export const FW_WING = Object.freeze({
   // "So can lead and 2 follows").
   gPerDeg: 0.05, // about 0.05 G per degree, 1 G per 20° (spec 7e.7)
   // ---- the cone in Lead's turns, rebuilt on Fable's second review (14 Oct 2026, fable-cone-turn-report-14oct.md) ----
-  // The path law's angle off the local tangent capped (Fable F7) ... OFF: with the caps the cases that start far behind or
-  // outside the circle could not close (the -12° inward cap against an offset of up to 400 ft inside): into stretched ended the
-  // turn 3,797 ft back (2,215 without), away tight 3,023 (1,276), outside the cone 3,170 (670). Kept for the thread (gauge r7-F7).
-  // Round 4, re-tried with the inward cap open when very stretched (below): still off, the lag first and the feed-forward cap
-  // now give the steer-behind, and with the caps away stretched passes but away tight and the reversal gain job switches (4,
-  // 5) and away in position kisses 585 ft (gauge r4f7 against r4ls4).
-  pathCaps: false,
-  pathOutDeg: 20, // ... +20° outward, the steer-behind (lag) cap (Fable F7, Q1's working answer, estimate) ...
-  pathInDeg: 12, // ... -12° inward, the steer-ahead (lead) cap (Fable F7, estimate)
-  // ... the inward cap open beyond 1,000 ft of arc behind Lead, eased back by 800 ft (Patrick 14 Oct 2026, rulings on Fable's
-  // questions: very stretched, outside about 1,000 ft, he may cut across Lead's turn, then reset onto a circle; 800 ft the
-  // coordinator's working number, estimate)
-  pathOpenFt: 1000,
-  pathCloseFt: 800,
   arcLoop: true, // the turn's arc loop: d = R (1 - V2/V_L) + (wanted - actual closure) / Lead's turn rate (Fable F1)
   arcTargetFt: 650, // s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft)
   arcNearFt: 300, // the wanted closure at most ... (Fable F1, estimate)
@@ -413,12 +399,6 @@ export const FW_WING = Object.freeze({
   arcFeedForward: true,
   arcKc: 0.5,
   arcSlewFtps: 60, // d slewed at 60 ft/s (Fable F1, F11, estimate)
-  // In a turn the speed that holds station at his offset inside Lead's circle, V_L (1 - d / R), fed forward to the power loop,
-  // its change from Lead's speed smoothly within 15 kt (round 4; the web research, P-357 section 310 and Wang et al. 2023;
-  // 15 kt the power band's, Patrick 4 Oct 19:12Z). OFF: it cost speed where he is already short
-  // (into stretched -28 kt, was -18; away in position -18, was -15; gauge r4sf) for no gain in range or aspect
-  speedFf: false,
-  speedFfKt: 15,
   powerArcSec: 15, // power on the same arc error, about 0.067 rad/s, under the 0.07 its loop sits at (Fable F1, F6, estimate)
   arcFrame: true, // the turn's range as (s, d) in Lead's turn-centre frame, continuous through wings level, closure from velocities (Fable F10)
   turnFrameDeg: 5, // below 5° of Lead's bank the frame's straight-line limits are used (Fable F10, estimate)
@@ -501,9 +481,7 @@ export const FW_WING = Object.freeze({
   // "nose pointed BEHIND Lead, banking steeply in and down", hot turning rejoin style): he aims where Lead was guard.lagSec
   // ago and goes down 300 ft (the miss's deepest, estimate) until 200 ft behind the wing line again (estimate). When on,
   // the wing line no longer sets off the yo-yo (its speed trigger stays).
-  // onCircle: the point aimed at on Lead's circle, his arc target (650 ft) behind Lead, instead of where Lead was 1 s ago. OFF: it
-  // left him ahead of the wing line (aspect 107, gauge r4b2); where Lead was took him 78° across and out to 3,000 ft (r4b)
-  behind: Object.freeze({ on: true, downFt: 300, clearFt: 200, onCircle: false }),
+  behind: Object.freeze({ on: true, downFt: 300, clearFt: 200 }),
   // The high yo-yo inside Lead's turn (Patrick 14 Oct 2026, card "High yo-yo, then back down"; TS-233 addendum; Fable F8)
   // and the pitch owners' order (Fable F9): pass-clear, then the climb, then the stack's family.
   yoyo: Object.freeze({
@@ -562,9 +540,8 @@ export const FW_WING = Object.freeze({
     // line, the lag-side turn nearest his aim's that keeps the pass outside 500 ft, before the turn that passes widest
     lagSide: true,
     // Once engaged the filter stays engaged until his aim's own turn clears the pass line and the wing line by 50 ft (Fable F12's
-    // 50 ft margin) for 1 s (estimate); holdsPower: power off (while closing) and pass-clear's pitch held all the engagement
-    // (round 4, thread). null: engaged only while his aim's turn fails.
-    engage: Object.freeze({ marginFt: 50, releaseSec: 1, holdsPower: false }),
+    // 50 ft margin) for 1 s (estimate). null: engaged only while his aim's turn fails.
+    engage: Object.freeze({ marginFt: 50, releaseSec: 1 }),
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
     engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)
