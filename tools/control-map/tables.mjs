@@ -75,7 +75,41 @@ export const SHARED = Object.freeze({
   torque: pf.TORQUE ?? null,
 });
 
+const units = await src('core/units.js');
+const mv = await src('modules/turn-sim/live/moves.js');
+const fm = await src('modules/turn-sim/live/formation.js');
+
+/**
+ * The trim points (plan section 3.3), from the code's own numbers: the formation's speed outside line abreast
+ * (moves.js KIAS_OUTSIDE_LAB, 200 ruled) at the block height (formation.js LIVE_DEFAULTS.blockFt, 8,000 ft, an estimate),
+ * true speed by core iasToTasKt; Lead's turns by standard turn physics: ω = g tan(bank) / V, R = V / ω.
+ */
+export const TRIMS = (() => {
+  const kias = mv.KIAS_OUTSIDE_LAB;
+  const altFt = fm.LIVE_DEFAULTS.blockFt;
+  const V = t6.iasToTasKt(kias, altFt) * units.KT_TO_FTPS;
+  const g = units.G_FTPS2;
+  const turn = (bankDeg) => {
+    const omega = (g * Math.tan((bankDeg * Math.PI) / 180)) / V;
+    return { bankDeg, leadG: 1 / Math.cos((bankDeg * Math.PI) / 180), omegaRadps: omega, radiusFt: V / omega };
+  };
+  // The speed change per percent of torque about the level holding setting (close formation's power lead uses the same:
+  // close-formation.js powerLeadPct), kt/s per %, at G 1 and 2, from power.js powerFor and ktpsAtThrottle.
+  const ktpsPerPct = (gLoad) => {
+    const hold = pf.powerFor(0, kias, altFt, gLoad, 0);
+    const pct = hold ? hold.throttle / pf.throttleAtTorque(1, kias, altFt) : 57;
+    return pf.ktpsAtThrottle(pf.throttleAtTorque(pct + 1, kias, altFt), kias, altFt, gLoad) - pf.ktpsAtThrottle(pf.throttleAtTorque(pct, kias, altFt), kias, altFt, gLoad);
+  };
+  return Object.freeze({
+    kias, altFt, tasFtps: V, g, ktsToFtps: units.KT_TO_FTPS,
+    ktpsPerPctG1: ktpsPerPct(1), ktpsPerPctG2: ktpsPerPct(2),
+    T1: { name: 'T1 straight and level, swept', ...turn(0.0001), omegaRadps: 0, radiusFt: Infinity },
+    T2: { name: 'T2 academic turn, 60°/2 G, on the circle', ...turn(60) },
+    T4: { name: 'T4 aggressive turn, 4 G', ...turn((Math.acos(1 / 4) * 180) / Math.PI) },
+  });
+})();
+
 if (import.meta.url === pathToFileURL(resolve(process.argv[1] ?? '')).href) {
-  const out = { tables: TABLES, leaves: allLeaves(), shared: SHARED };
+  const out = { tables: TABLES, leaves: allLeaves(), shared: SHARED, trims: TRIMS };
   console.log(JSON.stringify(out, null, 1));
 }
