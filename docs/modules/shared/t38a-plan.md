@@ -62,9 +62,10 @@ Each step is one pull request in this repo by Dad's thread (one writer: `tools/b
    - (a) the SOF's 3D live traffic at the US bases, for aircraft the feed identifies as T-38s;
    - (b) Traffic, as another type;
    - (c) the Formation sim;
-   - (d) your idea.
+   - (d) the Debrief (the KML viewer);
+   - (e) your idea.
 
-   Working answer: (a). Nothing has to fly; the feed gives position and height.
+   **Dad's pick: the Debrief (the KML viewer) as a starter** (14 Oct 2026: "in the KML viewer as a starter"): a loaded track can be drawn as a T-38A instead of the CT-156 (a per-ship aircraft choice, an estimate of how it is offered until the screen is designed), in 3D, Chase included; nothing flies, the track gives position and height. The SOF's live traffic can follow. Needs Patrick's yes with the plan.
 3. **Paint:**
    - (a) USAF white with national insignia (T2);
    - (b) today's AETC scheme at the US bases;
