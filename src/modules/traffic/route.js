@@ -20,7 +20,7 @@ import { iasToTasKt, temperatureKey } from './weather.js';
 import { windVectorFtps } from '../../core/wind.js';
 import { PATTERN_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
-import { buildAstraCircuit, ASTRA_POINT } from './astra-circuit.js';
+import { buildAstraCircuit, ASTRA_FEWEST_POINTS } from './astra-circuit.js';
 
 /**
  * Routes whose path is flown by the simulated pilot rather than drawn, by the route's `flown` field (plan Step 5c
@@ -29,7 +29,8 @@ import { buildAstraCircuit, ASTRA_POINT } from './astra-circuit.js';
  * found by its id, as it always has been (below), so a setup saved before this keeps flying as before.
  */
 const FLOWN_BUILDERS = Object.freeze({
-  'ct102b-overhead': Object.freeze({ fewestPoints: Object.keys(ASTRA_POINT).length, build: (route, fromDeg, kt) => buildAstraCircuit(route.points, fromDeg, kt) }),
+  // The inner pattern's seven points fly (a setup saved before V2.429); with the outer pattern's too, the lap has its outer legs (astra-circuit.js).
+  'ct102b-overhead': Object.freeze({ fewestPoints: ASTRA_FEWEST_POINTS, build: (route, fromDeg, kt) => buildAstraCircuit(route.points, fromDeg, kt) }),
 });
 
 /** The `flown` values a route may carry (a saved profile's check, profile.js). */

@@ -11,7 +11,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { buildAstraCircuit } from '../../../src/modules/traffic/astra-circuit.js';
+import { buildAstraCircuit, ASTRA_PATTERN, ASTRA_OUTER_PHASES } from '../../../src/modules/traffic/astra-circuit.js';
 import { buildCircuit } from '../../../src/modules/traffic/circuit.js';
 import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_WIDTH_FT, THRESHOLD_DATA_ELEV_FT, magneticToTrue } from '../../../src/modules/traffic/airfield.js';
 import { legOffsetsFt } from '../../../src/core/geo.js';
@@ -67,7 +67,7 @@ for (const [label, windFromDeg, windKt] of [['calm air', 360, 0], ['15 kt from 2
         assert.ok(p.alt <= ASTRA_PATTERN_FT + TOLERANCES.ALTITUDE_FT, `${name}: ${p.alt} ft in the ${p.phase}, above ${ASTRA_PATTERN_FT} ft`);
         // The threshold and touchdown markers (circuit.js flyFinal) carry no bank: they are tags on the final, flown wings level.
         if (p.bankDeg == null) continue;
-        const most = (p.phase === 'break' ? BREAK_BANK_DEG : TURN_BANK_DEG) + TOLERANCES.ANGLE_DEG;
+        const most = (p.phase === 'break' ? BREAK_BANK_DEG : ASTRA_OUTER_PHASES.includes(p.phase) ? ASTRA_PATTERN.outerTurnBankDeg : TURN_BANK_DEG) + TOLERANCES.ANGLE_DEG; // the outer pattern's turns 45° (TR-164)
         assert.ok(Math.abs(p.bankDeg) <= most, `${name}: ${p.bankDeg}° of bank in the ${p.phase}, more than ${most}°`);
       }
 

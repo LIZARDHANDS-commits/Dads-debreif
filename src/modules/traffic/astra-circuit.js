@@ -12,29 +12,55 @@
 //     found by the CT-156's search (circuit.js findPerch) so that a 30° final turn at 90 KIAS rolls out on the 3° path
 //     at the window, 0.5 NM before the base of the numbers (TR-157);
 //   - final and flare at 90 KIAS (circuit.js flyFinal), landing on 29L;
-//   - after a touch-and-go (spec 4.19 item 3, TR-158): full power at about 100 KIAS to 3,000 ft straight ahead, then a
-//     30° climbing turn at 90 KIAS onto the same downwind line once 3,000 ft is reached or the departure end is passed,
-//     whichever is later.
+//   - after a touch-and-go, the outer pattern (spec 4.19 item 11, TR-164; plan Step 5c Phase 4b): full power at about
+//     100 KIAS to 3,000 ft straight ahead (TR-158), the upwind level speeding up to 180 KIAS, a 45° crosswind turn and a
+//     short crosswind leg, a 45° turn onto the outside downwind (3,000 ft, 180 KIAS, about 1.2 NM out, inside the
+//     CT-156's 2.0 NM), then back to the initial by the 90 to initial (90° onto a leg square to the runway, 90° onto
+//     initial) or the 45 to initial (135° onto a 45° leg, 45° onto initial), every turn at 45° and 180 KIAS
+//     (Patrick, TR-164); then the initial, break, downwind, final turn and final above.
+//   - A route with only the first seven points (a setup saved before V2.429) flies the lap it was saved with: the climb
+//     straight ahead and a 30° climbing turn at 90 KIAS onto the downwind line (TR-158; spec 4.19 item 3).
 //
-// buildAstraCircuit returns two paths. `track` is the lap after a touch-and-go, from touchdown round to touchdown, a
-// closed loop like Pattern 1's: it is the Astra route's flown path (route.js, `flown: 'ct102b-overhead'`). `fromInitial`
-// is the overhead: from the initial point through the break to touchdown. Both share the perch and the final.
-// Phase names: 'climb', 'crosswind' (the climbing turn), 'downwind', 'final_turn', 'final'; and 'initial' and 'break'
-// on the overhead. Plan Step 5c Phase 3 wires it into the sim (sim.js patternFor) and the spawner, and adds the
-// go-around (buildAstraGoAround, phase 'go_around' until its climbing turn) and the spacing extension
-// (buildAstraExtendedDownwind).
+// buildAstraCircuit returns three paths. `track` is the lap after a touch-and-go, from touchdown round to touchdown, a
+// closed loop like Pattern 1's, with the 90 to initial: it is the Astra route's flown path (route.js, `flown:
+// 'ct102b-overhead'`). `via45` is the other way round, the 45 to initial, from the branch point on the outside downwind
+// (abeam the threshold, `branchFt` along `track`) to touchdown; the sim flies it as a move off the lap and joins the lap
+// again on initial. `fromInitial` is the overhead: from the initial point through the break to touchdown. All three
+// share the perch and the final.
+// Phase names: 'climb' (the climb-out and the upwind), 'crosswind' (the crosswind turn, leg and the turn onto the outside
+// downwind), 'outer_downwind', 'initial' (from the turn off the outside downwind: the legs to initial and the initial,
+// as Pattern 1 names its 45° leg), 'break', 'downwind', 'final_turn', 'final'. Plan Step 5c Phase 3 wires it into the sim
+// (sim.js patternFor) and the spawner, and adds the go-around (buildAstraGoAround, phase 'go_around' until its climbing
+// turn) and the spacing extension (buildAstraExtendedDownwind).
 //
 // Positions are map feet, x east and y north; headings compass degrees true; speeds KIAS unless named otherwise.
 import { ktToFtps } from '../../core/units.js';
-import { wrapDeg180 } from '../../core/angles.js';
-import { turnRadiusFromBankFt } from '../../core/flight-math.js';
+import { wrapDeg180, wrapDeg360 } from '../../core/angles.js';
+import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
 import { legOffsetsFt } from '../../core/geo.js';
-import { makePilot, bankFor, trackForLine, lineOf, powerClimb, flyInner, findPerch, breakPointAlongFt, touchdownPointOf, HOLD_RADIUS_FT, LEVEL_OFF_SEC, PILOT_DT, MAX_STEPS } from './circuit.js';
+import { windTriangle } from '../../core/wind.js';
+import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, ROLL, powerClimb, flyInner, findPerch, breakPointAlongFt, touchdownPointOf, HOLD_RADIUS_FT, LEVEL_OFF_SEC, PILOT_DT, MAX_STEPS } from './circuit.js';
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { perfFor } from './types.js';
 
-/** Which point of the Astra route (data/moose-jaw.json, PAT_ASTRA) is which. The lap passes 0 to 4 in order. */
-export const ASTRA_POINT = Object.freeze({ threshold: 0, departureEnd: 1, downwind: 2, perch: 3, window: 4, initial: 5, break: 6 });
+/**
+ * Which point of the Astra route (data/moose-jaw.json, PAT_ASTRA) is which. Points 0 to 6 are the inner pattern's (V2.426);
+ * 7 to 11 the outer pattern's (V2.429, spec 4.19 item 11), added after them so a start saved by its index keeps its place.
+ * The lap after a touch-and-go passes 0, 1, 7, 8, 9, 10, 5, 6, 2, 3, 4 (the 45 to initial passes 11 instead of 10).
+ * Points 9 to 11 place the outer legs on the ground (outerLines); 7 and 8 are where the upwind and crosswind are in calm
+ * air, for the drawn route only (the pilot starts the crosswind turn at 180 KIAS, so it moves with the wind and the day).
+ */
+export const ASTRA_POINT = Object.freeze({
+  threshold: 0, departureEnd: 1, downwind: 2, perch: 3, window: 4, initial: 5, break: 6,
+  upwind: 7, crosswind: 8, outerDownwind: 9, ninetyToInitial: 10, fortyFiveToInitial: 11,
+});
+/** The fewest points the Astra route can be flown with (the inner pattern's, V2.426), and the fewest for the outer pattern. */
+export const ASTRA_FEWEST_POINTS = ASTRA_POINT.break + 1;
+export const ASTRA_OUTER_POINTS = ASTRA_POINT.fortyFiveToInitial + 1;
+/** An Astra flying off its lap (the overhead from its initial, the 45 to initial) joins the lap again this many path points (0.4 s each) after it rolls out on its downwind or its initial (an engineering choice: wings level on the line). */
+export const ASTRA_JOIN_POINTS = 40;
+/** The phases of the lap's outer pattern, whose turns are flown at the outer bank (ASTRA_PATTERN.outerTurnBankDeg, TR-164); every other turn is the break's 60° or 30°. */
+export const ASTRA_OUTER_PHASES = Object.freeze(['crosswind', 'outer_downwind', 'initial']);
 
 /**
  * The Astra's pattern numbers, in the shape circuit.js flyInner reads (CT156_INNER), plus its climb. Each with its source
@@ -48,6 +74,8 @@ export const ASTRA_POINT = Object.freeze({ threshold: 0, departureEnd: 1, downwi
  *  - climbKias 100: estimate (TR-158, a working answer not yet confirmed with Patrick).
  *  - climbingTurnBankDeg 30: Patrick (TR-155). climbingTurnKias 90: TR-158 gives 90 to 100; 90 makes the turn's
  *    diameter the final turn's, so it rolls out on the same downwind line (physics: radius = TAS² ÷ (g tan bank)).
+ *  - outerTurnBankDeg 45 and outerKias 180, every turn of the outer pattern (crosswind, onto the outside downwind, the
+ *    90 and the 45 to initial): Dad's pick, Patrick approved, relayed by Dad, 13 Oct 2026 (TR-164).
  *  - perf: the CT-102B's performance set (types.js perfFor; core ct102b-performance.js, its numbers estimates).
  *  - downwindLine: the break rolls out on the line the final turn sets (spec 4.19 item 2).
  *  - src: the route points each piece starts at (ASTRA_POINT).
@@ -62,6 +90,8 @@ export const ASTRA_PATTERN = Object.freeze({
   climbKias: 100,
   climbingTurnBankDeg: 30,
   climbingTurnKias: 90,
+  outerTurnBankDeg: 45,
+  outerKias: 180,
   perf: perfFor('CT-102B'),
   downwindLine: true,
   src: Object.freeze({ break: ASTRA_POINT.break, downwind: ASTRA_POINT.downwind, perch: ASTRA_POINT.perch, window: ASTRA_POINT.window }),
@@ -72,6 +102,9 @@ const ON_LINE_DEG = 2;
 const WINGS_LEVEL_DEG = 3;
 /** The climbing turn starts this close under pattern height, ft: the level-off's last few feet (Pattern 1 uses the same). */
 const NEAR_HEIGHT_FT = 50;
+/** In an outer turn, bank taken off the outer bank per degree the circle onto the line is to the right (the aircraft early or inside it), and the most bank once rolling out (estimates, as circuit.js's bankFor and plannedBank use). */
+const ONTO_CIRCLE_BANK_PER_DEG = 3;
+const ROLLED_OUT_BANK_DEG = 15;
 
 /** The downwind line through `perch`: parallel to the runway `th`→`dep`, flown opposite to it. */
 function downwindLineThrough(perch, th, dep) {
@@ -146,11 +179,182 @@ function joined(first, second) {
 }
 
 /**
+ * The outer pattern's lines on the ground (spec 4.19 item 11), from the route's points (ASTRA_POINT), fixed as Pattern 1's
+ * outer legs are (circuit.js flyOuter): the outside downwind through point 9, parallel to the runway, flown opposite to
+ * it; the 90 to initial's leg through point 10, square to the runway, flown toward the centreline; the 45 to initial's
+ * leg through point 11, at 45° to the runway, flown toward the centreline and up the runway. The pattern is left-hand,
+ * so the legs lie left of the runway direction.
+ */
+function outerLines(points) {
+  const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd];
+  const len = Math.hypot(dep.x - th.x, dep.y - th.y);
+  const ux = (dep.x - th.x) / len, uy = (dep.y - th.y) / len; // up the runway
+  const rx = uy, ry = -ux; // to the right of the runway direction: from the pattern side toward the centreline
+  const along = (p, dx, dy) => lineOf(p, { x: p.x + dx * 10000, y: p.y + dy * 10000 });
+  return {
+    downwind: along(points[ASTRA_POINT.outerDownwind], -ux, -uy),
+    square: along(points[ASTRA_POINT.ninetyToInitial], rx, ry),
+    leg45: along(points[ASTRA_POINT.fortyFiveToInitial], (ux + rx) / Math.SQRT2, (uy + ry) / Math.SQRT2),
+  };
+}
+
+/**
+ * The outer pattern's pieces share one way of turning onto a line (spec 4.19 item 11): the turn starts when circuit.js
+ * readyToTurnOnto says a steady turn at the outer bank and today's speed rolls out on the line; it is flown on the circle
+ * that rolls out on it (circuit.js trackForLine at the turn's radius over the ground, scaled for the wind as
+ * readyToTurnOnto scales it), at the outer bank with a correction toward the circle; the wings come level at the roll
+ * rate once the heading still to go is about what rolling level turns; then the line is held with small corrections.
+ *
+ * Why not bankFor alone: bankFor's 3° of bank per degree of heading error needs some 20° of error to hold 45°, so on a
+ * circle it falls about 20° behind and overshoots, and aimed at the line's heading it eases out over the last 20° in a
+ * slow spiral that used up the 90 to initial's short leg (about 1,000 ft). Pattern 1's planned turn (circuit.js
+ * plannedBank) is not exported, and circuit.js is the CT-156's and stays as it is.
+ * `pilot` is a makePilot; returns { onto(line), ready(line), onLine(line) } bound to it.
+ */
+function outerTurns(pilot, wind, k) {
+  const { s } = pilot;
+  let turn = null; // { line, angleDeg, rollingOut }: the turn being flown, and how far it had to turn when it began
+  const gsOn = (line) => ktToFtps(Math.max(10, windTriangle(line.trackDeg, pilot.tasKt(), wind.windFromDeg, wind.windKt).groundSpeedKt));
+  const radius = () => turnRadiusFromBankFt(ktToFtps(pilot.tasKt()), k.outerTurnBankDeg);
+  const onTrack = (line) => Math.abs(wrapDeg180(line.trackDeg - pilot.trackDeg())) < ON_LINE_DEG && Math.abs(s.bank) < WINGS_LEVEL_DEG;
+  // Heading turned while the wings roll level from today's bank at the roll rate (circuit.js ROLL): about half today's
+  // turn rate over the roll's time. An estimate, good to a degree or so.
+  const rollOutDeg = () => {
+    const b = Math.abs(s.bank);
+    const sec = b / ROLL.maxRateDps + ROLL.maxRateDps / ROLL.maxAccelDps2;
+    return turnRateFromBankRadPerSec(Math.max(1, ktToFtps(pilot.tasKt())), b) * 180 / Math.PI * sec / 2;
+  };
+  return {
+    /** The bank to turn onto `line` (a left turn) and hold it. */
+    onto(line) {
+      if (turn?.line === line && onTrack(line)) turn = null;
+      if (turn?.line !== line) return bankFor(pilot.headingFor(trackForLine(line, s, HOLD_RADIUS_FT)), s, 30);
+      const lineHdg = pilot.headingFor(line.trackDeg);
+      const toGo = ((s.hdg - lineHdg) % 360 + 360) % 360; // heading still to turn, left
+      if (turn.rollingOut || (toGo < 180 && toGo <= rollOutDeg())) {
+        turn.rollingOut = true;
+        return bankFor(lineHdg, s, ROLLED_OUT_BANK_DEG, 'left');
+      }
+      const groundR = radius() * ((pilot.groundSpeedFtps() + gsOn(line)) / 2 / ktToFtps(pilot.tasKt())) ** 2;
+      const err = wrapDeg180(pilot.headingFor(trackForLine(line, s, groundR, turn.angleDeg)) - s.hdg); // below 0: the circle is further left
+      return Math.max(-k.outerTurnBankDeg, Math.min(0, -k.outerTurnBankDeg + ONTO_CIRCLE_BANK_PER_DEG * err));
+    },
+    /** True (and the turn onto `line` begun) when it is time to turn onto it. */
+    ready(line) {
+      if (!readyToTurnOnto(line, s, pilot.trackDeg(), radius(), pilot.groundSpeedFtps(), gsOn(line))) return false;
+      turn = { line, angleDeg: Math.abs(wrapDeg180(line.trackDeg - pilot.trackDeg())), rollingOut: false };
+      return true;
+    },
+    /** Settled on `line`: the turn flown, along its track with the wings level. */
+    onLine(line) {
+      return turn?.line !== line && onTrack(line);
+    },
+  };
+}
+
+/**
+ * The lap's way out (spec 4.19 item 11): from touchdown, full power on the centreline at the climb speed to pattern height
+ * (TR-158); past the departure end and at height the upwind, level, speeding up at full power to the outer speed; there
+ * the crosswind turn at the outer bank onto the crosswind track (the runway's less 90°, held for the wind), the crosswind
+ * leg, and the turn onto the outside downwind line. It stops on the outside downwind abeam the threshold, the branch
+ * point where the 90 and the 45 to initial part (both flown from here by flyToInitial). Returns { track, end, sec }.
+ * The crosswind turn starts at the outer speed, as Pattern 1's starts at its pattern speed (circuit.js flyOuter), so the
+ * upwind is shorter into a headwind; an engineering choice, Patrick to confirm.
+ */
+function flyOutbound(points, centre, lines, wind, k) {
+  const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd];
+  const runwayFt = Math.hypot(dep.x - th.x, dep.y - th.y);
+  const pilot = makePilot({ ...touchdownPointOf(th, dep), alt: THRESHOLD_DATA_ELEV_FT, ias: k.thresholdKias, hdg: 0, src: ASTRA_POINT.threshold, phase: 'climb', perf: k.perf }, wind);
+  const { s } = pilot;
+  s.hdg = pilot.headingFor(centre.trackDeg);
+  s.tag = 'climb';
+  pilot.record();
+  const turns = outerTurns(pilot, wind, k);
+  const crosswindTrack = wrapDeg360(centre.trackDeg - 90);
+  let stage = 'climb';
+  for (let n = 0; n < MAX_STEPS; n++) {
+    const along = legOffsetsFt(th, dep, s).alongFt;
+    if (s.src < ASTRA_POINT.departureEnd && along >= runwayFt) pilot.mark({ src: ASTRA_POINT.departureEnd });
+    let bank;
+    const { climb, accel } = powerClimb(pilot, stage === 'climb' ? k.climbKias : k.outerKias, k.patternAltFt);
+    if (stage === 'climb') {
+      bank = bankFor(pilot.headingFor(trackForLine(centre, s, HOLD_RADIUS_FT)), s, 30);
+      if (along >= runwayFt && s.alt >= k.patternAltFt - NEAR_HEIGHT_FT) { stage = 'upwind'; pilot.mark({ src: ASTRA_POINT.upwind, tag: 'upwind' }); }
+    } else if (stage === 'upwind') {
+      bank = bankFor(pilot.headingFor(trackForLine(centre, s, HOLD_RADIUS_FT)), s, 30);
+      if (s.ias >= k.outerKias - 0.5) { stage = 'crosswind'; pilot.mark({ src: ASTRA_POINT.crosswind, phase: 'crosswind', tag: 'crosswind' }); }
+    } else if (stage === 'crosswind') {
+      bank = bankFor(pilot.headingFor(crosswindTrack), s, k.outerTurnBankDeg, 'left');
+      if (turns.ready(lines.downwind)) stage = 'downwindTurn';
+    } else if (stage === 'downwindTurn') {
+      bank = turns.onto(lines.downwind);
+      if (turns.onLine(lines.downwind)) { stage = 'downwind'; pilot.mark({ src: ASTRA_POINT.outerDownwind, phase: 'outer_downwind', tag: 'outer_downwind' }); }
+    } else {
+      bank = turns.onto(lines.downwind);
+      if (legOffsetsFt(th, dep, s).alongFt <= 0) { pilot.mark({}); break; } // abeam the threshold: the branch point
+    }
+    pilot.step(bank, climb, accel);
+  }
+  return { track: pilot.points, end: { ...s }, sec: s.k * PILOT_DT };
+}
+
+/**
+ * From the branch point on the outside downwind (`from`, flyOutbound's end) back to the initial and on to the break point:
+ * the outside downwind held, then the turn onto `via` (the 90's square leg or the 45's leg, outerLines) at the outer bank,
+ * named 'initial' and starting route point `viaSrc`; the leg; the turn onto the centreline at the outer bank; the initial
+ * held at the outer speed (route point 5 from where it is settled on the centreline) to the break point `breakAlong`.
+ * Returns { track, end, sec }.
+ */
+function flyToInitial(points, centre, breakAlong, lines, via, viaSrc, wind, k, from) {
+  const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd];
+  const pilot = makePilot({ x: from.x, y: from.y, alt: from.alt, ias: from.ias, hdg: from.hdg, bank: from.bank, rollRate: from.rollRate, src: from.src, phase: from.phase, perf: k.perf }, wind);
+  const { s } = pilot;
+  s.tag = from.tag;
+  pilot.record();
+  const turns = outerTurns(pilot, wind, k);
+  let stage = 'downwind';
+  for (let n = 0; n < MAX_STEPS; n++) {
+    const { climb, accel } = powerClimb(pilot, k.outerKias, k.patternAltFt);
+    let bank;
+    if (stage === 'downwind') {
+      bank = turns.onto(lines.downwind);
+      if (turns.ready(via)) { stage = 'via'; pilot.mark({ src: viaSrc, phase: 'initial', tag: 'to_initial' }); }
+    } else if (stage === 'via') {
+      bank = turns.onto(via);
+      if (turns.onLine(via) && turns.ready(centre)) stage = 'initialTurn';
+    } else if (stage === 'initialTurn') {
+      bank = turns.onto(centre);
+      if (turns.onLine(centre)) { stage = 'initial'; pilot.mark({ src: ASTRA_POINT.initial, tag: 'initial' }); }
+    } else {
+      bank = turns.onto(centre);
+      if (legOffsetsFt(th, dep, s).alongFt >= breakAlong) break;
+    }
+    pilot.step(bank, climb, accel);
+  }
+  return { track: pilot.points, end: { ...s }, sec: s.k * PILOT_DT };
+}
+
+/** Path length, ft, from the first of `track`'s points to point `to` (as route.js measures a flown path: straight between points). */
+function lengthTo(track, to) {
+  let ft = 0;
+  for (let i = 1; i <= to && i < track.length; i++) ft += Math.hypot(track[i].x - track[i - 1].x, track[i].y - track[i - 1].y);
+  return ft;
+}
+
+/**
  * Builds the Astra's pattern for a wind. `points` are the Astra route's points (ASTRA_POINT); `numbers` the pattern's
- * numbers (ASTRA_PATTERN unless given). Returns { track, fromInitial, perch, breakAlongFt, missFt, lapSec, fromInitialSec }:
- * the lap after a touch-and-go and the overhead from the initial (each [{ x, y, alt, kt, g, bankDeg, src, phase, headingDeg, tag }],
- * ending at touchdown), the perch the search found, where the break starts (ft past the threshold), how far the lap's final
- * turn rolled out from the window (ft), and the seconds each path takes.
+ * numbers (ASTRA_PATTERN unless given). Returns { track, via45, via45JoinIndex, branchFt, drawn, fromInitial, perch,
+ * breakAlongFt, missFt, lapSec, via45Sec, fromInitialSec }:
+ *  - track: the lap after a touch-and-go with the 90 to initial (the route's flown path), from touchdown to touchdown;
+ *  - via45: the 45 to initial from the branch point on the outside downwind to touchdown, and via45JoinIndex the point of
+ *    it where the sim joins the lap again on initial (ASTRA_JOIN_POINTS after it is settled on the centreline);
+ *    branchFt: how far along `track` the branch point is (where via45 starts, the same place, speed and heading);
+ *  - drawn: the line to draw, the lap with the 45 to initial as a spur off it (out along via45 to its join, then back);
+ *  - fromInitial: the overhead from the initial point to touchdown;
+ * each path [{ x, y, alt, kt, g, bankDeg, src, phase, headingDeg, tag }]; the perch the search found, where the break
+ * starts (ft past the threshold), how far the lap's final turn rolled out from the window (ft), and the seconds each path
+ * takes (via45Sec from the branch point). A route with only the inner pattern's points (fewer than ASTRA_OUTER_POINTS)
+ * gets the V2.426 lap and no via45.
  */
 export function buildAstraCircuit(points, windFromDeg = 360, windKt = 0, numbers = ASTRA_PATTERN) {
   const k = numbers;
@@ -159,7 +363,49 @@ export function buildAstraCircuit(points, windFromDeg = 360, windKt = 0, numbers
   const centre = lineOf(th, dep);
   const headwindKt = windKt * Math.cos((windFromDeg - centre.trackDeg) * Math.PI / 180);
   const breakAlong = breakPointAlongFt(headwindKt, Math.hypot(dep.x - th.x, dep.y - th.y), k);
+  const initial = flyInitial(points, centre, breakAlong, wind, k);
+  if (points.length < ASTRA_OUTER_POINTS) return buildInnerLap(points, centre, breakAlong, initial, wind, k);
 
+  // The outer pattern, flown once to the branch point, then each way back to the initial and the break point.
+  const lines = outerLines(points);
+  const outbound = flyOutbound(points, centre, lines, wind, k);
+  const ninety = flyToInitial(points, centre, breakAlong, lines, lines.square, ASTRA_POINT.ninetyToInitial, wind, k, outbound.end);
+  const fortyFive = flyToInitial(points, centre, breakAlong, lines, lines.leg45, ASTRA_POINT.fortyFiveToInitial, wind, k, outbound.end);
+  // The perch, found on the lap (the 90 to initial's break); the 45's and the overhead's break fly to the same perch.
+  const { perch, inner: lap, missFt } = findPerch(points[ASTRA_POINT.perch], win, (tryPerch, last) => flyInner(points, centre, breakAlong, tryPerch, wind, last?.finalTurnFt, ninety.end, { numbers: k, window: win }));
+  const via45Inner = flyInner(points, centre, breakAlong, perch, wind, lap.finalTurnFt, fortyFive.end, { numbers: k, window: win });
+  const overhead = flyInner(points, centre, breakAlong, perch, wind, lap.finalTurnFt, initial.end, { numbers: k, window: win });
+
+  const track = joined(joined(outbound.track, ninety.track), lap.track);
+  const branchIndex = outbound.track.length; // ninety's first point, where via45 starts too
+  const via45 = joined(fortyFive.track, via45Inner.track);
+  const onInitial = via45.findIndex((q) => q.src === ASTRA_POINT.initial);
+  const via45JoinIndex = onInitial < 0 ? via45.length - 1 : Math.min(via45.length - 1, onInitial + ASTRA_JOIN_POINTS);
+  const spur = via45.slice(0, via45JoinIndex + 1);
+  const drawn = [...track.slice(0, branchIndex), ...spur, ...spur.slice(0, -1).reverse(), ...track.slice(branchIndex + 1)].map((q) => ({ x: q.x, y: q.y, alt: q.alt }));
+  return {
+    track,
+    via45,
+    via45JoinIndex,
+    branchFt: lengthTo(track, branchIndex),
+    drawn,
+    fromInitial: joined(initial.track, overhead.track),
+    perch,
+    breakAlongFt: breakAlong,
+    missFt,
+    lapSec: outbound.sec + ninety.sec + lap.endSec,
+    via45Sec: fortyFive.sec + via45Inner.endSec,
+    fromInitialSec: initial.sec + overhead.endSec,
+  };
+}
+
+/**
+ * The V2.426 lap, for a route with only the inner pattern's points (a setup saved before V2.429): the climb-out and 30°
+ * climbing turn onto the line through the perch (flyClimbOut), downwind, final turn and final; and the overhead with the
+ * same perch. Returns buildAstraCircuit's answer without via45.
+ */
+function buildInnerLap(points, centre, breakAlong, initial, wind, k) {
+  const th = points[ASTRA_POINT.threshold], dep = points[ASTRA_POINT.departureEnd], win = points[ASTRA_POINT.window];
   // The perch, found on the lap: climb-out and climbing turn onto the line through the perch, downwind, final turn.
   const flyLap = (perch, last) => {
     const climb = flyClimbOut(points, centre, downwindLineThrough(perch, th, dep), wind, k);
@@ -167,13 +413,12 @@ export function buildAstraCircuit(points, windFromDeg = 360, windKt = 0, numbers
     return { ...inner, climb };
   };
   const { perch, inner: lap, missFt } = findPerch(points[ASTRA_POINT.perch], win, flyLap);
-
   // The overhead with the same perch: the initial, then the break onto the same line, downwind, final turn and final.
-  const initial = flyInitial(points, centre, breakAlong, wind, k);
   const overhead = flyInner(points, centre, breakAlong, perch, wind, lap.finalTurnFt, initial.end, { numbers: k, window: win });
-
+  const track = joined(lap.climb.track, lap.track);
   return {
-    track: joined(lap.climb.track, lap.track),
+    track,
+    drawn: track,
     fromInitial: joined(initial.track, overhead.track),
     perch,
     breakAlongFt: breakAlong,
