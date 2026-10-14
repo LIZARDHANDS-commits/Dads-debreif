@@ -130,6 +130,8 @@ The guard is a backstop for the 500 ft bubble only; keeping position is the norm
 
 ### 7.9 Techniques
 
+**Why techniques, and when one is needed.** The normal flyer fixes small errors gently, the way a pilot makes small continuous corrections, and flies nearly all of the time. A technique is used only when the picture is well outside what gentle feedback can fix in the time Lead allows: either the error is too big (the feedback would run into a limit, such as the G cap, the 20° and 12° approach caps, MAX or idle, and be slow or overshoot), or the right answer is a different kind of move (go vertical, reverse, cut across the circle) that feedback, which only nudges toward the target, will never find on its own. It is a pilot's named manoeuvre for that picture, planned once and then flown by the same loops.
+
 **How a technique works** (TS-233, Patrick 14 Oct 2026, card "Plans; same loops fly it"):
 - It starts from a **predicted cue**: left alone, the normal flyer would pass inside 600 ft, need more than the cap, or still be stretched at roll-out.
 - It **plans once**, from the error and his energy: the path, the energy intent, the height and the urgency.

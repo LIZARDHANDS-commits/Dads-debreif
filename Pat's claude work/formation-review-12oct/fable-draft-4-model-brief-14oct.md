@@ -194,6 +194,8 @@ d = d_ss + wanted ÷ ω + kc × (wanted − closure) ÷ ω; wanted = (s − 650 
 
 ### The techniques (as drafted; the instructor may still change the list)
 
+Why techniques, and when one is needed: the normal follower fixes small errors gently, the way a pilot makes small continuous corrections, and flies nearly all of the time. A technique is used only when the picture is well outside what gentle feedback can fix in the time Lead allows: either the error is too big (the feedback would run into a limit, such as the G cap, the approach-angle caps, full power or idle, and be slow or overshoot), or the right answer is a different kind of move (go vertical, reverse, cut across the circle) that feedback, which only nudges toward the target, will never find on its own. It is a pilot's named manoeuvre for that picture, planned once and then flown by the same loops.
+
 How a technique works: it starts from a predicted cue (left alone, the normal follower would pass inside 600 ft, need more than the cap, or still be stretched at roll-out); plans once from the error and his energy; the same loops fly it; small errors are fed back, a plan that drifts past its bound is re-planned, an unsafe one goes to pass clear; it hands back by sliding the reference home over a blend time, only once well inside the normal follower's envelope; no restart for about 3 s (estimate) unless a fresher, more urgent cue fires; one at a time by priority; each has a longest run; techniques should be rare in ordinary flying.
 
 | Priority | Technique | Cue | Plan (sized once) | Hand back | Numbers (estimates unless noted) |
