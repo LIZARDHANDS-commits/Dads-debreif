@@ -4,7 +4,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 
 ## Where it stands
 
-- **Branch** `formation-close-wingman-b2` (PR #1031, its CI not read). On screen: **V2.433**. Phase B never goes to main without Patrick.
+- **Branch** `formation-close-wingman-b2` (PR #1031; phase B's CI is not watched, Patrick's call). On screen: **V2.433**. Phase B never goes to main without Patrick.
 - **Close formation (B1-B3):** flown and approved, and Live is the default.
 - **Fighting wing (B5):** the live technique is behind "#2 in fighting wing: Live", with Old the default. It is rounds 1-4, tidied (T29t) with the flying byte-identical.
   - Patrick flew it on 14 Oct: it over-controls the aim point, roll and G; it sits too low too often; it bleeds energy by cranking; abeam, it matches Lead's bank instead of going to lag pursuit.
@@ -22,13 +22,14 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
    - techniques plan the path and the energy intent, and the same loops fly it;
    - phased handovers everywhere, and the guard as a barrier;
    - G onset smooth and deliberate, scaled by urgency (about 1 G/s usually, up to 4 G/s to avoid hitting);
-   - all TS-233 rulings folded in, with a picture.
+   - all TS-233 rulings folded in, with a picture;
+   - the structure is settled (TS-233 "How a technique works", TS-234): each card also says what it writes, what can interrupt it, its longest run and where it hands back, and the draft adds a "how it is programmed" section.
 2. **An Opus agent audits the draft,** read-only, against the control model and the rig (Patrick: "Spec 7e, then he will audit it"). In a new session, brief a fresh agent from the control model, the method plan and the review. Then Patrick approves.
 3. **Round 5, re-cut from draft 4, in slices behind Live** (Old the default). Each slice must meet gates C1-C11 (`control-systems-analysis-plan.md` §7) before Patrick flies it. If one struggles, stop, analyse, and Patrick ratifies the fix. Run the method plan's measurements on each slice. The tapered guard comes first.
 4. **Then** T29b-T29d (the climbs and descents, entry and exit, the aggressive Lead to 4 G), T29r's HUD readout, T30 (blended hand-overs), and T31 with Checkpoint G (Patrick flies fighting wing).
 5. **B4 after that:** spec 7d is rewritten with TRJ and SARJ as techniques. TRJ keeps flying as it does today, and moves only if the live one flies at least as well.
 
-## Patrick's rulings on 14 Oct (all in TS-233's row in `decisions.md`, and as "7. Ruling" paragraphs in spec 7e)
+## Patrick's rulings on 14 Oct (all in TS-233's and TS-234's rows in `decisions.md`, and in spec 7e's "7. Ruling" paragraphs and 7a)
 
 - **Fighting wing is turn entry, turning and turn exit,** geometry first in each. Inside Lead's circle and gaining, relax and recapture his circle.
 - **The guard tapers:** nothing at 600 ft and over; firmer toward 500 ft; the miss below inside it. It's a backstop, not the pilot.
@@ -44,6 +45,8 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 - **Smooth, planned corrections:** "assess the error, make a plan, smoothly execute the plan/monitor perofmrance/adjust as requied". Gentle handovers at every switch; low only when needed.
 - **The aggressive Lead** (up to 4 G, 90°/s roll) is part of B5, as T29d.
 - **Analysis and gates:** build the model now and run the analysis on each slice; each slice meets C1-C11 before he flies it.
+- **How a technique works (TS-233):** it plans (path, energy intent, height and urgency, once, from a predicted cue) and the same loops fly it. It writes only the reference, hands back by sliding the reference home well inside the normal flyer's envelope, runs one at a time by priority, and should be rare. The guard is not a technique.
+- **TS-234, the sim's design rules:** phased hand-overs, one owner per control, techniques plan and the same loops fly them, for every aircraft the sim flies. Fighting wing first; each later rung gets its control model first; what flies well stays until its replacement flies as well (spec 7a).
 
 ## The documents
 
