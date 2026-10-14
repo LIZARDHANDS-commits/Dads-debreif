@@ -12,6 +12,9 @@
 // Radar with its real heights (SOF-67, V2.430): while NOAA MRMS answers (mrms-feed.js, a set no older than 20 minutes) the radar is drawn from it (radar3d.js: Performance
 // columns to the measured echo tops, or High's see-through volume, drawn as nested shells since V2.432, SOF-69), cell by cell, never merged; the blocks in the model
 // cloud below (SOF-56, SOF-57's merging) are the fallback when it cannot be had, and the key says why.
+//
+// NOAA's lightning strikes (SOF-71, V2.437): a bolt for each strike of the last 10 minutes (map.js `weather3d().strikes`, from strikes-model.js), drawn as the ECCC
+// bolts are (`bolts`, `buildBolts`), shown and hidden with the same Lightning switch. Not drawn when the strikes are not fresh (strikes-model.js decides).
 import { h } from '../../ui-kit/dom.js';
 import { drawGeoImage } from './map-draw.js';
 import { AREA_FT } from './scene3d-model.js';
@@ -45,6 +48,7 @@ const SHEET_FADE_MIN = 0.2;
  * - clouds (optional): the cloud slabs' own heights when the view draws slabs (Fable review, 7 Oct): { key, column(u, v), topFt } where `column` stands in for the
  *   per-level `cloudColumnAt` (cloud-field.js `slabColumnAt`), `topFt` is the highest slab top (the satellite sheet's height, or null) and `key` changes when they do.
  * - weather: { radar, lightning, satellite } each null or { id, image, bbox, stale, on }, and { fronts } as fronts.js `frontsView` (status, data, words); see map.js `weather3d`.
+ *   `strikes` (SOF-71): null or { key, cells: [{ x, y, u, v }] }, NOAA's strikes of the last 10 minutes in the map's local feet (strikes-model.js `strikeBoltCells`).
  * - model (model-clouds.js, or null) and `hour`: the cloud levels and winds behind the heights and the flow.
  * - items(): the H and L marks to place: [{ el, point: { x, y, z }, kind }]. summary(): what is drawn, for the key.
  */
@@ -57,7 +61,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
   let marks = []; // the H and L labels
   let flowState = null; // { flow, layer, levels }
   let flowStop = null;
-  let facts = { radar: null, lightning: null, satellite: null, fronts: null, flow: null };
+  let facts = { radar: null, lightning: null, strikes: null, satellite: null, fronts: null, flow: null };
   let shown = true;
   let sheetFade = 1;
   let heightsNow = null; // the radar heights' line as of the last update ("Radar heights: NOAA MRMS, 0508Z (3 min ago)"), for the key
@@ -123,6 +127,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       if (built.radar.layer.rain) built.radar.layer.rain.visible = toggles.rain !== false; // switched, never rebuilt
     }
     if (built.lightning?.layer) built.lightning.layer.root.visible = on('lightning');
+    if (built.strikes?.layer) built.strikes.layer.root.visible = on('lightning'); // NOAA's strikes share the Lightning switch
     if (built.satellite?.layer) built.satellite.layer.root.visible = on('satellite');
     if (built.fronts?.layer) built.fronts.layer.root.visible = on('fronts');
     if (flowState) flowState.layer.root.visible = on('flow');
@@ -265,6 +270,19 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         return buildBolts(T, { bolts: list, scale });
       });
 
+      // NOAA's lightning strikes (SOF-71): a bolt for each strike of the last 10 minutes, from the ground to the model cloud top above it, as the ECCC bolts.
+      const strikes = weather.strikes ?? null;
+      const strikesOn = Boolean(strikes && Array.isArray(strikes.cells) && strikes.cells.length);
+      place('strikes', strikesOn ? `${strikes.key}|${modelKey}|${standing}` : 'off', () => {
+        if (!strikesOn) {
+          facts.strikes = null;
+          return null;
+        }
+        const list = bolts(strikes.cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
+        facts.strikes = { count: list.length, strikes: strikes.cells.length };
+        return buildBolts(T, { bolts: list, scale });
+      });
+
       // The satellite sheet: at the highest model cloud level present (the highest slab top with slabs), else SATELLITE_DEFAULT_FT
       const sat = weather.satellite;
       const satOn = Boolean(sat && sat.image && sat.on !== false);
@@ -336,7 +354,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       const read = readPicture(picture, projection, CLOUD_SHEET_PX);
       return read ? readTotalCloud(read.image) : null;
     },
-    /** What is drawn, for the key: { radar, lightning, satellite, fronts, flow }, each null when not drawn; the radar's says whether its rain curtains are shown (`rainShown`). */
+    /** What is drawn, for the key: { radar, lightning, strikes, satellite, fronts, flow }, each null when not drawn; the radar's says whether its rain curtains are shown (`rainShown`). */
     summary: () => ({ ...facts, radar: facts.radar ? { ...facts.radar, rainShown: toggles.rain !== false, line: heightsNow } : null }),
     /**
      * The radar blocks and lightning bolts as last built, for the approaches' corridor check: { radar: [block] | null, lightning: [bolt] | null } (null: not drawn,
@@ -395,6 +413,10 @@ export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-We
   }
   if (summary.lightning) {
     out.push(`Lightning: a bolt for each lit lightning cell, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). ${summary.lightning.count} drawn.`);
+  }
+  if (summary.strikes) {
+    const s = summary.strikes;
+    out.push(`Lightning strikes (NOAA NLDN via MRMS): a bolt for each cloud-to-ground strike of the last 10 minutes (each 0.01° cell with a strike, its middle), from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). In-cloud lightning is not in it. ${s.count === s.strikes ? `${s.count} drawn` : `${s.count} of ${s.strikes} drawn (thinned evenly)`}.`);
   }
   if (summary.fronts) {
     out.push(`Fronts: ${FRONTS_CREDIT}, so a front is only right to about a degree (60 NM). Line colours: cold blue with triangles, warm red with half circles, stationary alternating blue and red, occluded purple with both, trough dashed orange. The symbols stand on the side the bulletin does not give: taken from the way each kind usually moves across North America (a guess). A faint wall ${formatFeet(FRONT_WALL_FT)} ft tall stands along each (an estimate, ×${scale}). H and L are the bulletin's pressure centres in hPa.`);

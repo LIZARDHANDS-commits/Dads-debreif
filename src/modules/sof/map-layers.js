@@ -7,6 +7,9 @@
 //
 // The ADS-B Exchange view is not a layer: it swaps the whole map area, always starts
 // off, and is not kept (map.js).
+//
+// "Lightning strikes (NOAA)" (SOF-71) starts on at a US base and off at Moose Jaw, so its starting state is the base's, not one value: it is kept as null
+// until the person sets it (`withSiteDefaults` fills it from the site profile), and once set the choice holds at every base until changed again.
 
 /** The base map choices: Satellite, the VNC chart, or the VNC chart over satellite. */
 export const BASES = Object.freeze([
@@ -17,14 +20,15 @@ export const BASES = Object.freeze([
 
 /**
  * The overlays, from the bottom of the stack to the top, in the order the menu lists them.
- * `on`: whether it starts on. `opacity`: has a slider, and its starting percent.
+ * `on`: whether it starts on (null: the base's own default, `withSiteDefaults`). `opacity`: has a slider, and its starting percent.
  * `needsRelay`: the switch is hidden until the traffic relay's address is set.
  */
-export const OVERLAYS = Object.freeze(/** @type {Array<{ id: string, label: string, on: boolean, opacity?: number, needsRelay?: boolean }>} */ ([
+export const OVERLAYS = Object.freeze(/** @type {Array<{ id: string, label: string, on: boolean | null, opacity?: number, needsRelay?: boolean }>} */ ([
   Object.freeze({ id: 'cloud', label: 'Satellite cloud picture (GOES)', on: false, opacity: 60 }),
   Object.freeze({ id: 'radar', label: 'Radar (rain or snow)', on: true, opacity: 75 }),
   Object.freeze({ id: 'coverage', label: 'Radar coverage', on: true, opacity: 60 }),
   Object.freeze({ id: 'lightning', label: 'Lightning density, last 10 min', on: true, opacity: 85 }),
+  Object.freeze({ id: 'strikes', label: 'Lightning strikes (NOAA)', on: null }), // SOF-71: on at a US base, off at Moose Jaw (its cross-check)
   Object.freeze({ id: 'warnings', label: 'Weather warnings', on: false, opacity: 60 }),
   Object.freeze({ id: 'routes', label: 'Training routes and areas', on: false, opacity: 80 }),
   Object.freeze({ id: 'rings', label: '25 and 50 NM rings', on: true }),
@@ -131,6 +135,16 @@ export function setTrafficOption(state, { label, militaryOnly, trails } = /** @t
 /** Rain or Snow. */
 export function setPrecip(state, precip) {
   return precip === 'rain' || precip === 'snow' ? { ...state, precip } : state;
+}
+
+/**
+ * The state with each base-dependent layer (`on: null` in OVERLAYS, not yet set by the person) filled from the base's defaults: `defaults` is { strikes: boolean }
+ * (the site profile's `sources.strikes.mapDefault`; false when the base has none). Returns the same state when nothing is left to fill.
+ */
+export function withSiteDefaults(state, defaults = {}) {
+  const fill = OVERLAYS.filter((o) => o.on === null && typeof state.on[o.id] !== 'boolean');
+  if (!fill.length) return state;
+  return { ...state, on: { ...state.on, ...Object.fromEntries(fill.map((o) => [o.id, defaults[o.id] === true])) } };
 }
 
 /**

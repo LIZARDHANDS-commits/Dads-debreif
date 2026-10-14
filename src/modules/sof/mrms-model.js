@@ -12,6 +12,10 @@
 // - Values: echo tops in km above sea level, -1 no echo, -3 no coverage; reflectivity in dBZ, -99 no echo, -999 no coverage (V, read from the files; the spec's
 //   "-1 no echo, -3 no coverage" is the echo tops' pair).
 // - The checks' limits (spec "Untrusted replies"): about 3 MB gzipped a file (G), dBZ -40 to 90, tops 0 to 25 km.
+// - Lightning strikes (SOF-71; read from NOAA's files on 14 Oct 2026, and the same by ecCodes as bundled with pygrib 2.1.8): NLDN_CG_001min_AvgDensity_00.00 is
+//   category 2, number 0 (number 1 is the 5-minute file, 2 the 15-minute), surface 102 at 0 m, PNG packed (R -1000, E 0, D 3, 16 bits); -1 is no strike (no
+//   coverage value was seen), a value above 0 is strikes per km² in that minute, so a lit cell holds value × the cell's area strikes (V: every lit cell of three
+//   files came out a whole number, all 1 or 2); files 1 to 9 KB (V), a new one each minute, 1 to 2 minutes late (V). Values 0 to 1,000 are taken (spec).
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../core/geo.js';
 import { FT_PER_M } from '../../core/units.js';
 import { MRMS_SCALE } from './map-model.js';
@@ -25,10 +29,10 @@ export const MRMS_NORTH_DEG = 55;
 /** The MRMS discipline in GRIB2 (its own local table, V). */
 const MRMS_DISCIPLINE = 209;
 
-/** Echo-top values (km above sea level) and reflectivity (dBZ) that mean "no echo" and "no coverage" (V). */
-export const SENTINELS = Object.freeze({ top: Object.freeze({ none: -1, gap: -3 }), dbz: Object.freeze({ none: -99, gap: -999 }) });
-/** A value outside these is a failure for that file (spec "Untrusted replies"). */
-export const VALUE_RANGE = Object.freeze({ top: Object.freeze([0, 25]), dbz: Object.freeze([-40, 90]) });
+/** Echo-top values (km above sea level) and reflectivity (dBZ) that mean "no echo" and "no coverage" (V); the strikes' "no strike" (V; they have no coverage value). */
+export const SENTINELS = Object.freeze({ top: Object.freeze({ none: -1, gap: -3 }), dbz: Object.freeze({ none: -99, gap: -999 }), strikes: Object.freeze({ none: -1, gap: null }) });
+/** A value outside these is a failure for that file (spec "Untrusted replies"; strikes per km² in a minute: SOF-71's spec). */
+export const VALUE_RANGE = Object.freeze({ top: Object.freeze([0, 25]), dbz: Object.freeze([-40, 90]), strikes: Object.freeze([0, 1000]) });
 /** A file over this many bytes (gzipped) is a failure (spec: about 3 MB, an estimate; a quiet day's composite was 1.5 MB, V). */
 export const MAX_FILE_BYTES = 3 * 1024 * 1024;
 /** The folder listing is a few hundred bytes a file asked after `start-after`; this cap is far above it. An estimate. */
@@ -47,6 +51,8 @@ export const PRODUCTS = Object.freeze({
   top18: product('EchoTop_18_00.50', 'top', 3, 44, 500, '18 dBZ echo top'),
   top30: product('EchoTop_30_00.50', 'top', 3, 45, 500, '30 dBZ echo top'),
   composite: product('MergedReflectivityQCComposite_00.50', 'dbz', 10, 0, 500, 'composite reflectivity'),
+  // NLDN cloud-to-ground lightning, one minute's strikes per km² (SOF-71; strikes-feed.js asks for it, not the radar).
+  strikes: product('NLDN_CG_001min_AvgDensity_00.00', 'strikes', 2, 0, 0, 'lightning strikes'),
 });
 /** High's 12 heights, km above sea level (spec: an estimate for the levels, enough to show a storm's layers). */
 export const HIGH_LEVELS_KM = Object.freeze([1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18]);
@@ -108,15 +114,21 @@ export const keyFor = (p, t) => `CONUS/${p.name}/${dayOf(t)}/MRMS_${p.name}_${st
 export const fileUrl = (key) => `${MRMS_BUCKET}/${key.split('/').map(encodeURIComponent).join('/')}`;
 
 /**
- * The folder listings that hold the newest file (S3 ListObjectsV2 with a prefix, research V): the day's folder, asked only for keys after LOOKBACK_MS ago; and the
- * day before's too while that look-back reaches into it (just after 0000Z). Returns [url].
+ * The folder listings that hold the newest file (S3 ListObjectsV2 with a prefix, research V): the day's folder, asked only for keys after `lookbackMs` ago (default
+ * LOOKBACK_MS); and the day before's too while that look-back reaches into it (just after 0000Z). Returns [url].
+ * `afterKey` (the lightning strikes, SOF-71: "each refresh lists only files after the last one read"): a key of this product from an earlier listing; the listing
+ * then starts just after it, in its own day's folder (and today's too when that is another day). A key older than the look-back, from the future or of another
+ * product is ignored, and the look-back is used.
  */
-export function listingUrls(p, now) {
-  const from = +now - LOOKBACK_MS;
+export function listingUrls(p, now, { lookbackMs = LOOKBACK_MS, afterKey = null } = {}) {
+  const windowFrom = +now - lookbackMs;
+  const keyAt = typeof afterKey === 'string' && afterKey.startsWith(`CONUS/${p.name}/`) ? keyTime(afterKey) : null;
+  const useKey = keyAt !== null && keyAt >= windowFrom && keyAt <= +now;
+  const from = useKey ? keyAt : windowFrom;
   const days = dayOf(from) === dayOf(now) ? [from] : [from, +now];
   return days.map((t) => {
     const prefix = `CONUS/${p.name}/${dayOf(t)}/`;
-    const after = t === from ? keyFor(p, from) : `${prefix}MRMS_${p.name}_${dayOf(t)}-000000.grib2.gz`;
+    const after = t === from ? (useKey ? afterKey : keyFor(p, from)) : `${prefix}MRMS_${p.name}_${dayOf(t)}-000000.grib2.gz`;
     return `${MRMS_BUCKET}/?list-type=2&prefix=${encodeURIComponent(prefix)}&start-after=${encodeURIComponent(after)}&max-keys=100`;
   });
 }
@@ -186,10 +198,10 @@ export function checkField(meta, p, nameTime) {
   return null;
 }
 
-/** What a value means: 'gap' (no coverage), 'none' (no echo), 'bad' (out of range) or 'value'. */
+/** What a value means: 'gap' (no coverage), 'none' (no echo, or no strike), 'bad' (out of range) or 'value'. */
 export function classify(v, kind) {
   const s = SENTINELS[kind];
-  if (Math.abs(v - s.gap) < 1e-3) return 'gap';
+  if (s.gap !== null && Math.abs(v - s.gap) < 1e-3) return 'gap';
   if (Math.abs(v - s.none) < 1e-3) return 'none';
   const [lo, hi] = VALUE_RANGE[kind];
   return v >= lo && v <= hi ? 'value' : 'bad';
@@ -324,10 +336,41 @@ export function sampleLevel(read, grid, target) {
   return { codes, covered, coveredCells, gridCells };
 }
 
+/** Kilometres in a degree of latitude, for a cell's area (WGS 84's equatorial radius, 6,378.137 km: 111.32 km). */
+const KM_PER_DEG = (Math.PI / 180) * 6378.137;
+/** Most strikes kept from one file (SOF-71): a busy minute over the whole 900 NM square had about a thousand lit cells on 14 Oct 2026, so this is far above it. An estimate. */
+export const MAX_STRIKES_PER_FILE = 20_000;
+
+/**
+ * The lit cells of a strikes window (readGrib2Window's `{ crop, rows, cols, values }` of an NLDN file): [{ lat, lon, count }], the cell's centre in degrees (north,
+ * east; west negative) and how many strikes it held in that minute: its value (strikes per km²) × the cell's area, rounded to a whole strike (every lit cell read on
+ * 14 Oct 2026 came out within 0.003 of a whole number), and at least 1 for any value above 0. Cells of 0 or less (-1 is no strike) are left out. At most
+ * MAX_STRIKES_PER_FILE, then `capped` is true.
+ */
+export function litStrikes(read, grid) {
+  const strikes = [];
+  if (!read.crop) return { strikes, capped: false };
+  for (let r = 0; r < read.rows; r++) {
+    const lat = grid.la1 - (read.crop.row0 + r) * grid.dj;
+    const areaKm2 = grid.dj * KM_PER_DEG * grid.di * KM_PER_DEG * Math.cos((lat * Math.PI) / 180);
+    const base = r * read.cols;
+    for (let c = 0; c < read.cols; c++) {
+      const v = read.values[base + c];
+      if (classify(v, 'strikes') !== 'value' || !(v > 0)) continue;
+      if (strikes.length >= MAX_STRIKES_PER_FILE) return { strikes, capped: true };
+      let lon = grid.lo1 + (read.crop.col0 + c) * grid.di;
+      if (lon > 180) lon -= 360;
+      strikes.push({ lat: Number(lat.toFixed(3)), lon: Number(lon.toFixed(3)), count: Math.max(1, Math.round(v * areaKm2)) });
+    }
+  }
+  return { strikes, capped: false };
+}
+
 /**
  * Everything the worker does to one file: read the window the square needs, check the file against what was asked (`product`, the time in its name), and lay it on
- * the square's cells ('bin' for Performance, 'level' for High). `readWindow` is grib2.js readGrib2Window. Returns { ok: true, time, kind: 'bin', cells } or
- * { ok: true, time, kind: 'level', codes, covered, coveredShare } or { ok: false, reason } (plain words).
+ * the square's cells ('bin' for Performance, 'level' for High), or list its strikes ('strikes', SOF-71: `litStrikes`). `readWindow` is grib2.js readGrib2Window.
+ * Returns { ok: true, time, kind: 'bin', cells } or { ok: true, time, kind: 'level', codes, covered, coveredShare } or { ok: true, time, kind: 'strikes', strikes,
+ * capped } or { ok: false, reason } (plain words).
  */
 export async function decodeFile({ gz, product: p, nameTime, target, layout }, readWindow) {
   let read;
@@ -343,6 +386,10 @@ export async function decodeFile({ gz, product: p, nameTime, target, layout }, r
   for (let k = 0; k < read.values.length; k++) if (classify(read.values[k], p.kind) === 'bad') bad += 1;
   if (bad) return { ok: false, reason: `values out of range (${bad} cells)` };
   const time = +read.meta.time;
+  if (layout === 'strikes') {
+    const { strikes, capped } = litStrikes(read, read.meta.grid);
+    return { ok: true, time, kind: 'strikes', strikes, capped };
+  }
   if (layout === 'level') {
     const level = sampleLevel(read, read.meta.grid, target);
     return { ok: true, time, kind: 'level', codes: level.codes, covered: level.covered, coveredShare: level.gridCells ? level.coveredCells / level.gridCells : 0 };
