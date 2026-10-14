@@ -10,15 +10,12 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
   - Patrick flew it on 14 Oct: it over-controls the aim point, roll and G; it sits too low too often; it bleeds energy by cranking; abeam, it matches Lead's bank instead of going to lag pursuit.
   - The architecture review explains why: the guard's lines sit on the ideal range, eleven add-ons answer one root problem, and the switches cause the fragility.
 - **The control model (T29m part 1)** is merged: the master list, block diagrams, N² chart, tuning ledger, switching map and a first-cut bandwidth and delay table. The linear loops have 1.3-16 s of extra-delay margin, so the trouble is the switches.
-- **Running when this was written:** T29m part 2 (trace columns, the injection hook, the scripted-Lead rig, the abeam baseline), by the control-systems Opus agent on `formation-control-analysis-plan`. Its report also goes to `formation-review-12oct/t29m-part2-report.md`. *(The thread updates this line when part 2 is merged.)*
+- **The measuring tools (T29m part 2)** are merged too: the controller trace columns, the gauge's fault counts, the analysis probe and delay flags, the scripted-Lead rig (`tools/fw-rig.mjs`) and the abeam baseline (`b5-into-abeam`). Flying unchanged. In today's code they measure his faults: G onset 1.7-3.3 G/s; up to 25 s of a 30 s turn over Lead's G + 0.5; up to 137 aim jumps a turn; 8-25 s a turn too low; into tight loses 27 kt; abeam, he banks with Lead and ends 49° ahead of the 3/9 line. The report is `formation-review-12oct/t29m-part2-report.md`; the plot page's phase-plane view is not built.
+- **Nothing is running.** No agents are live.
 
 ## Next, in order (plan B5 in `docs/modules/turn-sim/plan.md`)
 
-1. **Part 2, if not yet merged:**
-   - read every `src` diff line (trace and optional probe only);
-   - run the keep-unchanged checks below against runs made at b2's head before its commits;
-   - merge into b2, with no version bump;
-   - show Patrick, case by case, what the new columns show of his faults.
+1. **Part 2's two questions to Patrick**, if not yet answered (waiting list): what G onset is "smooth, constant and deliberate" (today 1.7-3.3 G/s); whether truly abeam counts as fighting wing for Lead's moves.
 2. **T29s, spec 7e draft 4, written by the thread.** One clean design in place of the stacked "7. Ruling" paragraphs:
    - a normal flyer (a gentle circle or line follower) for nearly all the flying;
    - a few named techniques from the manual and his rulings: the miss (vertical first, below), lag pursuit from abeam, the high yo-yo, the exit dive or climb, S-turns, the very-stretched cut-across;
@@ -57,7 +54,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 | How we model and analyse the controllers (gates C1-C11, methods, tasks CA0-CA8) | `Pat's claude work/formation-review-12oct/control-systems-analysis-plan.md` |
 | The architecture review (verdict, findings F1-F12, recommended structure, slices) | `…/formation-review-12oct/fighting-wing-architecture-review.md` |
 | What every removed option and folded switch did | `…/formation-review-12oct/fighting-wing-code-history.md` |
-| Part 2's report | `…/formation-review-12oct/t29m-part2-report.md` |
+| Part 2's report (today's faults measured, the rig check) | `…/formation-review-12oct/t29m-part2-report.md`; the numbers per case in `tools/control-map/results/faults.json` |
 | Fable's reviews | `…/formation-review-12oct/research/wingman-audit-fable-13oct.md`, `fable-fighting-wing-audit-14oct.md`, `fable-fighting-wing-report-14oct.md`, `fable-cone-turn-report-14oct.md` |
 | The research (barriers, the pilot model, the delay budget) | `docs/references/formation-control-research-14oct.md`; the manual sweep in `docs/references/smm-fighting-wing-and-pursuit.md` |
 | Recorded formation flying (a reference only) | `Pat's claude work/formation-track-logs/README.md` |
@@ -72,6 +69,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
   - `node "Pat's claude work/formation-review-12oct/four-ship-probe.mjs" file:///C:/<repo>/` must give `2d5b5a8020839796` for both lines.
 - **The control model:** `node tools/control-map/check.mjs --tag <tag>` on a tagged gauge run, and `node tools/control-map/draw.mjs --check` (no diff).
 - **Build:** `npm run build`. No local tests: CI on the PR is the one check.
+- **Quirks:** the gauge doesn't print a press it refused (`state.refusal`), so a refused case runs silently; the compare treats arrays as whole values, which is why the per-press fault counts sit in a top-level `faults` key.
 
 ## How to work (the rules that bit this stretch)
 
