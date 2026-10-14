@@ -191,6 +191,70 @@ def main():
         md.append(f'| {r["tech"]} | {r["loop"]} | {r["trim"]} | {r["delay"]} | {f(r["wc"], 3)} | {f(r["pm"], 1)} | {f(r["gm_db"], 1)} | {f(r["dm"], 2)} | {f(r["steady"], 2)} | {r["note"]} |')
     (OUT / 'fw-loop-table.md').write_text('\n'.join(md) + '\n', encoding='utf-8')
     print('\n'.join(md))
+    rig_check(FW, sh, tr, V, g, K, act, D_LEAD, Hv)
+
+
+def rig_check(FW, sh, tr, V, g, K, act, D_LEAD, Hv):
+    """Plan C11: each case of tools/fw-rig.mjs (the real technique on the real point mass, a small probe step) beside the
+    linear model's response to the same step. A row holds when the time to 63% agrees within 30% and the overshoot within
+    10 points (estimates: the shared margins have no time or overshoot entry). Writes results/fw-rig-check.{json,md}."""
+    path = OUT / 'fw-rig.json'
+    if not path.exists():
+        return
+    rig = json.loads(path.read_text(encoding='utf-8'))
+    s = ct.tf('s')
+    tf_ = FW['aimTurnSec']
+    models = {}
+    # vertical PD: height follows its target through the closed loop. The code's D is on his own height rate, not on the
+    # error (verticalFor's errRate), so a step in the target goes through P only: the loop (and its margins) is the same,
+    # the answer to a change of target is not (first cut of this check used D on the error and read 19% overshoot)
+    A = lag(G_ONSET_TAU) * delay(D_LEAD) / s**2
+    models['vertical-T1'] = ct.minreal(FW['vertGPerFt'] * g * A / (1 + (FW['vertGPerFtps'] * g * s + FW['vertGPerFt'] * g) * A), verbose=False)
+    # steering on the swept line: his lateral place follows the aim's lateral offset (look sweptLookSec)
+    Lk = V * FW['sweptLookSec']
+    P = V * act * delay(D_LEAD) / s**2
+    Cref = K / Lk + s / (Lk * (tf_ * s + 1))
+    models['steering-T1'] = ct.minreal(P * Cref / (1 + P * (Cref + K * s / V)), verbose=False)
+    # power on the swept place: a step added to the wanted speed, his speed's answer with the PI closed round it
+    Ta, Tps = FW['aimSec'], FW['powerSec']
+    Lp = Hv * (1 / (Ta * s) + 1 / (Ta * Tps * s**2) + 1 / (Tps * s)) * delay(D_LEAD)
+    models['power-T1'] = ct.minreal(Hv / (1 + Lp), verbose=False)
+    rows = []
+    for c in rig['cases']:
+        resp = c['response']
+        t_end = resp[-1]['t'] if resp else 40
+        row = dict(case=c['name'], what=c['what'], rig_final=c['final'], rig_peak=c['peak'], rig_overshoot=c['overshootPct'], rig_t63=c['t63Sec'],
+                   filter_steps=c['filterStepsAfter'], trim=c['trim'])
+        M = models.get(c['name'])
+        if c['filterStepsAfter'] > 0 or M is None:
+            row.update(verdict='not checkable linearly: the filter flies him at this trim' if c['filterStepsAfter'] > 0 else 'no linear model', lin_final=None, lin_peak=None, lin_overshoot=None, lin_t63=None)
+            rows.append(row)
+            continue
+        T = np.linspace(0, t_end, 2001)
+        _, y = ct.step_response(M, T)
+        fin = float(np.mean(y[T > t_end - 5]))
+        pk = float(y[np.argmax(np.abs(y))])
+        ref = fin if abs(fin) > 0.2 else pk  # a loop that returns to zero (power's PI): time to 63% of the peak
+        t63 = float(T[np.argmax(np.abs(y) >= 0.63 * abs(ref))])
+        os_ = round(100 * (abs(pk) - abs(fin)) / abs(fin)) if abs(fin) > 0.2 else None
+        rig_ref = c['final'] if abs(c['final']) > 0.2 else c['peak']
+        rig_t63 = next((x['t'] for x in resp if abs(x['y']) >= 0.63 * abs(rig_ref)), None)
+        ok_t = rig_t63 is not None and abs(rig_t63 - t63) <= 0.3 * max(t63, 0.5)
+        ok_o = os_ is None or c['overshootPct'] is None or abs(c['overshootPct'] - os_) <= 10
+        ok_f = abs(c['final'] - fin) <= 0.15
+        row.update(lin_final=round(fin, 3), lin_peak=round(pk, 3), lin_overshoot=os_, lin_t63=round(t63, 2), rig_t63=rig_t63,
+                   verdict='holds' if ok_t and ok_o and ok_f else 'differs: ' + ', '.join(x for x, ok in (('time', ok_t), ('overshoot', ok_o), ('final', ok_f)) if not ok))
+        rows.append(row)
+    (OUT / 'fw-rig-check.json').write_text(json.dumps(rows, indent=1), encoding='utf-8')
+    f = lambda x: '-' if x is None else str(x)
+    md = ['<!-- made by tools/flight-design/fw_loops.py rig_check from results/fw-rig.json (tools/fw-rig.mjs); every model row an estimate -->', '',
+          '| Rig case | What steps | Rig: final, peak, overshoot %, 63% (s) | Linear model: final, peak, overshoot %, 63% (s) | Verdict |', '|---|---|---|---|---|']
+    for r in rows:
+        tr_ = r['trim']
+        extra = '' if not r['filter_steps'] else f' (filter acting {r["filter_steps"]} of 400 recorded steps after the step; trim s {tr_["sFt"]} ft, d {tr_["dFt"]} ft, height {tr_["heightFt"]} ft)'
+        md.append(f'| {r["case"]} | {r["what"]} | {f(r["rig_final"])}, {f(r["rig_peak"])}, {f(r["rig_overshoot"])}, {f(r["rig_t63"])} | {f(r["lin_final"])}, {f(r["lin_peak"])}, {f(r["lin_overshoot"])}, {f(r["lin_t63"])} | {r["verdict"]}{extra} |')
+    (OUT / 'fw-rig-check.md').write_text('\n'.join(md) + '\n', encoding='utf-8')
+    print('\n'.join(md))
 
 
 if __name__ == '__main__':

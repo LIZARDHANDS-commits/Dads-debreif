@@ -10,8 +10,8 @@
 // src/modules/turn-sim/live/ (wingman/*.js, fluid-lead.js), never line numbers, so the map survives the code moving.
 
 export const META = Object.freeze({
-  codeAt: 'formation-close-wingman-b2 at 8509fcff: the T29t tidy (482f0857) and the powerFor to powerAsk rename (db651dec)',
-  written: '14 Oct 2026, plan T29m part 1 (Opus, high)',
+  codeAt: 'formation-close-wingman-b2 at c65159fe (the T29t tidy 482f0857, the powerAsk rename db651dec) with part 2\'s trace columns and probe (flying unchanged)',
+  written: '14 Oct 2026, plan T29m parts 1 and 2 (Opus, high)',
   status: 'An estimate of the code as built, read by hand; the trace columns and the ledger are checked by check.mjs. Nothing here changes how anything flies.',
 });
 
@@ -129,6 +129,63 @@ export const SIGNALS = Object.freeze([
 
 /** Gauge columns every aircraft has, not wingman signals (the check accepts them). */
 export const GENERIC_COLUMNS = Object.freeze(['t', 'g', 'gRate', 'bank', 'roll', 'drawnDps', 'climbDeg', 'kias', 'rangeFt', 'lineFt', 'alongFt']);
+
+/**
+ * The controller columns (plan T29m part 2; T29r's trace half): each loop's terms, each control's ask against its grant,
+ * the winner, the limits. block: the master list's block; unit; what. Written by fighting-wing.js trace.ctl and
+ * close-formation.js terms (through wingman.js), recorded by tools/formation-gauge.mjs.
+ */
+export const CONTROLLER_COLUMNS = Object.freeze([
+  { col: 'fwSteerAngleDeg', block: 'fw.steer', unit: '°', what: 'angle from his path to the aim line' },
+  { col: 'fwSteerPG', block: 'fw.steer', unit: 'G', what: 'steering P term (toward the aim line)' },
+  { col: 'fwSteerFfG', block: 'fw.steer', unit: 'G', what: 'the aim line\'s turn fed forward, along P\'s direction (R3: hidden feedback)' },
+  { col: 'fwAimTurnDps', block: 'fw.steer', unit: '°/s', what: 'the aim line\'s turn as fed forward (after the cap)' },
+  { col: 'fwAimTurnRawDps', block: 'fw.steer', unit: '°/s', what: 'the aim line\'s turn before the cap' },
+  { col: 'fwAimJumpFt', block: 'fw.steer', unit: 'ft per step', what: 'how far his aim moved against Lead this step (jumps)' },
+  { col: 'fwTurnAskG', block: 'fw.steer', unit: 'G, + left', what: 'turn asked by steering' },
+  { col: 'fwTurnFlownG', block: 'fw.filter', unit: 'G, + left', what: 'turn after the filter' },
+  { col: 'fwTurnGrantedG', block: 'fw.lift', unit: 'G, + left', what: 'turn granted after the cap and unload-roll-pull' },
+  { col: 'fwTurnWinner', block: 'fw.filter', unit: 'name', what: 'who won the turn: steer or filter' },
+  { col: 'fwCapG', block: 'fw.gcap', unit: 'G', what: 'the G cap this step' },
+  { col: 'fwCapBind', block: 'fw.lift', unit: '0/1', what: 'the cap cut the turn' },
+  { col: 'fwUrp', block: 'fw.lift', unit: '0/1', what: 'unload, roll, pull acting' },
+  { col: 'fwArcDssFt', block: 'fw.aimTurn', unit: 'ft', what: 'arc loop: the station-holding offset d_ss' },
+  { col: 'fwArcFfFt', block: 'fw.aimTurn', unit: 'ft', what: 'arc loop: wanted closure over Lead\'s turn rate (its feed-forward)' },
+  { col: 'fwArcKcFt', block: 'fw.aimTurn', unit: 'ft', what: 'arc loop: the shortfall term' },
+  { col: 'fwArcWantFt', block: 'fw.aimTurn', unit: 'ft', what: 'arc loop: offset wanted, before the slew' },
+  { col: 'fwArcLimit', block: 'fw.aimTurn', unit: 'name', what: 'arc loop limit binding: offset, slew or closure' },
+  { col: 'fwVertErrFt', block: 'fw.vertical', unit: 'ft', what: 'vertical: height error (target less his height)' },
+  { col: 'fwVertRateFtps', block: 'fw.vertical', unit: 'ft/s', what: 'vertical: his height rate against Lead\'s (D acts on this, not on the error)' },
+  { col: 'fwVertPG', block: 'fw.vertical', unit: 'G', what: 'vertical P term' },
+  { col: 'fwVertDG', block: 'fw.vertical', unit: 'G', what: 'vertical D term' },
+  { col: 'fwVertG', block: 'fw.vertical', unit: 'G', what: 'vertical ask after its ±1 G limit' },
+  { col: 'fwVertLimit', block: 'fw.vertical', unit: '0/1', what: 'vertical at its limit' },
+  { col: 'fwPowerKind', block: 'fw.power', unit: 'name', what: 'who won the throttle: hold, cut, max, yoyoDown, idle' },
+  { col: 'fwPowerPFtps', block: 'fw.power', unit: 'ft/s', what: 'power P (the closure the aim can\'t give)' },
+  { col: 'fwPowerIFtps', block: 'fw.power', unit: 'ft/s', what: 'power I' },
+  { col: 'fwPowerBandClip', block: 'fw.power', unit: '0/1', what: 'the 15 KIAS band clipping P + I' },
+  { col: 'fwGuardOn', block: 'fw.guard', unit: '0/1', what: 'the guard on' },
+  { col: 'fwFilterOn', block: 'fw.filter', unit: '0/1', what: 'the filter changed his turn' },
+  { col: 'fwFilterEngaged', block: 'fw.filter', unit: '0/1', what: 'the filter engaged (a label)' },
+  { col: 'fwLeadG', block: 'fw.perception', unit: 'G', what: 'Lead\'s G as he sees it' },
+  { col: 'fwLeadGFlown', block: 'lead', unit: 'G', what: 'Lead\'s G as flown (the gauge\'s)' },
+  { col: 'cfPlaneP', block: 'cf.law', unit: 'G', what: 'plane axis P' },
+  { col: 'cfPlaneD', block: 'cf.law', unit: 'G', what: 'plane axis D' },
+  { col: 'cfPlaneI', block: 'cf.law', unit: 'G', what: 'plane axis trim' },
+  { col: 'cfLineP', block: 'cf.law', unit: 'G (out)', what: 'line axis P' },
+  { col: 'cfLineD', block: 'cf.law', unit: 'G (out)', what: 'line axis D' },
+  { col: 'cfHingeP', block: 'cf.law', unit: 'torque %', what: 'hinge axis P' },
+  { col: 'cfHingeD', block: 'cf.law', unit: 'torque %', what: 'hinge axis D' },
+  { col: 'cfLeadPct', block: 'cf.powerLead', unit: 'torque %', what: 'the power lead (feed-forward)' },
+  { col: 'cfHoldPct', block: 'cf.holding', unit: 'torque %', what: 'the holding power (feed-forward)' },
+  { col: 'cfAskUpG', block: 'cf.law', unit: 'G', what: 'up correction asked (granted: the shaper\'s, in gWant)' },
+  { col: 'cfAskLeftG', block: 'cf.law', unit: 'G', what: 'left correction asked' },
+  { col: 'cfAskTorquePct', block: 'cf.law', unit: 'torque %', what: 'torque asked (granted: torquePct)' },
+  { col: 'cfFfUpG', block: 'cf.perception', unit: 'G', what: 'his place\'s motion fed forward, up' },
+  { col: 'cfFfLeftG', block: 'cf.perception', unit: 'G', what: 'his place\'s motion fed forward, left' },
+  { col: 'cfGAheadG', block: 'cf.perception', unit: 'G', what: 'Lead\'s G dead-reckoned 0.3 s ahead' },
+  { col: 'cfJob', block: 'cf.supervisor', unit: 'name', what: 'the supervisor\'s job' },
+]);
 
 /**
  * The shared resources: the controls (what several blocks write) and the shared signals (what several read). rule.type is
@@ -417,19 +474,27 @@ export const FINDINGS = Object.freeze([
   { id: 'R10', status: 'confirmed', text: 'Close formation: holdingTorque and powerLeadPct fed forward into torque, Lead\'s lift and his place\'s motion into the one lift vector, three pilotAxis loops on what is left; job changes eased (masks, caps). The cross-feed pattern working.' },
   { id: 'R11', status: 'new', text: 'The aim is eased every step, not only at a change of aim. steerToAim eases his aim\'s offset against Lead (world axes) over 1.5 s every step, so in a steady turn the aim point lags Lead\'s rotation by atan(ω × 1.5 s): about 12° at 60°/2 G, 26° at 4 G. In the cm run the commanded and flown offset differ by a median 90-400 ft in the steady part of the turns away, outside the filter. A likely contributor; part 2\'s rig confirms or clears it.' },
   { id: 'R12', status: 'new', text: 'Three signals the spec meant for the supervisor are read by nothing: line of sight (the guard\'s reversal cue went with the tidy), aspect and HCA. Trace only.' },
+  { id: 'R13', status: 'new (part 2)', text: 'The rig confirms the linear models where the filter is quiet: the vertical, steering on the swept line and the speed hold (straight and level) each match their model within 30% in time and 10 points of overshoot. One model fix: the vertical\'s D acts on his height rate, not on the error, so a change of target goes through P only (no 19% overshoot; 1% in both). In Lead\'s 60° turn the arc loop and the offset can\'t be checked linearly at all: at the trim the code settles to (604 ft of arc, 102 ft inside, 228 ft low) the filter flies him half the time.' },
+  { id: 'R14', status: 'new (part 2)', text: 'Truly abeam (0-15° of sweep at 625 ft) the formation reads "other", not fighting wing, and refuses Lead\'s fighting wing presses; the gauge\'s abeam case sits at 20°, the nearest it accepts. From there, Lead turning into him: #2 banks the same way as Lead 92% of the first 10 s (to 52-90° against Lead\'s 60°), the filter flies 98% of the turn, and he ends 49° ahead of Lead\'s 3/9 line, 302 ft low and 23.5 kt slow, the throttle changing owner 37 times.' },
+  { id: 'R15', status: 'new (part 2)', text: 'Patrick\'s "overcontrolling ... aimpoint and roll and G" measured: G onset up to 1.7-3.3 G/s in every academic turn (1-5 s a turn over 1 G/s), 2-137 aim jumps a turn (into tight 137), 3-24.5 s a turn over Lead\'s G + 0.5. "Too low": 8-25 s a turn more than 100 ft below the stack, lowest 240-315 ft in the turns. Energy: into tight loses 27 kt against Lead for 40 G·s of G over Lead\'s. Torque: up to 36 swings of 30 points a turn.' },
 ]);
 
 /** Questions for Patrick raised in part 1 (each with options and a recommendation; the thread relays one at a time). */
+/** Part 1's questions, answered (TS-233, 14 Oct 2026), and part 2's. */
+export const ANSWERED = Object.freeze([
+  'Where the 0.4 s sits: "a", Lead only, dead-reckoned, his own state known at once; round 5 brings slant, closure, the guard and the jobs onto that rule; the whole picture measured beside it each slice (the gauge\'s --delay-mode picture).',
+  'At the G cap: "airpeed then vertical then turn": he holds a smooth, steady G and lets the speed bleed; G onset smooth, constant and deliberate; reaching the cap rare.',
+]);
 export const QUESTIONS = Object.freeze([
   {
-    q: 'Where does #2\'s 0.4 s sit in fighting wing? Today it is on Lead only (he knows his own motion now); close formation delays the whole picture.',
-    options: ['(a) Lead only, as now: matches "0.4 s after he sees Lead\'s bank and nose start"', '(b) the whole picture, as close formation: the textbook pilot; less margin', '(c) split: Lead 0.4 s, his own motion felt sooner (0.1-0.2 s, an estimate)', '(d) your own picture'],
-    rec: '(a) as the working answer, with (b) measured beside it in each slice (the table already has both); decide once a slice shows a difference.',
+    q: 'What G onset is "smooth, constant and deliberate" for #2 in fighting wing? Today he reaches 1.7-3.3 G/s (smoothed) in every academic turn.',
+    options: ['(a) about Lead\'s own academic roll-in, about 1 G/s at most (the gauge\'s working line)', '(b) gentler, about 0.5 G/s', '(c) the aircraft\'s onset (4 G/s) whenever the guard needs it, about 1 G/s otherwise', '(d) your own number'],
+    rec: '(c): about 1 G/s as round 5\'s working line in the academic set, the guard alone allowed more; it is what the gauge now counts.',
   },
   {
-    q: 'At the G cap, which gives way first: the turn (today) or the vertical? Your tool order is geometry first, then the vertical.',
-    options: ['(a) the turn gives way (today): height held, geometry suffers', '(b) the vertical gives way: geometry first, as your order', '(c) shared in proportion', '(d) your own'],
-    rec: '(b) in the turn and at the entry, except while the guard asks for pass-clear (then the vertical first); for the path-follower slice to measure.',
+    q: 'Truly abeam (0-15° of sweep) the formation calls #2 "other", not fighting wing, and refuses Lead\'s turn presses. Should abeam count as fighting wing for Lead\'s moves?',
+    options: ['(a) yes: anywhere behind Lead\'s 3/9 line out to the cone\'s range counts, so Lead can always manoeuvre', '(b) no: keep today\'s band; the gauge\'s abeam case sits at 20°', '(c) your own'],
+    rec: '(a): Lead never waits for #2 (TS-233), so a press should never be refused for #2\'s place; a screen and formation change for the thread, not this kit.',
   },
 ]);
 

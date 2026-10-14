@@ -182,13 +182,18 @@ function b5(name, at, presses, first = 'fw') {
     settle(f);
     if (at && typeof at === 'object' && at.abeamFt) {
       // T29m part 2: #2 abeam Lead, on the side he is on, at abeamFt, his height, heading and speed kept (Patrick 14 Oct
-      // 2026: "if h's abeam 1 and lead turns towards him h just matches his bank? ... which is wrong"; a measuring case)
+      // 2026: "if h's abeam 1 and lead turns towards him h just matches his bank? ... which is wrong"; a measuring case).
+      // 5 s more in the cone first, as the scratch probe that found the 20° flew it (straight after the rejoin the press is refused)
+      for (let i = 0; i < steps(5); i++) f.step();
       const [L, two] = f.state.aircraft;
       const nx = Math.cos(L.headingRad);
       const ny = Math.sin(L.headingRad);
       const left = Math.sign(-ny * (two.xFt - L.xFt) + nx * (two.yFt - L.yFt)) || -1; // + left of Lead's path
-      two.xFt = L.xFt - ny * left * at.abeamFt;
-      two.yFt = L.yFt + nx * left * at.abeamFt;
+      // sweepDeg back from Lead's wing line: truly abeam (0-15° at 625 ft) the formation reads "other", not fighting wing,
+      // and refuses the turn press, so the case sits at the most forward sweep it accepts (20°, found 14 Oct 2026)
+      const a = ((at.sweepDeg ?? 0) * Math.PI) / 180;
+      two.xFt = L.xFt - nx * at.abeamFt * Math.sin(a) - ny * left * at.abeamFt * Math.cos(a);
+      two.yFt = L.yFt - ny * at.abeamFt * Math.sin(a) + nx * left * at.abeamFt * Math.cos(a);
     } else if (at) {
       const [L, two] = f.state.aircraft;
       const dx = two.xFt - L.xFt;
@@ -219,7 +224,7 @@ const B5 = [
   // T29m part 2: abeam Lead (625 ft, the swept place's range, Patrick 14 Oct 2026; abeam an estimate of his "abeam 1")
   // with Lead turning into him: today's known-bad baseline (he matches Lead's bank; the thread's reading of the technique:
   // lag pursuit toward Lead's tail, the miss, then reverse and capture). A measuring case, not a flying change.
-  b5('into-abeam', { abeamFt: 625 }, [turnFw(-1, 'Level turn into #2 from abeam (625 ft), 30 s'), wingsLevel]),
+  b5('into-abeam', { abeamFt: 625, sweepDeg: 20 }, [turnFw(-1, 'Level turn into #2 from nearly abeam (625 ft, 20° swept), 30 s'), wingsLevel]),
   b5('outside-cone', 1300, [turnFw(-1, 'Level turn into #2 from outside the cone (1,300 ft), 30 s'), wingsLevel]),
   b5('echelon-to-fw', null, [{ label: 'Echelon to fighting wing', press: (f) => f.change('fw'), sec: 'done' }], 'echelon'),
 ];

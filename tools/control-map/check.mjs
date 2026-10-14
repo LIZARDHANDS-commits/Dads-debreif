@@ -59,6 +59,7 @@ if (fakeColumn) seen.set(fakeColumn, new Set(['(--fake-column)']));
 const claimed = new Map();
 for (const s of signals) if (s.trace) claimed.set(s.trace, s.id);
 for (const c of M.GENERIC_COLUMNS) claimed.set(c, '(every aircraft)');
+for (const c of M.CONTROLLER_COLUMNS) { claimed.set(c.col, `controller column (${c.block})`); known(c.block, `controller column ${c.col}`); }
 for (const [col, fs] of seen) if (!claimed.has(col)) fail(`trace column "${col}" (${[...fs][0]}) is in no master-list row`);
 for (const [col, id] of claimed) if (files.length && !seen.has(col)) fail(`master-list row ${id} names trace column "${col}", which no ${tag} trace has`);
 
