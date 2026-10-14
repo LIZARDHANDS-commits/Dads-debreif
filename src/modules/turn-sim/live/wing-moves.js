@@ -368,6 +368,7 @@ export const CLOSE_WING = Object.freeze({
  */
 export const FW_SEE = Object.freeze({
   delaySec: 0.4, // he acts 0.4 s after he sees Lead's bank and nose start (Patrick 14 Oct 2026; TS-211's 0.3-0.5 s)
+  extraDelaySec: 0, // a further delay he does not know he has (his dead reckoning still carries Lead 0.4 s): the delay sweep's (Fable's loop margins), 0 in flying
   closureSec: 1.0, // closure (the range's rate) smoothed over about 1 s: the manual calls its change subtle (SMM 12.2 para 5)
   losSec: 0.5, // the line of sight's rate, Lead's drift across the windscreen, smoothed over about 0.5 s (spec 7e.7)
   gSec: 0.1, // Lead's G (his lift, so his turn circle) read as close formation reads it, over about 0.1 s (CLOSE_SEE.filterSec)

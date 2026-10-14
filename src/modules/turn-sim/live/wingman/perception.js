@@ -258,7 +258,8 @@ export function perceive(mem, ref, own) {
 //  - where Lead was over the last FW_SEE.historySec (the lag aim).
 // The memory is never changed in place. Numbers: wing-moves.js FW_SEE.
 
-const FW_LATE = Math.round(FW_SEE.delaySec / STEP_SEC);
+// (FW_SEE.extraDelaySec: a delay he does not know he has, for the delay sweep; 0 in flying)
+const FW_LATE = Math.round((FW_SEE.delaySec + (FW_SEE.extraDelaySec ?? 0)) / STEP_SEC);
 const FW_HIST = Math.round(FW_SEE.historySec / STEP_SEC);
 const ease = (y, x, sec) => y + (x - y) * Math.min(1, STEP_SEC / sec);
 const ease3 = (y, x, sec) => ({ x: ease(y.x, x.x, sec), y: ease(y.y, x.y, sec), z: ease(y.z, x.z, sec) });
