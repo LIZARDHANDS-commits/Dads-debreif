@@ -381,16 +381,19 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_SEE |  | What #2 sees in fighting wing (live/wingman/perception.js seeFw; spec 7e.7). Close formation's CLOSE_SEE is its own and untouched (its 0.3 s, TS-211; the delay is per technique, F5). Estimates unless a source is given. |
 | FW_SEE.delaySec | `0.4` | he acts 0.4 s after he sees Lead's bank and nose start (Patrick 14 Oct 2026; TS-211's 0.3-0.5 s) |
 | FW_SEE.extraDelaySec | `0` | a further delay he does not know he has (his dead reckoning still carries Lead 0.4 s): the delay sweep's (Fable's loop margins), 0 in flying |
-| FW_SEE.closureSec | `1.0` | closure (the range's rate) smoothed over about 1 s: the manual calls its change subtle (SMM 12.2 para 5) |
 | FW_SEE.losSec | `0.5` | the line of sight's rate, Lead's drift across the windscreen, smoothed over about 0.5 s (spec 7e.7) |
-| FW_SEE.gSec | `0.1` | Lead's G (his lift, so his turn circle) read as close formation reads it, over about 0.1 s (CLOSE_SEE.filterSec) |
-| FW_SEE.historySec | `6` | how long he remembers where Lead was (the lag aim's "where Lead was", 7e.7; estimate) |
+| FW_SEE.gSec | `0.15` | Lead's seen G (his lift, so his turn circle and G cap, S05b) smoothed over about 0.15 s (spec 7e.4, Fable D22; estimate) |
+| FW_SEE.rollSec | `0.2` | Lead's seen roll rate (S04) smoothed over about 0.2 s before carrying his bank across the 0.4 s delay (spec 7e.4, Fable D3; estimate) |
+| FW_SEE.bankCarryMaxDeg | `70` | plausible end-bank cap when extrapolating Lead's seen bank across the 0.4 s delay (S03, TS-233 "Lead's roll carried on", Fable D3; estimate) |
 | FW_WING |  | How #2 flies fighting wing (live/wingman/fighting-wing.js, separation.js, supervisor.js fwJob; spec 7e.7's loop table), grouped by the part that reads it: steering, Lead's turn as he sees it, the turn, swept, the vertical, power, and the separation guard and filter. Estimates unless a source is given (every gain a guess to start from, spec 7e.8). The round-by-round history of each number is in `Pa |
 | FW_WING.gPerDeg | `0.05` | P: about 0.05 G per degree between his path and the line to his aim point, 1 G per 20° (spec 7e.7; Fable F6, estimate) |
 | FW_WING.aimTurnSec | `0.5` | the aim line's turn read over about 0.5 s, as the line of sight's (spec 7e.7; estimate) |
 | FW_WING.aimTurnCap | `Object.freeze({ k: 1.5, plusDps: 3 })` | ... and fed forward within 1.5 times Lead's turn rate plus 3°/s (thread, round 4, estimates): a change of aim (lag first, the nose behind, a job's blend) jumps the line, read as a turn of up to 115°/s |
 | FW_WING.overLeadG | `1.5` | his G no more than Lead's + 1.5 (spec 7e.7, estimate); the guard and filter may pull to what the aircraft gives, flagged (Patrick 14 Oct 2026) |
+| FW_WING.capKneeG | `0.2` | soft knee below the G cap where positive climb demand begins to give way smoothly before level hold and turn (spec 7e.8, Fable D20; estimate) |
 | FW_WING.minG | `0.5` | never under 0.5 G, so his lift always has a direction (estimate) |
+| FW_WING.onsetMinGps | `1` | ordinary G onset at urgency 0: 1 G/s (Patrick 14 Oct 2026, TS-233 "G onset by urgency") |
+| FW_WING.onsetMaxGps | `4` | urgent G onset at urgency 1: 4 G/s, the T-6A's onset (Patrick 14 Oct 2026, TS-233 "G onset by urgency") |
 | FW_WING.rollDps | `60` | roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required") |
 | FW_WING.pullWithinDeg | `20` | unload, roll, pull: with his wings more than 20° off where the lift is wanted he pulls only its share along them (estimate; fw-live.js does the same) |
 | FW_WING.turnPlaneRadps | `0.0175` | steering in Lead's turn plane once Lead turns faster than about 1°/s, else the level plane (estimate) |

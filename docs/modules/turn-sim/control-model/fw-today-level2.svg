@@ -39,7 +39,7 @@
 <text x="874" y="292.5" font-size="10.5"  fill="#1d2433">Lead's bank (seen); Lead's G (seen); Lead's turn (ω, radius,</text>
 <text x="874" y="306" font-size="10.5"  fill="#1d2433">centre); Short of Lead's speed</text>
 <text x="874" y="319.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): delaySec 0.4; extraDelaySec 0;</text>
-<text x="874" y="333" font-size="10.5"  fill="#1d2433">closureSec 1; losSec 0.5; gSec 0.1; historySec 6</text>
+<text x="874" y="333" font-size="10.5"  fill="#1d2433">losSec 0.5; gSec 0.15; rollSec 0.2; bankCarryMaxDeg 70</text>
 <rect x="440" y="194.5" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="211.5" font-size="12.5" font-weight="bold" fill="#1d2433">Lead now</text>
 <text x="450" y="225" font-size="10.5"  fill="#5a6378">fighting-wing.js leadNowOf</text>
@@ -213,14 +213,15 @@
 <text x="874" y="1047" font-size="10.5"  fill="#1d2433">needs more G; Guard on</text>
 <text x="874" y="1060.5" font-size="10.5"  fill="#1d2433">Commands: G cap</text>
 <text x="874" y="1074" font-size="10.5"  fill="#1d2433">Numbers (from the code): overLeadG 1.5</text>
-<rect x="440" y="1046.5" width="410" height="112.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<rect x="440" y="1046.5" width="410" height="126" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="1063.5" font-size="12.5" font-weight="bold" fill="#1d2433">Lift (liftWithin)</text>
 <text x="450" y="1077" font-size="10.5"  fill="#5a6378">fighting-wing.js liftWithin</text>
 <text x="450" y="1090.5" font-size="10.5"  fill="#1d2433">Does: 1 G hold + the vertical first, the turn gives way at</text>
 <text x="450" y="1104" font-size="10.5"  fill="#1d2433">the cap; unload, roll, pull past 20° off; never under 0.5 G</text>
 <text x="450" y="1117.5" font-size="10.5"  fill="#1d2433">Senses: His own state; Turn flown; Vertical G ask; G cap</text>
 <text x="450" y="1131" font-size="10.5"  fill="#1d2433">Commands: Lift asked (fighting wing)</text>
-<text x="450" y="1144.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): minG 0.5; pullWithinDeg 20</text>
+<text x="450" y="1144.5" font-size="10.5"  fill="#1d2433">Numbers (from the code): capKneeG 0.2; minG 0.5; onsetMinGps</text>
+<text x="450" y="1158" font-size="10.5"  fill="#1d2433">1; onsetMaxGps 4; pullWithinDeg 20</text>
 <rect x="864" y="1100.5" width="410" height="220.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="874" y="1117.5" font-size="12.5" font-weight="bold" fill="#1d2433">Power (powerAsk)</text>
 <text x="874" y="1131" font-size="10.5"  fill="#5a6378">fighting-wing.js powerAsk</text>

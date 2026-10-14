@@ -369,10 +369,10 @@ export const CLOSE_WING = Object.freeze({
 export const FW_SEE = Object.freeze({
   delaySec: 0.4, // he acts 0.4 s after he sees Lead's bank and nose start (Patrick 14 Oct 2026; TS-211's 0.3-0.5 s)
   extraDelaySec: 0, // a further delay he does not know he has (his dead reckoning still carries Lead 0.4 s): the delay sweep's (Fable's loop margins), 0 in flying
-  closureSec: 1.0, // closure (the range's rate) smoothed over about 1 s: the manual calls its change subtle (SMM 12.2 para 5)
   losSec: 0.5, // the line of sight's rate, Lead's drift across the windscreen, smoothed over about 0.5 s (spec 7e.7)
-  gSec: 0.1, // Lead's G (his lift, so his turn circle) read as close formation reads it, over about 0.1 s (CLOSE_SEE.filterSec)
-  historySec: 6, // how long he remembers where Lead was (the lag aim's "where Lead was", 7e.7; estimate)
+  gSec: 0.15, // Lead's seen G (his lift, so his turn circle and G cap, S05b) smoothed over about 0.15 s (spec 7e.4, Fable D22; estimate)
+  rollSec: 0.2, // Lead's seen roll rate (S04) smoothed over about 0.2 s before carrying his bank across the 0.4 s delay (spec 7e.4, Fable D3; estimate)
+  bankCarryMaxDeg: 70, // plausible end-bank cap when extrapolating Lead's seen bank across the 0.4 s delay (S03, TS-233 "Lead's roll carried on", Fable D3; estimate)
 });
 
 /**
@@ -389,7 +389,10 @@ export const FW_WING = Object.freeze({
   // the nose behind, a job's blend) jumps the line, read as a turn of up to 115°/s
   aimTurnCap: Object.freeze({ k: 1.5, plusDps: 3 }),
   overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate); the guard and filter may pull to what the aircraft gives, flagged (Patrick 14 Oct 2026)
+  capKneeG: 0.2, // soft knee below the G cap where positive climb demand begins to give way smoothly before level hold and turn (spec 7e.8, Fable D20; estimate)
   minG: 0.5, // never under 0.5 G, so his lift always has a direction (estimate)
+  onsetMinGps: 1, // ordinary G onset at urgency 0: 1 G/s (Patrick 14 Oct 2026, TS-233 "G onset by urgency")
+  onsetMaxGps: 4, // urgent G onset at urgency 1: 4 G/s, the T-6A's onset (Patrick 14 Oct 2026, TS-233 "G onset by urgency")
   rollDps: 60, // roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required")
   pullWithinDeg: 20, // unload, roll, pull: with his wings more than 20° off where the lift is wanted he pulls only its share along them (estimate; fw-live.js does the same)
   turnPlaneRadps: 0.0175, // steering in Lead's turn plane once Lead turns faster than about 1°/s, else the level plane (estimate)

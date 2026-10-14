@@ -104,9 +104,9 @@
 <text x="26" y="706.5" font-size="10.5"  fill="#1d2433">(physics); D6 bands and dwells (tuning)</text>
 <rect x="440" y="530.5" width="410" height="166.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="547.5" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it removes</text>
-<text x="450" y="561" font-size="10.5"  fill="#1d2433">Removes: historySec; aimTurnSec; aimTurnCap.k;</text>
-<text x="450" y="574.5" font-size="10.5"  fill="#1d2433">aimTurnCap.plusDps; circleLookSec; circleLeastFt; routeFt;</text>
-<text x="450" y="588" font-size="10.5"  fill="#1d2433">lagFirst.deg; lagFirst.sec; lagFirst.easeSec; behind.downFt;</text>
+<text x="450" y="561" font-size="10.5"  fill="#1d2433">Removes: aimTurnSec; aimTurnCap.k; aimTurnCap.plusDps;</text>
+<text x="450" y="574.5" font-size="10.5"  fill="#1d2433">circleLookSec; circleLeastFt; routeFt; lagFirst.deg;</text>
+<text x="450" y="588" font-size="10.5"  fill="#1d2433">lagFirst.sec; lagFirst.easeSec; behind.downFt;</text>
 <text x="450" y="601.5" font-size="10.5"  fill="#1d2433">behind.clearFt; sweptLookSec; quickFixFt; quickFixFtps;</text>
 <text x="450" y="615" font-size="10.5"  fill="#1d2433">quickFixHeightFt; quickReleaseFt; quickReleaseFtps;</text>
 <text x="450" y="628.5" font-size="10.5"  fill="#1d2433">quickSec; lowFt; lowStartKt; lowEndKt; yoyo.slowKt;</text>

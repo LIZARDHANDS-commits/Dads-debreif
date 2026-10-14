@@ -1,33 +1,22 @@
-// What the close-formation wingman sees and feels (B1, TS-226; spec 7b.3, 7b.6d items 4, 5, 8 and 12). He watches the
-// aircraft he flies off (Lead in the 2-ship; the one ahead later, for the 4-ship) and acts on the picture as it was about
-// 0.3 s ago (TS-211). Of that aircraft he reads only what eyes give: its position, its velocity and which way its body up
-// points, over the last 0.3 s, never its roll rate, roll acceleration, plan or G (TS-211, the audit's item 4). From those:
+// What the close-formation and fighting-wing wingman sees and feels (B1, TS-226; B5, TS-233; spec 7b.3, 7e.2).
+// Exports: seenOf, frameOf, bankOf, lineDeviation, placeDeviation, startPerception, aimAt, look, perceive,
+// turnOf, rotate3, aheadOnTurn, startFwSight, seeFw.
+// Imports: core/angles, core/units, core/t6-performance, live/flight, live/slots, live/wing-moves, live/attitude.
+// Depended on by: live/wingman/close-formation.js, live/wingman/fighting-wing.js, tools/fw-rig.mjs, tools/formation-gauge.mjs.
 //
-//  - its frame: nose along its velocity, up its body up, left the third (from velocity and body up, not heading and bank,
-//    so climbs and descents are exact, 7b.6d item 8);
-//  - his deviation from his place (slots.js, the place the SMM's references give) on the three axes he corrects on
-//    (Patrick's plane, line, hinge, 7b.3): off its wing plane, off the spinner-to-wingtip line in that plane, and along
-//    the line; and how fast each is changing (the picture moving), lightly smoothed;
-//  - its bank, roll rate and roll build-up, read from the bank he saw over the last moments; its bank dead-reckoned across
-//    his 0.3 s (7b.6d item 5);
-//  - its G, read from how its velocity turned (the lift's share along its body up);
-//  - his place's motion as it rolls (7b.6d item 4): his place is fixed in its frame, so a roll swings it along the lift
-//    line by the place's offset times the roll's build-up, and pulls it in across the wing line by the offset times the
-//    roll rate squared (rigid-body kinematics). This is the pitch feed-forward: in a telegraphed 45° roll-in his place 43 ft
-//    out accelerates at about 0.14 G while Lead's own G barely moves;
-//  - whether he is under it: below its wing plane, inside its wingtip and not behind its tail (7b.6d item 12; B3: line astern
-//    and the corner, his nose about 10 ft behind Lead's tail and below the wash, are behind Lead, not under him, SMM 12.20
-//    para 45).
-// What he feels now (his own G and throttle) is his own aircraft's, not delayed: the caller reads it from his state.
+// In close formation he watches the aircraft he flies off (Lead in the 2-ship; the one ahead in the 4-ship) and acts on the
+// picture as it was 0.3 s ago (CLOSE_SEE.delaySec, TS-211). In fighting wing (B02, spec 7e.2, R1) one delay rule governs:
+// he sees Lead 0.4 s late (FW_SEE.delaySec), dead-reckoned across 0.4 s along his seen turn (S01, S02) with bank carried
+// across 0.4 s by seen roll rate (S04, 0.2 s) capped at ±70° (S03, D3), turn rate (S05) and circle (S07) from extrapolated
+// bank and speed (S06), and seen G smoothed over 0.15 s (S05b, D22); his own state (S08-S12) is known now, and slant range
+// (S13), velocity-projected slant closure (S14, D11, no 1 s smoother), LOS rate (S15), aspect/HCA/sweep (S16), and height
+// (S17) are computed from dead-reckoned Lead and current #2.
 //
 // Frames and signs (spec 7b.8): feet, seconds, degrees, G; x east, y north, z up. Bank and roll rate left wing down
-// positive (the Turn Sim's way; the point mass's own bank is the other way). Off the plane + above the wing plane, off the
-// line + ahead of it, along the line + out away from the aircraft he flies off. His place { fwd, left, alt } is in its
-// frame, left positive (slots.js).
-//
-// The memory is never changed in place: perceive() returns a new one. Every number is in wing-moves.js CLOSE_SEE.
+// positive. The memory is never changed in place. Numbers: wing-moves.js CLOSE_SEE and FW_SEE.
 import { DEG } from '../../../../core/angles.js';
-import { G_FTPS2 } from '../../../../core/units.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../../core/units.js';
+import { tasToIasKt } from '../../../../core/t6-performance.js';
 import { STEP_SEC } from '../flight.js';
 import { LINE_BACK_PER_OUT, WINGSPAN_FT, LENGTH_FT } from '../slots.js';
 import { CLOSE_SEE, FW_SEE } from '../wing-moves.js';
@@ -243,27 +232,25 @@ export function perceive(mem, ref, own) {
   return { mem: next, seen: seeWith(next, now, filt2) };
 }
 
-// ---- fighting wing: what he sees of Lead (B5, TS-233; spec 7e.3b, 7e.7) ----------------------------------------------------
+// ---- fighting wing: what he sees of Lead (B5, TS-233; spec 7e.2, B02, R1) --------------------------------------------------
 //
-// Fighting wing reads a picture, not a place: the cues of SMM 12.2 paras 4-9, worked out from what eyes give of Lead (his
-// position, velocity and body up, TS-211) as it was FW_SEE.delaySec ago (0.4 s, Patrick 14 Oct 2026; close formation keeps
-// its 0.3 s). Each is continuous and lightly smoothed as an eye judges it, never stepped (F15):
-//  - range (slant) and closure (+ closing; smoothed over about 1 s, SMM 12.2 para 5);
-//  - the line of sight (the direction from him to Lead) and its turn rate, Lead's drift across the windscreen (about 0.5 s);
-//  - aspect (0° at Lead's tail, 180° in front; SMM 12.2 para 6, 16.16 para 40b) and HCA (between the two flight paths,
-//    para 9); sweep back from Lead's wing line and height against Lead;
-//  - Lead's bank and G, and his turn worked out from them each step, in his lift plane, not the horizontal (spec 7e.7:
-//    "So can lead and 2 follows"): his turning acceleration is his lift less his weight square to his path, so his turn
-//    circle's axis, rate and centre come from what he is doing now, only 0.4 s stale, never a fitted history (F4);
-//  - where Lead was over the last FW_SEE.historySec (the lag aim).
+// Fighting wing reads a picture from what eyes give of Lead (position, velocity and body up, TS-211) as it was
+// FW_SEE.delaySec ago (0.4 s, Patrick 14 Oct 2026; close formation keeps its 0.3 s), carried across 0.4 s along his seen
+// turn while #2's own state is known now (one delay rule, R1):
+//  - Lead position and velocity dead-reckoned 0.4 s along his seen turn (S01, S02; Fable F5);
+//  - Lead roll rate from seen bank smoothed over 0.2 s (S04), and bank carried 0.4 s ahead capped at ±70° (S03, D3);
+//  - Lead G from seen velocity change along body up, smoothed over 0.15 s (S05b, D22; exposed for B13 G cap);
+//  - Lead turn rate (S05), indicated airspeed (S06), and 3D turn circle (S07) from extrapolated bank and true airspeed;
+//  - slant range (S13), velocity-projected slant closure (+ closing, S14, D11; no 1 s smoother), line-of-sight rate (S15,
+//    0.5 s), aspect/HCA/sweep (S16), and height against Lead (S17) from dead-reckoned Lead and current #2.
 // The memory is never changed in place. Numbers: wing-moves.js FW_SEE.
 
 // (FW_SEE.extraDelaySec: a delay he does not know he has, for the delay sweep; 0 in flying)
 const FW_LATE = Math.round((FW_SEE.delaySec + (FW_SEE.extraDelaySec ?? 0)) / STEP_SEC);
-const FW_HIST = Math.round(FW_SEE.historySec / STEP_SEC);
 const ease = (y, x, sec) => y + (x - y) * Math.min(1, STEP_SEC / sec);
 const ease3 = (y, x, sec) => ({ x: ease(y.x, x.x, sec), y: ease(y.y, x.y, sec), z: ease(y.z, x.z, sec) });
 const angleDeg = (a, b) => Math.acos(Math.max(-1, Math.min(1, dot3(unit3(a), unit3(b))))) / DEG;
+const wrapDeg = (d) => ((d + 540) % 360) - 180;
 
 /**
  * An aircraft's turn as seen (s: a seen moment; g: its G): { aPerp (ft/s², the turning acceleration square to its path:
@@ -300,7 +287,44 @@ export function aheadOnTurn(s, turn, sec) {
   return { p: add3(turn.centre, rotate3(sub3(s.p, turn.centre), axis, ang)), v: rotate3(s.v, axis, ang) };
 }
 
-/** The picture at a seen moment: own (him) and ref (Lead), seenOf's. */
+/** Seen moment k steps before s along turn (or straight back when not turning), for bumpless start in a turn. */
+function backOnTurn(s, turn, k) {
+  const sec = -k * STEP_SEC;
+  const w = len3(turn.omega);
+  if (!turn.centre || w < 1e-6) return backOf(s, k, null);
+  const axis = scale3(turn.omega, 1 / w);
+  const ang = w * sec;
+  return {
+    p: add3(turn.centre, rotate3(sub3(s.p, turn.centre), axis, ang)),
+    v: rotate3(s.v, axis, ang),
+    up: rotate3(s.up, axis, ang),
+  };
+}
+
+/**
+ * Carry seen Lead (ref0 at t - delaySec) across FW_SEE.delaySec along his seen turn (S01, S02) and bank-extrapolate
+ * his attitude to leadBankDeg (S03, D3) so turnOf gives the extrapolated turn rate (S05) and circle (S07).
+ */
+function aheadLead(ref0, filtG, b0, leadBankDeg) {
+  const turn0 = turnOf(ref0, filtG);
+  const dr = aheadOnTurn(ref0, turn0, FW_SEE.delaySec);
+  const w = len3(turn0.omega);
+  const upRot = turn0.centre && w >= 1e-6
+    ? rotate3(ref0.up, scale3(turn0.omega, 1 / w), w * FW_SEE.delaySec)
+    : ref0.up;
+  const nose = unit3(dr.v);
+  const bRot = bankOf(nose, upRot);
+  const up = Math.abs(leadBankDeg - bRot) > 1e-9
+    ? rotate3(upRot, scale3(nose, -1), (leadBankDeg - bRot) * DEG)
+    : upRot;
+  const lead = { p: dr.p, v: dr.v, up };
+  const c0 = Math.cos(b0 * DEG);
+  const c1 = Math.cos(leadBankDeg * DEG);
+  const gTurn = c0 > 0.34 && c1 > 0.34 ? (filtG * c0) / c1 : filtG;
+  return { lead, turn: turnOf(lead, gTurn) };
+}
+
+/** The picture from ref (Lead, dead-reckoned across 0.4 s) and own (#2, now; or both delayed in analysis picture mode). */
 function fwRaw(ref, own) {
   const r = sub3(own.p, ref.p);
   const slant = len3(r);
@@ -329,24 +353,37 @@ function fwRaw(ref, own) {
  * dead-reckoned back from the motion each has, the smoothed readings started on the picture as it is. ref, own: seenOf's;
  * refAcc, ownAcc: their accelerations (ft/s²) when known; g: Lead's G now (else 1).
  */
-export function startFwSight(ref, own, { refAcc = null, ownAcc = null, g = 1, extraSec = 0 } = {}) {
-  // extraSec: analysis only (the gauge's --extra-delay, fighting-wing.js setFwAnalysis): a further delay he does not know
-  // he has, kept in the memory; 0 in flying, where the memory is exactly as before
+export function startFwSight(ref, own, { refAcc = null, ownAcc = null, g = 1, extraSec = 0, picture = false } = {}) {
+  // extraSec / picture: analysis only (the gauge's --extra-delay and --delay-mode, fighting-wing.js setFwAnalysis)
   const late = extraSec ? Math.round((FW_SEE.delaySec + (FW_SEE.extraDelaySec ?? 0) + extraSec) / STEP_SEC) : FW_LATE;
+  const turnInit = turnOf(ref, g);
   const buf = [];
-  for (let k = late + 2; k >= 0; k--) buf.push({ ref: backOf(ref, k, refAcc), own: backOf(own, k, ownAcc) });
-  const seen = buf[buf.length - 1 - late];
-  const raw = fwRaw(seen.ref, seen.own);
-  const hist = [];
-  for (let k = FW_HIST; k >= 0; k--) hist.push(backOf(seen.ref, k, refAcc).p);
-  return { buf, hist, filt: { closure: 0, losRate: { x: 0, y: 0, z: 0 }, g, los: raw.los, slant: raw.slant }, ...(extraSec ? { late } : {}) };
+  for (let k = late + 2; k >= 0; k--) {
+    buf.push({
+      ref: refAcc ? backOf(ref, k, refAcc) : backOnTurn(ref, turnInit, k),
+      own: backOf(own, k, ownAcc),
+    });
+  }
+  const s0 = buf[buf.length - 1 - late];
+  const f0Ref = frameOf(s0.ref);
+  const b0 = bankOf(f0Ref.nose, f0Ref.up);
+  const lead0 = picture ? s0.ref : aheadLead(s0.ref, g, b0, b0).lead;
+  const own0 = picture ? s0.own : own;
+  const raw = fwRaw(lead0, own0);
+  return {
+    buf,
+    filt: { roll: 0, losRate: { x: 0, y: 0, z: 0 }, g, los: raw.los },
+    ...(extraSec ? { late } : {}),
+    ...(picture ? { picture: true } : {}),
+  };
 }
 
 /**
- * One step of his fighting wing sight: the memory with this step's moment added (ref, own: seenOf's, at the same time) and
- * the picture as it was FW_SEE.delaySec ago. Returns { mem, seen }: seen = { slant, closure, los, losRate (rad/s vector),
- * losDps, aspectDeg, hcaDeg, sweepDeg, side, heightFt, rel, lead (the seen moment of Lead), own (his, as seen), leadBankDeg,
- * leadG, turn (turnOf), wasAt(sec) (where Lead was sec before the seen moment) }.
+ * One step of his fighting wing sight (B02, S01-S17): the memory with this step's moment added (ref, own: seenOf's, at the
+ * same time) and the one-delay picture (Lead 0.4 s late dead-reckoned across 0.4 s; #2's own state now unless analysis
+ * picture mode is active). Returns { mem, seen }: seen = { slant, closure, los, losRate (rad/s vector), losDps, aspectDeg,
+ * hcaDeg, sweepDeg, side, heightFt, rel, lead (dead-reckoned Lead, S01/S02), own (#2 now, S08), leadBankDeg (S03),
+ * leadRollDps (S04), leadG (S05b), leadKias (S06), turn (turnOf, S05/S07) }.
  */
 export function seeFw(mem, ref, own) {
   const late = mem.late ?? FW_LATE; // FW_LATE in flying (mem.late: the analysis's extra delay)
@@ -354,31 +391,41 @@ export function seeFw(mem, ref, own) {
   const i = buf.length - 1 - late;
   const s0 = buf[i];
   const s1 = buf[i - 1];
-  const raw = fwRaw(s0.ref, s0.own);
-  // Lead's G: the lift's share along his body up, from how his velocity turned over the step before the seen moment.
+  const f0Ref = frameOf(s0.ref);
+  const f1Ref = frameOf(s1.ref);
+  const b0 = bankOf(f0Ref.nose, f0Ref.up);
+  const b1 = bankOf(f1Ref.nose, f1Ref.up);
+  const rollRaw = wrapDeg(b0 - b1) / STEP_SEC;
+  // Lead's G (S05b, D22): lift's share along his body up from how his velocity turned over the step before the seen moment.
   const acc = scale3(sub3(s0.ref.v, s1.ref.v), 1 / STEP_SEC);
-  const gRaw = dot3(add3(acc, scale3(Z, G_FTPS2)), unit3(perp3(s0.ref.up, unit3(s0.ref.v)))) / G_FTPS2;
+  const gRaw = dot3(add3(acc, scale3(Z, G_FTPS2)), f0Ref.up) / G_FTPS2;
   const f0 = mem.filt;
+  const roll = ease(f0.roll ?? 0, rollRaw, FW_SEE.rollSec);
+  const g = ease(f0.g, gRaw, FW_SEE.gSec);
+  // Bank carry-on across 0.4 s (D3, S03), capped at ±max(|b0|, bankCarryMaxDeg) so steeply banked turns do not clip downward.
+  const bCap = Math.max(Math.abs(b0), FW_SEE.bankCarryMaxDeg);
+  const leadBankDeg = mem.picture ? b0 : Math.max(-bCap, Math.min(bCap, b0 + roll * FW_SEE.delaySec));
+  const { lead, turn } = mem.picture ? { lead: s0.ref, turn: turnOf(s0.ref, g) } : aheadLead(s0.ref, g, b0, leadBankDeg);
+  const ownUsed = mem.picture ? s0.own : own;
+  const raw = fwRaw(lead, ownUsed);
+  // Slant closure (S14, D11): direct velocity projection onto the line of sight (+ closing), no 1 s smoother.
+  const closure = dot3(sub3(ownUsed.v, lead.v), raw.los);
   const losRateRaw = scale3(cross3(f0.los, sub3(raw.los, f0.los)), 1 / STEP_SEC);
-  const filt = {
-    closure: ease(f0.closure, (f0.slant - raw.slant) / STEP_SEC, FW_SEE.closureSec),
-    losRate: ease3(f0.losRate, losRateRaw, FW_SEE.losSec),
-    g: ease(f0.g, gRaw, FW_SEE.gSec),
-    los: raw.los,
-    slant: raw.slant,
-  };
-  const hist = [...mem.hist.slice(-FW_HIST), s0.ref.p];
-  const next = { buf, hist, filt, ...(mem.late ? { late: mem.late } : {}) };
+  const losRate = ease3(f0.losRate, losRateRaw, FW_SEE.losSec);
+  const filt = { roll, losRate, g, los: raw.los };
+  const next = { buf, filt, ...(mem.late ? { late: mem.late } : {}), ...(mem.picture ? { picture: true } : {}) };
   const seen = {
     ...raw,
-    closure: filt.closure,
-    losRate: filt.losRate,
-    losDps: len3(filt.losRate) / DEG,
-    lead: s0.ref,
-    own: s0.own,
-    leadG: filt.g,
-    turn: turnOf(s0.ref, filt.g),
-    wasAt: (sec) => hist[Math.max(0, hist.length - 1 - Math.round(sec / STEP_SEC))],
+    leadBankDeg,
+    leadRollDps: roll,
+    leadKias: tasToIasKt(len3(lead.v) / KT_TO_FTPS, lead.p.z),
+    closure,
+    losRate,
+    losDps: len3(losRate) / DEG,
+    lead,
+    own: ownUsed,
+    leadG: g,
+    turn,
   };
   return { mem: next, seen };
 }
