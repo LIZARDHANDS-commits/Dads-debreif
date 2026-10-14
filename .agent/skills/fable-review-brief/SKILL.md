@@ -7,6 +7,8 @@ description: How to get a useful one-off review from Fable (Claude's Fable model
 
 Internal project skill (Patrick, 14 Oct 2026). It holds what worked and what failed in the Fable reviews of 13-14 Oct 2026: the wingman audit, the fighting wing audit and the cone-turn review. The rule book (`AGENTS.md`) wins over anything here.
 
+Written for **Fable 5.1**. If the Fable version has changed, re-read Anthropic's prompting guide for the new version and update section 5 before relying on it.
+
 ## 1. Is Fable the right tool?
 
 The rule book allows Fable only **after Opus has failed twice on the same problem, or for a one-off architecture review, and the thread tells Patrick first** (Agents and models). Say which of the two it is, and why, before you write anything.
@@ -29,6 +31,8 @@ Use the shape in `references/brief-template.md`. In short:
 7. **What to return** (the template's last section).
 
 **Paraphrase the manuals and cite paragraph numbers;** never paste manual text into the brief. The CFAFM never goes anywhere, Fable included.
+
+**Words and numbers only.** Never paste pictures, embedded data or base64 strings into a brief; base64 is one of the false-positive triggers in Anthropic's guide. Describe a diagram in words, or give its numbers as a table.
 
 **Systems-engineering reviews: send the numbers.** Fable did its best work on numbers and structure: the rotating-frame fact behind "inside Lead's circle and gaining", the loop-speed table, the half-gain trap and the delay budget all came from it. Put in the brief, renamed, the parts of `docs/modules/turn-sim/control-model.md` the question needs: the loops (what each senses and commands, gains, crossover and margins), the N² chart's shared controls and who wins, the switching map, and the measured faults (`tools/control-map/results/faults.json`). Ask for findings in control terms that the design gates C1-C11 can judge (`Pat's claude work/formation-review-12oct/control-systems-analysis-plan.md` §7).
 
@@ -56,14 +60,25 @@ It exits 1 and lists line, word, proven or guess, and a suggested rewording. `sc
 ## 4. Send it
 
 - **File the brief first:** `Pat's claude work/<review folder>/fable-<topic>-brief-<ddmon>.md`, so the renaming is traceable.
-- **Spawn one read-only agent** with model `fable`, effort high (or as the brief says). Put the brief's whole text in the prompt, so Fable needs no file at all.
+- **Spawn one read-only agent** with model `fable`. Put the brief's whole text in the prompt, so Fable needs no file at all.
+- **Effort `high`.** It is Anthropic's recommended starting point. Use `xhigh` or `max` only where a measured gain shows: at those levels Fable can draft a long report in its thinking and then write it out again, which is slower and costs more.
 - **No messages while it runs.** A follow-up with the instructor's own phrase tripped the filter and ended the run (after it had delivered, luckily). Hold every addition until the report lands, and fold it into the thread's own check. If one truly can't wait, scrub it like the brief and run the checker on it.
 
-## 5. If it is stopped
+## 5. From Anthropic's Fable 5.1 prompting guide
+
+The parts of [Prompting Claude Fable 5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1) that matter for a one-off review. Most of the page is about building on the API (progress updates, tool batching, file edits, vision) and doesn't apply here.
+- **Finish the whole task.** Run on its own, Fable can stop early: it describes what it would do next, or asks whether to go on. The brief must tell it that nobody is watching or can answer mid-run, and that it ends only when the report is complete. If a question comes up, it does everything that doesn't depend on the answer, states its assumption, and puts the question at the end. The brief template's last paragraph does this.
+- **For a review, the assessment is the deliverable:** it reports its findings and stops, and doesn't write code.
+- **Keep to the question.** No narrowing or widening it. A real problem with the question gets a sentence or two, and then it carries on under stated assumptions. Anything else it notices goes in a short note at the end.
+- **Plain prose.** Fable 5.1 can write dense, flowery text. The guide's fix is one line: "Please remove all mannered prose." It is in the template, and it suits Patrick.
+- **False positives still happen,** and come back as a refusal. The guide's known triggers (compile-check wording, little-known programming languages, base64 in the context) are not ours. Ours (section 3) come from our own runs, so keep adding to `terms.json`.
+- **Effort:** start at `high` (section 4).
+
+## 6. If it is stopped
 
 Don't resend the same brief. Find what it was reading or answering when it stopped: the stop names a category, and the input just before it is the suspect. Scrub that, add the word to `terms.json`, and tell Patrick what happened. After two stops on one review, do it with Opus instead.
 
-## 6. From report to ruling
+## 7. From report to ruling
 
 1. **File the report** beside the brief: `fable-<topic>-report-<ddmon>.md`.
 2. **Map it back:** `node .agent/skills/fable-review-brief/scripts/scrub.mjs back <report.md> <mapped.md>` adds the project term in brackets after each renamed one. Keep the mapped copy beside it; `turn-sim-review/fable-findings-mapped.md` is the older example.

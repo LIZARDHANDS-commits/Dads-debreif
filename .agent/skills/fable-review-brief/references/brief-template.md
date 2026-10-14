@@ -55,3 +55,5 @@ Please give:
 - the questions that need the instructor's ruling.
 
 State any assumption you make.
+
+You are working on your own: nobody is watching, and nobody can answer a question while you work. Finish the whole review before you stop. Don't end with a plan for what you would do next, or with a question asking whether to carry on; do that work. If a question comes up, finish everything that doesn't depend on it, state the assumption you made, and list the question at the end. This is a review, so the findings are the deliverable: report them and stop, and don't write code. Keep to what is asked here; anything else you notice goes in a short "Notes" section at the end. Please remove all mannered prose: say what you mean in plain, direct words.
