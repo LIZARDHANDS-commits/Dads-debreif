@@ -1,72 +1,77 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 537" width="1288" height="537" font-family="Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 561" width="1288" height="561" font-family="Helvetica, Arial, sans-serif">
 <rect width="100%" height="100%" fill="#ffffff"/>
 <text x="16" y="30" font-size="17" font-weight="bold" fill="#222">Fighting wing, recommended structure: level 2</text>
 <text x="16" y="50" font-size="12" fill="#c0392b">Proposed, not built: review 2.7 with the four rulings of 14 Oct 2026.</text>
 <rect x="16" y="70" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="26" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">Sight (seeFw)</text>
-<text x="26" y="100.5" font-size="10.5"  fill="#1d2433">Does: As today: the picture 0.4 s late; Lead carried across the</text>
-<text x="26" y="114" font-size="10.5"  fill="#1d2433">delay (D-Lead, question 1)</text>
+<text x="26" y="100.5" font-size="10.5"  fill="#1d2433">Does: As today: the picture 0.4 s late; Lead carried across</text>
+<text x="26" y="114" font-size="10.5"  fill="#1d2433">the delay (D-Lead, question 1)</text>
 <rect x="440" y="70" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">Phase</text>
-<text x="450" y="100.5" font-size="10.5"  fill="#1d2433">Does: Level, Entry, Turning, Exit from Lead's roll as seen (no 1 s</text>
-<text x="450" y="114" font-size="10.5"  fill="#1d2433">hold); the case read at each start; a reversal is an exit then an</text>
-<text x="450" y="127.5" font-size="10.5"  fill="#1d2433">entry (review 2.1)</text>
-<rect x="864" y="70" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="100.5" font-size="10.5"  fill="#1d2433">Does: Level, Entry, Turning, Exit from Lead's roll as seen</text>
+<text x="450" y="114" font-size="10.5"  fill="#1d2433">(no 1 s hold); the case read at each start; a reversal is an</text>
+<text x="450" y="127.5" font-size="10.5"  fill="#1d2433">exit then an entry (review 2.1)</text>
+<rect x="864" y="70" width="410" height="85.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="874" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">Reference path</text>
-<text x="874" y="100.5" font-size="10.5"  fill="#1d2433">Does: Lead's circle d inside or out (Turning: the arc loop), or</text>
-<text x="874" y="114" font-size="10.5"  fill="#1d2433">the swept line; into him from in position: straight ahead until on</text>
-<text x="874" y="127.5" font-size="10.5"  fill="#1d2433">the circle he wants (ruling); limits 20° out, 12° in (TS-233)</text>
+<text x="874" y="100.5" font-size="10.5"  fill="#1d2433">Does: Lead's circle d inside or out (Turning: the arc loop),</text>
+<text x="874" y="114" font-size="10.5"  fill="#1d2433">or the swept line; into him from in position: straight ahead</text>
+<text x="874" y="127.5" font-size="10.5"  fill="#1d2433">until on the circle he wants (ruling); limits 20° out, 12°</text>
+<text x="874" y="141" font-size="10.5"  fill="#1d2433">in (TS-233)</text>
 <rect x="16" y="140.5" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="26" y="157.5" font-size="12.5" font-weight="bold" fill="#1d2433">Arc loop</text>
-<text x="26" y="171" font-size="10.5"  fill="#1d2433">Does: Today's form: d = d_ss + c*/ω + kc(c* − c)/ω; owns closure</text>
-<text x="26" y="184.5" font-size="10.5"  fill="#1d2433">in a turn (R5)</text>
+<text x="26" y="171" font-size="10.5"  fill="#1d2433">Does: Today's form: d = d_ss + c*/ω + kc(c* − c)/ω; owns</text>
+<text x="26" y="184.5" font-size="10.5"  fill="#1d2433">closure in a turn (R5)</text>
 <rect x="440" y="154" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="171" font-size="12.5" font-weight="bold" fill="#1d2433">Energy intent</text>
-<text x="450" y="184.5" font-size="10.5"  fill="#1d2433">Does: Keep, gain or bleed from the phase and case, and the guard's</text>
-<text x="450" y="198" font-size="10.5"  fill="#1d2433">graded bleed request</text>
-<rect x="864" y="154" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
-<text x="874" y="171" font-size="12.5" font-weight="bold" fill="#1d2433">Path follower</text>
-<text x="874" y="184.5" font-size="10.5"  fill="#1d2433">Does: Wanted course = tangent + (2/π)χmax atan(k × distance off);</text>
-<text x="874" y="198" font-size="10.5"  fill="#1d2433">the path's turn fed forward (physics); course gain (review 2.2)</text>
+<text x="450" y="184.5" font-size="10.5"  fill="#1d2433">Does: Keep, gain or bleed from the phase and case, and the</text>
+<text x="450" y="198" font-size="10.5"  fill="#1d2433">guard's graded bleed request</text>
+<rect x="864" y="167.5" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="184.5" font-size="12.5" font-weight="bold" fill="#1d2433">Path follower</text>
+<text x="874" y="198" font-size="10.5"  fill="#1d2433">Does: Wanted course = tangent + (2/π)χmax atan(k × distance</text>
+<text x="874" y="211.5" font-size="10.5"  fill="#1d2433">off); the path's turn fed forward (physics); course gain</text>
+<text x="874" y="225" font-size="10.5"  fill="#1d2433">(review 2.2)</text>
 <rect x="16" y="211" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="26" y="228" font-size="12.5" font-weight="bold" fill="#1d2433">Vertical (one owner)</text>
-<text x="26" y="241.5" font-size="10.5"  fill="#1d2433">Does: PD on the target of one owner: stack, exit vertical (any</text>
-<text x="26" y="255" font-size="10.5"  fill="#1d2433">height, slant 500-1,000 ft, behind the wing line: ruling), yo-yo</text>
-<text x="26" y="268.5" font-size="10.5"  fill="#1d2433">(Turning), pass-clear; changes blended</text>
+<text x="26" y="241.5" font-size="10.5"  fill="#1d2433">Does: PD on the target of one owner: stack, exit vertical</text>
+<text x="26" y="255" font-size="10.5"  fill="#1d2433">(any height, slant 500-1,000 ft, behind the wing line:</text>
+<text x="26" y="268.5" font-size="10.5"  fill="#1d2433">ruling), yo-yo (Turning), pass-clear; changes blended</text>
 <rect x="440" y="224.5" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="241.5" font-size="12.5" font-weight="bold" fill="#1d2433">Power (one owner)</text>
-<text x="450" y="255" font-size="10.5"  fill="#1d2433">Does: Drag of the G asked and the climb fed forward + the intent +</text>
-<text x="450" y="268.5" font-size="10.5"  fill="#1d2433">a slow trim on speed; idle and the boards by intent</text>
-<rect x="864" y="224.5" width="410" height="85.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
-<text x="874" y="241.5" font-size="12.5" font-weight="bold" fill="#1d2433">Guard rail (taper)</text>
-<text x="874" y="255" font-size="10.5"  fill="#1d2433">Does: One predictor; does nothing at or over 600 ft; 600-500 ft</text>
-<text x="874" y="268.5" font-size="10.5"  fill="#1d2433">the allowed closing speed shrinks to none at 500 ft (phased); the</text>
-<text x="874" y="282" font-size="10.5"  fill="#1d2433">least change to turn or height; under 500 ft firm, G past the</text>
-<text x="874" y="295.5" font-size="10.5"  fill="#1d2433">estimate flagged (ruling); asks bleed, never sets power</text>
+<text x="450" y="255" font-size="10.5"  fill="#1d2433">Does: Drag of the G asked and the climb fed forward + the</text>
+<text x="450" y="268.5" font-size="10.5"  fill="#1d2433">intent + a slow trim on speed; idle and the boards by intent</text>
+<rect x="864" y="251.5" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="268.5" font-size="12.5" font-weight="bold" fill="#1d2433">Guard rail (taper)</text>
+<text x="874" y="282" font-size="10.5"  fill="#1d2433">Does: One predictor; does nothing at or over 600 ft; 600-500</text>
+<text x="874" y="295.5" font-size="10.5"  fill="#1d2433">ft the allowed closing speed shrinks to none at 500 ft</text>
+<text x="874" y="309" font-size="10.5"  fill="#1d2433">(phased); the least change to turn or height; under 500 ft</text>
+<text x="874" y="322.5" font-size="10.5"  fill="#1d2433">firm, G past the estimate flagged (ruling); asks bleed,</text>
+<text x="874" y="336" font-size="10.5"  fill="#1d2433">never sets power</text>
 <rect x="16" y="295" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="26" y="312" font-size="12.5" font-weight="bold" fill="#1d2433">Lift</text>
-<text x="26" y="325.5" font-size="10.5"  fill="#1d2433">Does: Within the cap in Patrick's order (question 2): geometry</text>
-<text x="26" y="339" font-size="10.5"  fill="#1d2433">first; unload, roll, pull</text>
+<text x="26" y="325.5" font-size="10.5"  fill="#1d2433">Does: Within the cap in Patrick's order (question 2):</text>
+<text x="26" y="339" font-size="10.5"  fill="#1d2433">geometry first; unload, roll, pull</text>
 <rect x="440" y="295" width="410" height="45" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="312" font-size="12.5" font-weight="bold" fill="#1d2433">#2 point mass and engine</text>
 <text x="450" y="325.5" font-size="10.5"  fill="#1d2433">Does: As today (stepLead)</text>
-<rect x="864" y="322" width="410" height="112.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
-<text x="874" y="339" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it adds (estimates unless ruled)</text>
-<text x="874" y="352.5" font-size="10.5"  fill="#1d2433">Adds: approach angle out (lag) 20° (ruling); approach angle in</text>
-<text x="874" y="366" font-size="10.5"  fill="#1d2433">(lead) 12° (ruling); approach law k about 1 per 150 ft (tuning);</text>
-<text x="874" y="379.5" font-size="10.5"  fill="#1d2433">course gain about today's 0.05 G/deg (tuning); phase thresholds</text>
-<text x="874" y="393" font-size="10.5"  fill="#1d2433">(roll seen, captured) 2 (tuning); energy intent (gain, bleed</text>
-<text x="874" y="406.5" font-size="10.5"  fill="#1d2433">thresholds, trim) 3 (tuning); exit vertical (gain, blend) 2</text>
-<text x="874" y="420" font-size="10.5"  fill="#1d2433">(tuning); guard taper (shape, time) 1-2 (tuning)</text>
-<rect x="440" y="352" width="410" height="153" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
-<text x="450" y="369" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it removes</text>
-<text x="450" y="382.5" font-size="10.5"  fill="#1d2433">Removes: historySec; aimTurnSec; aimTurnCap.k; aimTurnCap.plusDps;</text>
-<text x="450" y="396" font-size="10.5"  fill="#1d2433">circleLookSec; circleLeastFt; routeFt; lagFirst.deg; lagFirst.sec;</text>
-<text x="450" y="409.5" font-size="10.5"  fill="#1d2433">lagFirst.easeSec; behind.downFt; behind.clearFt; sweptLookSec;</text>
-<text x="450" y="423" font-size="10.5"  fill="#1d2433">quickFixFt; quickFixFtps; quickFixHeightFt; quickReleaseFt;</text>
-<text x="450" y="436.5" font-size="10.5"  fill="#1d2433">quickReleaseFtps; quickSec; lowFt; lowStartKt; lowEndKt;</text>
-<text x="450" y="450" font-size="10.5"  fill="#1d2433">yoyo.slowKt; yoyo.powerBackKt; yoyo.excessFtps; guard.engageFt;</text>
-<text x="450" y="463.5" font-size="10.5"  fill="#1d2433">guard.releaseFt; guard.releaseSec; guard.missSlantFt;</text>
-<text x="450" y="477" font-size="10.5"  fill="#1d2433">guard.torquePct; guard.filterHoldSec; guard.engage.marginFt;</text>
-<text x="450" y="490.5" font-size="10.5"  fill="#1d2433">guard.engage.releaseSec; guard.lagSec</text>
+<rect x="440" y="352" width="410" height="126" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="369" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it adds (estimates unless ruled)</text>
+<text x="450" y="382.5" font-size="10.5"  fill="#1d2433">Adds: approach angle out (lag) 20° (ruling); approach angle</text>
+<text x="450" y="396" font-size="10.5"  fill="#1d2433">in (lead) 12° (ruling); approach law k about 1 per 150 ft</text>
+<text x="450" y="409.5" font-size="10.5"  fill="#1d2433">(tuning); course gain about today's 0.05 G/deg (tuning);</text>
+<text x="450" y="423" font-size="10.5"  fill="#1d2433">phase thresholds (roll seen, captured) 2 (tuning); energy</text>
+<text x="450" y="436.5" font-size="10.5"  fill="#1d2433">intent (gain, bleed thresholds, trim) 3 (tuning); exit</text>
+<text x="450" y="450" font-size="10.5"  fill="#1d2433">vertical (gain, blend) 2 (tuning); guard taper (shape, time)</text>
+<text x="450" y="463.5" font-size="10.5"  fill="#1d2433">1-2 (tuning)</text>
+<rect x="864" y="362.5" width="410" height="166.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="379.5" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it removes</text>
+<text x="874" y="393" font-size="10.5"  fill="#1d2433">Removes: historySec; aimTurnSec; aimTurnCap.k;</text>
+<text x="874" y="406.5" font-size="10.5"  fill="#1d2433">aimTurnCap.plusDps; circleLookSec; circleLeastFt; routeFt;</text>
+<text x="874" y="420" font-size="10.5"  fill="#1d2433">lagFirst.deg; lagFirst.sec; lagFirst.easeSec; behind.downFt;</text>
+<text x="874" y="433.5" font-size="10.5"  fill="#1d2433">behind.clearFt; sweptLookSec; quickFixFt; quickFixFtps;</text>
+<text x="874" y="447" font-size="10.5"  fill="#1d2433">quickFixHeightFt; quickReleaseFt; quickReleaseFtps;</text>
+<text x="874" y="460.5" font-size="10.5"  fill="#1d2433">quickSec; lowFt; lowStartKt; lowEndKt; yoyo.slowKt;</text>
+<text x="874" y="474" font-size="10.5"  fill="#1d2433">yoyo.powerBackKt; yoyo.excessFtps; guard.engageFt;</text>
+<text x="874" y="487.5" font-size="10.5"  fill="#1d2433">guard.releaseFt; guard.releaseSec; guard.missSlantFt;</text>
+<text x="874" y="501" font-size="10.5"  fill="#1d2433">guard.torquePct; guard.filterHoldSec; guard.engage.marginFt;</text>
+<text x="874" y="514.5" font-size="10.5"  fill="#1d2433">guard.engage.releaseSec; guard.lagSec</text>
 </svg>

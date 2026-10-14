@@ -149,7 +149,7 @@ function commandsOf(id) { return M.SIGNALS.filter((s) => s.writers.includes(id))
 function level2(title, cards, note) {
   const colW = 410;
   const cols = 3;
-  const wrapN = 66;
+  const wrapN = 60;
   const laid = cards.map((c) => {
     const lines = [];
     lines.push({ t: c.title, b: true });
