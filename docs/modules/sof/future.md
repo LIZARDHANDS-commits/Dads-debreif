@@ -19,6 +19,14 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 - **Live aircraft plotted on our own map** from ADS-B sites. This is the relay layer above (SOF-R17, SOF-7); it still waits on whose account runs the relay. V6 used Dad's own Netlify function for this (`v6/sof.html:727`), so that account is one option to put to Patrick.
 - **Moved to the plan (Step 2b, SOF-39) on 7 Oct.** Fronts on the 3D view stay here until a free data source is found. Was: **A 3D SOF picture, like the pattern sim:** Moose Jaw's airspace drawn in 3D, with clouds, fronts, storms, radar and winds, and live aircraft in it. Clouds are built from reported and forecast bases and tops and the low, medium and high layers. Long-term goal; not proposed to Patrick yet. It needs new outside data sources, so it waits for his yes.
 
+## Asked by Dad (14 Oct 2026): radar in 3D with real heights
+
+Dad's words: "I noticed on SOF, radar is shown in blocks... do these longer blocks correspond to the radar return from the tilt? does their height show at all? can we some how display the blocks as segmented if the tilt is showing different altitudes", then "Please look into all three... Ideally the radar is modeled as accurately as possible and with the best fidelity. maybe the user could select a performance mode if computers are capable. investigate radar tilt. i believe that could help us plot the heights as well. i think the longer cell logic about a run matching cells isnt good. I care about intensity, and location, and altitude."
+
+- **Today (V2.196 onward, SOF-56):** the radar feeds are flat pictures (ECCC rain or snow rate at Moose Jaw; NOAA MRMS base reflectivity, the lowest tilt, at the US bases), so no radar height is used. A 3D block's height is the model cloud's base and top over the return (or the ground to 8,000 ft above it, an estimate, with no model cloud), and neighbouring cells of one colour and like heights are merged into longer blocks (`weather3d-model.js` `mergeShafts`) to keep the drawing light.
+- **What Dad wants:** intensity, location and altitude from the radar itself, at the best fidelity; no run-merging of cells; a High mode for capable computers (with a lighter mode kept).
+- **Being researched (14 Oct 2026):** (1) radar echo tops; (2) reflectivity at several heights (a 3D mosaic or CAPPIs); (3) splitting blocks by the model cloud's layers; and radar tilts (elevation scans, the beam height of each tilt) for both Moose Jaw and the US bases. Findings go in `radar-3d-research.md` in this folder, then a plan for Dad's yes.
+
 ## Feature Ideas for the SOF
 
 - **Sun and moon panel, sun in the eyes**: sunrise, sunset and twilight cutoffs, moon and last-land cues; the Debrief's sun-in-the-eyes half goes with it (Feature Ideas idea 9; value high, effort small; `pf/reset/2-inventory/agents/sources/feature-ideas.md:11`)
