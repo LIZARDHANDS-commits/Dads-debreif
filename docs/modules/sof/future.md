@@ -54,3 +54,9 @@ Dad's words: "I noticed on SOF, radar is shown in blocks... do these longer bloc
 - **3D clouds that match Windy (Dad, 8 Oct 2026):** "The cloud model seems to still not match what windy currently puts out." Likely causes to check: Windy shows ECMWF by default and the SOF draws ECCC's GEM/HRDPS, so the two are different forecasts; Windy's cloud layers are total, low, medium and high cover, not cover by pressure level; and the SOF's threshold, smoothing and slab drawing (SOF-45, SOF-46) are estimates. Ideas: a model choice in the 3D panel (ECMWF through Open-Meteo, to compare like with like), a side-by-side check against Windy at the same hour and model, and tuning the 30 % threshold and the drawing against that check. Needs from Dad: which Windy layer and model he compares with, and a screenshot of each at the same hour.
 - **US bases, follow-ups (8 Oct 2026):** a separate on/off switch for military training routes (busy at 450 NM); the AP/1 page cites; each base's local working areas and watched areas from Dad.
 - **Relay passes the ADS-B emitter category (8 Oct 2026):** add `category` to `relay/lib.js` `trimOne` (checked as A0–D7) and carry it in `traffic.js`, so rotorcraft (A7) are known even when their type is missing; check the helicopter type list against ICAO Doc 8643.
+- **Performance radar on virga days (14 Oct 2026, from the Moose Jaw comparison):** Performance draws each cell from the ground to its 18 dBZ top. At CYMJ on 14 Oct 2026 (METAR VIRGA), the echo started at about 13,000 ft, so Performance showed echo reaching the ground where none did; High showed it correctly. Ideas, for Dad:
+  - add one low MRMS height (for example 1 or 2 km) to Performance, and draw a cell with no echo there as starting higher, or hatch its lower part;
+  - say "may not reach the ground" in words;
+  - leave it, as Performance is the light mode.
+
+  Each idea costs about 0.1 to 1 MB more an update.

@@ -134,6 +134,36 @@ MRMS echo-top values are kilometres above sea level (S; the file says "altitude 
   - Performance: thinned cells with measured tops.
   - High: every cell at every level, as a see-through volume.
 
+## The Moose Jaw comparison (plan item 6), first pass, 14 Oct 2026
+
+Dad, 14 Oct 2026: "see if the moosejawweather tests for the weather over moosejaw now". Checked by Dad's thread from the session, not yet by Dad. The heights against RadarScope on Bethune (CASBE) are still Dad's check.
+
+- **The weather then:** a wide area of light to moderate echo from Saskatoon south-east across Moose Jaw, strongest near Saskatoon. CYMJ METAR 2200Z: 18012KT 15SM BKN090 BKN180 14/05, remark VIRGA. CYXE: -RA BKN057 OVC069. CYQR: SCT140 BKN200, no rain.
+- **What was compared:**
+  - MRMS composite, 1, 2, 3, 4, 5, 6 and 8 km, and 18 dBZ tops at 2242Z, read with the SOF's own reader (`grib2.js`).
+  - ECCC GeoMet `RADAR_1KM_RRAI` and `RADAR_1KM_RSNO` at 2242Z, on the same 0.01° grid over 47.5 to 54.9° N, 112 to 99° W.
+  - ECCC gives a rain or snow rate, so its colours were turned back into dBZ with Marshall-Palmer (Z = 200 R^1.6). That is an assumption for this check only: ECCC's own conversion was not found.
+  - An echo was counted from 7 dBZ (about ECCC's lowest colour, 0.1 mm/h, under the same assumption).
+- **Location:** the same shapes in the same places over the whole picture: the Saskatoon area, the band across Moose Jaw towards the south-west, and the showers to the north-west.
+  - Cell by cell, the two agree on about two thirds of the echo within 100 and 150 NM of CYMJ (both show echo, against either showing it).
+  - Within 50 NM it is under a third, for the reason below.
+- **Intensity:** where both show echo, MRMS's composite reads a median 1.4 to 1.7 dBZ stronger than ECCC (half the cells within −1 to +5 dBZ). MRMS's 1 to 3 km levels read within about 1 dBZ of ECCC. The composite is the strongest echo in the column, so a little stronger is expected.
+  - Strongest echo within 150 NM: MRMS 38 dBZ; ECCC 10.9 mm/h, about 40 dBZ.
+- **Heights, and the one real difference:**
+  - Within 50 NM, MRMS shows echo over about half the area and ECCC over about a sixth. Most of MRMS's extra echo is light (median about 10 dBZ) and aloft: three quarters of it starts at 4 or 5 km (about 13,000 to 16,000 ft) above sea level with nothing below. Its 18 dBZ tops are about 4.75 km (15,600 ft).
+  - That matches the METAR's VIRGA and its BKN090 and BKN180 decks: rain falling from mid-level cloud and drying out before the ground. ECCC's map is a rain-at-the-ground picture, so it leaves virga out.
+  - So MRMS saw the virga, and its heights fit the reported cloud. RadarScope on CASBE is the check of the heights themselves.
+- **Right over Bethune:** MRMS reads "no coverage" at 2 to 4 km straight over CASBE, the cone above a radar that it can't scan. This suggests MRMS uses Bethune itself. It is a guess: MRMS's list of Canadian radars was not reached.
+- **The SOF's 3D view** (V2.432, headless Chromium with software graphics, live MRMS at 2252Z, airspace off, tilted):
+  - **High** draws the band over Moose Jaw as thin shells hanging well above the ground, with clear air under them, as the data says.
+  - **Performance** draws each cell as a column from the ground up to its 18 dBZ top. On a virga day it therefore shows echo reaching the ground at Moose Jaw where none does. This is how Performance was specified (SOF-67: it has only the tops and the composite, not where the echo starts). A possible change is on `future.md`, for Dad to decide.
+- **Not checked:**
+  - another day, or convective weather (today's echo was weaker than 40 dBZ);
+  - ECCC's own dBZ conversion;
+  - snow (ECCC's snow layer showed some echo north of the area);
+  - RadarScope;
+  - a real graphics card.
+
 ## Could not be reached from here
 
 `mrms.ncep.noaa.gov`, `nomads.ncep.noaa.gov`, `nssl.noaa.gov`, `roc.noaa.gov`, `weather.gov`, `api.weather.gc.ca`, ECCC's documentation and licence pages, and the AWS open-data registry pages (facts about them are S). Not tested: any decoder in a browser, real in-browser decode times, the relay's time limits, MRMS quality over Canada beyond finding echoes there.
