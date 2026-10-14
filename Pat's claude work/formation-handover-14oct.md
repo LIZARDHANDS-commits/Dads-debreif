@@ -15,8 +15,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 
 ## Next, in order (plan B5 in `docs/modules/turn-sim/plan.md`)
 
-1. **Part 2's two questions to Patrick**, if not yet answered (waiting list): whether truly abeam counts as fighting wing for Lead's moves (the first is answered: G onset by urgency, TS-233).
-2. **T29s, spec 7e draft 4, written by the thread.** One clean design in place of the stacked "7. Ruling" paragraphs:
+1. **T29s, spec 7e draft 4, written by the thread.** One clean design in place of the stacked "7. Ruling" paragraphs:
    - a normal flyer (a gentle circle or line follower) for nearly all the flying;
    - a few named techniques from the manual and his rulings: the miss (vertical first, below), lag pursuit from abeam, the high yo-yo, the exit dive or climb, S-turns, the very-stretched cut-across;
    - each technique on one card: source, assess, plan (sized once from the error and his energy), execute, monitor, hand back with a blend, 3-5 numbers, its gauge case;
@@ -24,10 +23,10 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
    - phased handovers everywhere, and the guard as a barrier;
    - G onset smooth, constant and deliberate;
    - all TS-233 rulings folded in, with a picture.
-3. **An Opus agent audits the draft,** read-only, against the control model and the rig (Patrick: "Spec 7e, then he will audit it"). In a new session, brief a fresh agent from the control model, the method plan and the review. Then Patrick approves.
-4. **Round 5, re-cut from draft 4, in slices behind Live** (Old the default). Each slice must meet gates C1-C11 (`control-systems-analysis-plan.md` §7) before Patrick flies it. If one struggles, stop, analyse, and Patrick ratifies the fix. Run the method plan's measurements on each slice. The tapered guard comes first.
-5. **Then** T29b-T29d (the climbs and descents, entry and exit, the aggressive Lead to 4 G), T29r's HUD readout, T30 (blended hand-overs), and T31 with Checkpoint G (Patrick flies fighting wing).
-6. **B4 after that:** spec 7d is rewritten with TRJ and SARJ as techniques. TRJ keeps flying as it does today, and moves only if the live one flies at least as well.
+2. **An Opus agent audits the draft,** read-only, against the control model and the rig (Patrick: "Spec 7e, then he will audit it"). In a new session, brief a fresh agent from the control model, the method plan and the review. Then Patrick approves.
+3. **Round 5, re-cut from draft 4, in slices behind Live** (Old the default). Each slice must meet gates C1-C11 (`control-systems-analysis-plan.md` §7) before Patrick flies it. If one struggles, stop, analyse, and Patrick ratifies the fix. Run the method plan's measurements on each slice. The tapered guard comes first.
+4. **Then** T29b-T29d (the climbs and descents, entry and exit, the aggressive Lead to 4 G), T29r's HUD readout, T30 (blended hand-overs), and T31 with Checkpoint G (Patrick flies fighting wing).
+5. **B4 after that:** spec 7d is rewritten with TRJ and SARJ as techniques. TRJ keeps flying as it does today, and moves only if the live one flies at least as well.
 
 ## Patrick's rulings on 14 Oct (all in TS-233's row in `decisions.md`, and as "7. Ruling" paragraphs in spec 7e)
 
@@ -39,6 +38,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 - **The exit vertical** may use any height while the slant stays 500-1,000 ft behind the wing line; he settles back in TS-80's 200 ft band.
 - **Power:** pull G, add power, unless bleeding energy on purpose. Power is the last tool.
 - **At the G cap:** airspeed gives way first, then the vertical, then the turn. G onset is smooth, constant and deliberate, and the cap should be rare.
+- **Abeam:** Lead may manoeuvre with #2 anywhere behind the 3/9 line within 500-1,000 ft (today 0-15° of sweep is refused; round 5 slice 3).
 - **G onset by urgency:** about 1 G/s usually; in the middle (about 2-2.5 G/s, an estimate) for assertive corrections and reversals to capture a line; up to about 4 G/s when about to hit something.
 - **The 0.4 s delay** stays on Lead only, dead-reckoned; he knows his own state at once. Round 5 brings the whole-picture signals onto this rule.
 - **Smooth, planned corrections:** "assess the error, make a plan, smoothly execute the plan/monitor perofmrance/adjust as requied". Gentle handovers at every switch; low only when needed.
