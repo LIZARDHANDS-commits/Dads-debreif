@@ -45,7 +45,7 @@
 
 ![Fighting wing today, level 1](control-model/fw-today-level1.svg)
 
-1. **Lead**: His programme; never reads #2
+1. **Lead**: Flies his programme; never reads #2 (TS-211)
 2. **Sight (seeFw)**: The picture 0.4 s late: slant, closure (1 s), line of sight rate (0.5 s), aspect, HCA, sweep, height against Lead, Lead's bank, G (0.1 s) and turn circle · **Lead now**: Lead carried 0.4 s round his seen turn (Fable F5); his own position and velocity as they are now (R1) · **Arc range (s, d)**: In a turn: arc s behind Lead round his circle, offset d inside it, and the arc closure from the velocities (Fable F10)
 3. **Guard (fwGuard)**: Second predictor of the pass, from the seen (0.4 s old) picture: on under 600 ft predicted or 500 ft now, off over 700 ft for 3 s; sets pass-clear's depth, freezes the power integral, skips the aim blend, opens the G cap under 500 ft · **Jobs (fwJob)**: Turning or level from Lead's seen bank; the entry case (a label, R7); the swept side at the exit; S-turns; the quick fix; low inside; the eased height target
 4. **Arc loop (aimInTurn)**: d = d_ss + c*/ω + kc(c* − c)/ω, c* = (s − 650)/10 s within ±25/±60 ft/s, d within ±400 ft slewed 60 ft/s; aim 3 s ahead on the circle d inside Lead's; power's P = arc error/15 s · **Swept aim (aimSwept)**: Lead level: aim at the swept place (625 ft at 45°) carried 8 s ahead; power's P = how far behind his place/10 s within ±25 ft/s · **Lag first**: On Lead's bank passing 10° toward him: aim 20° outward of Lead's circle for 2.5 s, eased out over 1 s. Goes (ruling 14 Oct 2026) · **Nose behind**: While the filter finds the wing line out of reach: aim where Lead was 1 s ago and go 300 ft down · **High yo-yo**: Inside Lead's turn, slow-to-hold > 10 kt, power back and gaining > 20 ft/s: climb h = (V² − (ωr)²)/2g, at least 100 ft, at most 200 ft; then down
@@ -61,7 +61,7 @@
 
 ![Close formation, level 1](control-model/cf-level1.svg)
 
-1. **Lead**: His programme; never reads #2
+1. **Lead**: Flies his programme; never reads #2 (TS-211)
 2. **Sight (perceive)**: The whole picture 0.3 s late: deviation on plane, line, along; rates (0.1 s); Lead's bank, roll, G dead-reckoned 0.3 s; his place's motion as Lead rolls and turns
 3. **Supervisor**: On station, small move, large move (plane, line, hinge masks eased at 0.5/s), out before up, off station; each with a dead band · **Station change and deconfliction**: B3: the places a change flies through; never within a wingspan, ahead of the 3/9 line or with wings overlapping
 4. **Holding power (feed-forward)**: powerFor at the briefed 200 KIAS + his place's speed, his G, Lead's climb, his place's climb and his own climb · **Power lead (feed-forward)**: Torque for his place's acceleration along Lead's nose as Lead's turn builds or eases · **Three axes (closeLaw)**: Pace cascade (0.4 ft/s per ft, at most 8 ft/s, the braking taper), then P and D per axis: plane G 0.04/0.06, line bank 1.9° per ft/s, hinge torque 12% per ft/s; I 0
@@ -73,22 +73,214 @@
 
 ![Close formation, level 2](control-model/cf-level2.svg)
 
-### 2.3 Fighting wing, the recommended structure (proposed, not built)
+### 2.3 Fighting wing, the recommended target structure (Spec 7e Draft 4 + Fable 3a/3b, `B01–B15`, `S01–S45`)
 
-The T29t review's section 2.7 with Patrick's four rulings of 14 Oct 2026 folded in: the guard tapers from 600 ft to 500 ft and asks to bleed energy rather than cutting power; into him from in position he flies straight ahead until he is on the circle he wants, then captures it (lag first goes); the exit vertical may use any height while the slant stays 500-1,000 ft and he stays behind the wing line; and the analysis runs per slice. Two changes from this model are folded in too: power gets the climb and the coming G fed forward (section 10), and power's arc term goes (R5).
+Spec 7e Draft 4 reconciled with Fable's control-systems model and audit (`fable-draft-4-model-report-14oct-mapped.md` `D1–D20` and follow-up `fable-draft-4-model-report-3b-14oct-mapped.md` `D21–D26`) and Patrick's rulings of 14 Oct 2026 (`TS-233`, `TS-234`):
+- **One delay rule (`B02`):** Lead seen 0.4 s late and dead-reckoned (position around his seen turn, bank run forward by his seen roll rate, `D3`); #2's own state known now; slant closure computed directly from velocities with no 1 s smoother (`D11`).
+- **One normal follower (`B05`) and arc loop (`B07`):** follows Lead's circle at offset $d \in [-250, +250]\text{ ft}$ or the swept line ($K_\chi = 0.5\text{ /s}$, $K_e = 0.026^\circ/\text{ft}$, caps $20^\circ$ out / $12^\circ$ in, `D2`); one $10\text{ s}$ range constant ($\tau_s = \tau_r = 10\text{ s}$, $k_c = 0.5$, `D10`) with unmet closure $w - \omega \cdot d_{\text{cmd}}$ (`S29b`, clipped $\pm 15\text{ kt}$) feeding the speed set-point offset $\Delta v_{\text{ref}}$ (`S27g`, `D21`) and a continuous drop-low-inside height term ($20\text{ ft/kt}$ past $5\text{ kt}$ slow, capped $-300\text{ ft}$, `D24`).
+- **Techniques (`B06`, `T1–T8`) plan once and write only the reference (`S26`):** blended by `B08` (`S27a–g`) over $\ge 6\text{ s}$ path and $\ge 4.3\text{ s}$ height (`D5`); in the miss (`T1`), #2 rolls and pulls positive G (`minG = 0.5 G` floor via unload-roll-pull, never pushing to 0 or negative G).
+- **One set of loops (`B09` steering, `B10` vertical with profile rate `D1`, `B11` proportional $0.3\text{ /s}$ speed loop with physics feed-forwards `D23`), one barrier guard (`B12`, cubic $x^3$ taper $600 \to 500\text{ ft}$), lift composer (`B13`, cap order: climb height demand first, 1 G hold second, turn last, `0.2 G` knee `D20`, `D22`), and urgency shaper (`B14`, $1 + 3u\text{ G/s}$).**
 
 ![Recommended structure, level 1](control-model/fw-proposed-level1.svg)
 
-1. **Lead**: His programme; never reads #2
-2. **Sight (seeFw)**: As today: the picture 0.4 s late; Lead carried across the delay (D-Lead, question 1)
-3. **Phase**: Level, Entry, Turning, Exit from Lead's roll as seen (no 1 s hold); the case read at each start; a reversal is an exit then an entry (review 2.1)
-4. **Reference path**: Lead's circle d inside or out (Turning: the arc loop), or the swept line; into him from in position: straight ahead until on the circle he wants (ruling); limits 20° out, 12° in (TS-233) · **Arc loop**: Today's form: d = d_ss + c*/ω + kc(c* − c)/ω; owns closure in a turn (R5) · **Energy intent**: Keep, gain or bleed from the phase and case, and the guard's graded bleed request
-5. **Path follower**: Wanted course = tangent + (2/π)χmax atan(k × distance off); the path's turn fed forward (physics); course gain (review 2.2) · **Vertical (one owner)**: PD on the target of one owner: stack, exit vertical (any height, slant 500-1,000 ft, behind the wing line: ruling), yo-yo (Turning), pass-clear; changes blended · **Power (one owner)**: Drag of the G asked and the climb fed forward + the intent + a slow trim on speed; idle and the boards by intent
-6. **Guard rail (taper)**: One predictor; does nothing at or over 600 ft; 600-500 ft the allowed closing speed shrinks to none at 500 ft (phased); the least change to turn or height; under 500 ft firm, G past the estimate flagged (ruling); asks bleed, never sets power
-7. **Lift**: Within the cap in Patrick's order (question 2): geometry first; unload, roll, pull
-8. **#2 point mass and engine**: As today (stepLead)
+1. **B01 Lead (scripted)**: Flies the test script; never reads #2; the only source of Lead's truth
+2. **B02 Perception**: Lead 0.4 s late and dead-reckoned: position round his seen turn, bank extrapolated by his seen roll rate (D3); #2's own state now; derives slant, closure from velocities (D11), LOS rate, aspect, HCA, sweep, height v Lead, Lead's circle, arc s, offset d, arc closure, Lead's G (S05b)
+3. **B03 Supervisor: phase and case**: Phase weights (level, entry, turning, exit, sum 1) from Lead's seen roll, blended 1.5 s; case label read once per phase with ±50 ft dead band, side/case blended ≥6 s · **B04 Supervisor: technique picker**: Polls each technique's cue; one active at a time by priority; 3 s no-restart timer; longest-run timer; writes blend weight 0→1→0 (≥6 s path, ≥4.3 s height)
+4. **B07 Arc loop**: d = d_ss + w/ω + kc(w − c)/ω, w = (s − 650)/10 s, soft closure limit 25→60 ft/s, d within ±250 ft, slewed 60 ft/s (radius clipped ~20,000 ft); writes offset d (S30) and unmet closure w − ω·d_cmd (S29b, clipped ±15 kt, D21) · **B05 Normal follower**: Writes the normal reference: path (circle concentric with Lead's at B07's offset d, or swept line parallel to Lead's track), caps 20° out / 12° in, Ke 0.026°/ft, height target = stack − planned drop low inside (20 ft/kt past 5 kt slow, cap −300 ft, D24), speed offset from B07's unmet closure, intent 0, urgency 0 · **B06 Techniques T1-T8**: T1 pass clear (S3b), T2 back behind 3/9 line (S7), T3 lag pursuit from abeam (S6), T4 high yo-yo ending stacked low (S7), T5 cut-across (S7), T6 exit vertical (S5), T7 S-turns (S5), T8 moving out from close formation (T30); each cue, plan once, monitor, done; writes candidate reference S26 and cue state S24 only
+5. **B08 Reference blender**: From normal reference (S25), technique reference (S26) and #2's position computes and blends by B04's weight (S23): wanted course χ_w, path turn-rate ω_FF, height target h_T and rate ḣ_T, speed offset Δv_ref, intent, urgency, cap change
+6. **B09 Steering loop**: ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s · **B10 Vertical loop**: ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included) · **B11 Power loop**: throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 20 ft/s, held ≥ 3 s, D8, D25)
+7. **B12 Guard**: One predictor on raw demands (S31, S32) over closing part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500 ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38); graded bleed request (S39); smooth cap opening 550→500 ft (S40); side choice held 3 s (S41)
+8. **B13 Lift composer**: Composes bounded turn, 1 G hold and bounded vertical within cap = min(stall warning, Lead G + 1.5 + S40 + S27f) with 0.2 G soft knee; cap order: climb height demand gives way first, then 1 G hold, turn last (D20); minG 0.5 G floor with unload-roll-pull (never pushes to 0 or negative G); hands drag of commanded G and climb (S44) to B11
+9. **B14 Shaper**: G onset 1 + 3u G/s by urgency u; roll ≤ 60°/s; unload, roll, pull when wings are > 20° off wanted lift (fighting wing only; close formation shape() untouched)
+10. **B15 #2 aircraft and engine**: T-6A point mass: thrust, drag, roll rate and build-up, G build-up ≤ 4 G/s, stall warning, engine 0.25 s, idle spool 3.5 s
 
 ![Recommended structure, level 2](control-model/fw-proposed-level2.svg)
+
+#### Level 1 architecture diagram (Mermaid, reconciled `B01–B15`)
+
+```mermaid
+flowchart TB
+  subgraph L1["1 Lead"]
+    B01["B01 Lead, scripted"]
+  end
+  subgraph L2["2 Perception"]
+    B02["B02 Perception: Lead 0.4 s late, position and bank run forward; own state now; slant, closure, LOS rate, aspect, HCA, sweep, height v Lead, arc s, offset d, arc closure"]
+  end
+  subgraph L3["3 Supervisor"]
+    B03["B03 Phase and case: level, entry, turning, exit from Lead's seen roll, blended 1.5 s; case read once per phase"]
+    B04["B04 Technique picker: priority, one at a time, no-restart 3 s, longest run; blend weight 0 to 1 to 0"]
+  end
+  subgraph L4["4 Planners"]
+    B05["B05 Normal follower: path = Lead's circle offset d, or the swept line; caps 20 deg out, 12 deg in; height target stack minus planned drop; intent 0"]
+    B07["B07 Arc loop: d = d_ss + w/omega + kc(w - c)/omega, w = (s - 650)/10 s, soft 25 to 60 ft/s, d within 250 ft; unmet closure"]
+    B06["B06 Techniques T1-T8: cue, plan once, monitor, done; write a reference only"]
+  end
+  subgraph L5["5 Reference"]
+    B08["B08 Blender: wanted course, path turn rate, height target and rate, speed offset, intent, urgency, cap change"]
+  end
+  subgraph L6["6 Loops"]
+    B09["B09 Steering: omega_cmd = omega_FF + 0.5 (chi_w - chi)"]
+    B10["B10 Vertical: dGv = 0.005 (hT - h) + 0.02 (hTdot - hdot)"]
+    B11["B11 Power: drag of G asked and climb + roll-in lead + 0.3 (VL + dV - V) + intent bias; speed brake under bleed"]
+  end
+  subgraph L7["7 Guard"]
+    B12["B12 Guard: one predictor, closing part up to 10 s; silent at 600 ft; cubic taper to 500; least-change bounds on turn and height; bleed request; cap opening; side held 3 s"]
+  end
+  subgraph L8["8 Lift"]
+    B13["B13 Lift composer: turn + 1 G hold + vertical within cap = min(stall warning, Lead G + 1.5 + opening); order: height demand, level hold, turn; minG 0.5 G roll-and-pull"]
+  end
+  subgraph L9["9 Shaper"]
+    B14["B14 Shaper: G onset 1 + 3u G/s; roll to 60 deg/s; unload, roll, pull past 20 deg"]
+  end
+  subgraph L10["10 Aircraft"]
+    B15["B15 #2 aircraft and engine: point mass, G build 4 G/s, stall warning, engine 0.25 s, spool 3.5 s"]
+  end
+  B01 -->|"Lead's true state"| B02
+  B15 -->|"own state now"| B02
+  B02 -->|"Lead's bank and roll rate; slant, arc s, sweep"| B03
+  B02 -->|"Lead's circle, turn rate, phase inputs"| B05
+  B02 -->|"geometry for cues and plans"| B06
+  B02 -->|"arc s, arc closure, speeds, Lead's turn"| B07
+  B02 -->|"height v Lead"| B10
+  B02 -->|"Lead's roll seen; slant closure; speeds"| B11
+  B02 -->|"Lead's state run forward; own state"| B12
+  B02 -->|"Lead's G"| B13
+  B03 -->|"phase weights"| B05
+  B03 ==>|"case label: exit side, abeam gating"| B05
+  B03 ==>|"phase, case gating of cues"| B06
+  B04 ==>|"start, stop, abort"| B06
+  B06 ==>|"cue strength, done, abort"| B04
+  B04 -->|"blend weight"| B08
+  B07 -->|"offset d; unmet closure"| B05
+  B05 -->|"normal reference"| B08
+  B06 -->|"technique reference"| B08
+  B08 -->|"wanted course, path turn rate"| B09
+  B08 -->|"height target and rate"| B10
+  B08 -->|"speed offset, intent, climb rate"| B11
+  B08 -->|"cap change"| B13
+  B08 -->|"urgency"| B14
+  B09 -->|"turn demand"| B12
+  B10 -->|"vertical demand"| B12
+  B09 -->|"turn demand"| B13
+  B10 -->|"vertical demand"| B13
+  B12 -.->|"turn and height bounds; cap opening"| B13
+  B12 -.->|"graded bleed request"| B11
+  B12 -->|"guard urgency, merged by max"| B08
+  B12 -->|"predicted pass, time to pass"| B06
+  B13 -->|"drag of the commanded G and climb"| B11
+  B13 -->|"lift vector"| B14
+  B14 -->|"G and roll rate"| B15
+  B11 -->|"throttle; speed brake"| B15
+```
+
+#### Level 2 loop architecture diagram (Mermaid, `B07`, `B09`, `B10`, `B11`)
+
+```mermaid
+flowchart LR
+  subgraph S["Steering, crossover 0.52 rad/s"]
+    S1["path tangent at his place"] --> S2["+ approach angle (2/pi) chi_max atan(k e), chi_max 20 out / 12 in, Ke 0.026 deg/ft"]
+    S2 --> S3["chi_w"]
+    S3 --> S4["0.5 /s x (chi_w - chi)"]
+    S5["path turn rate at his radius, Lead's bank run forward"] --> S6["omega_cmd = omega_FF + gain term"]
+    S4 --> S6
+  end
+  subgraph A["Arc loop, crossover 0.108 rad/s"]
+    A1["s - 650 ft"] --> A2["w = error / 10 s, soft limit 25 to 60 ft/s"]
+    A2 --> A3["d = d_ss + w/omega + 0.5 (w - c)/omega"]
+    A4["d_ss = R (1 - V2/VL)"] --> A3
+    A5["arc closure c"] --> A3
+    A3 --> A6["d within 250 ft, slew 60 ft/s"]
+    A3 --> A7["unmet closure = w - omega d_cmd, to the speed offset, within 15 kt"]
+  end
+  subgraph Vv["Vertical, crossover 0.68 rad/s"]
+    V1["hT, hTdot from the reference"] --> V2["dGv = 0.005 (hT - h) + 0.02 (hTdot - hdot)"]
+    V3["h, hdot own"] --> V2
+  end
+  subgraph P["Power: speed loop 0.3 rad/s, range cascade 0.091 rad/s"]
+    P1["drag of commanded G and climb, speed-brake drag"] --> P5["throttle = FF + lead + 0.3 (VL + dV - V) + bias, 0 to 1"]
+    P2["roll-in lead from Lead's seen roll"] --> P5
+    P3["VL + speed offset dV (unmet closure, technique ask), within 15 kt"] --> P5
+    P4["bias = min(intent, -bleed request)"] --> P5
+  end
+```
+
+#### Target blocks (`B01–B15`)
+
+| ID | Block | Kind | File | Slice | Status | What it does |
+|---|---|---|---|---|---|---|
+| B01 | B01 Lead (scripted) | aircraft | `live/manoeuvres.js` | S0 | target | Flies the test script; never reads #2; the only source of Lead's truth |
+| B02 | B02 Perception | perception | `live/wingman/perception.js` | S0 | target | Lead 0.4 s late and dead-reckoned: position round his seen turn, bank extrapolated by his seen roll rate (D3); #2's own state now; derives slant, closure from velocities (D11), LOS rate, aspect, HCA, sweep, height v Lead, Lead's circle, arc s, offset d, arc closure, Lead's G (S05b) |
+| B03 | B03 Supervisor: phase and case | supervisor | `live/wingman/supervisor.js` | S3a | target | Phase weights (level, entry, turning, exit, sum 1) from Lead's seen roll, blended 1.5 s; case label read once per phase with ±50 ft dead band, side/case blended ≥6 s |
+| B04 | B04 Supervisor: technique picker | supervisor | `live/wingman/supervisor.js` | S3b | target | Polls each technique's cue; one active at a time by priority; 3 s no-restart timer; longest-run timer; writes blend weight 0→1→0 (≥6 s path, ≥4.3 s height) |
+| B05 | B05 Normal follower | planner | `live/wingman/fighting-wing.js` | S2 | target | Writes the normal reference: path (circle concentric with Lead's at B07's offset d, or swept line parallel to Lead's track), caps 20° out / 12° in, Ke 0.026°/ft, height target = stack − planned drop low inside (20 ft/kt past 5 kt slow, cap −300 ft, D24), speed offset from B07's unmet closure, intent 0, urgency 0 |
+| B06 | B06 Techniques T1-T8 | technique | `live/wingman/techniques/` | S3b | target | T1 pass clear (S3b), T2 back behind 3/9 line (S7), T3 lag pursuit from abeam (S6), T4 high yo-yo ending stacked low (S7), T5 cut-across (S7), T6 exit vertical (S5), T7 S-turns (S5), T8 moving out from close formation (T30); each cue, plan once, monitor, done; writes candidate reference S26 and cue state S24 only |
+| B07 | B07 Arc loop | loop | `live/wingman/fighting-wing.js` | S2 | target | d = d_ss + w/ω + kc(w − c)/ω, w = (s − 650)/10 s, soft closure limit 25→60 ft/s, d within ±250 ft, slewed 60 ft/s (radius clipped ~20,000 ft); writes offset d (S30) and unmet closure w − ω·d_cmd (S29b, clipped ±15 kt, D21) |
+| B08 | B08 Reference blender | reference | `live/wingman/fw-reference.js` | S1 | target | From normal reference (S25), technique reference (S26) and #2's position computes and blends by B04's weight (S23): wanted course χ_w, path turn-rate ω_FF, height target h_T and rate ḣ_T, speed offset Δv_ref, intent, urgency, cap change |
+| B09 | B09 Steering loop | loop | `live/wingman/fighting-wing.js` | S2 | target | ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s |
+| B10 | B10 Vertical loop | loop | `live/wingman/fighting-wing.js` | S3b | target | ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included) |
+| B11 | B11 Power loop | loop | `live/wingman/fighting-wing.js` | S4 | target | throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 20 ft/s, held ≥ 3 s, D8, D25) |
+| B12 | B12 Guard | guard | `live/wingman/separation.js` | S3 | target | One predictor on raw demands (S31, S32) over closing part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500 ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38); graded bleed request (S39); smooth cap opening 550→500 ft (S40); side choice held 3 s (S41) |
+| B13 | B13 Lift composer | shaper | `live/wingman/fighting-wing.js` | S1 | target | Composes bounded turn, 1 G hold and bounded vertical within cap = min(stall warning, Lead G + 1.5 + S40 + S27f) with 0.2 G soft knee; cap order: climb height demand gives way first, then 1 G hold, turn last (D20); minG 0.5 G floor with unload-roll-pull (never pushes to 0 or negative G); hands drag of commanded G and climb (S44) to B11 |
+| B14 | B14 Shaper | shaper | `live/wingman/shaper.js` | S1 | target | G onset 1 + 3u G/s by urgency u; roll ≤ 60°/s; unload, roll, pull when wings are > 20° off wanted lift (fighting wing only; close formation shape() untouched) |
+| B15 | B15 #2 aircraft and engine | aircraft | `live/flight.js` | S0 | target | T-6A point mass: thrust, drag, roll rate and build-up, G build-up ≤ 4 G/s, stall warning, engine 0.25 s, idle spool 3.5 s |
+
+#### Target signals (`S01–S45`, including `S05b`, `S27a–g`, `S29b`)
+
+| ID | Signal | Unit | Writer | Readers | Delay | Smoothing | Limits / notes | Slice | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| S01 | Lead position, dead-reckoned | ft ×3 | B02 | B05, B06, B07, B12 | L | none | - | S0 | target |
+| S02 | Lead velocity, dead-reckoned | ft/s ×3 | B02 | B05, B06, B07, B12 | L | none | - | S0 | target |
+| S03 | Lead bank, run forward by seen roll rate | deg | B02 | B03, B05, B11, B12 | L | extrapolated by S04 (D3) | capped at plausible end bank | S0 | target |
+| S04 | Lead roll rate, seen | deg/s | B02 | B03, B11, B12 | L | ~0.2 s | - | S0 | target |
+| S05 | Lead turn rate ω | rad/s | B02 | B05, B07, B09, B12 | L | from S03, S06 | - | S0 | target |
+| S05b | Lead G, seen | G | B02 | B13 | L | ~0.15 s | for cap = Lead G + 1.5 (D22) | S1 | target |
+| S06 | Lead true airspeed | ft/s | B02 | B07, B11 | L | none | - | S0 | target |
+| S07 | Lead circle: centre, radius | ft | B02 | B05, B07, B12 | L | none | radius clipped ~20,000 ft → line | S0 | target |
+| S08 | own position, velocity, course | ft, ft/s, deg | B15 | B02, B05, B06, B07, B08, B09, B10, B11, B12 | N | none | - | S0 | target |
+| S09 | own bank, roll rate | deg, deg/s | B15 | B02, B13, B14 | N | none | - | S0 | target |
+| S10 | own G | G | B15 | B02, B11, B13, B14 | N | none | - | S0 | target |
+| S11 | own height rate | ft/s | B15 | B02, B10, B11 | N | none | - | S0 | target |
+| S12 | own KIAS / TAS | kt, ft/s | B15 | B02, B07, B11 | N | none | - | S0 | target |
+| S13 | slant range | ft | B02 | B03, B06, gauge | L | none (D11) | - | S0 | target |
+| S14 | slant closure | ft/s | B02 | B06, B11 | L | from S02 and S08, no 1 s smoother (D11) | - | S0 | target |
+| S15 | line-of-sight rate | deg/s | B02 | B06 | L | 0.5 s | - | S0 | target |
+| S16 | aspect, HCA, sweep | deg | B02 | B03, B05, B06, B12 | L | none | - | S0 | target |
+| S17 | height against Lead (+ above) | ft | B02 | B06, B10, B12 | L | none | - | S0 | target |
+| S18 | arc behind s | ft | B02 | B03, B06, B07 | L | none | - | S0 | target |
+| S19 | offset d, measured | ft | B02 | B03, B06, B07 | L | none | - | S0 | target |
+| S20 | arc closure | ft/s | B02 | B06, B07 | L | ≤ 0.5 s | - | S0 | target |
+| S21 | phase weights (level, entry, turning, exit) | 4 × 0-1 | B03 | B05, B06 | L | blend 1.5 s | sum 1 | S3a | target |
+| S22 | case label (exit side, abeam gating) | label | B03 | B05, B06 | L | read once per phase, ±50 ft dead band, side blended ≥6 s | decision [D] | S3a | target |
+| S23 | active technique, blend weight | id; 0-1 | B04 | B06, B08 | N | slides ≥6 s path, ≥4.3 s height (D5) | one at a time | S3b | target |
+| S24 | cue strength, done, abort (per technique) | 0-1; bool; bool | B06 | B04 | L | band and dwell per cue (D6) | decision [D] | S3b | target |
+| S25 | normal reference (path, d, side, caps, Ke, h_T, ḣ_T, Δv, intent, u, cap) | record | B05 | B08 | L | h_T drop-low term blended 4.3 s (D24) | d from S30, Δv from S29b | S1 | target |
+| S26 | technique reference (same fields) | record | B06 | B08 | L | none | writes reference only (C1) | S1 | target |
+| S27a | wanted course χ_w (blended) | deg | B08 | B09 | L | blend by S23 (≥6 s) | approach angle capped before blend | S1 | target |
+| S27b | path turn-rate feed-forward ω_FF | rad/s | B08 | B09 | L | blend by S23 (≥6 s) | - | S1 | target |
+| S27c | height target h_T and rate ḣ_T | ft, ft/s | B08 | B10, B11 | L | blend by S23 (≥4.3 s; 15 s return to stack) | D1 profile rate | S1 | target |
+| S27d | energy intent | −1..+1 | B08 | B11 | L | blend by S23 | −1 bleed to +1 gain | S1 | target |
+| S27e | urgency u | 0-1 | B08 | B14 | L | max(technique, guard S36) | 0-1 | S1 | target |
+| S27f | cap change | G | B08 | B13 | L | blend by S23 | - | S1 | target |
+| S27g | speed set-point offset Δv_ref | kt | B08 | B11 | L | blend of NF S29b and technique speed ask | ±15 kt (D21) | S2 | target |
+| S28 | steady-state offset d_ss = R(1 − V2/V_L) | ft | B07 | B07, gauge | L | none | - | S2 | target |
+| S29 | wanted closure w = (s − 650)/10 s | ft/s | B07 | B07 | L | soft limit 25→60 ft/s over 200-400 ft | ±60 ft/s | S2 | target |
+| S29b | unmet closure w − ω·d_cmd | ft/s (→ kt) | B07 | B05 | L | continuous remainder | clipped ±15 kt as speed offset (D21) | S2 | target |
+| S30 | offset command d_cmd | ft | B07 | B05 | L | slew 60 ft/s | ±250 ft (TS-233) | S2 | target |
+| S31 | turn-rate command ω_cmd | rad/s | B09 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S2 | target |
+| S32 | vertical G command ΔG_v | G | B10 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S3b | target |
+| S33 | throttle command | 0-1 | B11 | B15 | N | engine lag in B15 | 0-1 | S2 | target |
+| S34 | speed brake command | bool | B11 | B15 | L | hold ≥ 3 s; drag fed forward in B11 | out > 60 ft/s for 1 s & intent ≤ −0.5; in < 20 ft/s (D8, D25) | S4 | target |
+| S35 | predicted pass p, time to pass t_pass | ft, s | B12 | B06, B14, gauge | L | none (D3; on raw S31, S32 from achieved state) | horizon ≤ 10 s | S3 | target |
+| S36 | guard urgency | 0-1 | B12 | B08 | L | rises at once, decays ~2 s | cubic ((600 − p)/100)³ | S3 | target |
+| S37 | turn bounds (lo, hi) on ω_cmd | rad/s | B12 | B13 | L | none | least change | S3 | target |
+| S38 | vertical bounds (lo, hi) on ΔG_v | G | B12 | B13 | L | none | least change (effective writer on escape, D16) | S3 | target |
+| S39 | graded bleed request | 0-1 | B12 | B11 | L | as S36 | request, never sets throttle | S3 | target |
+| S40 | cap opening | G | B12 | B13 | L | smooth 550→500 ft | ≤ stall-warning G | S3 | target |
+| S41 | guard side choice | ±1 | B12 | B12 | L | held ≥ 3 s | internal to B12 | S3 | target |
+| S42 | commanded lift vector (G and direction) | G, deg | B13 | B14 | N | 0.2 G soft knee at cap | cap = min(stall warning, Lead G + 1.5 + S40 + S27f); minG 0.5 G | S1 | target |
+| S43 | what gave way at the cap | label | B13 | gauge | N | none | telemetry only | S1 | target |
+| S44 | drag of commanded G and climb | thrust fraction | B13 | B11 | N | none | physics cross-feed before shaper | S4 | target |
+| S45 | achieved G, bank rate | G, deg/s | B14 | B15 | N | onset 1 + 3u G/s; roll ≤ 60°/s | unload-roll-pull past 20° | S1 | target |
 
 ## 3. Where the delay sits
 
@@ -415,12 +607,14 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 |---|---|---|---|
 | approach angle out (lag) | 20° | ruling | TS-233 (steer-behind 20°) |
 | approach angle in (lead) | 12° | ruling | TS-233 (steer-ahead 12°) |
-| approach law k | about 1 per 150 ft | tuning | review 2.2 (guess) |
-| course gain | about today's 0.05 G/deg | tuning | review 2.2 |
-| phase thresholds (roll seen, captured) | 2 | tuning | review 2.1 |
-| energy intent (gain, bleed thresholds, trim) | 3 | tuning | review 2.3 |
-| exit vertical (gain, blend) | 2 | tuning | review 2.3; ruling 14 Oct 2026 (any height in the cone's range) |
-| guard taper (shape, time) | 1-2 | tuning | ruling 14 Oct 2026: straight-line or square-root, an estimate for the guard-rail slice |
+| approach cross-track slope Ke | 0.026°/ft (k ≈ 1/420 ft out, 1/250 ft in) | tuning | TS-233; Fable D2 (estimate) |
+| course gain Kχ | 0.5 /s | tuning | TS-233; Fable D2 (estimate) |
+| range time constant τ_s = τ_r | 10 s (turn and level) | tuning | TS-233; Fable D10, D21 (Patrick 14 Oct 2026) |
+| speed loop proportional gain Kv | 0.3 /s (no integrator; set-point offset ±15 kt) | tuning | Fable D21, D23 (Patrick 14 Oct 2026) |
+| drop-low-inside continuous term k_e | 20 ft/kt past 5 kt slow, capped −300 ft | tuning | Fable D24 (Patrick 14 Oct 2026; estimate) |
+| phase thresholds and blend | 10° entry, 5° exit, 1.5 s phase blend, ≥6 s case/side blend | tuning | Spec 7e §7.5; Fable D5, D17 (estimate) |
+| guard taper and urgency | cubic x³ on 600→500 ft; onset 1 + 3u G/s; soft cap knee 0.2 G | tuning | TS-233; Fable §2, D20 (estimate) |
+| exit vertical and technique cue bands/dwells | 12 ft per ft/s (physics); D6 bands and dwells | tuning | TS-233; Fable D6 (estimates) |
 
 | Number | Value (code) | Role | Block | Recommended structure | Source (numbers.md) |
 |---|---|---|---|---|---|
@@ -705,21 +899,13 @@ The planner stays in reserve. The linear margins are large (section 7), so a pla
 
 - Where the 0.4 s sits: "a", Lead only, dead-reckoned, his own state known at once; round 5 brings slant, closure, the guard and the jobs onto that rule; the whole picture measured beside it each slice (the gauge's --delay-mode picture).
 - At the G cap: "airpeed then vertical then turn": he holds a smooth, steady G and lets the speed bleed; G onset smooth, constant and deliberate; reaching the cap rare.
+- G onset by urgency: about 1 G/s for ordinary flying (u = 0), about 2.2-2.5 G/s for assertive corrections and reversals (u ≈ 0.4-0.5), up to 4 G/s (the aircraft's onset) when about to hit something (u = 1).
+- Abeam counts as fighting wing: anywhere behind Lead's 3/9 line within 500-1,000 ft counts so Lead can always manoeuvre; from abeam with Lead turning in, #2 flies lag pursuit toward Lead's tail, makes the miss, then reverses onto the circle.
+- Fable 3b rulings (14 Oct 2026): (1) one 10 s range constant for both turns and level flight, with a 0.3 /s proportional speed loop (no integrator) and unmet-closure hand-off S29b → S27g (D21, D23); (2) continuous drop-low-inside term in the normal follower: 20 ft/kt past 5 kt slow, capped −300 ft, every foot past 100 ft below stack counted (D24); (3) add 90° and 180° turns from Slice 2, judge ±15 KIAS at end of the 30 s exit settle for 90-180° turns and account for physical 3-4 G bleed in Slice 8b (D26); (4) in the miss profile #2 rolls and pulls positive G (minG 0.5 G floor, unload-roll-pull, overbanking past 90° if required) instead of pushing to 0 or negative G; (5) all 8 techniques approved in priority order (including Back behind the 3/9 line in S7 and Moving out from close formation at T30).
 
 **Open** (the thread relays these one at a time; each has a working answer until he replies):
 
-**Q1. What G onset is "smooth, constant and deliberate" for #2 in fighting wing? Today he reaches 1.7-3.3 G/s (smoothed) in every academic turn.**
-- (a) about Lead's own academic roll-in, about 1 G/s at most (the gauge's working line)
-- (b) gentler, about 0.5 G/s
-- (c) the aircraft's onset (4 G/s) whenever the guard needs it, about 1 G/s otherwise
-- (d) your own number
-- *Recommended:* (c): about 1 G/s as round 5's working line in the academic set, the guard alone allowed more; it is what the gauge now counts.
-
-**Q2. Truly abeam (0-15° of sweep) the formation calls #2 "other", not fighting wing, and refuses Lead's turn presses. Should abeam count as fighting wing for Lead's moves?**
-- (a) yes: anywhere behind Lead's 3/9 line out to the cone's range counts, so Lead can always manoeuvre
-- (b) no: keep today's band; the gauge's abeam case sits at 20°
-- (c) your own
-- *Recommended:* (a): Lead never waits for #2 (TS-233), so a press should never be refused for #2's place; a screen and formation change for the thread, not this kit.
+*(All questions answered in TS-233, 14 Oct 2026.)*
 
 ## 13. Part 2: the measuring kit, and what it shows of today's faults
 

@@ -120,7 +120,7 @@ function level1(spec, proposed = false) {
   }
   for (const [id, p] of pos) {
     const b = byId.get(id) ?? { name: id };
-    const fill = id === 'lead' ? '#eef3e8' : id.startsWith('ac.') || id === 'p.aircraft' ? '#f1ece4' : proposed ? '#fdf2f0' : '#eef2f7';
+    const fill = (id === 'lead' || id === 'B01') ? '#eef3e8' : id.startsWith('ac.') || id === 'p.aircraft' || id === 'B15' ? '#f1ece4' : proposed ? '#fdf2f0' : '#eef2f7';
     out.push(`<rect x="${p.x - W / 2}" y="${p.y - H / 2}" width="${W}" height="${H}" rx="7" fill="${fill}" stroke="#44506a" stroke-width="1.2"/>`);
     const lines = wrap(b.name, 24);
     lines.slice(0, 2).forEach((ln, i) => out.push(`<text x="${p.x}" y="${p.y - (lines.length > 1 ? 6 : -4) + i * 14}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="#1d2433">${esc(ln)}</text>`));
@@ -241,6 +241,10 @@ const pieces = {
   'OUTLINE:fw': M.DIAGRAMS.fw.rows.map((r, i) => `${i + 1}. ${r.map((id) => `**${nameOf(id)}**: ${byId.get(id)?.does ?? ''}`).join(' · ')}`).join('\n'),
   'OUTLINE:cf': M.DIAGRAMS.cf.rows.map((r, i) => `${i + 1}. ${r.map((id) => `**${nameOf(id)}**: ${byId.get(id)?.does ?? ''}`).join(' · ')}`).join('\n'),
   'OUTLINE:proposed': M.DIAGRAMS.proposed.rows.map((r, i) => `${i + 1}. ${r.map((id) => `**${nameOf(id)}**: ${byId.get(id)?.does ?? ''}`).join(' · ')}`).join('\n'),
+  TARGET_MERMAID_L1: `\`\`\`mermaid\n${M.TARGET_MERMAID.level1}\n\`\`\``,
+  TARGET_MERMAID_L2: `\`\`\`mermaid\n${M.TARGET_MERMAID.level2}\n\`\`\``,
+  TARGET_BLOCKS: T(['ID', 'Block', 'Kind', 'File', 'Slice', 'Status', 'What it does'], M.TARGET_BLOCKS.map((b) => [b.id, b.name, b.kind, `\`${b.file}\``, b.slice, b.status, b.does])),
+  TARGET_SIGNALS: T(['ID', 'Signal', 'Unit', 'Writer', 'Readers', 'Delay', 'Smoothing', 'Limits / notes', 'Slice', 'Status'], M.TARGET_SIGNALS.map((s) => [s.id, s.name, s.unit, s.writer, s.readers.join(', '), s.delay, s.smoothing, s.limits, s.slice, s.status])),
   N2CELLS: T(['From (row)', 'To (column)', 'What passes', 'History items on the cell'], [...fwN2.cells].filter(([, c]) => c.signals.length || c.history.length).map(([k, c]) => { const [a, b] = k.split('>'); return [nameOf(a), nameOf(b), `${c.cross ? '**switch or decision:** ' : ''}${c.signals.join(', ')}`, c.history.map((h) => `${h.item} (${h.status})`).join('; ') || '-']; })),
   RESOURCES: T(['Resource', 'Kind', 'Writers (how)', 'Readers', 'Rule', 'Rule in words', 'History items'], M.RESOURCES.map((r) => [r.name, `${r.kind}, ${r.tech === 'cf' ? 'close' : 'fighting wing'}`, r.writers.map(([b, how]) => `${nameOf(b)}${how ? `: ${how}` : ''}`).join('; '), (r.readers ?? []).map(nameOf).join(', ') || '-', r.rule.type, r.rule.detail, String(M.HISTORY.filter((h) => h.res === r.id).length)])),
   HISTORY: T(['Item', 'Commit', 'Cell (from → to)', 'Resource', 'Now'], M.HISTORY.map((h) => [h.item, h.commit, `${nameOf(h.from)} → ${nameOf(h.to)}`, M.RESOURCES.find((r) => r.id === h.res)?.name ?? h.res, h.status])),
@@ -255,7 +259,7 @@ const pieces = {
     return T(['Table', 'Leaf numbers', ...roles, 'Recommended removes', 'Changes'], rows);
   })(),
   ADDS: T(['Added by the recommended structure', 'Value', 'Role', 'Source'], M.ADDS.map((a) => [a.name, a.value, a.role, a.source])),
-  QUESTIONS: M.QUESTIONS.map((q, i) => `**Q${i + 1}. ${q.q}**\n${q.options.map((o) => `- ${o}`).join('\n')}\n- *Recommended:* ${q.rec}`).join('\n\n'),
+  QUESTIONS: M.QUESTIONS.length ? M.QUESTIONS.map((q, i) => `**Q${i + 1}. ${q.q}**\n${q.options.map((o) => `- ${o}`).join('\n')}\n- *Recommended:* ${q.rec}`).join('\n\n') : '*(All questions answered in TS-233, 14 Oct 2026.)*',
   ANSWERED: M.ANSWERED.map((a) => `- ${a}`).join('\n'),
   CTLCOLS: T(['Gauge column', 'Block', 'Unit', 'What it shows'], M.CONTROLLER_COLUMNS.map((c) => [`\`${c.col}\``, nameOf(c.block), c.unit, c.what])),
   RIGCHECK: existsSync('tools/flight-design/results/fw-rig-check.md') ? readFileSync('tools/flight-design/results/fw-rig-check.md', 'utf8').trim() : '(run tools/fw-rig.mjs, then tools/flight-design/fw_loops.py)',
@@ -273,15 +277,15 @@ outputs.set(`${SVG_DIR}/cf-level1.svg`, level1(M.DIAGRAMS.cf));
 outputs.set(`${SVG_DIR}/fw-proposed-level1.svg`, level1(M.DIAGRAMS.proposed, true));
 outputs.set(`${SVG_DIR}/fw-today-level2.svg`, level2('Fighting wing today: level 2, each controller', cardsFor('fw'), `${M.META.codeAt}. Numbers read from the code's tables.`));
 outputs.set(`${SVG_DIR}/cf-level2.svg`, level2('Close formation: level 2, each controller', cardsFor('cf'), `${M.META.codeAt}. Numbers read from the code's tables.`));
-outputs.set(`${SVG_DIR}/fw-proposed-level2.svg`, level2('Fighting wing, recommended structure: level 2', [
-  ...M.PROPOSED.filter((b) => b.id !== 'lead').map((b) => ({ title: b.name, rows: [['Does', b.does]] })),
+outputs.set(`${SVG_DIR}/fw-proposed-level2.svg`, level2('Fighting wing, Spec 7e Draft 4 target structure: level 2', [
+  ...M.PROPOSED.filter((b) => b.id !== 'lead' && b.id !== 'B01').map((b) => ({ title: `${b.name} (${b.slice})`, rows: [['Does', b.does]] })),
   { title: 'Numbers it adds (estimates unless ruled)', rows: [['Adds', M.ADDS.map((a) => `${a.name} ${a.value} (${a.role})`)]] },
   { title: 'Numbers it removes', rows: [['Removes', leaves.filter(([p]) => ledgerEntry(M.LEDGER, p)?.rec === 'removes').map(([p]) => p.replace(/^FW_(WING|SEE)\./, ''))]] },
-], 'Proposed, not built: review 2.7 with the four rulings of 14 Oct 2026.'));
+], 'Proposed, not built: Spec 7e Draft 4 + Fable 3a/3b + Patrick\'s rulings of 14 Oct 2026.'));
 outputs.set(`${SVG_DIR}/fw-today-n2.svg`, fwN2.svg);
 
 let md = readFileSync('tools/control-map/model.template.md', 'utf8');
-md = md.replace(/\{\{([A-Za-z0-9:]+)\}\}/g, (m, k) => (k in pieces ? pieces[k] : m));
+md = md.replace(/\{\{([A-Za-z0-9:_]+)\}\}/g, (m, k) => (k in pieces ? pieces[k] : m));
 outputs.set(MD_OUT, md);
 
 let changed = 0;

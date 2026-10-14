@@ -47,15 +47,35 @@
 
 ![Close formation, level 2](control-model/cf-level2.svg)
 
-### 2.3 Fighting wing, the recommended structure (proposed, not built)
+### 2.3 Fighting wing, the recommended target structure (Spec 7e Draft 4 + Fable 3a/3b, `B01–B15`, `S01–S45`)
 
-The T29t review's section 2.7 with Patrick's four rulings of 14 Oct 2026 folded in: the guard tapers from 600 ft to 500 ft and asks to bleed energy rather than cutting power; into him from in position he flies straight ahead until he is on the circle he wants, then captures it (lag first goes); the exit vertical may use any height while the slant stays 500-1,000 ft and he stays behind the wing line; and the analysis runs per slice. Two changes from this model are folded in too: power gets the climb and the coming G fed forward (section 10), and power's arc term goes (R5).
+Spec 7e Draft 4 reconciled with Fable's control-systems model and audit (`fable-draft-4-model-report-14oct-mapped.md` `D1–D20` and follow-up `fable-draft-4-model-report-3b-14oct-mapped.md` `D21–D26`) and Patrick's rulings of 14 Oct 2026 (`TS-233`, `TS-234`):
+- **One delay rule (`B02`):** Lead seen 0.4 s late and dead-reckoned (position around his seen turn, bank run forward by his seen roll rate, `D3`); #2's own state known now; slant closure computed directly from velocities with no 1 s smoother (`D11`).
+- **One normal follower (`B05`) and arc loop (`B07`):** follows Lead's circle at offset $d \in [-250, +250]\text{ ft}$ or the swept line ($K_\chi = 0.5\text{ /s}$, $K_e = 0.026^\circ/\text{ft}$, caps $20^\circ$ out / $12^\circ$ in, `D2`); one $10\text{ s}$ range constant ($\tau_s = \tau_r = 10\text{ s}$, $k_c = 0.5$, `D10`) with unmet closure $w - \omega \cdot d_{\text{cmd}}$ (`S29b`, clipped $\pm 15\text{ kt}$) feeding the speed set-point offset $\Delta v_{\text{ref}}$ (`S27g`, `D21`) and a continuous drop-low-inside height term ($20\text{ ft/kt}$ past $5\text{ kt}$ slow, capped $-300\text{ ft}$, `D24`).
+- **Techniques (`B06`, `T1–T8`) plan once and write only the reference (`S26`):** blended by `B08` (`S27a–g`) over $\ge 6\text{ s}$ path and $\ge 4.3\text{ s}$ height (`D5`); in the miss (`T1`), #2 rolls and pulls positive G (`minG = 0.5 G` floor via unload-roll-pull, never pushing to 0 or negative G).
+- **One set of loops (`B09` steering, `B10` vertical with profile rate `D1`, `B11` proportional $0.3\text{ /s}$ speed loop with physics feed-forwards `D23`), one barrier guard (`B12`, cubic $x^3$ taper $600 \to 500\text{ ft}$), lift composer (`B13`, cap order: climb height demand first, 1 G hold second, turn last, `0.2 G` knee `D20`, `D22`), and urgency shaper (`B14`, $1 + 3u\text{ G/s}$).**
 
 ![Recommended structure, level 1](control-model/fw-proposed-level1.svg)
 
 {{OUTLINE:proposed}}
 
 ![Recommended structure, level 2](control-model/fw-proposed-level2.svg)
+
+#### Level 1 architecture diagram (Mermaid, reconciled `B01–B15`)
+
+{{TARGET_MERMAID_L1}}
+
+#### Level 2 loop architecture diagram (Mermaid, `B07`, `B09`, `B10`, `B11`)
+
+{{TARGET_MERMAID_L2}}
+
+#### Target blocks (`B01–B15`)
+
+{{TARGET_BLOCKS}}
+
+#### Target signals (`S01–S45`, including `S05b`, `S27a–g`, `S29b`)
+
+{{TARGET_SIGNALS}}
 
 ## 3. Where the delay sits
 

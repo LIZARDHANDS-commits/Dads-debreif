@@ -46,6 +46,25 @@ for (const h of M.HISTORY) { known(h.from, `history "${h.item}"`); known(h.to, `
 for (const x of M.CROSSLINKS) { known(x.from, 'crosslink'); known(x.to, 'crosslink'); }
 for (const w of M.SWITCHES) known(w.block, `switch ${w.id}`);
 
+// 1b. Target model (Spec 7e draft 4, B01-B15, S01-S45) against itself and C1 technique rule
+const targetBlocks = new Map((M.TARGET_BLOCKS ?? []).map((b) => [b.id, b]));
+const knownTarget = (id, where) => { if (id !== 'gauge' && !targetBlocks.has(id)) fail(`${where}: unknown target block ${id}`); };
+for (const b of M.TARGET_BLOCKS ?? []) {
+  if (!['target', 'built'].includes(b.status)) fail(`target block ${b.id}: status "${b.status}" must be "target" or "built"`);
+}
+for (const s of M.TARGET_SIGNALS ?? []) {
+  knownTarget(s.writer, `target signal ${s.id}`);
+  for (const r of s.readers) knownTarget(r, `target signal ${s.id}`);
+  if (!['N', 'L', 'W'].includes(s.delay)) fail(`target signal ${s.id}: unknown delay "${s.delay}"`);
+  if (!['target', 'built'].includes(s.status)) fail(`target signal ${s.id}: status "${s.status}" must be "target" or "built"`);
+  const writerBlock = targetBlocks.get(s.writer);
+  if (writerBlock?.kind === 'technique' && !s.id.startsWith('S24') && !s.id.startsWith('S26')) {
+    fail(`target signal ${s.id}: technique block ${s.writer} may write only cue state (S24) or technique reference (S26), never a control or loop signal (TS-234 / C1)`);
+  }
+}
+const builtBlocks = (M.TARGET_BLOCKS ?? []).filter((b) => b.status === 'built').length;
+const builtSignals = (M.TARGET_SIGNALS ?? []).filter((s) => s.status === 'built').length;
+
 // 2. Against a gauge run's trace columns
 const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(`.${tag}.json`)) : [];
 if (!files.some((f) => f.startsWith('b5-'))) fail(`no fighting wing traces ${dir}/b5-*.${tag}.json (run the gauge, README)`);
@@ -78,6 +97,7 @@ if (noSource.length) warns.push(`${noSource.length} numbers have no source row i
 
 console.log(`control map check (${M.META.codeAt})`);
 console.log(`  master list: ${M.BLOCKS.length} blocks, ${signals.length} signals, ${M.RESOURCES.length} resources, ${M.HISTORY.length} history items, ${M.SWITCHES.length} switches`);
+console.log(`  target (spec 7e draft 4): ${builtBlocks}/${(M.TARGET_BLOCKS ?? []).length} blocks built, ${builtSignals}/${(M.TARGET_SIGNALS ?? []).length} signals built`);
 console.log(`  traces: ${files.length} files tagged ${tag}, ${seen.size} columns seen, ${claimed.size} claimed`);
 console.log(`  tuning: ${leaves.length} numbers, ${Object.keys(ledger).length} ledger entries`);
 for (const w of warns) console.log(`  note: ${w}`);

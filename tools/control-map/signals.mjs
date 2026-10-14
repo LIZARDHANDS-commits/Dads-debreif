@@ -448,16 +448,18 @@ export const LEDGER = Object.freeze({
   'FW_WING.guard.lagSec': { role: 'tuning', block: 'fw.noseBehind', rec: 'removes', why: 'with the nose behind' },
 });
 
-/** Numbers the recommended structure adds (not in the code yet). */
+/** Numbers the recommended structure adds (not in the code yet; Spec 7e draft 4 + Fable 3a/3b). */
 export const ADDS = Object.freeze([
   { name: 'approach angle out (lag)', value: '20°', role: 'ruling', source: 'TS-233 (steer-behind 20°)' },
   { name: 'approach angle in (lead)', value: '12°', role: 'ruling', source: 'TS-233 (steer-ahead 12°)' },
-  { name: 'approach law k', value: 'about 1 per 150 ft', role: 'tuning', source: 'review 2.2 (guess)' },
-  { name: 'course gain', value: 'about today\'s 0.05 G/deg', role: 'tuning', source: 'review 2.2' },
-  { name: 'phase thresholds (roll seen, captured)', value: '2', role: 'tuning', source: 'review 2.1' },
-  { name: 'energy intent (gain, bleed thresholds, trim)', value: '3', role: 'tuning', source: 'review 2.3' },
-  { name: 'exit vertical (gain, blend)', value: '2', role: 'tuning', source: 'review 2.3; ruling 14 Oct 2026 (any height in the cone\'s range)' },
-  { name: 'guard taper (shape, time)', value: '1-2', role: 'tuning', source: 'ruling 14 Oct 2026: straight-line or square-root, an estimate for the guard-rail slice' },
+  { name: 'approach cross-track slope Ke', value: '0.026°/ft (k ≈ 1/420 ft out, 1/250 ft in)', role: 'tuning', source: 'TS-233; Fable D2 (estimate)' },
+  { name: 'course gain Kχ', value: '0.5 /s', role: 'tuning', source: 'TS-233; Fable D2 (estimate)' },
+  { name: 'range time constant τ_s = τ_r', value: '10 s (turn and level)', role: 'tuning', source: 'TS-233; Fable D10, D21 (Patrick 14 Oct 2026)' },
+  { name: 'speed loop proportional gain Kv', value: '0.3 /s (no integrator; set-point offset ±15 kt)', role: 'tuning', source: 'Fable D21, D23 (Patrick 14 Oct 2026)' },
+  { name: 'drop-low-inside continuous term k_e', value: '20 ft/kt past 5 kt slow, capped −300 ft', role: 'tuning', source: 'Fable D24 (Patrick 14 Oct 2026; estimate)' },
+  { name: 'phase thresholds and blend', value: '10° entry, 5° exit, 1.5 s phase blend, ≥6 s case/side blend', role: 'tuning', source: 'Spec 7e §7.5; Fable D5, D17 (estimate)' },
+  { name: 'guard taper and urgency', value: 'cubic x³ on 600→500 ft; onset 1 + 3u G/s; soft cap knee 0.2 G', role: 'tuning', source: 'TS-233; Fable §2, D20 (estimate)' },
+  { name: 'exit vertical and technique cue bands/dwells', value: '12 ft per ft/s (physics); D6 bands and dwells', role: 'tuning', source: 'TS-233; Fable D6 (estimates)' },
 ]);
 
 /** R1-R10 (plan section 2.2) against the tidied code. status: confirmed, corrected, new. */
@@ -479,45 +481,205 @@ export const FINDINGS = Object.freeze([
   { id: 'R15', status: 'new (part 2)', text: 'Patrick\'s "overcontrolling ... aimpoint and roll and G" measured: G onset up to 1.7-3.3 G/s in every academic turn (1-5 s a turn over 1 G/s), 2-137 aim jumps a turn (into tight 137), 3-24.5 s a turn over Lead\'s G + 0.5. "Too low": 8-25 s a turn more than 100 ft below the stack, lowest 240-315 ft in the turns. Energy: into tight loses 27 kt against Lead for 40 G·s of G over Lead\'s. Torque: up to 36 swings of 30 points a turn.' },
 ]);
 
-/** Questions for Patrick raised in part 1 (each with options and a recommendation; the thread relays one at a time). */
-/** Part 1's questions, answered (TS-233, 14 Oct 2026), and part 2's. */
+/** Questions from parts 1, 2, and Fable 3a/3b, answered by Patrick (TS-233, 14 Oct 2026). */
 export const ANSWERED = Object.freeze([
   'Where the 0.4 s sits: "a", Lead only, dead-reckoned, his own state known at once; round 5 brings slant, closure, the guard and the jobs onto that rule; the whole picture measured beside it each slice (the gauge\'s --delay-mode picture).',
   'At the G cap: "airpeed then vertical then turn": he holds a smooth, steady G and lets the speed bleed; G onset smooth, constant and deliberate; reaching the cap rare.',
+  'G onset by urgency: about 1 G/s for ordinary flying (u = 0), about 2.2-2.5 G/s for assertive corrections and reversals (u ≈ 0.4-0.5), up to 4 G/s (the aircraft\'s onset) when about to hit something (u = 1).',
+  'Abeam counts as fighting wing: anywhere behind Lead\'s 3/9 line within 500-1,000 ft counts so Lead can always manoeuvre; from abeam with Lead turning in, #2 flies lag pursuit toward Lead\'s tail, makes the miss, then reverses onto the circle.',
+  'Fable 3b rulings (14 Oct 2026): (1) one 10 s range constant for both turns and level flight, with a 0.3 /s proportional speed loop (no integrator) and unmet-closure hand-off S29b → S27g (D21, D23); (2) continuous drop-low-inside term in the normal follower: 20 ft/kt past 5 kt slow, capped −300 ft, every foot past 100 ft below stack counted (D24); (3) add 90° and 180° turns from Slice 2, judge ±15 KIAS at end of the 30 s exit settle for 90-180° turns and account for physical 3-4 G bleed in Slice 8b (D26); (4) in the miss profile #2 rolls and pulls positive G (minG 0.5 G floor, unload-roll-pull, overbanking past 90° if required) instead of pushing to 0 or negative G; (5) all 8 techniques approved in priority order (including Back behind the 3/9 line in S7 and Moving out from close formation at T30).',
 ]);
-export const QUESTIONS = Object.freeze([
-  {
-    q: 'What G onset is "smooth, constant and deliberate" for #2 in fighting wing? Today he reaches 1.7-3.3 G/s (smoothed) in every academic turn.',
-    options: ['(a) about Lead\'s own academic roll-in, about 1 G/s at most (the gauge\'s working line)', '(b) gentler, about 0.5 G/s', '(c) the aircraft\'s onset (4 G/s) whenever the guard needs it, about 1 G/s otherwise', '(d) your own number'],
-    rec: '(c): about 1 G/s as round 5\'s working line in the academic set, the guard alone allowed more; it is what the gauge now counts.',
-  },
-  {
-    q: 'Truly abeam (0-15° of sweep) the formation calls #2 "other", not fighting wing, and refuses Lead\'s turn presses. Should abeam count as fighting wing for Lead\'s moves?',
-    options: ['(a) yes: anywhere behind Lead\'s 3/9 line out to the cone\'s range counts, so Lead can always manoeuvre', '(b) no: keep today\'s band; the gauge\'s abeam case sits at 20°', '(c) your own'],
-    rec: '(a): Lead never waits for #2 (TS-233), so a press should never be refused for #2\'s place; a screen and formation change for the thread, not this kit.',
-  },
+export const QUESTIONS = Object.freeze([]);
+
+/**
+ * Target blocks B01-B15 from Fable's reconciled Spec 7e Draft 4 model (report 3a + 3b, 14 Oct 2026).
+ * Each slice flips its blocks and signals from status: 'target' to 'built' in signals.mjs.
+ */
+export const TARGET_BLOCKS = Object.freeze([
+  { id: 'B01', layer: 0, name: 'B01 Lead (scripted)', kind: 'aircraft', file: 'live/manoeuvres.js', slice: 'S0', status: 'target', does: 'Flies the test script; never reads #2; the only source of Lead\'s truth' },
+  { id: 'B02', layer: 1, name: 'B02 Perception', kind: 'perception', file: 'live/wingman/perception.js', slice: 'S0', status: 'target', does: 'Lead 0.4 s late and dead-reckoned: position round his seen turn, bank extrapolated by his seen roll rate (D3); #2\'s own state now; derives slant, closure from velocities (D11), LOS rate, aspect, HCA, sweep, height v Lead, Lead\'s circle, arc s, offset d, arc closure, Lead\'s G (S05b)' },
+  { id: 'B03', layer: 2, name: 'B03 Supervisor: phase and case', kind: 'supervisor', file: 'live/wingman/supervisor.js', slice: 'S3a', status: 'target', does: 'Phase weights (level, entry, turning, exit, sum 1) from Lead\'s seen roll, blended 1.5 s; case label read once per phase with ±50 ft dead band, side/case blended ≥6 s' },
+  { id: 'B04', layer: 2, name: 'B04 Supervisor: technique picker', kind: 'supervisor', file: 'live/wingman/supervisor.js', slice: 'S3b', status: 'target', does: 'Polls each technique\'s cue; one active at a time by priority; 3 s no-restart timer; longest-run timer; writes blend weight 0→1→0 (≥6 s path, ≥4.3 s height)' },
+  { id: 'B05', layer: 3, name: 'B05 Normal follower', kind: 'planner', file: 'live/wingman/fighting-wing.js', slice: 'S2', status: 'target', does: 'Writes the normal reference: path (circle concentric with Lead\'s at B07\'s offset d, or swept line parallel to Lead\'s track), caps 20° out / 12° in, Ke 0.026°/ft, height target = stack − planned drop low inside (20 ft/kt past 5 kt slow, cap −300 ft, D24), speed offset from B07\'s unmet closure, intent 0, urgency 0' },
+  { id: 'B06', layer: 3, name: 'B06 Techniques T1-T8', kind: 'technique', file: 'live/wingman/techniques/', slice: 'S3b', status: 'target', does: 'T1 pass clear (S3b), T2 back behind 3/9 line (S7), T3 lag pursuit from abeam (S6), T4 high yo-yo ending stacked low (S7), T5 cut-across (S7), T6 exit vertical (S5), T7 S-turns (S5), T8 moving out from close formation (T30); each cue, plan once, monitor, done; writes candidate reference S26 and cue state S24 only' },
+  { id: 'B07', layer: 3, name: 'B07 Arc loop', kind: 'loop', file: 'live/wingman/fighting-wing.js', slice: 'S2', status: 'target', does: 'd = d_ss + w/ω + kc(w − c)/ω, w = (s − 650)/10 s, soft closure limit 25→60 ft/s, d within ±250 ft, slewed 60 ft/s (radius clipped ~20,000 ft); writes offset d (S30) and unmet closure w − ω·d_cmd (S29b, clipped ±15 kt, D21)' },
+  { id: 'B08', layer: 4, name: 'B08 Reference blender', kind: 'reference', file: 'live/wingman/fw-reference.js', slice: 'S1', status: 'target', does: 'From normal reference (S25), technique reference (S26) and #2\'s position computes and blends by B04\'s weight (S23): wanted course χ_w, path turn-rate ω_FF, height target h_T and rate ḣ_T, speed offset Δv_ref, intent, urgency, cap change' },
+  { id: 'B09', layer: 5, name: 'B09 Steering loop', kind: 'loop', file: 'live/wingman/fighting-wing.js', slice: 'S2', status: 'target', does: 'ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s' },
+  { id: 'B10', layer: 5, name: 'B10 Vertical loop', kind: 'loop', file: 'live/wingman/fighting-wing.js', slice: 'S3b', status: 'target', does: 'ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included)' },
+  { id: 'B11', layer: 5, name: 'B11 Power loop', kind: 'loop', file: 'live/wingman/fighting-wing.js', slice: 'S4', status: 'target', does: 'throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 20 ft/s, held ≥ 3 s, D8, D25)' },
+  { id: 'B12', layer: 6, name: 'B12 Guard', kind: 'guard', file: 'live/wingman/separation.js', slice: 'S3', status: 'target', does: 'One predictor on raw demands (S31, S32) over closing part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500 ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38); graded bleed request (S39); smooth cap opening 550→500 ft (S40); side choice held 3 s (S41)' },
+  { id: 'B13', layer: 7, name: 'B13 Lift composer', kind: 'shaper', file: 'live/wingman/fighting-wing.js', slice: 'S1', status: 'target', does: 'Composes bounded turn, 1 G hold and bounded vertical within cap = min(stall warning, Lead G + 1.5 + S40 + S27f) with 0.2 G soft knee; cap order: climb height demand gives way first, then 1 G hold, turn last (D20); minG 0.5 G floor with unload-roll-pull (never pushes to 0 or negative G); hands drag of commanded G and climb (S44) to B11' },
+  { id: 'B14', layer: 8, name: 'B14 Shaper', kind: 'shaper', file: 'live/wingman/shaper.js', slice: 'S1', status: 'target', does: 'G onset 1 + 3u G/s by urgency u; roll ≤ 60°/s; unload, roll, pull when wings are > 20° off wanted lift (fighting wing only; close formation shape() untouched)' },
+  { id: 'B15', layer: 9, name: 'B15 #2 aircraft and engine', kind: 'aircraft', file: 'live/flight.js', slice: 'S0', status: 'target', does: 'T-6A point mass: thrust, drag, roll rate and build-up, G build-up ≤ 4 G/s, stall warning, engine 0.25 s, idle spool 3.5 s' },
 ]);
 
 /**
- * The recommended structure (the T29t review's section 2.7 with Patrick's rulings of 14 Oct 2026: the guard tapers from
- * 600 ft to 500 ft; into him from in position he flies straight ahead until on the circle he wants, lag first goes; the exit
- * vertical may use any height while the slant stays 500-1,000 ft behind the wing line; model now, analysis per slice).
- * PROPOSED, NOT BUILT.
+ * Target signals S01-S45 (plus 3b's S05b, S27a-g, S29b) from Fable's reconciled Spec 7e Draft 4 model.
+ * Writers and readers reference TARGET_BLOCKS ids (B01-B15) or 'gauge'.
  */
-export const PROPOSED = Object.freeze([
-  { id: 'lead', layer: 0, name: 'Lead', does: 'His programme; never reads #2' },
-  { id: 'p.sight', layer: 1, name: 'Sight (seeFw)', does: 'As today: the picture 0.4 s late; Lead carried across the delay (D-Lead, question 1)' },
-  { id: 'p.phase', layer: 2, name: 'Phase', does: 'Level, Entry, Turning, Exit from Lead\'s roll as seen (no 1 s hold); the case read at each start; a reversal is an exit then an entry (review 2.1)' },
-  { id: 'p.path', layer: 3, name: 'Reference path', does: 'Lead\'s circle d inside or out (Turning: the arc loop), or the swept line; into him from in position: straight ahead until on the circle he wants (ruling); limits 20° out, 12° in (TS-233)' },
-  { id: 'p.arc', layer: 3, name: 'Arc loop', does: 'Today\'s form: d = d_ss + c*/ω + kc(c* − c)/ω; owns closure in a turn (R5)' },
-  { id: 'p.intent', layer: 3, name: 'Energy intent', does: 'Keep, gain or bleed from the phase and case, and the guard\'s graded bleed request' },
-  { id: 'p.steer', layer: 4, name: 'Path follower', does: 'Wanted course = tangent + (2/π)χmax atan(k × distance off); the path\'s turn fed forward (physics); course gain (review 2.2)' },
-  { id: 'p.vertical', layer: 4, name: 'Vertical (one owner)', does: 'PD on the target of one owner: stack, exit vertical (any height, slant 500-1,000 ft, behind the wing line: ruling), yo-yo (Turning), pass-clear; changes blended' },
-  { id: 'p.power', layer: 4, name: 'Power (one owner)', does: 'Drag of the G asked and the climb fed forward + the intent + a slow trim on speed; idle and the boards by intent' },
-  { id: 'p.guard', layer: 5, name: 'Guard rail (taper)', does: 'One predictor; does nothing at or over 600 ft; 600-500 ft the allowed closing speed shrinks to none at 500 ft (phased); the least change to turn or height; under 500 ft firm, G past the estimate flagged (ruling); asks bleed, never sets power' },
-  { id: 'p.lift', layer: 6, name: 'Lift', does: 'Within the cap in Patrick\'s order (question 2): geometry first; unload, roll, pull' },
-  { id: 'p.aircraft', layer: 7, name: '#2 point mass and engine', does: 'As today (stepLead)' },
+export const TARGET_SIGNALS = Object.freeze([
+  { id: 'S01', name: 'Lead position, dead-reckoned', unit: 'ft ×3', writer: 'B02', readers: ['B05', 'B06', 'B07', 'B12'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S02', name: 'Lead velocity, dead-reckoned', unit: 'ft/s ×3', writer: 'B02', readers: ['B05', 'B06', 'B07', 'B12'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S03', name: 'Lead bank, run forward by seen roll rate', unit: 'deg', writer: 'B02', readers: ['B03', 'B05', 'B11', 'B12'], delay: 'L', smoothing: 'extrapolated by S04 (D3)', limits: 'capped at plausible end bank', slice: 'S0', status: 'target' },
+  { id: 'S04', name: 'Lead roll rate, seen', unit: 'deg/s', writer: 'B02', readers: ['B03', 'B11', 'B12'], delay: 'L', smoothing: '~0.2 s', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S05', name: 'Lead turn rate ω', unit: 'rad/s', writer: 'B02', readers: ['B05', 'B07', 'B09', 'B12'], delay: 'L', smoothing: 'from S03, S06', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S05b', name: 'Lead G, seen', unit: 'G', writer: 'B02', readers: ['B13'], delay: 'L', smoothing: '~0.15 s', limits: 'for cap = Lead G + 1.5 (D22)', slice: 'S1', status: 'target' },
+  { id: 'S06', name: 'Lead true airspeed', unit: 'ft/s', writer: 'B02', readers: ['B07', 'B11'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S07', name: 'Lead circle: centre, radius', unit: 'ft', writer: 'B02', readers: ['B05', 'B07', 'B12'], delay: 'L', smoothing: 'none', limits: 'radius clipped ~20,000 ft → line', slice: 'S0', status: 'target' },
+  { id: 'S08', name: 'own position, velocity, course', unit: 'ft, ft/s, deg', writer: 'B15', readers: ['B02', 'B05', 'B06', 'B07', 'B08', 'B09', 'B10', 'B11', 'B12'], delay: 'N', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S09', name: 'own bank, roll rate', unit: 'deg, deg/s', writer: 'B15', readers: ['B02', 'B13', 'B14'], delay: 'N', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S10', name: 'own G', unit: 'G', writer: 'B15', readers: ['B02', 'B11', 'B13', 'B14'], delay: 'N', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S11', name: 'own height rate', unit: 'ft/s', writer: 'B15', readers: ['B02', 'B10', 'B11'], delay: 'N', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S12', name: 'own KIAS / TAS', unit: 'kt, ft/s', writer: 'B15', readers: ['B02', 'B07', 'B11'], delay: 'N', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S13', name: 'slant range', unit: 'ft', writer: 'B02', readers: ['B03', 'B06', 'gauge'], delay: 'L', smoothing: 'none (D11)', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S14', name: 'slant closure', unit: 'ft/s', writer: 'B02', readers: ['B06', 'B11'], delay: 'L', smoothing: 'from S02 and S08, no 1 s smoother (D11)', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S15', name: 'line-of-sight rate', unit: 'deg/s', writer: 'B02', readers: ['B06'], delay: 'L', smoothing: '0.5 s', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S16', name: 'aspect, HCA, sweep', unit: 'deg', writer: 'B02', readers: ['B03', 'B05', 'B06', 'B12'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S17', name: 'height against Lead (+ above)', unit: 'ft', writer: 'B02', readers: ['B06', 'B10', 'B12'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S18', name: 'arc behind s', unit: 'ft', writer: 'B02', readers: ['B03', 'B06', 'B07'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S19', name: 'offset d, measured', unit: 'ft', writer: 'B02', readers: ['B03', 'B06', 'B07'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S20', name: 'arc closure', unit: 'ft/s', writer: 'B02', readers: ['B06', 'B07'], delay: 'L', smoothing: '≤ 0.5 s', limits: '-', slice: 'S0', status: 'target' },
+  { id: 'S21', name: 'phase weights (level, entry, turning, exit)', unit: '4 × 0-1', writer: 'B03', readers: ['B05', 'B06'], delay: 'L', smoothing: 'blend 1.5 s', limits: 'sum 1', slice: 'S3a', status: 'target' },
+  { id: 'S22', name: 'case label (exit side, abeam gating)', unit: 'label', writer: 'B03', readers: ['B05', 'B06'], delay: 'L', smoothing: 'read once per phase, ±50 ft dead band, side blended ≥6 s', limits: 'decision [D]', slice: 'S3a', status: 'target' },
+  { id: 'S23', name: 'active technique, blend weight', unit: 'id; 0-1', writer: 'B04', readers: ['B06', 'B08'], delay: 'N', smoothing: 'slides ≥6 s path, ≥4.3 s height (D5)', limits: 'one at a time', slice: 'S3b', status: 'target' },
+  { id: 'S24', name: 'cue strength, done, abort (per technique)', unit: '0-1; bool; bool', writer: 'B06', readers: ['B04'], delay: 'L', smoothing: 'band and dwell per cue (D6)', limits: 'decision [D]', slice: 'S3b', status: 'target' },
+  { id: 'S25', name: 'normal reference (path, d, side, caps, Ke, h_T, ḣ_T, Δv, intent, u, cap)', unit: 'record', writer: 'B05', readers: ['B08'], delay: 'L', smoothing: 'h_T drop-low term blended 4.3 s (D24)', limits: 'd from S30, Δv from S29b', slice: 'S1', status: 'target' },
+  { id: 'S26', name: 'technique reference (same fields)', unit: 'record', writer: 'B06', readers: ['B08'], delay: 'L', smoothing: 'none', limits: 'writes reference only (C1)', slice: 'S1', status: 'target' },
+  { id: 'S27a', name: 'wanted course χ_w (blended)', unit: 'deg', writer: 'B08', readers: ['B09'], delay: 'L', smoothing: 'blend by S23 (≥6 s)', limits: 'approach angle capped before blend', slice: 'S1', status: 'target' },
+  { id: 'S27b', name: 'path turn-rate feed-forward ω_FF', unit: 'rad/s', writer: 'B08', readers: ['B09'], delay: 'L', smoothing: 'blend by S23 (≥6 s)', limits: '-', slice: 'S1', status: 'target' },
+  { id: 'S27c', name: 'height target h_T and rate ḣ_T', unit: 'ft, ft/s', writer: 'B08', readers: ['B10', 'B11'], delay: 'L', smoothing: 'blend by S23 (≥4.3 s; 15 s return to stack)', limits: 'D1 profile rate', slice: 'S1', status: 'target' },
+  { id: 'S27d', name: 'energy intent', unit: '−1..+1', writer: 'B08', readers: ['B11'], delay: 'L', smoothing: 'blend by S23', limits: '−1 bleed to +1 gain', slice: 'S1', status: 'target' },
+  { id: 'S27e', name: 'urgency u', unit: '0-1', writer: 'B08', readers: ['B14'], delay: 'L', smoothing: 'max(technique, guard S36)', limits: '0-1', slice: 'S1', status: 'target' },
+  { id: 'S27f', name: 'cap change', unit: 'G', writer: 'B08', readers: ['B13'], delay: 'L', smoothing: 'blend by S23', limits: '-', slice: 'S1', status: 'target' },
+  { id: 'S27g', name: 'speed set-point offset Δv_ref', unit: 'kt', writer: 'B08', readers: ['B11'], delay: 'L', smoothing: 'blend of NF S29b and technique speed ask', limits: '±15 kt (D21)', slice: 'S2', status: 'target' },
+  { id: 'S28', name: 'steady-state offset d_ss = R(1 − V2/V_L)', unit: 'ft', writer: 'B07', readers: ['B07', 'gauge'], delay: 'L', smoothing: 'none', limits: '-', slice: 'S2', status: 'target' },
+  { id: 'S29', name: 'wanted closure w = (s − 650)/10 s', unit: 'ft/s', writer: 'B07', readers: ['B07'], delay: 'L', smoothing: 'soft limit 25→60 ft/s over 200-400 ft', limits: '±60 ft/s', slice: 'S2', status: 'target' },
+  { id: 'S29b', name: 'unmet closure w − ω·d_cmd', unit: 'ft/s (→ kt)', writer: 'B07', readers: ['B05'], delay: 'L', smoothing: 'continuous remainder', limits: 'clipped ±15 kt as speed offset (D21)', slice: 'S2', status: 'target' },
+  { id: 'S30', name: 'offset command d_cmd', unit: 'ft', writer: 'B07', readers: ['B05'], delay: 'L', smoothing: 'slew 60 ft/s', limits: '±250 ft (TS-233)', slice: 'S2', status: 'target' },
+  { id: 'S31', name: 'turn-rate command ω_cmd', unit: 'rad/s', writer: 'B09', readers: ['B12', 'B13'], delay: 'N', smoothing: 'none', limits: 'to B12 for bounding and B13 for composing (D22)', slice: 'S2', status: 'target' },
+  { id: 'S32', name: 'vertical G command ΔG_v', unit: 'G', writer: 'B10', readers: ['B12', 'B13'], delay: 'N', smoothing: 'none', limits: 'to B12 for bounding and B13 for composing (D22)', slice: 'S3b', status: 'target' },
+  { id: 'S33', name: 'throttle command', unit: '0-1', writer: 'B11', readers: ['B15'], delay: 'N', smoothing: 'engine lag in B15', limits: '0-1', slice: 'S2', status: 'target' },
+  { id: 'S34', name: 'speed brake command', unit: 'bool', writer: 'B11', readers: ['B15'], delay: 'L', smoothing: 'hold ≥ 3 s; drag fed forward in B11', limits: 'out > 60 ft/s for 1 s & intent ≤ −0.5; in < 20 ft/s (D8, D25)', slice: 'S4', status: 'target' },
+  { id: 'S35', name: 'predicted pass p, time to pass t_pass', unit: 'ft, s', writer: 'B12', readers: ['B06', 'B14', 'gauge'], delay: 'L', smoothing: 'none (D3; on raw S31, S32 from achieved state)', limits: 'horizon ≤ 10 s', slice: 'S3', status: 'target' },
+  { id: 'S36', name: 'guard urgency', unit: '0-1', writer: 'B12', readers: ['B08'], delay: 'L', smoothing: 'rises at once, decays ~2 s', limits: 'cubic ((600 − p)/100)³', slice: 'S3', status: 'target' },
+  { id: 'S37', name: 'turn bounds (lo, hi) on ω_cmd', unit: 'rad/s', writer: 'B12', readers: ['B13'], delay: 'L', smoothing: 'none', limits: 'least change', slice: 'S3', status: 'target' },
+  { id: 'S38', name: 'vertical bounds (lo, hi) on ΔG_v', unit: 'G', writer: 'B12', readers: ['B13'], delay: 'L', smoothing: 'none', limits: 'least change (effective writer on escape, D16)', slice: 'S3', status: 'target' },
+  { id: 'S39', name: 'graded bleed request', unit: '0-1', writer: 'B12', readers: ['B11'], delay: 'L', smoothing: 'as S36', limits: 'request, never sets throttle', slice: 'S3', status: 'target' },
+  { id: 'S40', name: 'cap opening', unit: 'G', writer: 'B12', readers: ['B13'], delay: 'L', smoothing: 'smooth 550→500 ft', limits: '≤ stall-warning G', slice: 'S3', status: 'target' },
+  { id: 'S41', name: 'guard side choice', unit: '±1', writer: 'B12', readers: ['B12'], delay: 'L', smoothing: 'held ≥ 3 s', limits: 'internal to B12', slice: 'S3', status: 'target' },
+  { id: 'S42', name: 'commanded lift vector (G and direction)', unit: 'G, deg', writer: 'B13', readers: ['B14'], delay: 'N', smoothing: '0.2 G soft knee at cap', limits: 'cap = min(stall warning, Lead G + 1.5 + S40 + S27f); minG 0.5 G', slice: 'S1', status: 'target' },
+  { id: 'S43', name: 'what gave way at the cap', unit: 'label', writer: 'B13', readers: ['gauge'], delay: 'N', smoothing: 'none', limits: 'telemetry only', slice: 'S1', status: 'target' },
+  { id: 'S44', name: 'drag of commanded G and climb', unit: 'thrust fraction', writer: 'B13', readers: ['B11'], delay: 'N', smoothing: 'none', limits: 'physics cross-feed before shaper', slice: 'S4', status: 'target' },
+  { id: 'S45', name: 'achieved G, bank rate', unit: 'G, deg/s', writer: 'B14', readers: ['B15'], delay: 'N', smoothing: 'onset 1 + 3u G/s; roll ≤ 60°/s', limits: 'unload-roll-pull past 20°', slice: 'S1', status: 'target' },
 ]);
+
+/** Mermaid diagrams for the reconciled target model (Fable 3b §6 + Patrick's 14 Oct 2026 rulings). */
+export const TARGET_MERMAID = Object.freeze({
+  level1: `flowchart TB
+  subgraph L1["1 Lead"]
+    B01["B01 Lead, scripted"]
+  end
+  subgraph L2["2 Perception"]
+    B02["B02 Perception: Lead 0.4 s late, position and bank run forward; own state now; slant, closure, LOS rate, aspect, HCA, sweep, height v Lead, arc s, offset d, arc closure"]
+  end
+  subgraph L3["3 Supervisor"]
+    B03["B03 Phase and case: level, entry, turning, exit from Lead's seen roll, blended 1.5 s; case read once per phase"]
+    B04["B04 Technique picker: priority, one at a time, no-restart 3 s, longest run; blend weight 0 to 1 to 0"]
+  end
+  subgraph L4["4 Planners"]
+    B05["B05 Normal follower: path = Lead's circle offset d, or the swept line; caps 20 deg out, 12 deg in; height target stack minus planned drop; intent 0"]
+    B07["B07 Arc loop: d = d_ss + w/omega + kc(w - c)/omega, w = (s - 650)/10 s, soft 25 to 60 ft/s, d within 250 ft; unmet closure"]
+    B06["B06 Techniques T1-T8: cue, plan once, monitor, done; write a reference only"]
+  end
+  subgraph L5["5 Reference"]
+    B08["B08 Blender: wanted course, path turn rate, height target and rate, speed offset, intent, urgency, cap change"]
+  end
+  subgraph L6["6 Loops"]
+    B09["B09 Steering: omega_cmd = omega_FF + 0.5 (chi_w - chi)"]
+    B10["B10 Vertical: dGv = 0.005 (hT - h) + 0.02 (hTdot - hdot)"]
+    B11["B11 Power: drag of G asked and climb + roll-in lead + 0.3 (VL + dV - V) + intent bias; speed brake under bleed"]
+  end
+  subgraph L7["7 Guard"]
+    B12["B12 Guard: one predictor, closing part up to 10 s; silent at 600 ft; cubic taper to 500; least-change bounds on turn and height; bleed request; cap opening; side held 3 s"]
+  end
+  subgraph L8["8 Lift"]
+    B13["B13 Lift composer: turn + 1 G hold + vertical within cap = min(stall warning, Lead G + 1.5 + opening); order: height demand, level hold, turn; minG 0.5 G roll-and-pull"]
+  end
+  subgraph L9["9 Shaper"]
+    B14["B14 Shaper: G onset 1 + 3u G/s; roll to 60 deg/s; unload, roll, pull past 20 deg"]
+  end
+  subgraph L10["10 Aircraft"]
+    B15["B15 #2 aircraft and engine: point mass, G build 4 G/s, stall warning, engine 0.25 s, spool 3.5 s"]
+  end
+  B01 -->|"Lead's true state"| B02
+  B15 -->|"own state now"| B02
+  B02 -->|"Lead's bank and roll rate; slant, arc s, sweep"| B03
+  B02 -->|"Lead's circle, turn rate, phase inputs"| B05
+  B02 -->|"geometry for cues and plans"| B06
+  B02 -->|"arc s, arc closure, speeds, Lead's turn"| B07
+  B02 -->|"height v Lead"| B10
+  B02 -->|"Lead's roll seen; slant closure; speeds"| B11
+  B02 -->|"Lead's state run forward; own state"| B12
+  B02 -->|"Lead's G"| B13
+  B03 -->|"phase weights"| B05
+  B03 ==>|"case label: exit side, abeam gating"| B05
+  B03 ==>|"phase, case gating of cues"| B06
+  B04 ==>|"start, stop, abort"| B06
+  B06 ==>|"cue strength, done, abort"| B04
+  B04 -->|"blend weight"| B08
+  B07 -->|"offset d; unmet closure"| B05
+  B05 -->|"normal reference"| B08
+  B06 -->|"technique reference"| B08
+  B08 -->|"wanted course, path turn rate"| B09
+  B08 -->|"height target and rate"| B10
+  B08 -->|"speed offset, intent, climb rate"| B11
+  B08 -->|"cap change"| B13
+  B08 -->|"urgency"| B14
+  B09 -->|"turn demand"| B12
+  B10 -->|"vertical demand"| B12
+  B09 -->|"turn demand"| B13
+  B10 -->|"vertical demand"| B13
+  B12 -.->|"turn and height bounds; cap opening"| B13
+  B12 -.->|"graded bleed request"| B11
+  B12 -->|"guard urgency, merged by max"| B08
+  B12 -->|"predicted pass, time to pass"| B06
+  B13 -->|"drag of the commanded G and climb"| B11
+  B13 -->|"lift vector"| B14
+  B14 -->|"G and roll rate"| B15
+  B11 -->|"throttle; speed brake"| B15`,
+  level2: `flowchart LR
+  subgraph S["Steering, crossover 0.52 rad/s"]
+    S1["path tangent at his place"] --> S2["+ approach angle (2/pi) chi_max atan(k e), chi_max 20 out / 12 in, Ke 0.026 deg/ft"]
+    S2 --> S3["chi_w"]
+    S3 --> S4["0.5 /s x (chi_w - chi)"]
+    S5["path turn rate at his radius, Lead's bank run forward"] --> S6["omega_cmd = omega_FF + gain term"]
+    S4 --> S6
+  end
+  subgraph A["Arc loop, crossover 0.108 rad/s"]
+    A1["s - 650 ft"] --> A2["w = error / 10 s, soft limit 25 to 60 ft/s"]
+    A2 --> A3["d = d_ss + w/omega + 0.5 (w - c)/omega"]
+    A4["d_ss = R (1 - V2/VL)"] --> A3
+    A5["arc closure c"] --> A3
+    A3 --> A6["d within 250 ft, slew 60 ft/s"]
+    A3 --> A7["unmet closure = w - omega d_cmd, to the speed offset, within 15 kt"]
+  end
+  subgraph Vv["Vertical, crossover 0.68 rad/s"]
+    V1["hT, hTdot from the reference"] --> V2["dGv = 0.005 (hT - h) + 0.02 (hTdot - hdot)"]
+    V3["h, hdot own"] --> V2
+  end
+  subgraph P["Power: speed loop 0.3 rad/s, range cascade 0.091 rad/s"]
+    P1["drag of commanded G and climb, speed-brake drag"] --> P5["throttle = FF + lead + 0.3 (VL + dV - V) + bias, 0 to 1"]
+    P2["roll-in lead from Lead's seen roll"] --> P5
+    P3["VL + speed offset dV (unmet closure, technique ask), within 15 kt"] --> P5
+    P4["bias = min(intent, -bleed request)"] --> P5
+  end`,
+});
+
+/**
+ * The recommended structure (Spec 7e Draft 4 + Fable 3a/3b + Patrick's rulings of 14 Oct 2026).
+ * Derived from TARGET_BLOCKS for SVG rendering in draw.mjs.
+ */
+export const PROPOSED = Object.freeze(TARGET_BLOCKS);
 
 /** The pictures: rows of block ids, and edges { from, to, label, kind: signal | delay | ff | hidden | cross | feedback }. */
 export const DIAGRAMS = Object.freeze({
@@ -580,27 +742,45 @@ export const DIAGRAMS = Object.freeze({
     ],
   },
   proposed: {
-    title: 'Fighting wing, the recommended structure (PROPOSED, NOT BUILT): level 1',
-    rows: [['lead'], ['p.sight'], ['p.phase'], ['p.path', 'p.arc', 'p.intent'], ['p.steer', 'p.vertical', 'p.power'], ['p.guard'], ['p.lift'], ['p.aircraft']],
+    title: 'Fighting wing, Spec 7e Draft 4 target structure (B01-B15): level 1',
+    rows: [['B01'], ['B02'], ['B03', 'B04'], ['B07', 'B05', 'B06'], ['B08'], ['B09', 'B10', 'B11'], ['B12'], ['B13'], ['B14'], ['B15']],
     edges: [
-      { from: 'lead', to: 'p.sight', label: 'Lead, 0.4 s late', kind: 'delay' },
-      { from: 'p.sight', to: 'p.phase', label: 'Lead\'s roll, range, closure', kind: 'signal' },
-      { from: 'p.phase', to: 'p.path', label: 'circle or line, case', kind: 'signal' },
-      { from: 'p.phase', to: 'p.intent', label: 'keep, gain, bleed', kind: 'signal' },
-      { from: 'p.phase', to: 'p.vertical', label: 'owner, target', kind: 'signal' },
-      { from: 'p.arc', to: 'p.path', label: 'd', kind: 'signal' },
-      { from: 'p.path', to: 'p.steer', label: 'path, its turn', kind: 'ff' },
-      { from: 'p.intent', to: 'p.power', label: 'intent', kind: 'signal' },
-      { from: 'p.intent', to: 'p.vertical', label: 'exit vertical', kind: 'signal' },
-      { from: 'p.steer', to: 'p.power', label: 'G asked: its drag', kind: 'ff' },
-      { from: 'p.vertical', to: 'p.power', label: 'climb: its power', kind: 'ff' },
-      { from: 'p.steer', to: 'p.guard', label: 'turn ask', kind: 'signal' },
-      { from: 'p.vertical', to: 'p.guard', label: 'vertical ask', kind: 'ff' },
-      { from: 'p.guard', to: 'p.intent', label: 'graded bleed request', kind: 'ff' },
-      { from: 'p.guard', to: 'p.lift', label: 'least-change turn, height', kind: 'signal' },
-      { from: 'p.power', to: 'p.aircraft', label: 'throttle', kind: 'signal' },
-      { from: 'p.lift', to: 'p.aircraft', label: 'lift', kind: 'signal' },
-      { from: 'p.aircraft', to: 'p.sight', label: 'his picture', kind: 'feedback' },
+      { from: 'B01', to: 'B02', label: 'Lead, 0.4 s late', kind: 'delay' },
+      { from: 'B15', to: 'B02', label: 'own state now', kind: 'feedback' },
+      { from: 'B02', to: 'B03', label: 'bank, roll rate, slant, s, sweep', kind: 'signal' },
+      { from: 'B02', to: 'B05', label: 'circle, turn rate', kind: 'signal' },
+      { from: 'B02', to: 'B06', label: 'geometry for cues & plans', kind: 'signal' },
+      { from: 'B02', to: 'B07', label: 's, arc closure, speeds, turn', kind: 'signal' },
+      { from: 'B02', to: 'B10', label: 'height v Lead', kind: 'signal' },
+      { from: 'B02', to: 'B11', label: 'roll-in lead, closure, speeds', kind: 'ff' },
+      { from: 'B02', to: 'B12', label: 'Lead DR, own state', kind: 'signal' },
+      { from: 'B02', to: 'B13', label: 'Lead G (S05b)', kind: 'signal' },
+      { from: 'B03', to: 'B05', label: 'phase weights, case [D]', kind: 'cross' },
+      { from: 'B03', to: 'B06', label: 'phase, case [D]', kind: 'cross' },
+      { from: 'B04', to: 'B06', label: 'start, stop, abort [D]', kind: 'cross' },
+      { from: 'B06', to: 'B04', label: 'cue, done, abort [D]', kind: 'cross' },
+      { from: 'B04', to: 'B08', label: 'blend weight', kind: 'signal' },
+      { from: 'B07', to: 'B05', label: 'offset d, unmet closure', kind: 'signal' },
+      { from: 'B05', to: 'B08', label: 'normal reference', kind: 'signal' },
+      { from: 'B06', to: 'B08', label: 'technique reference', kind: 'signal' },
+      { from: 'B08', to: 'B09', label: 'wanted course, ω_FF', kind: 'ff' },
+      { from: 'B08', to: 'B10', label: 'h_T, ḣ_T', kind: 'signal' },
+      { from: 'B08', to: 'B11', label: 'Δv_ref, intent, ḣ_T', kind: 'ff' },
+      { from: 'B08', to: 'B13', label: 'cap change', kind: 'signal' },
+      { from: 'B08', to: 'B14', label: 'urgency u', kind: 'signal' },
+      { from: 'B09', to: 'B12', label: 'ω_cmd', kind: 'signal' },
+      { from: 'B10', to: 'B12', label: 'ΔG_v', kind: 'ff' },
+      { from: 'B09', to: 'B13', label: 'ω_cmd', kind: 'signal' },
+      { from: 'B10', to: 'B13', label: 'ΔG_v', kind: 'signal' },
+      { from: 'B12', to: 'B13', label: 'bounds, cap opening', kind: 'signal' },
+      { from: 'B12', to: 'B11', label: 'bleed request', kind: 'ff' },
+      { from: 'B12', to: 'B08', label: 'guard urgency', kind: 'signal' },
+      { from: 'B12', to: 'B06', label: 'predicted pass', kind: 'signal' },
+      { from: 'B13', to: 'B11', label: 'drag of G asked & climb', kind: 'ff' },
+      { from: 'B13', to: 'B14', label: 'lift vector', kind: 'signal' },
+      { from: 'B14', to: 'B15', label: 'G, roll rate', kind: 'signal' },
+      { from: 'B11', to: 'B15', label: 'throttle, speed brake', kind: 'signal' },
     ],
   },
 });
+
