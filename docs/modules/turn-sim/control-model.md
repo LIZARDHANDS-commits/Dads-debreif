@@ -210,16 +210,16 @@ flowchart LR
 |---|---|---|---|---|---|---|
 | B01 | B01 Lead (scripted) | aircraft | `live/manoeuvres.js` | S0 | built | Flies the test script; never reads #2; the only source of Lead's truth |
 | B02 | B02 Perception | perception | `live/wingman/perception.js` | S0 | built | Lead 0.4 s late and dead-reckoned: position round his seen turn, bank extrapolated by his seen roll rate (D3); #2's own state now; derives slant, closure from velocities (D11), LOS rate, aspect, HCA, sweep, height v Lead, Lead's circle, arc s, offset d, arc closure, Lead's G (S05b) |
-| B03 | B03 Supervisor: phase and case | supervisor | `live/wingman/supervisor.js` | S3a | target | Phase weights (level, entry, turning, exit, sum 1) from Lead's seen roll, blended 1.5 s; case label read once per phase with ±50 ft dead band, side/case blended ≥6 s |
-| B04 | B04 Supervisor: technique picker | supervisor | `live/wingman/supervisor.js` | S3b | target | Polls each technique's cue; one active at a time by priority; 3 s no-restart timer; longest-run timer; writes blend weight 0→1→0 (≥6 s path, ≥4.3 s height) |
-| B05 | B05 Normal follower | planner | `live/wingman/fighting-wing.js` | S2 | target | Writes the normal reference: path (circle concentric with Lead's at B07's offset d, or swept line parallel to Lead's track), caps 20° out / 12° in, Ke 0.026°/ft, height target = stack − planned drop low inside (20 ft/kt past 5 kt slow, cap −300 ft, D24), speed offset from B07's unmet closure, intent 0, urgency 0 |
-| B06 | B06 Techniques T1-T8 | technique | `live/wingman/techniques/` | S3b | target | T1 pass clear (S3b), T2 back behind 3/9 line (S7), T3 lag pursuit from abeam (S6), T4 high yo-yo ending stacked low (S7), T5 cut-across (S7), T6 exit vertical (S5), T7 S-turns (S5), T8 moving out from close formation (T30); each cue, plan once, monitor, done; writes candidate reference S26 and cue state S24 only |
-| B07 | B07 Arc loop | loop | `live/wingman/fighting-wing.js` | S2 | target | d = d_ss + w/ω + kc(w − c)/ω, w = (s − 650)/10 s, soft closure limit 25→60 ft/s, d within ±250 ft, slewed 60 ft/s (radius clipped ~20,000 ft); writes offset d (S30) and unmet closure w − ω·d_cmd (S29b, clipped ±15 kt, D21) |
+| B03 | B03 Supervisor: phase and case | supervisor | `live/wingman/supervisor.js` | S3a | built | Phase weights (level, entry, turning, exit, sum 1) from Lead's seen roll, blended 1.5 s; case label read once per phase with ±50 ft dead band, side/case blended ≥6 s |
+| B04 | B04 Supervisor: technique picker | supervisor | `live/wingman/supervisor.js` | S3b | built | Polls each technique's cue; one active at a time by priority; 3 s no-restart timer; longest-run timer; writes blend weight 0→1→0 (≥6 s path, ≥4.3 s height) |
+| B05 | B05 Normal follower | planner | `live/wingman/fighting-wing.js` | S2 | built | Writes the normal reference: path (circle concentric with Lead's at B07's offset d, or swept line parallel to Lead's track), caps 20° out / 12° in, Ke 0.026°/ft, height target = stack − planned drop low inside (20 ft/kt past 5 kt slow, cap −300 ft, D24), speed offset from B07's unmet closure, intent 0, urgency 0 |
+| B06 | B06 Techniques T1-T8 | technique | `live/wingman/techniques/` | S3b | built | T1 pass clear (S3b), T2 back behind 3/9 line (S7), T3 lag pursuit from abeam (S6), T4 high yo-yo ending stacked low (S7), T5 cut-across (S7), T6 exit vertical (S5), T7 S-turns (S5), T8 moving out from close formation (T30); each cue, plan once, monitor, done; writes candidate reference S26 and cue state S24 only |
+| B07 | B07 Arc loop | loop | `live/wingman/fighting-wing.js` | S2 | built | d = d_ss + w/ω + kc(w − c)/ω, w = (s − 650)/10 s, soft closure limit 25→60 ft/s, d within ±250 ft, slewed 60 ft/s (radius clipped ~20,000 ft); writes offset d (S30) and unmet closure w − ω·d_cmd (S29b, clipped ±15 kt, D21) |
 | B08 | B08 Reference blender | reference | `live/wingman/fw-reference.js` | S1 | built | From normal reference (S25), technique reference (S26) and #2's position computes and blends by B04's weight (S23): wanted course χ_w, path turn-rate ω_FF, height target h_T and rate ḣ_T, speed offset Δv_ref, intent, urgency, cap change |
-| B09 | B09 Steering loop | loop | `live/wingman/fighting-wing.js` | S2 | target | ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s |
-| B10 | B10 Vertical loop | loop | `live/wingman/fighting-wing.js` | S3b | target | ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included) |
+| B09 | B09 Steering loop | loop | `live/wingman/fighting-wing.js` | S2 | built | ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s |
+| B10 | B10 Vertical loop | loop | `live/wingman/fighting-wing.js` | S3b | built | ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included) |
 | B11 | B11 Power loop | loop | `live/wingman/fighting-wing.js` | S4 | target | throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 20 ft/s, held ≥ 3 s, D8, D25) |
-| B12 | B12 Guard | guard | `live/wingman/separation.js` | S3 | target | One predictor on raw demands (S31, S32) over closing part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500 ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38); graded bleed request (S39); smooth cap opening 550→500 ft (S40); side choice held 3 s (S41) |
+| B12 | B12 Guard | guard | `live/wingman/separation.js` | S3 | built | One predictor on raw demands (S31, S32) over closing part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500 ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38); graded bleed request (S39); smooth cap opening 550→500 ft (S40); side choice held 3 s (S41) |
 | B13 | B13 Lift composer | shaper | `live/wingman/fighting-wing.js` | S1 | built | Composes bounded turn, 1 G hold and bounded vertical within cap = min(stall warning, Lead G + 1.5 + S40 + S27f) with 0.2 G soft knee; cap order: climb height demand gives way first, then 1 G hold, turn last (D20); minG 0.5 G floor with unload-roll-pull (never pushes to 0 or negative G); hands drag of commanded G and climb (S44) to B11 |
 | B14 | B14 Shaper | shaper | `live/wingman/shaper.js` | S1 | built | G onset 1 + 3u G/s by urgency u; roll ≤ 60°/s; unload, roll, pull when wings are > 20° off wanted lift (fighting wing only; close formation shape() untouched) |
 | B15 | B15 #2 aircraft and engine | aircraft | `live/flight.js` | S0 | built | T-6A point mass: thrust, drag, roll rate and build-up, G build-up ≤ 4 G/s, stall warning, engine 0.25 s, idle spool 3.5 s |
@@ -249,10 +249,10 @@ flowchart LR
 | S18 | arc behind s | ft | B02 | B03, B06, B07 | L | none | - | S0 | built |
 | S19 | offset d, measured | ft | B02 | B03, B06, B07 | L | none | - | S0 | built |
 | S20 | arc closure | ft/s | B02 | B06, B07 | L | ≤ 0.5 s | - | S0 | built |
-| S21 | phase weights (level, entry, turning, exit) | 4 × 0-1 | B03 | B05, B06 | L | blend 1.5 s | sum 1 | S3a | target |
-| S22 | case label (exit side, abeam gating) | label | B03 | B05, B06 | L | read once per phase, ±50 ft dead band, side blended ≥6 s | decision [D] | S3a | target |
-| S23 | active technique, blend weight | id; 0-1 | B04 | B06, B08 | N | slides ≥6 s path, ≥4.3 s height (D5) | one at a time | S3b | target |
-| S24 | cue strength, done, abort (per technique) | 0-1; bool; bool | B06 | B04 | L | band and dwell per cue (D6) | decision [D] | S3b | target |
+| S21 | phase weights (level, entry, turning, exit) | 4 × 0-1 | B03 | B05, B06 | L | blend 1.5 s | sum 1 | S3a | built |
+| S22 | case label (exit side, abeam gating) | label | B03 | B05, B06 | L | read once per phase, ±50 ft dead band, side blended ≥6 s | decision [D] | S3a | built |
+| S23 | active technique, blend weight | id; 0-1 | B04 | B06, B08 | N | slides ≥6 s path, ≥4.3 s height (D5) | one at a time | S3b | built |
+| S24 | cue strength, done, abort (per technique) | 0-1; bool; bool | B06 | B04 | L | band and dwell per cue (D6) | decision [D] | S3b | built |
 | S25 | normal reference (path, d, side, caps, Ke, h_T, ḣ_T, Δv, intent, u, cap) | record | B05 | B08 | L | h_T drop-low term blended 4.3 s (D24) | d from S30, Δv from S29b | S1 | built |
 | S26 | technique reference (same fields) | record | B06 | B08 | L | none | writes reference only (C1) | S1 | built |
 | S27a | wanted course χ_w (blended) | deg | B08 | B09 | L | blend by S23 (≥6 s) | approach angle capped before blend | S1 | built |
@@ -261,25 +261,25 @@ flowchart LR
 | S27d | energy intent | −1..+1 | B08 | B11 | L | blend by S23 | −1 bleed to +1 gain | S1 | built |
 | S27e | urgency u | 0-1 | B08 | B14 | L | max(technique, guard S36) | 0-1 | S1 | built |
 | S27f | cap change | G | B08 | B13 | L | blend by S23 | - | S1 | built |
-| S27g | speed set-point offset Δv_ref | kt | B08 | B11 | L | blend of NF S29b and technique speed ask | ±15 kt (D21) | S2 | target |
-| S28 | steady-state offset d_ss = R(1 − V2/V_L) | ft | B07 | B07, gauge | L | none | - | S2 | target |
-| S29 | wanted closure w = (s − 650)/10 s | ft/s | B07 | B07 | L | soft limit 25→60 ft/s over 200-400 ft | ±60 ft/s | S2 | target |
-| S29b | unmet closure w − ω·d_cmd | ft/s (→ kt) | B07 | B05 | L | continuous remainder | clipped ±15 kt as speed offset (D21) | S2 | target |
-| S30 | offset command d_cmd | ft | B07 | B05 | L | slew 60 ft/s | ±250 ft (TS-233) | S2 | target |
-| S31 | turn-rate command ω_cmd | rad/s | B09 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S2 | target |
-| S32 | vertical G command ΔG_v | G | B10 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S3b | target |
-| S33 | throttle command | 0-1 | B11 | B15 | N | engine lag in B15 | 0-1 | S2 | target |
+| S27g | speed set-point offset Δv_ref | kt | B08 | B11 | L | blend of NF S29b and technique speed ask | ±15 kt (D21) | S2 | built |
+| S28 | steady-state offset d_ss = R(1 − V2/V_L) | ft | B07 | B07, gauge | L | none | - | S2 | built |
+| S29 | wanted closure w = (s − 650)/10 s | ft/s | B07 | B07 | L | soft limit 25→60 ft/s over 200-400 ft | ±60 ft/s | S2 | built |
+| S29b | unmet closure w − ω·d_cmd | ft/s (→ kt) | B07 | B05 | L | continuous remainder | clipped ±15 kt as speed offset (D21) | S2 | built |
+| S30 | offset command d_cmd | ft | B07 | B05 | L | slew 60 ft/s | ±250 ft (TS-233) | S2 | built |
+| S31 | turn-rate command ω_cmd | rad/s | B09 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S2 | built |
+| S32 | vertical G command ΔG_v | G | B10 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S3b | built |
+| S33 | throttle command | 0-1 | B11 | B15 | N | engine lag in B15 | 0-1 | S2 | built |
 | S34 | speed brake command | bool | B11 | B15 | L | hold ≥ 3 s; drag fed forward in B11 | out > 60 ft/s for 1 s & intent ≤ −0.5; in < 20 ft/s (D8, D25) | S4 | target |
-| S35 | predicted pass p, time to pass t_pass | ft, s | B12 | B06, B14, gauge | L | none (D3; on raw S31, S32 from achieved state) | horizon ≤ 10 s | S3 | target |
-| S36 | guard urgency | 0-1 | B12 | B08 | L | rises at once, decays ~2 s | cubic ((600 − p)/100)³ | S3 | target |
-| S37 | turn bounds (lo, hi) on ω_cmd | rad/s | B12 | B13 | L | none | least change | S3 | target |
-| S38 | vertical bounds (lo, hi) on ΔG_v | G | B12 | B13 | L | none | least change (effective writer on escape, D16) | S3 | target |
-| S39 | graded bleed request | 0-1 | B12 | B11 | L | as S36 | request, never sets throttle | S3 | target |
-| S40 | cap opening | G | B12 | B13 | L | smooth 550→500 ft | ≤ stall-warning G | S3 | target |
-| S41 | guard side choice | ±1 | B12 | B12 | L | held ≥ 3 s | internal to B12 | S3 | target |
+| S35 | predicted pass p, time to pass t_pass | ft, s | B12 | B06, B14, gauge | L | none (D3; on raw S31, S32 from achieved state) | horizon ≤ 10 s | S3 | built |
+| S36 | guard urgency | 0-1 | B12 | B08 | L | rises at once, decays ~2 s | cubic ((600 − p)/100)³ | S3 | built |
+| S37 | turn bounds (lo, hi) on ω_cmd | rad/s | B12 | B13 | L | none | least change | S3 | built |
+| S38 | vertical bounds (lo, hi) on ΔG_v | G | B12 | B13 | L | none | least change (effective writer on escape, D16) | S3 | built |
+| S39 | graded bleed request | 0-1 | B12 | B11 | L | as S36 | request, never sets throttle | S3 | built |
+| S40 | cap opening | G | B12 | B13 | L | smooth 550→500 ft | ≤ stall-warning G | S3 | built |
+| S41 | guard side choice | ±1 | B12 | B12 | L | held ≥ 3 s | internal to B12 | S3 | built |
 | S42 | commanded lift vector (G and direction) | G, deg | B13 | B14 | N | 0.2 G soft knee at cap | cap = min(stall warning, Lead G + 1.5 + S40 + S27f); minG 0.5 G | S1 | built |
 | S43 | what gave way at the cap | label | B13 | gauge | N | none | telemetry only | S1 | built |
-| S44 | drag of commanded G and climb | thrust fraction | B13 | B11 | N | none | physics cross-feed before shaper | S4 | built |
+| S44 | drag of commanded G and climb | thrust fraction | B13 | B11 | N | none | physics cross-feed before shaper | S4 | target |
 | S45 | achieved G, bank rate | G, deg/s | B14 | B15 | N | onset 1 + 3u G/s; roll ≤ 60°/s | unload-roll-pull past 20° | S1 | built |
 
 ## 3. Where the delay sits
@@ -601,7 +601,7 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | CLOSE_SEE | 3 | 1 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | CLOSE_WING | 62 | 8 | 1 | 0 | 53 | 0 | 0 | 0 | 0 | 0 |
 | FW_SEE | 6 | 1 | 0 | 0 | 4 | 1 | 0 | 0 | 0 | 0 |
-| FW_WING | 97 | 12 | 0 | 3 | 81 | 0 | 1 | 0 | 33 | 12 |
+| FW_WING | 104 | 18 | 0 | 3 | 83 | 0 | 0 | 0 | 6 | 5 |
 
 | Added by the recommended structure | Value | Role | Source |
 |---|---|---|---|
@@ -689,103 +689,110 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | `FW_SEE.gSec` | 0.15 | tuning | Sight (seeFw) | keeps | Lead's seen G (his lift, so his turn circle and G cap, S05b) smoothed over about 0.15 s (spec 7e.4, Fable D22; estimate) |
 | `FW_SEE.rollSec` | 0.2 | tuning | Sight (seeFw) | keeps: B02 seen roll-rate smoothing (S04, D3) | Lead's seen roll rate (S04) smoothed over about 0.2 s before carrying his bank across the 0.4 s delay (spec 7e.4, Fable D3; estimate) |
 | `FW_SEE.bankCarryMaxDeg` | 70 | tuning | Sight (seeFw) | keeps: B02 bank carry-on clamp across 0.4 s (S03, D3) | plausible end-bank cap when extrapolating Lead's seen bank across the 0.4 s delay (S03, TS-233 "Lead's roll carried on", Fable D3; estimate) |
-| `FW_WING.gPerDeg` | 0.05 | tuning | Steering (steerToAim) | changes: the approach-angle law's gain | P: about 0.05 G per degree between his path and the line to his aim point, 1 G per 20° (spec 7e.7; Fable F6, estimate) |
-| `FW_WING.aimTurnSec` | 0.5 | tuning | Steering (steerToAim) | removes: the aim line's smoothing goes with the moving aim point (review 3) | the aim line's turn read over about 0.5 s, as the line of sight's (spec 7e.7; estimate) |
-| `FW_WING.aimTurnCap.k` | 1.5 | tuning | Steering (steerToAim) | removes: no aim point to jump (review 3) | ... and fed forward within 1.5 times Lead's turn rate plus 3°/s (thread, round 4, estimates): a change of aim (lag first, the nose behind, a job's blend) jum... |
-| `FW_WING.aimTurnCap.plusDps` | 3 | tuning | Steering (steerToAim) | removes: no aim point to jump (review 3) | ... and fed forward within 1.5 times Lead's turn rate plus 3°/s (thread, round 4, estimates): a change of aim (lag first, the nose behind, a job's blend) jum... |
-| `FW_WING.overLeadG` | 1.5 | tuning | G cap | keeps: an estimate (spec 7e.7), not a ruling | his G no more than Lead's + 1.5 (spec 7e.7, estimate); the guard and filter may pull to what the aircraft gives, flagged (Patrick 14 Oct 2026) |
+| `FW_WING.chiMaxOutDeg` | 20 | ruling | Steering (steerToAim) | keeps: B05 approach-angle cap from outside (20°, TS-233) | max outward approach angle toward lag side of Lead's circle or swept line: 20° (Patrick 14 Oct 2026, TS-233 "steer-behind 20°") |
+| `FW_WING.chiMaxInDeg` | 12 | ruling | Steering (steerToAim) | keeps: B05 approach-angle cap from inside (12°, TS-233) | max inward approach angle toward lead side of Lead's circle or swept line: 12° (Patrick 14 Oct 2026, TS-233 "steer-ahead 12°") |
+| `FW_WING.keDegPerFt` | 0.026 | tuning | Steering (steerToAim) | keeps: B05 cross-track approach-angle slope (0.026°/ft, D2) | cross-track approach slope Ke: 0.026°/ft (k ≈ 1/420 ft out, 1/250 ft in; TS-233, Fable D2; estimate) |
+| `FW_WING.kChiPerSec` | 0.5 | tuning | Steering (steerToAim) | keeps: B09 course error gain (0.5 /s, D2) | steering loop proportional course gain Kχ: 0.5 /s, crossover ~0.52 rad/s, 48-65° PM (TS-233, Fable D2; estimate) |
+| `FW_WING.maxCircleRadiusFt` | 20000 | tuning | Arc range (s, d) | keeps: B05/B07 radius clip where circle becomes line smoothly (20,000 ft, D21) | Lead's seen turn radius clipped near 20,000 ft so the circle becomes the swept line smoothly as ω -> 0 (spec 7e §7.6, Fable D21; estimate) |
+| `FW_WING.overLeadG` | 1.5 | tuning | G cap | keeps: an estimate (spec 7e.7), not a ruling | his G no more than Lead's + 1.5 (spec 7e.7, estimate); the guard may open the cap smoothly inside 550 ft, flagged (Patrick 14 Oct 2026) |
 | `FW_WING.capKneeG` | 0.2 | tuning | Lift (liftWithin) | keeps: B13 0.2 G soft knee at G cap (D17) | soft knee below the G cap where positive climb demand begins to give way smoothly before level hold and turn (spec 7e.8, Fable D20; estimate) |
-| `FW_WING.minG` | 0.5 | tuning | Lift (liftWithin) | keeps | never under 0.5 G, so his lift always has a direction (estimate) |
+| `FW_WING.minG` | 0.5 | tuning | Lift (liftWithin) | keeps | never under 0.5 G, so his lift always has a direction and he rolls and pulls instead of pushing to 0/neg G (Patrick 14 Oct 2026, TS-233; estimate) |
 | `FW_WING.onsetMinGps` | 1 | tuning | Lift (liftWithin) | keeps: B14 urgency shaper minimum G onset rate at u = 0 (D18) | ordinary G onset at urgency 0: 1 G/s (Patrick 14 Oct 2026, TS-233 "G onset by urgency") |
 | `FW_WING.onsetMaxGps` | 4 | tuning | Lift (liftWithin) | keeps: B14 urgency shaper maximum G onset rate at u = 1 (D18) | urgent G onset at urgency 1: 4 G/s, the T-6A's onset (Patrick 14 Oct 2026, TS-233 "G onset by urgency") |
 | `FW_WING.rollDps` | 60 | tuning | #2 point mass | keeps: an estimate (spec 7e.7) | roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required") |
 | `FW_WING.pullWithinDeg` | 20 | tuning | Lift (liftWithin) | keeps | unload, roll, pull: with his wings more than 20° off where the lift is wanted he pulls only its share along them (estimate; fw-live.js does the same) |
 | `FW_WING.turnPlaneRadps` | 0.0175 | tuning | Steering (steerToAim) | keeps | steering in Lead's turn plane once Lead turns faster than about 1°/s, else the level plane (estimate) |
-| `FW_WING.blendSec` | 1.5 | tuning | Steering (steerToAim) | changes: phase blends of the path, not an every-step lag on the aim point (R11) | a change of aim blends over about 1.5 s; the guard's and the nose behind at once (spec 7e.7: 1-2 s; Fable F17) |
-| `FW_WING.turnStartDeg` | 10 | tuning | Jobs (fwJob) | changes: the phase starts at the roll seen, no 1 s hold (review 2.1) | Lead's turn starts once his seen bank passes 10° for 1 s ... |
-| `FW_WING.turnEndDeg` | 5 | tuning | Jobs (fwJob) | keeps | ... and ends under 5° for 1 s; a reversal is his bank's sign changing past 10° (spec 7e.7, Fable F4; estimates) |
-| `FW_WING.turnHoldSec` | 1 | tuning | Jobs (fwJob) | changes: no hold at the entry (review 2.1) | ... each held 1 s (spec 7e.7, Fable F4; estimate) |
+| `FW_WING.blendSec` | 1.5 | tuning | Steering (steerToAim) | changes: phase blends of the path, not an every-step lag on the aim point (R11) | phase weight blend time 1.5 s (spec 7e §7.5, R11; estimate) |
+| `FW_WING.turnStartDeg` | 10 | tuning | Jobs (fwJob) | changes: the phase starts at the roll seen, no 1 s hold (review 2.1) | Entry phase starts immediately once Lead's seen extrapolated bank passes 10° with no 1 s hold (spec 7e §7.5, R7; estimate) |
+| `FW_WING.turnEndDeg` | 5 | tuning | Jobs (fwJob) | keeps | Exit phase starts once Lead's seen bank drops under 5° (spec 7e §7.5; estimate) |
+| `FW_WING.phaseBlendSec` | 1.5 | tuning | Jobs (fwJob) | keeps: B03 continuous phase weight blend time (1.5 s, S21) | continuous phase weights (level, entry, turning, exit) blended over 1.5 s (spec 7e §7.5, Fable D17; estimate) |
+| `FW_WING.sideBlendSec` | 6 | tuning | Jobs (fwJob) | keeps: B03 swept-side blend time (6 s, D5) | case/side choice blended over >= 6 s (3 / ω_c for steering crossover 0.52 rad/s; spec 7e §7.5, Fable D5, D17; estimate) |
+| `FW_WING.caseDeadBandFt` | 50 | tuning | Jobs (fwJob) | keeps: B03 range hysteresis dead band on case label (50 ft, S22) | ±50 ft hysteresis dead band around case range boundaries so case label never flickers (Fable D17; estimate) |
 | `FW_WING.happyFt.0` | 600 | ruling | Jobs (fwJob) | keeps | the range he is happy at, slant (Patrick 14 Oct 2026) |
 | `FW_WING.happyFt.1` | 650 | ruling | Jobs (fwJob) | keeps | the range he is happy at, slant (Patrick 14 Oct 2026) |
-| `FW_WING.stretchedFt` | 700 | ruling | Jobs (fwJob) | keeps | the entry case: stretched past 700 ft (Patrick 14 Oct 2026: "lead if more than 700, lag if near 500 (? numbers are a guess)") ... |
-| `FW_WING.tightFt` | 560 | tuning | Jobs (fwJob) | keeps | ... tight under 560 ft (an estimate between) |
+| `FW_WING.stretchedFt` | 700 | ruling | Jobs (fwJob) | keeps | stretched case past 700 ft (Patrick 14 Oct 2026: "lead if more than 700, lag if near 500 (? numbers are a guess)") |
+| `FW_WING.veryStretchedFt` | 1000 | tuning | Jobs (fwJob) | keeps: B03 very-stretched boundary (1,000 ft, S22) | very-stretched case past 1,000 ft, outside the cone's far edge (Patrick 14 Oct 2026, TS-233) |
+| `FW_WING.tightFt` | 560 | tuning | Jobs (fwJob) | keeps | tight case under 560 ft (spec 7e §7.5; estimate) |
+| `FW_WING.entryCaptureFt` | 100 | tuning | Jobs (fwJob) | keeps: B03 entry-to-turning capture range tolerance (100 ft) | Entry phase transitions to Turning once within 100 ft of the target circle offset ... (spec 7e §7.5; estimate) |
+| `FW_WING.entryCaptureDeg` | 5 | tuning | Jobs (fwJob) | keeps: B03 entry-to-turning capture course tolerance (5°) | ... and within 5° of the target course ... (spec 7e §7.5; estimate) |
+| `FW_WING.entryMaxSec` | 8 | tuning | Jobs (fwJob) | keeps: B03 maximum entry phase duration (8 s) | ... or after at most 8 s in Entry (spec 7e §7.5; estimate) |
+| `FW_WING.exitSettleFtps` | 10 | tuning | Jobs (fwJob) | keeps: B03 exit settle closure threshold (10 ft/s) | Exit phase transitions to Level once in the cone with closure under 10 ft/s ... (spec 7e §7.5; estimate) |
+| `FW_WING.exitSettleSec` | 5 | tuning | Jobs (fwJob) | keeps: B03 exit settle dwell time (5 s) | ... held for 5 s (spec 7e §7.5; estimate) |
 | `FW_WING.turnFrameDeg` | 5 | tuning | Arc range (s, d) | keeps | (s, d) in Lead's turn-centre frame; below 5° of his bank their straight-line limits (Fable F10, estimate) |
 | `FW_WING.arcTargetFt` | 650 | ruling | Arc loop (aimInTurn) | keeps | s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft) |
-| `FW_WING.aimSec` | 10 | tuning | Arc loop (aimInTurn) | keeps | wanted closure = range error / 10 s (spec 7e.7: 75 ft off asks 7.5 ft/s); the swept place's power uses it too |
-| `FW_WING.arcNearFt` | 300 | tuning | Arc loop (aimInTurn) | changes: a phased limit instead of a jump (switch arcLimit) | the wanted closure at most 25 ft/s within 300 ft of the target arc ... (Fable F1, estimate) |
-| `FW_WING.arcNearFtps` | 25 | tuning | Arc loop (aimInTurn) | keeps | ... 25 ft/s near (Fable F1, estimate) |
-| `FW_WING.arcFarFtps` | 60 | tuning | Arc loop (aimInTurn) | keeps | ... and 60 ft/s beyond (Fable F1, estimate) |
-| `FW_WING.arcKc` | 0.5 | tuning | Arc loop (aimInTurn) | keeps | the offset from Lead's circle d = d_ss + wanted / omega + kc (wanted - closing) / omega: kc 0.5 corrects the shortfall without the half-gain trap (research f... |
-| `FW_WING.arcOffsetMaxFt` | 400 | tuning | Arc loop (aimInTurn) | keeps | d within ±400 ft (Fable F1, estimate); R - d stays well positive (Lead's radius about 2,600 ft at 60°/2 G) |
-| `FW_WING.arcSlewFtps` | 60 | tuning | Arc loop (aimInTurn) | keeps | d slewed at 60 ft/s (Fable F1, F11, estimate) |
-| `FW_WING.minTurnRadps` | 0.03 | tuning | Arc loop (aimInTurn) | keeps | d divides by Lead's turn rate, never by less than about 1.7°/s (Fable F3) |
-| `FW_WING.circleLookSec` | 3 | tuning | Arc loop (aimInTurn) | removes: the look-ahead point goes (review 3) | he follows the circle d inside Lead's, aiming 3 s of his flight ahead on it (about 1,100 ft at 200 KIAS; Fable F7 keeps 3 s; estimate) ... |
-| `FW_WING.circleLeastFt` | 500 | tuning | Arc loop (aimInTurn) | removes: with the look-ahead point | ... never a circle tighter than 500 ft (estimate, a catch) |
-| `FW_WING.routeFt` | 120 | label | Arc loop (aimInTurn) | removes: names the aim in the trace only | the route positions about 120 ft inside and outside Lead's circle (spec 7e.7; route 121 ft out, slots.js, TS-181): the trace calls the aim lead or lag past a... |
-| `FW_WING.lagFirst.deg` | 20 | tuning | Lag first | removes: ruled out 14 Oct 2026 | Lag first on a turn into him (research: US Navy CNATRA P-357 section 701; Patrick's "turn slightly toward Lead's tail", SMM 12.29 Fig 12.20): once Lead's ban... |
-| `FW_WING.lagFirst.sec` | 2.5 | tuning | Lag first | removes: ruled out 14 Oct 2026 | Lag first on a turn into him (research: US Navy CNATRA P-357 section 701; Patrick's "turn slightly toward Lead's tail", SMM 12.29 Fig 12.20): once Lead's ban... |
-| `FW_WING.lagFirst.easeSec` | 1 | tuning | Lag first | removes: ruled out 14 Oct 2026 | Lag first on a turn into him (research: US Navy CNATRA P-357 section 701; Patrick's "turn slightly toward Lead's tail", SMM 12.29 Fig 12.20): once Lead's ban... |
-| `FW_WING.behind.downFt` | 300 | tuning | Nose behind | removes: the follower never puts him there (review 3) | The nose behind Lead while the wing line is out of reach (Patrick 14 Oct 2026, TS-233: never ahead of Lead's 3/9 line, "nose pointed BEHIND Lead, banking ste... |
-| `FW_WING.behind.clearFt` | 200 | tuning | Nose behind | removes: the follower never puts him there (review 3) | The nose behind Lead while the wing line is out of reach (Patrick 14 Oct 2026, TS-233: never ahead of Lead's 3/9 line, "nose pointed BEHIND Lead, banking ste... |
+| `FW_WING.aimSec` | 10 | tuning | Arc loop (aimInTurn) | keeps | one 10 s range time constant τ_s = τ_r = 10 s for both turns and level flight (Patrick 14 Oct 2026, TS-233, Fable D10, D21) |
+| `FW_WING.arcNearFt` | 300 | tuning | Arc loop (aimInTurn) | changes: a phased limit instead of a jump (switch arcLimit) | mid-point of the 200-400 ft soft closure transition band (spec 7e §7.7; estimate) |
+| `FW_WING.arcNearBandFt.0` | 200 | tuning | Arc loop (aimInTurn) | keeps: B07 soft closure limit ramp band 200-400 ft (S28) | wanted closure soft-limited from 25 ft/s inside 200 ft to 60 ft/s beyond 400 ft (spec 7e §7.7, Fable D10; estimate) |
+| `FW_WING.arcNearBandFt.1` | 400 | tuning | Arc loop (aimInTurn) | keeps: B07 soft closure limit ramp band 200-400 ft (S28) | wanted closure soft-limited from 25 ft/s inside 200 ft to 60 ft/s beyond 400 ft (spec 7e §7.7, Fable D10; estimate) |
+| `FW_WING.arcNearFtps` | 25 | tuning | Arc loop (aimInTurn) | keeps | wanted closure cap near target arc: 25 ft/s (Fable F1, D10; estimate) |
+| `FW_WING.arcFarFtps` | 60 | tuning | Arc loop (aimInTurn) | keeps | wanted closure cap far from target arc: 60 ft/s (Fable F1, D10; estimate) |
+| `FW_WING.arcKc` | 0.5 | tuning | Arc loop (aimInTurn) | keeps | closure-shortfall gain kc = 0.5 in d = d_ss + w/ω + kc(w - c)/ω (Fable D10; estimate) |
+| `FW_WING.arcOffsetMaxFt` | 250 | ruling | Arc loop (aimInTurn) | keeps: TS-233 ±250 ft circle offset authority | offset d_cmd bounded within ±250 ft of Lead's circle; unmet closure beyond ±250 ft hands off to speed S29b (Patrick 14 Oct 2026, TS-233, Fable D9, D21) |
+| `FW_WING.arcSlewFtps` | 60 | tuning | Arc loop (aimInTurn) | keeps | d_cmd slewed at 60 ft/s (Fable F1, F11; estimate) |
+| `FW_WING.minTurnRadps` | 0.03 | tuning | Arc loop (aimInTurn) | keeps | d divides by Lead's turn rate, never by less than about 1.7°/s (Fable F3; estimate) |
 | `FW_WING.sweptFt` | 625 | ruling | Swept aim (aimSwept) | keeps | 625 ft at 45° (Patrick 14 Oct 2026) |
-| `FW_WING.sweptDeg` | 45 | ruling | Swept aim (aimSwept) | keeps | ... 45° of sweep back from Lead's wing line (Patrick 14 Oct 2026) |
-| `FW_WING.sweptLookSec` | 8 | tuning | Swept aim (aimSwept) | removes: the line follower replaces the look-ahead (review 3) | he steers at his place carried 8 s ahead along Lead's path, so the sideways error closes in about 8 s (estimate, near the aim loop's 0.1 rad/s) |
-| `FW_WING.aimMaxFtps` | 25 | tuning | Swept aim (aimSwept) | keeps | fore and aft by power: the closure wanted at most ±25 ft/s (spec 7e.7) |
-| `FW_WING.aimSlewFtps` | 20 | tuning | Swept aim (aimSwept) | keeps | the turn's offset slewed back to 0 at 20 ft/s (spec 7e.7) |
-| `FW_WING.sTurnFt` | 550 | tuning | Jobs (fwJob) | keeps | S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): under 550 ft, or closing faster than 15 ft/s inside the happy band's far edge, ... |
-| `FW_WING.sTurnClosureFtps` | 15 | tuning | Jobs (fwJob) | keeps | S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): under 550 ft, or closing faster than 15 ft/s inside the happy band's far edge, ... |
-| `FW_WING.sTurnDoneFt` | 600 | tuning | Jobs (fwJob) | keeps | S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): under 550 ft, or closing faster than 15 ft/s inside the happy band's far edge, ... |
+| `FW_WING.sweptDeg` | 45 | ruling | Swept aim (aimSwept) | keeps | 45° of sweep back from Lead's wing line (Patrick 14 Oct 2026) |
+| `FW_WING.aimMaxFtps` | 25 | tuning | Swept aim (aimSwept) | keeps | level range closure cap ±25 ft/s (spec 7e §7.7) |
+| `FW_WING.aimSlewFtps` | 20 | tuning | Swept aim (aimSwept) | keeps | turn offset slewed back to 0 at 20 ft/s when wings level (spec 7e §7.7) |
+| `FW_WING.sTurnFt` | 550 | tuning | Jobs (fwJob) | keeps | S-turns trigger slant range in level flight (kept until S5 moves it to FW_STURN; estimate) |
+| `FW_WING.sTurnClosureFtps` | 15 | tuning | Jobs (fwJob) | keeps | S-turns trigger closure in level flight (kept until S5; estimate) |
+| `FW_WING.sTurnDoneFt` | 600 | tuning | Jobs (fwJob) | keeps | S-turns release range in level flight (kept until S5; estimate) |
 | `FW_WING.stackFt` | -50 | ruling | Jobs (fwJob) | keeps | his stack: 50 ft below Lead (Patrick 14 Oct 2026, spec 7e.7 swept) |
-| `FW_WING.heightBandFt` | 200 | ruling | Jobs (fwJob) | changes: where he settles, not a limit on the exit vertical (ruling 14 Oct 2026) | within 200 ft of Lead's height (TS-80; a reference, not a wall: the guard may pass it); the high yo-yo's most |
-| `FW_WING.vertGPerFt` | 0.005 | tuning | Vertical PD | keeps | 0.005 G per foot and 0.02 G per ft/s (spec 7e.7's starting gains, Fable F6, damping about 0.8) ... |
-| `FW_WING.vertGPerFtps` | 0.02 | tuning | Vertical PD | keeps | ... and 0.02 G per ft/s of his height rate against Lead's (spec 7e.7, Fable F6) |
-| `FW_WING.vertMaxG` | 1 | tuning | Vertical PD | keeps | ... at most 1 G either way (estimate) |
-| `FW_WING.quickFixFt` | 150 | tuning | Jobs (fwJob) | removes: folds into the exit vertical (review 3) | The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the height target to ±150 ft (down to close, ... |
-| `FW_WING.quickFixFtps` | 20 | tuning | Jobs (fwJob) | removes: folds into the exit vertical | The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the height target to ±150 ft (down to close, ... |
-| `FW_WING.quickFixHeightFt` | 150 | tuning | Jobs (fwJob) | removes: folds into the exit vertical | The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the height target to ±150 ft (down to close, ... |
-| `FW_WING.quickReleaseFt` | 75 | tuning | Jobs (fwJob) | removes: folds into the exit vertical | The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the height target to ±150 ft (down to close, ... |
-| `FW_WING.quickReleaseFtps` | 10 | tuning | Jobs (fwJob) | removes: folds into the exit vertical; also read by S-turns and the exit side | The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the height target to ±150 ft (down to close, ... |
-| `FW_WING.quickSec` | 2 | tuning | Jobs (fwJob) | removes: folds into the exit vertical's blend | The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the height target to ±150 ft (down to close, ... |
-| `FW_WING.stackReturnSec` | 15 | tuning | Jobs (fwJob) | keeps | The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the height target to ±150 ft (down to close, ... |
-| `FW_WING.lowFt` | 300 | tuning | Jobs (fwJob) | removes: low inside folds into the energy intent (review 3) | "a few hundred feet" (estimate) |
-| `FW_WING.lowStartKt` | 5 | tuning | Jobs (fwJob) | removes: into the intent | short of energy: more than 5 KIAS slower than Lead (estimate) ... |
-| `FW_WING.lowEndKt` | 1 | tuning | Jobs (fwJob) | removes: into the intent | ... until back within 1 KIAS of him (estimate) |
-| `FW_WING.yoyo.slowKt` | 10 | tuning | High yo-yo | removes: the yo-yo's speed trigger (review 3) | the trigger: the speed that holds his radius round Lead's centre more than 10 kt under his own (Fable F8, estimate), with power already back (asking at least... |
-| `FW_WING.yoyo.powerBackKt` | 5 | tuning | High yo-yo | removes: a power-to-yo-yo link (R9) | the trigger: the speed that holds his radius round Lead's centre more than 10 kt under his own (Fable F8, estimate), with power already back (asking at least... |
-| `FW_WING.yoyo.excessFtps` | 20 | tuning | High yo-yo | removes: the speed trigger | the trigger: the speed that holds his radius round Lead's centre more than 10 kt under his own (Fable F8, estimate), with power already back (asking at least... |
-| `FW_WING.yoyo.minFt` | 100 | tuning | High yo-yo | keeps | never planned inside 500 ft slant (Patrick, TS-208, TS-233) |
-| `FW_WING.yoyo.exitArcFt` | 150 | tuning | High yo-yo | keeps | the exit: on Lead's circle (within 150 ft of it) with the arc error under 150 ft (Fable F8, estimates), or more than 150 ft behind his place, or opening; the... |
-| `FW_WING.yoyo.onCircleFt` | 150 | tuning | High yo-yo | keeps | the exit: on Lead's circle (within 150 ft of it) with the arc error under 150 ft (Fable F8, estimates), or more than 150 ft behind his place, or opening; the... |
-| `FW_WING.yoyo.downEndFt` | 50 | tuning | High yo-yo | keeps | the exit: on Lead's circle (within 150 ft of it) with the arc error under 150 ft (Fable F8, estimates), or more than 150 ft behind his place, or opening; the... |
-| `FW_WING.yoyo.highFt` | 100 | ruling | Pitch owner | keeps | "already high": more than 100 ft above Lead, pass-clear goes above (TS-233; Fable F9, Q4) |
-| `FW_WING.yoyo.ownerHoldSec` | 2 | tuning | High yo-yo | keeps | 2 s between pitch owners; pass-clear and the nose behind take it at once (Fable F9, estimate) |
-| `FW_WING.powerBandKias` | 15 | ruling | Power (powerAsk) | keeps | within 15 KIAS of Lead (Patrick 4 Oct 19:12Z) |
-| `FW_WING.powerSec` | 15 | tuning | Power (powerAsk) | keeps | swept: PI, the integral's time constant (spec 7e.7: 15-20 s) |
-| `FW_WING.powerArcSec` | 15 | tuning | Power (powerAsk) | changes: power serves the intent and pays G's drag; the arc error belongs to the arc loop (R5) | in a turn: P on the arc error over 15 s, about 0.067 rad/s, under the 0.07 its loop sits at (Fable F1, F6, estimate) |
-| `FW_WING.brakes.idleFtps` | 40 | tuning | Power (powerAsk) | keeps | Idle and the speed brake (Patrick 14 Oct 2026, TS-233: his to use, smartly, since it is easy to get stretched after): idle once closing faster than 40 ft/s, ... |
-| `FW_WING.brakes.idleOffFtps` | 25 | tuning | Power (powerAsk) | keeps | Idle and the speed brake (Patrick 14 Oct 2026, TS-233: his to use, smartly, since it is easy to get stretched after): idle once closing faster than 40 ft/s, ... |
-| `FW_WING.brakes.boardsFtps` | 60 | tuning | Power (powerAsk) | keeps | Idle and the speed brake (Patrick 14 Oct 2026, TS-233: his to use, smartly, since it is easy to get stretched after): idle once closing faster than 40 ft/s, ... |
-| `FW_WING.brakes.boardsOffFtps` | 35 | tuning | Power (powerAsk) | keeps | Idle and the speed brake (Patrick 14 Oct 2026, TS-233: his to use, smartly, since it is easy to get stretched after): idle once closing faster than 40 ft/s, ... |
-| `FW_WING.brakes.slowKt` | 0 | tuning | Power (powerAsk) | changes: a relay on speed; the intent replaces it (review F12) | the trigger: the speed that holds his radius round Lead's centre more than 10 kt under his own (Fable F8, estimate), with power already back (asking at least... |
-| `FW_WING.guard.minFt` | 500 | ruling | Separation filter | keeps | never planned inside 500 ft slant (Patrick, TS-208, TS-233) |
-| `FW_WING.guard.engageFt` | 600 | tuning | Guard (fwGuard) | removes: the taper from 600 to 500 ft replaces the 600 ft floor and the 600/700 engage and release (ruling 14 Oct 2026); 600 stays as the taper's top | the guard engages once the predicted pass is under 600 ft (spec 7e.7, estimate) ... |
-| `FW_WING.guard.releaseFt` | 700 | tuning | Guard (fwGuard) | removes: the taper (ruling) | ... and releases once over 700 ft, predicted and now, held 3 s (spec 7e.7, estimates) |
-| `FW_WING.guard.releaseSec` | 3 | tuning | Guard (fwGuard) | removes: the taper (ruling) | ... held 3 s (spec 7e.7, estimate) |
-| `FW_WING.guard.lookSec` | 5 | tuning | Separation filter | changes: the whole closing part of the relative motion, about 10 s at most (review 2.5) | the pass predicted up to 5 s ahead (spec 7e.7: 3-5 s), every 0.25 s; the guard adds the 0.4 s he sees late |
-| `FW_WING.guard.lookStepSec` | 0.25 | search | Separation filter | keeps | ... in 0.25 s steps (search effort) |
-| `FW_WING.guard.tighter` | 1.3 | tuning | Separation filter | keeps | with Lead on his present turn and one step tighter: his turn rate 1.3 times (Fable F1, F13, estimate) |
-| `FW_WING.guard.missFt.0` | 50 | tuning | Guard (fwGuard) | changes: pass-clear's depth becomes a vertical candidate of the one predictor | pass-clear's height: enough to make the slant 600 ft over the guard's predicted pass, from his 50 ft stack to 300 ft (estimates) |
-| `FW_WING.guard.missFt.1` | 300 | tuning | Guard (fwGuard) | changes: pass-clear's depth becomes a vertical candidate of the one predictor | pass-clear's height: enough to make the slant 600 ft over the guard's predicted pass, from his 50 ft stack to 300 ft (estimates) |
-| `FW_WING.guard.missSlantFt` | 600 | tuning | Guard (fwGuard) | removes: the guard's own predictor goes (R8) | ... the slant pass-clear's depth is sized to make (estimate) |
-| `FW_WING.guard.torquePct` | 20 | tuning | Power (powerAsk) | removes: no power cut; a request to bleed (review 2.5) | "power off": 20% torque, well back but not idle, so the engine answers at once (estimate; TS-218, idle's spool-up lag) |
-| `FW_WING.guard.passLineSec` | 1.4 | tuning | Separation filter | changes: the closure allowance becomes the taper's allowed closing speed | the pass line: 500 ft + 1.4 s x the closure he sees (the 0.4 s he sees late and the 1 s smoothing), never under engageFt (TS-233; Fable F4) |
-| `FW_WING.guard.wingLineFt` | 100 | ruling | Separation filter | keeps | never closer than 100 ft behind Lead's wing line, along Lead's path (TS-233; Fable F6, Q6) |
-| `FW_WING.guard.filterSteps` | 20 | search | Separation filter | keeps | the turns tried each way, from none to his most, then refined 6 times (search effort) |
-| `FW_WING.guard.filterRefine` | 6 | search | Separation filter | keeps | ... and the refinements (search effort) |
-| `FW_WING.guard.filterHoldSec` | 1 | tuning | Separation filter | removes: with the power cut | power off (while closing) and pass-clear's pitch held a second after the filter last changed his turn (estimate) |
-| `FW_WING.guard.engage.marginFt` | 50 | tuning | Separation filter | removes: label-only hysteresis; the taper has no on/off line | Once engaged the filter stays engaged until his aim's own turn clears the pass line and the wing line by 50 ft (Fable F12's margin) for 1 s (thread, round 4,... |
-| `FW_WING.guard.engage.releaseSec` | 1 | tuning | Separation filter | removes: label-only hysteresis; the taper has no on/off line | ... held 3 s (spec 7e.7, estimate) |
-| `FW_WING.guard.lagSec` | 1 | tuning | Nose behind | removes: with the nose behind | the nose behind's aim: where Lead was 1 s ago, about 380 ft back along his path at 200 KIAS (estimate) |
+| `FW_WING.heightBandFt` | 200 | ruling | Jobs (fwJob) | changes: where he settles, not a limit on the exit vertical (ruling 14 Oct 2026) | within 200 ft of Lead's height settle band (TS-80; a reference, not a wall) |
+| `FW_WING.vertGPerFt` | 0.005 | tuning | Vertical PD | keeps | 0.005 G per foot of height error (spec 7e §7.8, crossover 0.68 rad/s; estimate) |
+| `FW_WING.vertGPerFtps` | 0.02 | tuning | Vertical PD | keeps | 0.02 G per ft/s of (ḣ_T - ḣ) height-rate error including planned profile rate (spec 7e §7.8, Fable D1; estimate) |
+| `FW_WING.vertMaxG` | 1 | tuning | Vertical PD | keeps | vertical loop demand bounded within ±1 G (estimate) |
+| `FW_WING.stackReturnSec` | 15 | tuning | Jobs (fwJob) | keeps | height blend time returning to stack: 15 s (spec 7e §7.8, Fable D5; estimate) |
+| `FW_WING.lowFt` | 300 | tuning | Jobs (fwJob) | removes: low inside folds into the energy intent (review 3) | drop-low-inside cap 300 ft below Lead (Patrick 14 Oct 2026, TS-233; estimate) |
+| `FW_WING.lowStartKt` | 5 | tuning | Jobs (fwJob) | removes: into the intent | drop-low-inside starts past 5 kt slow (Patrick 14 Oct 2026, Fable D24; estimate) |
+| `FW_WING.lowEndKt` | 1 | tuning | Jobs (fwJob) | removes: into the intent | drop-low-inside release threshold (kept until S4; estimate) |
+| `FW_WING.yoyo.slowKt` | 10 | tuning | High yo-yo | removes: the yo-yo's speed trigger (review 3) | speed deficit trigger (kept until S7; estimate) |
+| `FW_WING.yoyo.powerBackKt` | 5 | tuning | High yo-yo | removes: a power-to-yo-yo link (R9) | power-back trigger (kept until S7; estimate) |
+| `FW_WING.yoyo.excessFtps` | 20 | tuning | High yo-yo | removes: the speed trigger | excess arc closure trigger (kept until S7; estimate) |
+| `FW_WING.yoyo.minFt` | 100 | tuning | High yo-yo | keeps | 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233) |
+| `FW_WING.yoyo.exitArcFt` | 150 | tuning | High yo-yo | keeps | exit arc error threshold (estimate) |
+| `FW_WING.yoyo.onCircleFt` | 150 | tuning | High yo-yo | keeps | on-circle offset threshold (estimate) |
+| `FW_WING.yoyo.downEndFt` | 50 | tuning | High yo-yo | keeps | return-to-stack threshold (estimate) |
+| `FW_WING.yoyo.highFt` | 100 | ruling | Pitch owner | keeps | "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233) |
+| `FW_WING.yoyo.ownerHoldSec` | 2 | tuning | High yo-yo | keeps | pitch owner hold time (kept until S7; estimate) |
+| `FW_WING.powerBandKias` | 15 | ruling | Power (powerAsk) | keeps | speed offset Δv_ref bounded within ±15 KIAS of Lead (Patrick 4 Oct 19:12Z, Fable D21) |
+| `FW_WING.speedKvPerSec` | 0.3 | tuning | Power (powerAsk) | keeps: B11 proportional speed loop gain (0.3 /s, D21, D23) | proportional speed loop gain Kv = 0.3 /s with no integrator (Patrick 14 Oct 2026, Fable D21, D23; estimate) |
+| `FW_WING.brakes.idleFtps` | 40 | tuning | Power (powerAsk) | keeps | idle closure threshold (estimate) |
+| `FW_WING.brakes.idleOffFtps` | 25 | tuning | Power (powerAsk) | keeps | idle release threshold (estimate) |
+| `FW_WING.brakes.boardsFtps` | 60 | tuning | Power (powerAsk) | keeps | speed brake out threshold > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate) |
+| `FW_WING.brakes.boardsOffFtps` | 35 | tuning | Power (powerAsk) | keeps | speed brake retract threshold (updated to 10 ft/s in S4 per D25; estimate) |
+| `FW_WING.guard.hardFloorFt` | 350 | ruling | Separation filter | keeps: B12 hard separation floor (350 ft, Spec 7e §7.6) | emergency separation floor where guard uses full available authority (spec 7e §7.8b; estimate) |
+| `FW_WING.guard.minFt` | 500 | ruling | Separation filter | keeps | 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233) |
+| `FW_WING.guard.taperStartFt` | 600 | ruling | Guard (fwGuard) | keeps: B12 cubic barrier outer boundary (600 ft, TS-233) | guard is completely silent at >= 600 ft and tapers cubically x = ((600 - p)/100)^3 down to 500 ft (Patrick 14 Oct 2026, TS-233) |
+| `FW_WING.guard.capOpenStartFt` | 550 | tuning | G cap | keeps: B12 smooth G-cap opening start (550 ft, S40) | G cap opens smoothly from Lead G + 1.5 at 550 ft to stall-warning/available G at 500 ft (spec 7e §7.8b; estimate) |
+| `FW_WING.guard.lookSec` | 10 | tuning | Separation filter | keeps: B12 closing-pass predictor horizon (10 s, S35) | single forward predictor horizon up to 10 s over the closing part of the pass (spec 7e §7.8b, Fable D4; estimate) |
+| `FW_WING.guard.lookStepSec` | 0.25 | search | Separation filter | keeps | predictor integration step 0.25 s (search effort) |
+| `FW_WING.guard.tighter` | 1.3 | tuning | Separation filter | keeps | also checks Lead tightening his turn by 1.3x when inside 550 ft (Fable F1, F13; estimate) |
+| `FW_WING.guard.passLineSec` | 1.4 | tuning | Separation filter | changes: the closure allowance becomes the taper's allowed closing speed | closure allowance time scale in the tapered barrier (spec 7e §7.8b; estimate) |
+| `FW_WING.guard.wingLineFt` | 100 | ruling | Separation filter | keeps | minimum distance behind Lead's 3/9 line along Lead's path (TS-233, Fable F6; estimate) |
+| `FW_WING.guard.filterSteps` | 20 | search | Separation filter | keeps | candidate turn steps searched each way (search effort) |
+| `FW_WING.guard.filterRefine` | 6 | search | Separation filter | keeps | binary refinements on the least-change clearing turn (search effort) |
+| `FW_WING.guard.urgencyDecaySec` | 2 | tuning | Guard (fwGuard) | keeps: B12 guard urgency decay time (2 s, S36) | guard urgency S36 rises at once and decays over ~2 s (spec 7e §7.8b; estimate) |
+| `FW_WING.guard.sideHoldSec` | 3 | tuning | Separation filter | keeps: B12 guard side-choice dwell time (3 s, S41) | guard side choice S41 held for at least 3 s so it never flickers left/right (spec 7e §7.8b, Fable §2; estimate) |
+| `FW_WING.picker.noRestartSec` | 3 | tuning | Jobs (fwJob) | keeps: B04 technique picker cooldown and blend times (S23, D5) | 3 s cooldown after a technique finishes before the same technique can re-fire (spec 7e §7.10, Fable D6; estimate) |
+| `FW_WING.picker.pathBlendSec` | 6 | tuning | Jobs (fwJob) | keeps: B04 technique picker cooldown and blend times (S23, D5) | scalar path blend time >= 6 s (3 / ω_c for steering crossover 0.52 rad/s; Fable D5; estimate) |
+| `FW_WING.picker.heightBlendSec` | 4.3 | tuning | Jobs (fwJob) | keeps: B04 technique picker cooldown and blend times (S23, D5) | scalar height blend time >= 4.3 s on entry (3 / ω_c for vertical crossover 0.68 rad/s; Fable D5; estimate) |
+| `FW_WING.miss.clearSlantFt` | 625 | ruling | Pitch owner | keeps: B06 T1 pass-clear target slant clearance (625 ft) | target 3D pass clearance D = 625 ft so horizontal + vertical clears the 500 ft bubble with margin (spec 7e §7.9.1; estimate) |
+| `FW_WING.miss.cuePassFt` | 600 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | cue triggers when predicted pass p < 600 ft closing (Patrick 14 Oct 2026, TS-233; estimate) |
+| `FW_WING.miss.cueClosureFtps` | 5 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | minimum closing rate to trigger the miss cue (Fable D6; estimate) |
+| `FW_WING.miss.tPassMinSec` | 3 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | minimum time-to-pass for the planned vertical profile cue window (Fable D4: 3 s <= t_pass <= 10 s; estimate) |
+| `FW_WING.miss.tPassMaxSec` | 10 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | maximum time-to-pass for the planned vertical profile cue window (Fable D4; estimate) |
+| `FW_WING.miss.dwellSteps` | 2 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | cue must hold for 2 consecutive steps (0.1 s) before firing (Fable D6; estimate) |
+| `FW_WING.miss.urgencyStartSec` | 8 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | urgency u = clip((8 - t_pass) / 5, 0, 1) starts rising below 8 s to pass (Fable 3b §7; estimate) |
+| `FW_WING.miss.urgencySpanSec` | 5 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | urgency reaches 1.0 at t_pass <= 3 s (Fable 3b §7; estimate) |
+| `FW_WING.miss.minDepthFt` | 75 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | least vertical miss depth below Lead (spec 7e §7.9.1; estimate) |
+| `FW_WING.miss.maxDepthFt` | 300 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | deepest planned vertical miss below Lead (spec 7e §7.9.1; estimate) |
+| `FW_WING.miss.maxRateFtps` | 60 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | maximum planned vertical profile descent/climb rate \\|ḣ_T\\| (Fable D1; estimate) |
+| `FW_WING.miss.maxTurnMixRadps` | 0.12 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | cap on least horizontal turn mix Δω when vertical reach alone is short of 625 ft (Fable D4; estimate) |
+| `FW_WING.miss.replanTighterFt` | 50 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | re-plans depth once if predicted pass tightens by more than 50 ft (spec 7e §7.9.1; estimate) |
+| `FW_WING.miss.donePassFt` | 650 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | miss hands back once predicted pass > 650 ft and opening ... (Fable D6; estimate) |
+| `FW_WING.miss.doneDwellSec` | 2 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | ... held for 2 s after passing bottom (Fable D6; estimate) |
+| `FW_WING.miss.maxRunSec` | 15 | tuning | Pitch owner | keeps: B06 T1 pass-clear cue and profile constants (D1, D4, D6) | longest-run timeout for the miss technique (spec 7e §7.9.1; estimate) |
 
 ## 9. The phased-in pattern (Patrick's "phased security guard")
 

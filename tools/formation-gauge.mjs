@@ -206,10 +206,14 @@ function b5(name, at, presses, first = 'fw') {
   return { name: `b5-${name}`, b5: true, options: { fwWing: fwArg }, setup, presses };
 }
 const wingsLevel = { label: 'Wings level, 30 s', press: (f) => f.pressFw('wingsLevel'), sec: 30 };
-const turnFw = (dir, label) => ({ label, press: (f) => f.pressFw('levelTurn', dir), sec: 30 });
+const turnFw = (dir, label, sec = 30) => ({ label, press: (f) => f.pressFw('levelTurn', dir), sec });
 const B5 = [
   b5('into-in-position', null, [turnFw(-1, 'Level turn into #2, in position, 30 s'), wingsLevel]),
   b5('away-in-position', null, [turnFw(1, 'Level turn away from #2, in position, 30 s'), wingsLevel]),
+  b5('into-90', null, [turnFw(-1, 'Level turn ~90° into #2 (12 s)', 12), wingsLevel]),
+  b5('away-90', null, [turnFw(1, 'Level turn ~90° away from #2 (12 s)', 12), wingsLevel]),
+  b5('into-180', null, [turnFw(-1, 'Level turn ~180° into #2 (22 s)', 22), wingsLevel]),
+  b5('away-180', null, [turnFw(1, 'Level turn ~180° away from #2 (22 s)', 22), wingsLevel]),
   b5('into-stretched', 950, [turnFw(-1, 'Level turn into #2, stretched (950 ft), 30 s'), wingsLevel]),
   b5('away-stretched', 950, [turnFw(1, 'Level turn away from #2, stretched (950 ft), 30 s'), wingsLevel]),
   b5('into-tight', 520, [turnFw(-1, 'Level turn into #2, tight (520 ft), 30 s'), wingsLevel]),

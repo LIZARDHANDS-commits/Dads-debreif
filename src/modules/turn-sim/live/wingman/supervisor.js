@@ -1,37 +1,24 @@
-// The close-formation wingman's supervisor (B1, TS-226; spec 7b.2, 7b.6c, 7b.6d item 12): which job he is doing, from
-// what he sees. The job list, each with a dead band so it never flickers:
-//  - on station: within about a foot of his place; all controls together, coordinated, as pressures (Patrick 13 Oct
-//    2026: "you stay in position by using coordination of all of the controls at once");
-//  - a small move: a few feet off, up to about 10 ft (spec 7b.6: "he leaves that little bit in until he gets where he
-//    wants, then walks the power back"); all controls together, the same pressures;
-//  - a large move: further off; the corrections in Patrick's order, plane, then line, then hinge ("you get on plane first,
-//    then you move forward to the line (or back), then power and bank moves you up and down the line"), with bigger
-//    pressures and a set and catch on the power;
-//  - out before up: under Lead (below his wing plane, inside his wingtip) he moves out before he comes up (Patrick: "if
-//    you are underneath lead, you wouldn't correct plane first").
-// B3 (spec 7c.3, TS-231) adds:
-//  - off station: a change between the close formations, flown as a short list of places in Lead's frame (stationChange)
-//    that he moves through straight at each in turn, all controls together (no plane-line-hinge order: that is for an error
-//    back onto a place), at most the jogging pace, flowing through each place on the way within 5 ft and 5 kt (TS-117)
-//    and tapering to stop on the last (navigate);
-//  - deconfliction (deconflict): never within a wingspan of Lead, never ahead of his 3/9 line, no wings overlapping (while
-//    his wings overlap Lead's sideways he goes no further in, and back to line astern's fore and aft first), and under Lead
-//    out before up as in B1; each a guard on the place he aims at, with a dead band.
-// Collision avoidance comes at B4.
-// B5 (spec 7e.7, TS-233) adds fighting wing's jobs (fwJob, below). Fighting wing's separation guard and filter, which always
-// come first, are in separation.js.
+// Wingman supervisor: close-formation job state machine (B1/B3; Spec 7b.2, 7c.3; TS-226, TS-231) and fighting-wing
+// Phase & Case (B03, S21, S22; Spec 7e §7.7; D3, D5) + Technique Picker (B04, S23; Spec 7e §7.8; D1, D5, D6).
+// Exports: JOBS, startJob, supervise, stationChange, progress, deconflict, startFwJob, fwJob, startFwPicker, stepFwPicker.
+// Does not: compute separation guard bounds (separation.js, B12) or run control loops directly (fighting-wing.js).
 //
-// Plane, line, hinge is done by the share of each axis's deviation the loops are shown (masks, 0 to 1): the plane's at
-// once, the line's once he is near the plane, the rest along the line once also near the line, each eased in so the target
-// never jumps. On station and in small moves every share is 1. The masks start where the first job wants them, so a
-// hand-over from the tracker already moving down the line is not stopped (bumpless, spec 7b.6d item 2).
+// Close-formation jobs, each with a dead band so it never flickers:
+//  - on station: within about a foot of his place; all controls together, coordinated, as pressures;
+//  - a small move: a few feet off, up to about 10 ft; all controls together, the same pressures;
+//  - a large move: further off; corrections in Patrick's order: plane, then line, then hinge;
+//  - out before up: under Lead (below his wing plane, inside his wingtip) he moves out before he comes up;
+//  - off station (B3): a change between close formations, flown through stationChange places with deconflict.
+// Fighting wing (B5, below): B03 continuous phase weights (S21) and latched case label (S22), and B04 technique picker (S23).
 //
-// Signs and units as perception.js. The memory is never changed in place. Numbers: wing-moves.js CLOSE_WING.
+// Signs and units as perception.js. The memory is never changed in place. Numbers: wing-moves.js CLOSE_WING and FW_WING.
 import { STEP_SEC } from '../flight.js';
 import { WINGSPAN_FT, LENGTH_FT, pairSlot } from '../slots.js';
 import { CLOSE_WING, FW_WING } from '../wing-moves.js';
 import { KT_TO_FTPS } from '../../../../core/units.js';
 import { DEG } from '../../../../core/angles.js';
+import { stepFwBlendWeight } from './fw-reference.js';
+import { FW_TECHNIQUES, findFwTechnique } from './techniques/index.js';
 
 const C = CLOSE_WING;
 
@@ -179,106 +166,302 @@ export function deconflict(place, rel, vLeft, guard, vFwd = 0) {
   return { place: aim, guard: { wings, span, ahead: ahead39 } };
 }
 
-// ---- B5 T29: fighting wing's jobs (spec 7e.7) ------------------------------------------------------------------------------
+// ---- B5: fighting wing Phase & Case (B03, S21, S22; Spec 7e §7.7) and Technique Picker (B04, S23; Spec 7e §7.8) -----------
 //
-// Below the guard, by what Lead is doing as he sees it (each switch with hysteresis, F4, F17):
-//  - turn: Lead's turn started (his bank past 10° for 1 s) and not yet ended (under 5° for 1 s); at its start, and again
-//    whenever Lead reverses (his bank's sign changes past 10°), the entry case is set from range and closure and whether
-//    the turn is into #2 (SMM 12.29 Figs 12.20-12.22): in position, stretched or tight, into or away;
-//  - swept: Lead wings level, straight, climbing or descending; on the side the turn exit chose (Fig 12.23: tight or closing
-//    fast, the outside of the turn; stretched or opening, the inside; good, the side he is on), else the side he is on;
-//    S-turns across the cone when too tight (Patrick 14 Oct 2026);
-//  - the height target, one pitch owner below the guard (F7): the quick fix (±150 ft, down to close, up to open) while the
-//    range error or the closure is large, else the stack, 50 ft below, coming back over about 15 s.
-// Numbers: wing-moves.js FW_WING.
+// B03 replaces the 1.0 s turn-hold wait with continuous phase weights S21 = { level, entry, turning, exit } blended over
+// phaseBlendSec (1.5 s, D3) so #2 responds immediately when Lead's seen bank passes 10° (turnStartDeg), and a latched case
+// label S22 with a ±50 ft dead band (caseDeadBandFt) so the case does not chatter across range thresholds.
+// B04 polls FW_TECHNIQUES in priority order, runs at most one active technique at a time, enforces noRestartSec (3 s) and
+// maxRunSec, and slides the blend weight S23 (0 -> 1 -> 0) over pathBlendSec (6 s) and heightBlendSec (4.3 s / 15 s).
 
 const FJ = FW_WING;
-const happyMid = (FJ.happyFt[0] + FJ.happyFt[1]) / 2;
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
-/** The jobs at the start: Lead taken as he is (turning if banked past 10°), his side and the stack as they are. */
+/** Range bucket with ±50 ft hysteresis (caseDeadBandFt) around tightFt (550), stretchedFt (800), veryStretchedFt (1000). */
+function classifyRange(slant, closure, prevRange = null, fresh = false) {
+  const db = fresh ? 0 : FJ.caseDeadBandFt;
+  if (prevRange === 'tight') {
+    if (slant < FJ.tightFt + db) return 'tight';
+  } else if (slant < FJ.tightFt || (fresh && closure > FJ.sTurnClosureFtps && slant < FJ.happyFt[1])) {
+    return 'tight';
+  }
+  if (prevRange === 'very-stretched') {
+    if (slant > FJ.veryStretchedFt - db) return 'very-stretched';
+  } else if (slant > FJ.veryStretchedFt) {
+    return 'very-stretched';
+  }
+  if (prevRange === 'stretched') {
+    if (slant > FJ.stretchedFt - db) return 'stretched';
+  } else if (slant > FJ.stretchedFt) {
+    return 'stretched';
+  }
+  return 'in';
+}
+
+/** Formats the latched case label (S22) from phase, range bucket, and into/away. */
+function makeCaseLabel(phase, range, into) {
+  if (phase === 'entry' || phase === 'turning') {
+    if (range === 'in') return into ? 'in-position-into' : 'in-position-away';
+    return `${range}-${into ? 'into' : 'away'}`;
+  }
+  return range === 'in' ? 'in-position' : range;
+}
+
+/** Step and normalize the 4 continuous phase weights S21 = { level, entry, turning, exit } over phaseBlendSec (1.5 s). */
+function stepPhaseWeights(prev, activePhase, dt = STEP_SEC) {
+  const rate = dt / Math.max(FJ.phaseBlendSec, 1e-6);
+  const raw = {
+    level: clamp((prev?.level ?? 0) + (activePhase === 'level' ? rate : -rate), 0, 1),
+    entry: clamp((prev?.entry ?? 0) + (activePhase === 'entry' ? rate : -rate), 0, 1),
+    turning: clamp((prev?.turning ?? 0) + (activePhase === 'turning' ? rate : -rate), 0, 1),
+    exit: clamp((prev?.exit ?? 0) + (activePhase === 'exit' ? rate : -rate), 0, 1),
+  };
+  const sum = raw.level + raw.entry + raw.turning + raw.exit;
+  if (sum <= 1e-9) return { level: activePhase === 'level' ? 1 : 0, entry: activePhase === 'entry' ? 1 : 0, turning: activePhase === 'turning' ? 1 : 0, exit: activePhase === 'exit' ? 1 : 0 };
+  return { level: raw.level / sum, entry: raw.entry / sum, turning: raw.turning / sum, exit: raw.exit / sum };
+}
+
+/** Initial B03 state at the start of fighting wing: Lead taken as he is (turning if banked past 10°). */
 export function startFwJob(seen) {
   const turning = Math.abs(seen.leadBankDeg) > FJ.turnStartDeg;
+  const dir = turning ? Math.sign(seen.leadBankDeg) : 0;
+  const phase = turning ? 'turning' : 'level';
+  const into = turning ? dir === seen.levelSide : false;
+  const range = classifyRange(seen.slant, seen.closure, null, true);
+  const side = seen.levelSide || -1;
   return {
-    turning, dir: turning ? Math.sign(seen.leadBankDeg) : 0, hold: 0, entry: turning ? entryOf(seen, Math.sign(seen.leadBankDeg)) : null,
-    side: seen.levelSide, sTurn: false, quick: 0, low: false, heightFt: Math.max(-FJ.heightBandFt, Math.min(FJ.heightBandFt, seen.heightFt)),
+    phase,
+    weights: { level: turning ? 0 : 1, entry: 0, turning: turning ? 1 : 0, exit: 0 },
+    turning,
+    dir,
+    into,
+    range,
+    caseLabel: makeCaseLabel(phase, range, into),
+    entry: turning ? { into, range: range === 'very-stretched' ? 'stretched' : range } : null,
+    entrySec: 0,
+    exitSettleSec: 0,
+    exitTotalSec: 0,
+    side,
+    sideBlend: side,
+    sTurn: false,
+    quick: 0,
+    low: false,
+    heightFt: clamp(seen.heightFt, -FJ.heightBandFt, FJ.heightBandFt),
   };
 }
 
-/** The entry case (SMM 12.29 Figs 12.20-12.22): { into (Lead turning toward #2's side), range: 'tight' | 'in' | 'stretched' }. */
-function entryOf(seen, dir) {
-  const range = seen.slant < FJ.tightFt || seen.closure > FJ.quickFixFtps ? 'tight' : seen.slant > FJ.stretchedFt ? 'stretched' : 'in';
-  return { into: dir === seen.levelSide, range };
-}
-
 /**
- * One step of the jobs. j: last step's; seen: perception.js seeFw's, with levelSide (#2's side of Lead's path, level: +1
- * left). Returns { turning, dir (+1 Lead turning left), hold, entry, side (the swept side), sTurn, quick (the quick fix:
- * +1 up, -1 down, 0 off), heightFt (the height target against Lead's, eased) }.
+ * One step of B03 (Phase & Case, S21, S22). Responds immediately when Lead's bank crosses turnStartDeg (10°), blends phase
+ * weights continuously over 1.5 s, latches the entry/turning/exit case with a ±50 ft dead band, and slews sideBlend over 6 s.
  */
-export function fwJob(j, seen, { shortKt = 0 } = {}) {
+export function fwJob(j, seen, { shortKt = 0, arcErrAbs = Infinity, chiErrAbs = Infinity } = {}) {
   const b = seen.leadBankDeg;
-  let { turning, dir, hold, entry, side, sTurn, quick, low } = j;
-  if (!turning) {
-    hold = Math.abs(b) > FJ.turnStartDeg ? hold + STEP_SEC : 0;
-    if (hold >= FJ.turnHoldSec) {
-      turning = true;
+  let { phase, dir, into, range, entry, entrySec = 0, exitSettleSec = 0, exitTotalSec = 0, side, sideBlend = j.side, sTurn, low } = j;
+  let freshPhase = false;
+
+  if (phase === 'level' || phase === 'exit') {
+    if (Math.abs(b) > FJ.turnStartDeg) {
+      phase = 'entry';
       dir = Math.sign(b);
-      hold = 0;
-      entry = entryOf(seen, dir);
+      into = dir === seen.levelSide;
+      range = classifyRange(seen.slant, seen.closure, null, true);
+      entry = { into, range: range === 'very-stretched' ? 'stretched' : range };
+      entrySec = 0;
       sTurn = false;
+      freshPhase = true;
+    } else if (phase === 'exit') {
+      exitTotalSec += STEP_SEC;
+      const settled = Math.abs(seen.closure) <= FJ.exitSettleFtps && seen.slant >= FJ.happyFt[0] && seen.slant <= FJ.happyFt[1];
+      exitSettleSec = settled ? exitSettleSec + STEP_SEC : 0;
+      if (exitSettleSec >= FJ.exitSettleSec || exitTotalSec >= 2 * FJ.exitSettleSec) {
+        phase = 'level';
+        dir = 0;
+        entry = null;
+        freshPhase = true;
+      }
     }
   } else {
+    // In 'entry' or 'turning'
     if (Math.abs(b) > FJ.turnStartDeg && Math.sign(b) !== dir) {
-      // Lead reverses: the case is set again (F4: a reversal mid-entry is the dangerous one)
+      // Lead reverses mid-turn: immediately re-enter 'entry' and re-latch case (F4)
+      phase = 'entry';
       dir = Math.sign(b);
-      entry = entryOf(seen, dir);
-    }
-    hold = Math.abs(b) < FJ.turnEndDeg ? hold + STEP_SEC : 0;
-    if (hold >= FJ.turnHoldSec) {
-      // The turn exit (Fig 12.23): tight or closing fast, flow to the outside of the turn; stretched or opening, the inside.
+      into = dir === seen.levelSide;
+      range = classifyRange(seen.slant, seen.closure, null, true);
+      entry = { into, range: range === 'very-stretched' ? 'stretched' : range };
+      entrySec = 0;
+      freshPhase = true;
+    } else if (Math.abs(b) < FJ.turnEndDeg) {
+      // Turn exit (SMM 12.29 Fig 12.23): tight or closing fast -> outside (-dir); stretched or opening -> inside (+dir)
       const tight = seen.slant < FJ.happyFt[0] || seen.closure > FJ.sTurnClosureFtps;
-      const stretched = seen.slant > FJ.stretchedFt || seen.closure < -FJ.quickReleaseFtps;
+      const stretched = seen.slant > FJ.stretchedFt || seen.closure < -FJ.exitSettleFtps;
       side = tight ? -dir || seen.levelSide : stretched ? dir || seen.levelSide : seen.levelSide;
-      turning = false;
-      hold = 0;
+      phase = 'exit';
+      exitSettleSec = 0;
+      exitTotalSec = 0;
       entry = null;
+      freshPhase = true;
+    } else if (phase === 'entry') {
+      entrySec += STEP_SEC;
+      const captured = entrySec >= FJ.phaseBlendSec && arcErrAbs <= FJ.entryCaptureFt && chiErrAbs <= FJ.entryCaptureDeg;
+      if (captured || entrySec >= FJ.entryMaxSec) {
+        phase = 'turning';
+        freshPhase = true;
+      }
     }
   }
+
+  if (!freshPhase) {
+    range = classifyRange(seen.slant, seen.closure, range, false);
+    if (entry) entry = { into, range: range === 'very-stretched' ? 'stretched' : range };
+  }
+  const turning = phase === 'entry' || phase === 'turning';
+  const weights = stepPhaseWeights(j.weights, phase, STEP_SEC);
+  const caseLabel = makeCaseLabel(phase, range, into);
+
   if (!turning) {
-    // S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): aim at the other side, swap each time
-    // he gets there, until he is happy again.
     const tooTight = seen.slant < FJ.sTurnFt || (seen.closure > FJ.sTurnClosureFtps && seen.slant < FJ.happyFt[1]);
     if (!sTurn && tooTight) {
       sTurn = true;
       side = -seen.levelSide;
-    } else if (sTurn && seen.slant >= FJ.sTurnDoneFt && seen.closure < FJ.quickReleaseFtps) {
+    } else if (sTurn && seen.slant >= FJ.sTurnDoneFt && seen.closure < FJ.exitSettleFtps) {
       sTurn = false;
       side = seen.levelSide;
     } else if (sTurn && seen.levelSide === side && Math.abs(seen.levelLeftFt) > FJ.sweptFt * Math.cos(FJ.sweptDeg * DEG) / 2) {
-      side = -side; // across: back the other way
+      side = -side;
     }
-  }
-  // The quick fix (F7): engaged past its thresholds, released inside its smaller ones; the height target follows it, or
-  // comes back to the stack over about 15 s.
-  const e = seen.slant - happyMid;
-  if (turning) {
-    // T29a: no quick fix in a turn (one owner for closure: the aim loop). The vertical's one job in a turn is the ruling's
-    // (Patrick 14 Oct 2026, "Drop low inside, MAX"): short of energy (slower than Lead by shortKt past lowStartKt), he drops
-    // low inside, a few hundred feet, at MAX, and climbs back to his stack on the roll-out; released once back within
-    // lowEndKt of Lead's speed.
-    quick = 0;
+    low = false;
+  } else {
     if (!low && shortKt > FJ.lowStartKt) low = true;
     else if (low && shortKt < FJ.lowEndKt) low = false;
-  } else {
-    low = false;
-    // Only when the spacing is going the wrong way: stretched and not closing (down, to gain speed), or closing fast and not
-    // stretched (up, to bleed it); a closure the aim is already making is left to it.
-    if (!quick && e > FJ.quickFixFt && seen.closure < FJ.quickReleaseFtps) quick = -1;
-    else if (!quick && seen.closure > FJ.quickFixFtps && e < FJ.quickReleaseFt) quick = 1;
-    else if (quick && Math.abs(e) < FJ.quickReleaseFt && Math.abs(seen.closure) < FJ.quickReleaseFtps) quick = 0;
   }
-  const target = low ? -FJ.lowFt : quick ? quick * FJ.quickFixHeightFt : FJ.stackFt;
-  const heightFt = j.heightFt + (target - j.heightFt) * Math.min(1, STEP_SEC / (quick || low ? FJ.quickSec : FJ.stackReturnSec));
-  return { turning, dir, hold, entry, side: side || seen.levelSide, sTurn, quick, low: Boolean(low), heightFt };
+
+  const targetSide = side || seen.levelSide || -1;
+  const maxSideStep = (2 * STEP_SEC) / Math.max(FJ.sideBlendSec, 1e-6);
+  sideBlend = clamp(sideBlend + clamp(targetSide - sideBlend, -maxSideStep, maxSideStep), -1, 1);
+
+  const targetHeight = low ? -FJ.lowFt : FJ.stackFt;
+  const heightFt = j.heightFt + (targetHeight - j.heightFt) * Math.min(1, STEP_SEC / (low ? FJ.picker.heightBlendSec : FJ.stackReturnSec));
+
+  return {
+    phase,
+    weights,
+    turning,
+    dir,
+    into,
+    range,
+    caseLabel,
+    entry,
+    entrySec,
+    exitSettleSec,
+    exitTotalSec,
+    side: targetSide,
+    sideBlend,
+    sTurn,
+    quick: 0,
+    low: Boolean(low),
+    heightFt,
+  };
 }
+
+/** Initial B04 Technique Picker state. */
+export function startFwPicker() {
+  return {
+    activeId: null,
+    state: null,
+    runSec: 0,
+    cooldowns: {},
+    assessMem: {},
+    weight: { path: 0, height: 0 },
+    lastRef: null,
+  };
+}
+
+/**
+ * One step of B04 (Technique Picker, S23). Polls FW_TECHNIQUES in priority order, runs at most one active technique at a
+ * time, enforces noRestartSec (3 s) and maxRunSec, and slides the blend weight S23 (0 -> 1 -> 0) over pathBlendSec (6 s)
+ * and heightBlendSec (4.3 s / stackReturnSec 15 s).
+ */
+export function stepFwPicker(picker, ctx, dt = STEP_SEC, techniques = FW_TECHNIQUES) {
+  const P = FJ.picker;
+  const p0 = picker ?? startFwPicker();
+  const cooldowns = {};
+  for (const [k, v] of Object.entries(p0.cooldowns ?? {})) {
+    if (v - dt > 1e-9) cooldowns[k] = v - dt;
+  }
+  const assessMem = { ...(p0.assessMem ?? {}) };
+
+  let activeId = p0.activeId;
+  let state = p0.state;
+  let runSec = p0.runSec ?? 0;
+  let lastRef = p0.lastRef;
+
+  // Check if a higher-priority technique preempts the currently running one
+  if (activeId) {
+    const activeTech = findFwTechnique(activeId, techniques);
+    const activePriority = activeTech?.priority ?? Infinity;
+    for (const tech of techniques) {
+      if (tech.priority >= activePriority) break;
+      if ((cooldowns[tech.id] ?? 0) > 1e-9) continue;
+      const res = tech.assess(ctx, assessMem[tech.id]);
+      assessMem[tech.id] = res;
+      if (res.cue > 0) {
+        cooldowns[activeId] = P.noRestartSec;
+        activeId = tech.id;
+        state = tech.plan(ctx);
+        runSec = 0;
+        break;
+      }
+    }
+  }
+
+  // If no technique is active, poll in priority order
+  if (!activeId) {
+    for (const tech of techniques) {
+      if ((cooldowns[tech.id] ?? 0) > 1e-9) continue;
+      const res = tech.assess(ctx, assessMem[tech.id]);
+      assessMem[tech.id] = res;
+      if (res.cue > 0) {
+        activeId = tech.id;
+        state = tech.plan(ctx);
+        runSec = 0;
+        break;
+      }
+    }
+  }
+
+  if (activeId) {
+    const tech = findFwTechnique(activeId, techniques);
+    runSec += dt;
+    const stepped = tech.step(ctx, state);
+    state = stepped.state;
+    lastRef = stepped.ref;
+    const timedOut = runSec >= (tech.maxRunSec ?? FJ.miss.maxRunSec);
+    if (stepped.done || stepped.abort || timedOut) {
+      cooldowns[activeId] = P.noRestartSec;
+      activeId = null;
+      state = null;
+      runSec = 0;
+    }
+  }
+
+  const targetW = activeId ? 1 : 0;
+  const weight = stepFwBlendWeight(p0.weight, targetW, dt, {
+    pathSec: P.pathBlendSec,
+    heightSec: P.heightBlendSec,
+    returnHeightSec: FJ.stackReturnSec,
+  });
+
+  return {
+    activeId,
+    state,
+    runSec,
+    cooldowns,
+    assessMem,
+    weight,
+    lastRef,
+    techRef: weight.path > 1e-6 || weight.height > 1e-6 ? lastRef : null,
+  };
+}
+
 

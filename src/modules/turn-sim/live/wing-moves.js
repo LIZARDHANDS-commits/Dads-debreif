@@ -382,139 +382,128 @@ export const FW_SEE = Object.freeze({
  * round-by-round history of each number is in `Pat's claude work/formation-review-12oct/fighting-wing-code-history.md`.
  */
 export const FW_WING = Object.freeze({
-  // ---- steering (spec 7e.7): a pursuit law, the aim line's turn fed forward plus P on the angle to the aim point ----
-  gPerDeg: 0.05, // P: about 0.05 G per degree between his path and the line to his aim point, 1 G per 20° (spec 7e.7; Fable F6, estimate)
-  aimTurnSec: 0.5, // the aim line's turn read over about 0.5 s, as the line of sight's (spec 7e.7; estimate)
-  // ... and fed forward within 1.5 times Lead's turn rate plus 3°/s (thread, round 4, estimates): a change of aim (lag first,
-  // the nose behind, a job's blend) jumps the line, read as a turn of up to 115°/s
-  aimTurnCap: Object.freeze({ k: 1.5, plusDps: 3 }),
-  overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate); the guard and filter may pull to what the aircraft gives, flagged (Patrick 14 Oct 2026)
+  // ---- steering & normal follower (B05, B09; spec 7e §7.6-7.8, TS-233, Fable D2, D21) ----
+  chiMaxOutDeg: 20, // max outward approach angle toward lag side of Lead's circle or swept line: 20° (Patrick 14 Oct 2026, TS-233 "steer-behind 20°")
+  chiMaxInDeg: 12, // max inward approach angle toward lead side of Lead's circle or swept line: 12° (Patrick 14 Oct 2026, TS-233 "steer-ahead 12°")
+  keDegPerFt: 0.026, // cross-track approach slope Ke: 0.026°/ft (k ≈ 1/420 ft out, 1/250 ft in; TS-233, Fable D2; estimate)
+  kChiPerSec: 0.5, // steering loop proportional course gain Kχ: 0.5 /s, crossover ~0.52 rad/s, 48-65° PM (TS-233, Fable D2; estimate)
+  maxCircleRadiusFt: 20000, // Lead's seen turn radius clipped near 20,000 ft so the circle becomes the swept line smoothly as ω -> 0 (spec 7e §7.6, Fable D21; estimate)
+  overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate); the guard may open the cap smoothly inside 550 ft, flagged (Patrick 14 Oct 2026)
   capKneeG: 0.2, // soft knee below the G cap where positive climb demand begins to give way smoothly before level hold and turn (spec 7e.8, Fable D20; estimate)
-  minG: 0.5, // never under 0.5 G, so his lift always has a direction (estimate)
+  minG: 0.5, // never under 0.5 G, so his lift always has a direction and he rolls and pulls instead of pushing to 0/neg G (Patrick 14 Oct 2026, TS-233; estimate)
   onsetMinGps: 1, // ordinary G onset at urgency 0: 1 G/s (Patrick 14 Oct 2026, TS-233 "G onset by urgency")
   onsetMaxGps: 4, // urgent G onset at urgency 1: 4 G/s, the T-6A's onset (Patrick 14 Oct 2026, TS-233 "G onset by urgency")
   rollDps: 60, // roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required")
   pullWithinDeg: 20, // unload, roll, pull: with his wings more than 20° off where the lift is wanted he pulls only its share along them (estimate; fw-live.js does the same)
   turnPlaneRadps: 0.0175, // steering in Lead's turn plane once Lead turns faster than about 1°/s, else the level plane (estimate)
-  blendSec: 1.5, // a change of aim blends over about 1.5 s; the guard's and the nose behind at once (spec 7e.7: 1-2 s; Fable F17)
-  // ---- Lead's turn as he sees it, and his range (spec 7e.7, supervisor.js fwJob) ----
-  turnStartDeg: 10, // Lead's turn starts once his seen bank passes 10° for 1 s ...
-  turnEndDeg: 5, // ... and ends under 5° for 1 s; a reversal is his bank's sign changing past 10° (spec 7e.7, Fable F4; estimates)
-  turnHoldSec: 1, // ... each held 1 s (spec 7e.7, Fable F4; estimate)
+  blendSec: 1.5, // phase weight blend time 1.5 s (spec 7e §7.5, R11; estimate)
+  // ---- phase & case recognizer (B03; supervisor.js, spec 7e §7.5-7.6, Fable D5, D17) ----
+  turnStartDeg: 10, // Entry phase starts immediately once Lead's seen extrapolated bank passes 10° with no 1 s hold (spec 7e §7.5, R7; estimate)
+  turnEndDeg: 5, // Exit phase starts once Lead's seen bank drops under 5° (spec 7e §7.5; estimate)
+  phaseBlendSec: 1.5, // continuous phase weights (level, entry, turning, exit) blended over 1.5 s (spec 7e §7.5, Fable D17; estimate)
+  sideBlendSec: 6, // case/side choice blended over >= 6 s (3 / ω_c for steering crossover 0.52 rad/s; spec 7e §7.5, Fable D5, D17; estimate)
+  caseDeadBandFt: 50, // ±50 ft hysteresis dead band around case range boundaries so case label never flickers (Fable D17; estimate)
   happyFt: Object.freeze([600, 650]), // the range he is happy at, slant (Patrick 14 Oct 2026)
-  stretchedFt: 700, // the entry case: stretched past 700 ft (Patrick 14 Oct 2026: "lead if more than 700, lag if near 500 (? numbers are a guess)") ...
-  tightFt: 560, // ... tight under 560 ft (an estimate between)
-  // ---- in Lead's turn: the arc behind him and the offset from his circle (Fable's second review, F1, F10) ----
+  stretchedFt: 700, // stretched case past 700 ft (Patrick 14 Oct 2026: "lead if more than 700, lag if near 500 (? numbers are a guess)")
+  veryStretchedFt: 1000, // very-stretched case past 1,000 ft, outside the cone's far edge (Patrick 14 Oct 2026, TS-233)
+  tightFt: 560, // tight case under 560 ft (spec 7e §7.5; estimate)
+  entryCaptureFt: 100, // Entry phase transitions to Turning once within 100 ft of the target circle offset ... (spec 7e §7.5; estimate)
+  entryCaptureDeg: 5, // ... and within 5° of the target course ... (spec 7e §7.5; estimate)
+  entryMaxSec: 8, // ... or after at most 8 s in Entry (spec 7e §7.5; estimate)
+  exitSettleFtps: 10, // Exit phase transitions to Level once in the cone with closure under 10 ft/s ... (spec 7e §7.5; estimate)
+  exitSettleSec: 5, // ... held for 5 s (spec 7e §7.5; estimate)
+  // ---- arc & range loop (B07; spec 7e §7.7, TS-233, Fable D9, D10, D21) ----
   turnFrameDeg: 5, // (s, d) in Lead's turn-centre frame; below 5° of his bank their straight-line limits (Fable F10, estimate)
   arcTargetFt: 650, // s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft)
-  aimSec: 10, // wanted closure = range error / 10 s (spec 7e.7: 75 ft off asks 7.5 ft/s); the swept place's power uses it too
-  arcNearFt: 300, // the wanted closure at most 25 ft/s within 300 ft of the target arc ... (Fable F1, estimate)
-  arcNearFtps: 25, // ... 25 ft/s near (Fable F1, estimate)
-  arcFarFtps: 60, // ... and 60 ft/s beyond (Fable F1, estimate)
-  // the offset from Lead's circle d = d_ss + wanted / omega + kc (wanted - closing) / omega: kc 0.5 corrects the shortfall
-  // without the half-gain trap (research formation-control-research-14oct.md sections 2 and 5; kc a guess)
-  arcKc: 0.5,
-  arcOffsetMaxFt: 400, // d within ±400 ft (Fable F1, estimate); R - d stays well positive (Lead's radius about 2,600 ft at 60°/2 G)
-  arcSlewFtps: 60, // d slewed at 60 ft/s (Fable F1, F11, estimate)
-  minTurnRadps: 0.03, // d divides by Lead's turn rate, never by less than about 1.7°/s (Fable F3)
-  circleLookSec: 3, // he follows the circle d inside Lead's, aiming 3 s of his flight ahead on it (about 1,100 ft at 200 KIAS; Fable F7 keeps 3 s; estimate) ...
-  circleLeastFt: 500, // ... never a circle tighter than 500 ft (estimate, a catch)
-  routeFt: 120, // the route positions about 120 ft inside and outside Lead's circle (spec 7e.7; route 121 ft out, slots.js, TS-181): the trace calls the aim lead or lag past a quarter of it
-  // Lag first on a turn into him (research: US Navy CNATRA P-357 section 701; Patrick's "turn slightly toward Lead's tail",
-  // SMM 12.29 Fig 12.20): once Lead's bank passes 10° toward his side, his path 20° outward of Lead's circle (TS-233, the
-  // steer-behind's 20°) for 2.5 s (the research's 2-3 s, a guess), then eased back over 1 s (estimate)
-  lagFirst: Object.freeze({ deg: 20, sec: 2.5, easeSec: 1 }),
-  // The nose behind Lead while the wing line is out of reach (Patrick 14 Oct 2026, TS-233: never ahead of Lead's 3/9 line,
-  // "nose pointed BEHIND Lead, banking steeply in and down"): he aims where Lead was guard.lagSec ago and goes 300 ft down
-  // (the miss's deepest, estimate) until 200 ft behind the wing line again (estimate)
-  behind: Object.freeze({ downFt: 300, clearFt: 200 }),
-  // ---- swept (Lead wings level, straight, climbing or descending; Patrick 14 Oct 2026, spec 7e.7) ----
+  aimSec: 10, // one 10 s range time constant τ_s = τ_r = 10 s for both turns and level flight (Patrick 14 Oct 2026, TS-233, Fable D10, D21)
+  arcNearFt: 300, // mid-point of the 200-400 ft soft closure transition band (spec 7e §7.7; estimate)
+  arcNearBandFt: Object.freeze([200, 400]), // wanted closure soft-limited from 25 ft/s inside 200 ft to 60 ft/s beyond 400 ft (spec 7e §7.7, Fable D10; estimate)
+  arcNearFtps: 25, // wanted closure cap near target arc: 25 ft/s (Fable F1, D10; estimate)
+  arcFarFtps: 60, // wanted closure cap far from target arc: 60 ft/s (Fable F1, D10; estimate)
+  arcKc: 0.5, // closure-shortfall gain kc = 0.5 in d = d_ss + w/ω + kc(w - c)/ω (Fable D10; estimate)
+  arcOffsetMaxFt: 250, // offset d_cmd bounded within ±250 ft of Lead's circle; unmet closure beyond ±250 ft hands off to speed S29b (Patrick 14 Oct 2026, TS-233, Fable D9, D21)
+  arcSlewFtps: 60, // d_cmd slewed at 60 ft/s (Fable F1, F11; estimate)
+  minTurnRadps: 0.03, // d divides by Lead's turn rate, never by less than about 1.7°/s (Fable F3; estimate)
+  // ---- swept line (Lead wings level; Patrick 14 Oct 2026, spec 7e §7.6) ----
   sweptFt: 625, // 625 ft at 45° (Patrick 14 Oct 2026)
-  sweptDeg: 45, // ... 45° of sweep back from Lead's wing line (Patrick 14 Oct 2026)
-  sweptLookSec: 8, // he steers at his place carried 8 s ahead along Lead's path, so the sideways error closes in about 8 s (estimate, near the aim loop's 0.1 rad/s)
-  aimMaxFtps: 25, // fore and aft by power: the closure wanted at most ±25 ft/s (spec 7e.7)
-  aimSlewFtps: 20, // the turn's offset slewed back to 0 at 20 ft/s (spec 7e.7)
-  // S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): under 550 ft, or closing faster than
-  // 15 ft/s inside the happy band's far edge, he aims at the cone's other side, swapping each time he gets there, until
-  // over 600 ft and closing under the quick fix's release (estimates)
-  sTurnFt: 550,
-  sTurnClosureFtps: 15,
-  sTurnDoneFt: 600,
-  // ---- the vertical (spec 7e.7): PD on his height against Lead's, square to Lead's turn plane, one pitch owner (Fable F7, F9) ----
+  sweptDeg: 45, // 45° of sweep back from Lead's wing line (Patrick 14 Oct 2026)
+  aimMaxFtps: 25, // level range closure cap ±25 ft/s (spec 7e §7.7)
+  aimSlewFtps: 20, // turn offset slewed back to 0 at 20 ft/s when wings level (spec 7e §7.7)
+  sTurnFt: 550, // S-turns trigger slant range in level flight (kept until S5 moves it to FW_STURN; estimate)
+  sTurnClosureFtps: 15, // S-turns trigger closure in level flight (kept until S5; estimate)
+  sTurnDoneFt: 600, // S-turns release range in level flight (kept until S5; estimate)
+  // ---- vertical loop (B10; spec 7e §7.8, Fable D1) ----
   stackFt: -50, // his stack: 50 ft below Lead (Patrick 14 Oct 2026, spec 7e.7 swept)
-  heightBandFt: 200, // within 200 ft of Lead's height (TS-80; a reference, not a wall: the guard may pass it); the high yo-yo's most
-  vertGPerFt: 0.005, // 0.005 G per foot and 0.02 G per ft/s (spec 7e.7's starting gains, Fable F6, damping about 0.8) ...
-  vertGPerFtps: 0.02, // ... and 0.02 G per ft/s of his height rate against Lead's (spec 7e.7, Fable F6)
-  vertMaxG: 1, // ... at most 1 G either way (estimate)
-  // The quick fix in straight flight (spec 7e.7, Fable F7): a range error over 150 ft or closure over 20 ft/s moves the
-  // height target to ±150 ft (down to close, up to open), held until the error is under 75 ft and the closure under 10 ft/s
-  // (estimates); the target moves over about 2 s and comes back to the stack over about 15 s (spec 7e.7: 15-20 s)
-  quickFixFt: 150,
-  quickFixFtps: 20,
-  quickFixHeightFt: 150,
-  quickReleaseFt: 75,
-  quickReleaseFtps: 10,
-  quickSec: 2,
-  stackReturnSec: 15,
-  // Drop low inside at MAX (Patrick 14 Oct 2026, card "Drop low inside, MAX"; TS-233): in Lead's turn, short of energy, he
-  // drops a few hundred feet below Lead at MAX and climbs back to his stack on the roll-out.
-  lowFt: 300, // "a few hundred feet" (estimate)
-  lowStartKt: 5, // short of energy: more than 5 KIAS slower than Lead (estimate) ...
-  lowEndKt: 1, // ... until back within 1 KIAS of him (estimate)
-  // The high yo-yo inside Lead's turn (Patrick 14 Oct 2026, card "High yo-yo, then back down"; TS-233; Fable F8) and the
-  // pitch owners' order (Fable F9): pass-clear, then the nose behind's in and down, then the climb, then the stack's family.
+  heightBandFt: 200, // within 200 ft of Lead's height settle band (TS-80; a reference, not a wall)
+  vertGPerFt: 0.005, // 0.005 G per foot of height error (spec 7e §7.8, crossover 0.68 rad/s; estimate)
+  vertGPerFtps: 0.02, // 0.02 G per ft/s of (ḣ_T - ḣ) height-rate error including planned profile rate (spec 7e §7.8, Fable D1; estimate)
+  vertMaxG: 1, // vertical loop demand bounded within ±1 G (estimate)
+  stackReturnSec: 15, // height blend time returning to stack: 15 s (spec 7e §7.8, Fable D5; estimate)
+  // Drop low inside (kept until S4 replaces the switch with D24 continuous term):
+  lowFt: 300, // drop-low-inside cap 300 ft below Lead (Patrick 14 Oct 2026, TS-233; estimate)
+  lowStartKt: 5, // drop-low-inside starts past 5 kt slow (Patrick 14 Oct 2026, Fable D24; estimate)
+  lowEndKt: 1, // drop-low-inside release threshold (kept until S4; estimate)
+  // High yo-yo (kept until S7 replaces with techniques/yo-yo.js):
   yoyo: Object.freeze({
-    // the trigger: the speed that holds his radius round Lead's centre more than 10 kt under his own (Fable F8, estimate),
-    // with power already back (asking at least 5 KIAS under Lead's, or off; estimate), while he closes round Lead's circle
-    // more than 20 ft/s faster than the arc loop wants (thread, round 4, estimate)
-    slowKt: 10,
-    powerBackKt: 5,
-    excessFtps: 20,
-    // the size: h = (V^2 - (omega r)^2) / 2g (Fable F8; standard energy), at least 100 ft (estimate), at most the cone's
-    // height band, heightBandFt (Patrick 14 Oct 2026: no 400 ft cap, "as long as wg stays in the cone anything is permissable")
-    minFt: 100,
-    // the exit: on Lead's circle (within 150 ft of it) with the arc error under 150 ft (Fable F8, estimates), or more than
-    // 150 ft behind his place, or opening; then down to the stack with power back, over within 50 ft of it (estimate)
-    exitArcFt: 150,
-    onCircleFt: 150,
-    downEndFt: 50,
-    highFt: 100, // "already high": more than 100 ft above Lead, pass-clear goes above (TS-233; Fable F9, Q4)
-    ownerHoldSec: 2, // 2 s between pitch owners; pass-clear and the nose behind take it at once (Fable F9, estimate)
+    slowKt: 10, // speed deficit trigger (kept until S7; estimate)
+    powerBackKt: 5, // power-back trigger (kept until S7; estimate)
+    excessFtps: 20, // excess arc closure trigger (kept until S7; estimate)
+    minFt: 100, // minimum yo-yo climb height (estimate)
+    exitArcFt: 150, // exit arc error threshold (estimate)
+    onCircleFt: 150, // on-circle offset threshold (estimate)
+    downEndFt: 50, // return-to-stack threshold (estimate)
+    highFt: 100, // "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233)
+    ownerHoldSec: 2, // pitch owner hold time (kept until S7; estimate)
   }),
-  // ---- power (slowest, under 0.07 rad/s; spec 7e.7): Lead's speed plus the closure the aim can't give ----
-  powerBandKias: 15, // within 15 KIAS of Lead (Patrick 4 Oct 19:12Z)
-  powerSec: 15, // swept: PI, the integral's time constant (spec 7e.7: 15-20 s)
-  powerArcSec: 15, // in a turn: P on the arc error over 15 s, about 0.067 rad/s, under the 0.07 its loop sits at (Fable F1, F6, estimate)
-  // Idle and the speed brake (Patrick 14 Oct 2026, TS-233: his to use, smartly, since it is easy to get stretched after):
-  // idle once closing faster than 40 ft/s, the boards past 60 ft/s, while inside the happy band or closing on the pass line
-  // and not slower than Lead; released early, under 25 and 35 ft/s, for the 3.5 s spool-up from idle (live/handling.js
-  // ENGINE) (estimates)
-  brakes: Object.freeze({ idleFtps: 40, idleOffFtps: 25, boardsFtps: 60, boardsOffFtps: 35, slowKt: 0 }),
-  // ---- the separation guard and filter (separation.js; spec 7e.7, TS-233): a predictor with priority and hysteresis, not a
-  // PID (Fable F1, F16). 500 ft is slant range (Patrick 14 Oct 2026; TS-208's 500 ft minimum), what the guard works to and
-  // never plans inside; a brief kiss while correcting firmly is fine (TS-233). ----
+  // ---- speed & power loop (B11; spec 7e §7.8, Fable D21, D23) ----
+  powerBandKias: 15, // speed offset Δv_ref bounded within ±15 KIAS of Lead (Patrick 4 Oct 19:12Z, Fable D21)
+  speedKvPerSec: 0.3, // proportional speed loop gain Kv = 0.3 /s with no integrator (Patrick 14 Oct 2026, Fable D21, D23; estimate)
+  brakes: Object.freeze({
+    idleFtps: 40, // idle closure threshold (estimate)
+    idleOffFtps: 25, // idle release threshold (estimate)
+    boardsFtps: 60, // speed brake out threshold > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate)
+    boardsOffFtps: 35, // speed brake retract threshold (updated to 10 ft/s in S4 per D25; estimate)
+  }),
+  // ---- separation guard barrier (B12; separation.js, spec 7e §7.8b, TS-233, Fable D3, D16, R8, R9) ----
   guard: Object.freeze({
-    minFt: 500, // never planned inside 500 ft slant (Patrick, TS-208, TS-233)
-    engageFt: 600, // the guard engages once the predicted pass is under 600 ft (spec 7e.7, estimate) ...
-    releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held 3 s (spec 7e.7, estimates)
-    releaseSec: 3, // ... held 3 s (spec 7e.7, estimate)
-    lookSec: 5, // the pass predicted up to 5 s ahead (spec 7e.7: 3-5 s), every 0.25 s; the guard adds the 0.4 s he sees late
-    lookStepSec: 0.25, // ... in 0.25 s steps (search effort)
-    tighter: 1.3, // with Lead on his present turn and one step tighter: his turn rate 1.3 times (Fable F1, F13, estimate)
-    missFt: Object.freeze([50, 300]), // pass-clear's height: enough to make the slant 600 ft over the guard's predicted pass, from his 50 ft stack to 300 ft (estimates)
-    missSlantFt: 600, // ... the slant pass-clear's depth is sized to make (estimate)
-    torquePct: 20, // "power off": 20% torque, well back but not idle, so the engine answers at once (estimate; TS-218, idle's spool-up lag)
-    // The filter: his aim's turn is flown unless the pass it predicts comes inside the pass line, or he would come within
-    // 100 ft of Lead's wing line; then the turn nearest it that keeps both (separation.js).
-    passLineSec: 1.4, // the pass line: 500 ft + 1.4 s x the closure he sees (the 0.4 s he sees late and the 1 s smoothing), never under engageFt (TS-233; Fable F4)
-    wingLineFt: 100, // never closer than 100 ft behind Lead's wing line, along Lead's path (TS-233; Fable F6, Q6)
-    filterSteps: 20, // the turns tried each way, from none to his most, then refined 6 times (search effort)
-    filterRefine: 6, // ... and the refinements (search effort)
-    filterHoldSec: 1, // power off (while closing) and pass-clear's pitch held a second after the filter last changed his turn (estimate)
-    // Once engaged the filter stays engaged until his aim's own turn clears the pass line and the wing line by 50 ft (Fable
-    // F12's margin) for 1 s (thread, round 4, estimate)
-    engage: Object.freeze({ marginFt: 50, releaseSec: 1 }),
-    lagSec: 1, // the nose behind's aim: where Lead was 1 s ago, about 380 ft back along his path at 200 KIAS (estimate)
+    hardFloorFt: 350, // emergency separation floor where guard uses full available authority (spec 7e §7.8b; estimate)
+    minFt: 500, // 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233)
+    taperStartFt: 600, // guard is completely silent at >= 600 ft and tapers cubically x = ((600 - p)/100)^3 down to 500 ft (Patrick 14 Oct 2026, TS-233)
+    capOpenStartFt: 550, // G cap opens smoothly from Lead G + 1.5 at 550 ft to stall-warning/available G at 500 ft (spec 7e §7.8b; estimate)
+    lookSec: 10, // single forward predictor horizon up to 10 s over the closing part of the pass (spec 7e §7.8b, Fable D4; estimate)
+    lookStepSec: 0.25, // predictor integration step 0.25 s (search effort)
+    tighter: 1.3, // also checks Lead tightening his turn by 1.3x when inside 550 ft (Fable F1, F13; estimate)
+    passLineSec: 1.4, // closure allowance time scale in the tapered barrier (spec 7e §7.8b; estimate)
+    wingLineFt: 100, // minimum distance behind Lead's 3/9 line along Lead's path (TS-233, Fable F6; estimate)
+    filterSteps: 20, // candidate turn steps searched each way (search effort)
+    filterRefine: 6, // binary refinements on the least-change clearing turn (search effort)
+    urgencyDecaySec: 2, // guard urgency S36 rises at once and decays over ~2 s (spec 7e §7.8b; estimate)
+    sideHoldSec: 3, // guard side choice S41 held for at least 3 s so it never flickers left/right (spec 7e §7.8b, Fable §2; estimate)
+  }),
+  // ---- technique picker (B04; supervisor.js, spec 7e §7.10, Fable D5, D6) ----
+  picker: Object.freeze({
+    noRestartSec: 3, // 3 s cooldown after a technique finishes before the same technique can re-fire (spec 7e §7.10, Fable D6; estimate)
+    pathBlendSec: 6, // scalar path blend time >= 6 s (3 / ω_c for steering crossover 0.52 rad/s; Fable D5; estimate)
+    heightBlendSec: 4.3, // scalar height blend time >= 4.3 s on entry (3 / ω_c for vertical crossover 0.68 rad/s; Fable D5; estimate)
+  }),
+  // ---- T1: the miss / pass-clear technique (B06; techniques/miss.js, spec 7e §7.9.1, TS-233, Fable D1, D4, D6, 3b §7) ----
+  miss: Object.freeze({
+    clearSlantFt: 625, // target 3D pass clearance D = 625 ft so horizontal + vertical clears the 500 ft bubble with margin (spec 7e §7.9.1; estimate)
+    cuePassFt: 600, // cue triggers when predicted pass p < 600 ft closing (Patrick 14 Oct 2026, TS-233; estimate)
+    cueClosureFtps: 5, // minimum closing rate to trigger the miss cue (Fable D6; estimate)
+    tPassMinSec: 3, // minimum time-to-pass for the planned vertical profile cue window (Fable D4: 3 s <= t_pass <= 10 s; estimate)
+    tPassMaxSec: 10, // maximum time-to-pass for the planned vertical profile cue window (Fable D4; estimate)
+    dwellSteps: 2, // cue must hold for 2 consecutive steps (0.1 s) before firing (Fable D6; estimate)
+    urgencyStartSec: 8, // urgency u = clip((8 - t_pass) / 5, 0, 1) starts rising below 8 s to pass (Fable 3b §7; estimate)
+    urgencySpanSec: 5, // urgency reaches 1.0 at t_pass <= 3 s (Fable 3b §7; estimate)
+    minDepthFt: 75, // least vertical miss depth below Lead (spec 7e §7.9.1; estimate)
+    maxDepthFt: 300, // deepest planned vertical miss below Lead (spec 7e §7.9.1; estimate)
+    maxRateFtps: 60, // maximum planned vertical profile descent/climb rate |ḣ_T| (Fable D1; estimate)
+    maxTurnMixRadps: 0.12, // cap on least horizontal turn mix Δω when vertical reach alone is short of 625 ft (Fable D4; estimate)
+    replanTighterFt: 50, // re-plans depth once if predicted pass tightens by more than 50 ft (spec 7e §7.9.1; estimate)
+    donePassFt: 650, // miss hands back once predicted pass > 650 ft and opening ... (Fable D6; estimate)
+    doneDwellSec: 2, // ... held for 2 s after passing bottom (Fable D6; estimate)
+    maxRunSec: 15, // longest-run timeout for the miss technique (spec 7e §7.9.1; estimate)
   }),
 });
 

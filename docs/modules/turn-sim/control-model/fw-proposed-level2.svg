@@ -102,16 +102,8 @@
 <text x="26" y="679.5" font-size="10.5"  fill="#1d2433">onset 1 + 3u G/s; soft cap knee 0.2 G (tuning); exit</text>
 <text x="26" y="693" font-size="10.5"  fill="#1d2433">vertical and technique cue bands/dwells 12 ft per ft/s</text>
 <text x="26" y="706.5" font-size="10.5"  fill="#1d2433">(physics); D6 bands and dwells (tuning)</text>
-<rect x="440" y="530.5" width="410" height="166.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<rect x="440" y="530.5" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="547.5" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it removes</text>
-<text x="450" y="561" font-size="10.5"  fill="#1d2433">Removes: aimTurnSec; aimTurnCap.k; aimTurnCap.plusDps;</text>
-<text x="450" y="574.5" font-size="10.5"  fill="#1d2433">circleLookSec; circleLeastFt; routeFt; lagFirst.deg;</text>
-<text x="450" y="588" font-size="10.5"  fill="#1d2433">lagFirst.sec; lagFirst.easeSec; behind.downFt;</text>
-<text x="450" y="601.5" font-size="10.5"  fill="#1d2433">behind.clearFt; sweptLookSec; quickFixFt; quickFixFtps;</text>
-<text x="450" y="615" font-size="10.5"  fill="#1d2433">quickFixHeightFt; quickReleaseFt; quickReleaseFtps;</text>
-<text x="450" y="628.5" font-size="10.5"  fill="#1d2433">quickSec; lowFt; lowStartKt; lowEndKt; yoyo.slowKt;</text>
-<text x="450" y="642" font-size="10.5"  fill="#1d2433">yoyo.powerBackKt; yoyo.excessFtps; guard.engageFt;</text>
-<text x="450" y="655.5" font-size="10.5"  fill="#1d2433">guard.releaseFt; guard.releaseSec; guard.missSlantFt;</text>
-<text x="450" y="669" font-size="10.5"  fill="#1d2433">guard.torquePct; guard.filterHoldSec; guard.engage.marginFt;</text>
-<text x="450" y="682.5" font-size="10.5"  fill="#1d2433">guard.engage.releaseSec; guard.lagSec</text>
+<text x="450" y="561" font-size="10.5"  fill="#1d2433">Removes: lowFt; lowStartKt; lowEndKt; yoyo.slowKt;</text>
+<text x="450" y="574.5" font-size="10.5"  fill="#1d2433">yoyo.powerBackKt; yoyo.excessFtps</text>
 </svg>
