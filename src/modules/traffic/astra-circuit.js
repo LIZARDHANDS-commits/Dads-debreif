@@ -38,8 +38,7 @@ import { ktToFtps } from '../../core/units.js';
 import { wrapDeg180, wrapDeg360 } from '../../core/angles.js';
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
 import { legOffsetsFt } from '../../core/geo.js';
-import { windTriangle } from '../../core/wind.js';
-import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, ROLL, powerClimb, flyInner, findPerch, breakPointAlongFt, touchdownPointOf, HOLD_RADIUS_FT, LEVEL_OFF_SEC, PILOT_DT, MAX_STEPS } from './circuit.js';
+import { makePilot, bankFor, trackForLine, lineOf, ROLL, powerClimb, flyInner, findPerch, breakPointAlongFt, touchdownPointOf, HOLD_RADIUS_FT, LEVEL_OFF_SEC, PILOT_DT, MAX_STEPS } from './circuit.js';
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { perfFor } from './types.js';
 
@@ -108,8 +107,12 @@ const ON_LINE_DEG = 2;
 const WINGS_LEVEL_DEG = 3;
 /** The climbing turn starts this close under pattern height, ft: the level-off's last few feet (Pattern 1 uses the same). */
 const NEAR_HEIGHT_FT = 50;
-/** In an outer turn, bank taken off the outer bank per degree the circle onto the line is to the right (the aircraft early or inside it), and the most bank once rolling out (estimates, as circuit.js's bankFor and plannedBank use). */
-const ONTO_CIRCLE_BANK_PER_DEG = 3;
+/**
+ * In an outer turn, bank taken off the outer bank per foot the turn would roll out short of its line (0.05° a foot, about
+ * 3° per degree of arc at the outer turn's 3,100 ft radius, as circuit.js's bankFor takes 3° per degree), and the most
+ * bank once rolling out. Estimates.
+ */
+const OUTER_BANK_OFF_PER_FT = 0.05;
 const ROLLED_OUT_BANK_DEG = 15;
 
 /** The downwind line through `perch`: parallel to the runway `th`→`dep`, flown opposite to it. */
@@ -218,30 +221,69 @@ function outerLines(points) {
 }
 
 /**
- * The outer pattern's pieces share one way of turning onto a line (spec 4.19 item 11): the turn starts when circuit.js
- * readyToTurnOnto says a steady turn at the outer bank and today's speed rolls out on the line; it is flown on the circle
- * that rolls out on it (circuit.js trackForLine at the turn's radius over the ground, scaled for the wind as
- * readyToTurnOnto scales it), at the outer bank with a correction toward the circle; the wings come level at the roll
- * rate once the heading still to go is about what rolling level turns; then the line is held with small corrections.
+ * The outer pattern's pieces share one way of turning onto a line (spec 4.19 item 11): the pilot judges where a steady
+ * turn at the outer bank would roll out, and turns when that is on the line. Over the ground a steady turn in wind is not
+ * a circle: the turn through the air is (radius = TAS² ÷ (g tan bank), standard aerodynamics), and the wind carries the
+ * aircraft along with it for the whole time the turn takes, so the turn ends displaced downwind by the wind times that
+ * time (a trochoid). The roll into and out of the bank counts as half its time flown straight. During the turn the same
+ * judgement is made again each step: if the turn would now roll out short of the line the bank is eased off it in
+ * proportion, never steepened past the outer bank (Patrick's 45°, TR-164). The wings come level at the roll rate once
+ * the heading still to go is about what rolling level turns; then the line is held with small corrections. Past the
+ * line before the turn could start, the line is joined from where the aircraft is (the hold law below, up to 30°).
  *
- * Why not bankFor alone: bankFor's 3° of bank per degree of heading error needs some 20° of error to hold 45°, so on a
- * circle it falls about 20° behind and overshoots, and aimed at the line's heading it eases out over the last 20° in a
- * slow spiral that used up the 90 to initial's short leg (about 1,000 ft). Pattern 1's planned turn (circuit.js
+ * Why not circuit.js readyToTurnOnto and a circle: scaling the radius by the mean ground speed is close for a 90° turn
+ * in light wind but leaves out the drift over the turn's time, and in 15 kt along the outside downwind the 135° turn
+ * onto the 45 to initial's leg rolled out some 600 ft past the leg, never settled on it, and so never turned onto
+ * initial (seen in runs without the screen, V2.429 part 2). Why not bankFor alone: its 3° of bank per degree of heading
+ * error needs some 20° of error to hold 45°, so it falls behind and overshoots. Pattern 1's planned turn (circuit.js
  * plannedBank) is not exported, and circuit.js is the CT-156's and stays as it is.
- * `pilot` is a makePilot; returns { onto(line), ready(line), onLine(line) } bound to it.
+ * `pilot` is a makePilot; returns { onto(line), ready(line), onLine(line), rolledOut(line), past(line) } bound to it.
  */
-function outerTurns(pilot, wind, k) {
+function outerTurns(pilot, k) {
   const { s } = pilot;
-  let turn = null; // { line, angleDeg, rollingOut }: the turn being flown, and how far it had to turn when it began
-  const gsOn = (line) => ktToFtps(Math.max(10, windTriangle(line.trackDeg, pilot.tasKt(), wind.windFromDeg, wind.windKt).groundSpeedKt));
-  const radius = () => turnRadiusFromBankFt(ktToFtps(pilot.tasKt()), k.outerTurnBankDeg);
+  let turn = null; // { line, side, rollingOut }: the turn being flown, and which side of the line it began on
+  const RAD = Math.PI / 180;
   const onTrack = (line) => Math.abs(wrapDeg180(line.trackDeg - pilot.trackDeg())) < ON_LINE_DEG && Math.abs(s.bank) < WINGS_LEVEL_DEG;
+  // The line's right-hand normal (legOffsetsFt's crossFt is positive to the right of the line's direction).
+  const normalOf = (line) => ({ x: Math.cos(line.trackDeg * RAD), y: -Math.sin(line.trackDeg * RAD) });
+  const crossOf = (line) => legOffsetsFt(line.a, line.b, s).crossFt;
+  const groundNow = () => {
+    const v = ktToFtps(pilot.tasKt());
+    return { x: v * Math.sin(s.hdg * RAD) + pilot.wind.x, y: v * Math.cos(s.hdg * RAD) + pilot.wind.y };
+  };
   // Heading turned while the wings roll level from today's bank at the roll rate (circuit.js ROLL): about half today's
   // turn rate over the roll's time. An estimate, good to a degree or so.
   const rollOutDeg = () => {
     const b = Math.abs(s.bank);
     const sec = b / ROLL.maxRateDps + ROLL.maxRateDps / ROLL.maxAccelDps2;
     return turnRateFromBankRadPerSec(Math.max(1, ktToFtps(pilot.tasKt())), b) * 180 / Math.PI * sec / 2;
+  };
+  /**
+   * Where a left turn at the outer bank from here onto heading `toHdg` rolls out, as an offset { x, y } in ft: the arc
+   * through the air plus the wind over its time, with `rollInSec` of roll still to come flown half straight on today's
+   * heading and the roll-out flown half straight on `toHdg`.
+   */
+  const turnShift = (toHdg, rollInSec) => {
+    const v = Math.max(1, ktToFtps(pilot.tasKt()));
+    const R = turnRadiusFromBankFt(v, k.outerTurnBankDeg);
+    const rate = turnRateFromBankRadPerSec(v, k.outerTurnBankDeg);
+    const toGo = (((s.hdg - toHdg) % 360) + 360) % 360 * RAD; // still to turn, left
+    const h0 = s.hdg * RAD, h1 = h0 - toGo, sec = toGo / rate;
+    const rollOutSec = k.outerTurnBankDeg / ROLL.maxRateDps + ROLL.maxRateDps / ROLL.maxAccelDps2;
+    const w = pilot.wind;
+    return {
+      x: R * (Math.cos(h1) - Math.cos(h0)) + w.x * sec + (v * Math.sin(h0) + w.x) * rollInSec / 2 + (v * Math.sin(h1) + w.x) * rollOutSec / 2,
+      y: R * (Math.sin(h0) - Math.sin(h1)) + w.y * sec + (v * Math.cos(h0) + w.y) * rollInSec / 2 + (v * Math.cos(h1) + w.y) * rollOutSec / 2,
+    };
+  };
+  /** Cross-track offset from `line`, ft, where the turn onto it would roll out, with `rollInSec` of roll still to come. */
+  const endCross = (line, rollInSec) => {
+    const d = turnShift(pilot.headingFor(line.trackDeg), rollInSec), n = normalOf(line);
+    return crossOf(line) + d.x * n.x + d.y * n.y;
+  };
+  const closing = (line) => {
+    const g = groundNow(), n = normalOf(line);
+    return Math.sign(crossOf(line)) * (g.x * n.x + g.y * n.y) < 0;
   };
   return {
     /** The bank to turn onto `line` (a left turn) and hold it. */
@@ -254,19 +296,32 @@ function outerTurns(pilot, wind, k) {
         turn.rollingOut = true;
         return bankFor(lineHdg, s, ROLLED_OUT_BANK_DEG, 'left');
       }
-      const groundR = radius() * ((pilot.groundSpeedFtps() + gsOn(line)) / 2 / ktToFtps(pilot.tasKt())) ** 2;
-      const err = wrapDeg180(pilot.headingFor(trackForLine(line, s, groundR, turn.angleDeg)) - s.hdg); // below 0: the circle is further left
-      return Math.max(-k.outerTurnBankDeg, Math.min(0, -k.outerTurnBankDeg + ONTO_CIRCLE_BANK_PER_DEG * err));
+      // Would the turn at the outer bank roll out short of the line (still on the side it began on)? Ease off by that much.
+      const rollInSec = Math.max(0, k.outerTurnBankDeg - Math.abs(s.bank)) / ROLL.maxRateDps;
+      const shortFt = endCross(line, rollInSec) * turn.side;
+      return Math.max(-k.outerTurnBankDeg, Math.min(0, -k.outerTurnBankDeg + OUTER_BANK_OFF_PER_FT * Math.max(0, shortFt)));
     },
-    /** True (and the turn onto `line` begun) when it is time to turn onto it. */
+    /** True (and the turn onto `line` begun) when it is time to turn onto it: the turn would roll out on it or past it. */
     ready(line) {
-      if (!readyToTurnOnto(line, s, pilot.trackDeg(), radius(), pilot.groundSpeedFtps(), gsOn(line))) return false;
-      turn = { line, angleDeg: Math.abs(wrapDeg180(line.trackDeg - pilot.trackDeg())), rollingOut: false };
+      const cross = crossOf(line);
+      if (!closing(line)) return false;
+      const rollInSec = Math.max(0, k.outerTurnBankDeg - Math.abs(s.bank)) / ROLL.maxRateDps + ROLL.maxRateDps / ROLL.maxAccelDps2;
+      if (endCross(line, rollInSec) * Math.sign(cross) > 0) return false;
+      turn = { line, side: Math.sign(cross) || 1, rollingOut: false };
       return true;
     },
     /** Settled on `line`: the turn flown, along its track with the wings level. */
     onLine(line) {
       return turn?.line !== line && onTrack(line);
+    },
+    /** The turn onto `line` is over or rolling out (the wings coming level). */
+    rolledOut(line) {
+      return turn?.line !== line || turn.rollingOut;
+    },
+    /** Already on the far side of `line` from `sideOf` (a point on the near side), or moving away from it. */
+    past(line, sideOf) {
+      const near = Math.sign(legOffsetsFt(line.a, line.b, sideOf).crossFt);
+      return Math.sign(crossOf(line)) !== near;
     },
   };
 }
@@ -288,7 +343,7 @@ function flyOutbound(points, centre, lines, wind, k) {
   s.hdg = pilot.headingFor(centre.trackDeg);
   s.tag = 'climb';
   pilot.record();
-  const turns = outerTurns(pilot, wind, k);
+  const turns = outerTurns(pilot, k);
   const crosswindTrack = wrapDeg360(centre.trackDeg - 90);
   let stage = 'climb';
   for (let n = 0; n < MAX_STEPS; n++) {
@@ -330,7 +385,7 @@ function flyToInitial(points, centre, breakAlong, lines, via, viaSrc, wind, k, f
   const { s } = pilot;
   s.tag = from.tag;
   pilot.record();
-  const turns = outerTurns(pilot, wind, k);
+  const turns = outerTurns(pilot, k);
   let stage = 'downwind';
   for (let n = 0; n < MAX_STEPS; n++) {
     const { climb, accel } = powerClimb(pilot, k.outerKias, k.patternAltFt);
@@ -340,7 +395,9 @@ function flyToInitial(points, centre, breakAlong, lines, via, viaSrc, wind, k, f
       if (turns.ready(via)) { stage = 'via'; pilot.mark({ src: viaSrc, phase: 'initial', tag: 'to_initial' }); }
     } else if (stage === 'via') {
       bank = turns.onto(via);
-      if (turns.onLine(via) && turns.ready(centre)) stage = 'initialTurn';
+      // Onto initial once the turn onto the leg is over or rolling out and the turn onto the centreline is due; or, if it
+      // is somehow already past the centreline, joined from there (never flying on across it).
+      if (turns.rolledOut(via) && (turns.ready(centre) || turns.past(centre, from))) stage = 'initialTurn';
     } else if (stage === 'initialTurn') {
       bank = turns.onto(centre);
       if (turns.onLine(centre)) { stage = 'initial'; pilot.mark({ src: ASTRA_POINT.initial, tag: 'initial' }); }
@@ -362,8 +419,8 @@ function lengthTo(track, to) {
 
 /**
  * Builds the Astra's pattern for a wind. `points` are the Astra route's points (ASTRA_POINT); `numbers` the pattern's
- * numbers (ASTRA_PATTERN unless given). Returns { track, via45, via45JoinIndex, branchFt, drawn, fromInitial, perch,
- * breakAlongFt, missFt, lapSec, via45Sec, fromInitialSec }:
+ * numbers (ASTRA_PATTERN unless given). Returns { track, via45, via45JoinIndex, branchFt, drawn, goAroundJoin, fromInitial,
+ * perch, breakAlongFt, missFt, lapSec, via45Sec, fromInitialSec }:
  *  - track: the lap after a touch-and-go with the 90 to initial (the route's flown path), from touchdown to touchdown;
  *  - via45: the 45 to initial from the branch point on the outside downwind to touchdown, and via45JoinIndex the point of
  *    it where the sim joins the lap again on initial (ASTRA_JOIN_POINTS after it is settled on the centreline);
