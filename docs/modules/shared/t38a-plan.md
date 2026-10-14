@@ -1,4 +1,4 @@
-# T-38 Talon model: plan (proposed)
+# T-38A Talon model: plan (proposed)
 
 > **Status:** proposed, waiting on Patrick's yes. Dad asked on 14 Oct 2026: "Lets use the same logic to create a 3D model for a T-38A. Lets come up with our plan." It would be Step 3d of `plan.md`, built the way the CT-102B Astra II is (Step 3c, `ct102-astra-plan.md`), which follows the CT-156's process (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). Nothing is built until Patrick says yes.
 
@@ -52,12 +52,12 @@ Each step is one pull request in this repo by Dad's thread (one writer: `tools/b
 ## Questions for Patrick (one at a time; his idea is always an option)
 
 1. **Which T-38:**
-   - (b) T-38A only;
-   - (c) T-38C, what the US bases fly today;
-   - (d) one outside for both, with the paint and small fittings as the difference;
-   - (e) your idea.
+   - (a) T-38A only;
+   - (b) T-38C, what the US bases fly today;
+   - (c) one outside for both, with the paint and small fittings as the difference;
+   - (d) your idea.
 
-   **Dad's pick: (b) T-38A only** (14 Oct 2026: "T-38A only"), exactly as in his drawings; needs Patrick's yes with the plan.
+   **Dad's pick: (a) T-38A only** (14 Oct 2026: "T-38A only"), exactly as in his drawings; needs Patrick's yes with the plan.
 2. **Where it is used first:**
    - (a) the SOF's 3D live traffic at the US bases, for aircraft the feed identifies as T-38s;
    - (b) Traffic, as another type;
