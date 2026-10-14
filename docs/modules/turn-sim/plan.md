@@ -339,28 +339,31 @@ The review (thread artifacts "Formation Sim architecture" and "Formation rough s
       - [x] **T29s Spec 7e draft 4: one clean design before round 5 builds** (approved 14 Oct 2026, `TS-233`, `TS-234`; Fable's `3a` audit `D1–D20` and `3b` follow-up `D21–D26` reconciled and folded into `spec.md` §7e) (Patrick 14 Oct 2026: "This seems like a massive reframe/frecraftor. What do you think of his proposed restructure? How will we handle this? | as an idea, could we have a few "tchniques " (Like a pilot would have) to fix specific conditions/edge cases, then phase back into the normal feedback system after executd? or is that too complicated? (Kind of like how TRJ works now)"; card "Spec 7e draft 4 after part 2"). *Description:* after T29m part 2 reports, the thread rewrites spec 7e's design as one piece, in place of the stacked ruling paragraphs: a normal flyer (the circle or line follower, gentle feedback) for nearly all the flying; eight named techniques from the manual and Patrick's rulings (`pass-clear`, `behind-39`, `lag-abeam`, `yo-yo`, `cut-across`, `exit-vertical`, `s-turns`, `moving-out`), each assessed on entry, planned once from the error and his energy, flown smoothly, monitored with an exit, then phased back to the normal flyer; techniques plan the path and the energy intent and the same loops fly it (one set of controls, no handover bumps); one technique at a time; phased handovers everywhere, the barrier form for the guard; G onset smooth, constant and deliberate; tonight's rulings (TS-233) folded in; a picture of the structure. The round 5 slices are re-cut from it. *Acceptance:* the audit's findings answered; Patrick approves the draft. *Dependencies:* T29m part 2 (its measurements of his faults). *Scope:* S (docs), the thread; the audit by the method-plan agent (Opus).
       - **Round 5, in Spec 7e Draft 4's slices (`S0` through `T31`)** (Patrick 14 Oct 2026, cards "Model now, analysis per slice", "Meet them, numbers adjustable, and if were struggling we stop to analyze and discuss and figue out how to raitfy (adjust numbers or code etc)", and 14 Oct 2026 Fable 3b rulings & turn-entry reaction rule): each slice is self-contained on a one-screen slice card below, built by one writer agent at a time in an isolated worktree behind `#2 in fighting wing: Live` (`Old` remains the default until Checkpoint G). Intermediate slices (`S2–S7`) target **"close enough for tuning"**: each slice verifies build, control-map wiring (`check.mjs`), linear/rig step checks (`fw_loops.py` / `fw-rig.mjs`), and default/close/4-ship non-regression, while full-sim fighting-wing trace tuning and final `C1–C11` sign-off run once the full `S0–S7` system is assembled (`A2` / `S8a` / `S8b`) and during Patrick's tuning session, recorded in `Pat's claude work/formation-review-12oct/b5-assumptions-decisions-log.md`.
 
-        - **At-a-Glance Slice Tracker**
+        - **At-a-Glance Slice Tracker (with Model & Verifier/Auditor Assignment)**
 
-| Slice | Name | Status | Version | Flown | Numbers ratified | Findings closed | Target rows built (cum.) |
+| Chunk | Slice | Name | Status | Primary Builder & Model | Verifier / Auditor & Model | Findings closed | Target rows built (cum.) |
 |---|---|---|---|---|---|---|---|
-| **S0** | Perception on one delay rule & rig lags | not started | — | trace-only | — | `D3`, `D7`, `D11`, `D13`, `D25`, `R1`, `R2` | `3/15 B`, `19/53 S` |
-| **S1** | The reference plumbing, lift cap & shaper | not started | — | trace-only (ratified with S2) | — | `D5`, `D20`, `D22`, `R6` | `6/15 B`, `31/53 S` |
-| **S2** | Normal follower, arc loop & level range hold | not started | — | waiting | — | `D2`, `D9`, `D10`, `D19`, `D21`, `D26`, `R3`, `R5`, `R11`, `R13` | `9/15 B`, `38/53 S` |
-| **S3** | The guard as a barrier | not started | — | waiting | — | `D16`, `R8`, `R9` | `10/15 B`, `45/53 S` |
-| **S3a** | Phases & case from Lead's seen roll | not started | — | waiting | — | `D17`, `R7`, `R12` | `11/15 B`, `47/53 S` |
-| **S3b** | Technique picker, vertical profile & the miss | not started | — | waiting | — | `D1`, `D4`, `D6` (T1) | `14/15 B`, `51/53 S` |
-| **A1** | Structure audit 1 (after S3b) | not started | — | read-only | — | `C1` check, reversal blend | `14/15 B`, `51/53 S` |
-| **S4** | Energy intent, power feed-forwards & drop-low | not started | — | waiting | — | `D8`, `D12` (superseded by `D23`), `D14`, `D23`, `D24`, `R4`, `R10` | `15/15 B`, `53/53 S` |
-| **S5** | Exit vertical & S-turns | not started | — | waiting | — | `D6` (T6, T7) | `15/15 B`, `53/53 S` |
-| **S6** | Abeam band & lag pursuit from abeam | not started | — | waiting | — | `D6` (T3), `D18`, `R14` | `15/15 B`, `53/53 S` |
-| **S7** | High yo-yo, cut-across & back behind 3/9 line | not started | — | waiting | — | `D6` (T2, T4, T5), `D15` | `15/15 B`, `53/53 S` |
-| **A2** | Structure audit 2 (after S7) | not started | — | read-only | — | `C10` count, technique rarity | `15/15 B`, `53/53 S` |
-| **S8a** | `T29b`: Climbs and descents | not started | — | waiting | — | — | `15/15 B`, `53/53 S` |
-| **S8b** | `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals) | not started | — | waiting | — | `D14` (above 2.7 G), `D26` | `15/15 B`, `53/53 S` |
-| **T29r** | Controller HUD readout | not started | — | waiting | — | — | screen only |
-| **T30** | Blended hand-over close ↔ fighting wing & T8 | not started | — | waiting | — | red pitch-rate test | close ↔ FW |
-| **CR** | Whole-B5 read-only code review | not started | — | read-only | — | — | audit |
-| **T31** | B5's one test, docs & Checkpoint G | not started | — | Checkpoint G | all B5 ratified | `R15` | complete |
+| **Pre** | **D2b** | Control map target model & SVG diagrams | **done (`b2527e14`)** | Orchestrator (`pro` / Argon) | `check.mjs` + `draw.mjs` | `D22`, `TS-234` C1 | `0/15 B`, `0/53 S` (defined) |
+| **Docs** | **D4/D5** | Master spec, `TS-233`, `plan.md` & decision log | **done (`84f4d965`)** | `fw-refs-docs-expert` (`pro` / Argon) | Orchestrator diff check | `D1–D26` mapped | — |
+| **Chunk 1** | **S0** | Perception on one delay rule & rig lags | **built (`54655fde`)** | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V1` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D3`, `D7`, `D11`, `D13`, `D25`, `R1`, `R2` | `3/15 B`, `19/53 S` |
+| **Chunk 1** | **S1** | The reference plumbing, lift cap & shaper | **built (`54655fde`)** | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V1` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D5`, `D20`, `D22`, `R6` | `6/15 B`, `33/53 S` |
+| **Chunk 2** | **S2** | Normal follower, arc loop & level range hold | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V2` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D2`, `D9`, `D10`, `D19`, `D21`, `D26`, `R3`, `R5`, `R11`, `R13` | `9/15 B`, `38/53 S` |
+| **Chunk 2** | **S3** | The guard as a barrier | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V2` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D16`, `R8`, `R9` | `10/15 B`, `45/53 S` |
+| **Chunk 3** | **S3a** | Phases & case from Lead's seen roll | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V3` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D17`, `R7`, `R12` | `11/15 B`, `47/53 S` |
+| **Chunk 3** | **S3b** | Technique picker, vertical profile & the miss | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V3` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D1`, `D4`, `D6` (T1) | `14/15 B`, `51/53 S` |
+| **Audit 1** | **A1** | Structure audit 1 (after S3b) | not started | `fw-structure-auditor` (`pro` / Argon) | `fw-refs-docs-expert` (`flash`) logs findings | `C1` check, `0080` removal, reversal blend | `14/15 B`, `51/53 S` |
+| **Chunk 4** | **S4** | Energy intent, power feed-forwards & drop-low | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V4` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D8`, `D12` (superseded by `D23`), `D14`, `D23`, `D24`, `R4`, `R10` | `15/15 B`, `53/53 S` |
+| **Chunk 4** | **S5** | Exit vertical & S-turns | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V4` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D6` (T6, T7) | `15/15 B`, `53/53 S` |
+| **Chunk 5** | **S6** | Abeam band & lag pursuit from abeam | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V5` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D6` (T3), `D18`, `R14` | `15/15 B`, `53/53 S` |
+| **Chunk 5** | **S7** | High yo-yo, cut-across & back behind 3/9 line | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V5` (`flash`) + `fw-refs-docs-expert` (`flash`) | `D6` (T2, T4, T5), `D15` | `15/15 B`, `53/53 S` |
+| **Audit 2** | **A2** | Structure audit 2 (after S7) | not started | `fw-structure-auditor` (`pro` / Argon) | `fw-refs-docs-expert` (`flash`) logs findings | `C10` count, technique rarity | `15/15 B`, `53/53 S` |
+| **Chunk 6** | **S8a** | `T29b`: Climbs and descents | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V6` (`flash`) | — | `15/15 B`, `53/53 S` |
+| **Chunk 6** | **S8b** | `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals) | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V6` (`flash`) | `D14` (above 2.7 G), `D26` | `15/15 B`, `53/53 S` |
+| **Chunk 6** | **T30** | Blended hand-over close ↔ fighting wing & T8 | not started | `fw-slice-builder` (`pro` / Argon) | `fw-slice-verifier` `V6` (`flash`) | red pitch-rate test | close ↔ FW |
+| **UI / Plot** | **T29r** | Controller HUD readout & `D3b` phase-plane plot | not started | `fw-systems-plot-agent` (`flash` / Flash) | `fw-slice-verifier` (`flash`) | — | screen + dev plot |
+| **Plots** | **SysEng** | Full systems-engineering diagrams & plots suite | not started | `fw-systems-plot-agent` (`flash` / Flash) | Orchestrator (`pro` / Argon) | `C1–C11`, SVGs, Bode/N²/rig | all diagrams/plots |
+| **Audit 3** | **CR** | Whole-B5 read-only code review | not started | `fw-structure-auditor` (`pro` / Argon) | Orchestrator (`pro` / Argon) | `D1–D26`, `R1–R15`, headers | audit |
+| **Final** | **T31** | B5's one test, docs, walkthrough & Checkpoint G | not started | Orchestrator (`pro`) + `fw-refs-docs-expert` (`flash`) | Patrick flying Checkpoint G | `R15` | complete |
 
         - **Fable Findings (`D1–D26`) & Control-Model Findings (`R1–R15`) Closing Map**
 
@@ -423,7 +426,7 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
 
         - **The One-Screen Slice Cards (`S0` – `T31`)**
 
-          - **`S0` Perception on one delay rule & rig lags · `not started`**
+          - **`S0` Perception on one delay rule & rig lags · `built (54655fde)`**
             - **Goal:** #2 sees Lead 0.4 s late and dead-reckoned (position and bank run forward by his seen roll rate) and knows his own state now, with slant closure computed directly from velocities and the plant's actuator lags and signal ripples measured on the rig.
             - **Before:** `T29m` parts 1–2 and `D2b` (target rows `B01–B15`, `S01–S45` in `signals.mjs`). **After:** Hands clean `L`/`N` perception signals (`S01–S20`) and measured turn-rate/G lags and closure ripples to `S1` and `S2`.
             - **Builds:** Extrapolate Lead's seen bank across `0.4 s` by his seen roll rate, capped at a plausible end bank (`D3`, `S03`); move slant range (`S13`), slant closure (`S14`, from dead-reckoned Lead velocity and own velocity), aspect/HCA/sweep (`S16`), and height against Lead (`S17`) onto the one `L`/`N` rule (`R1`); rig steps in `fw-rig.mjs` measuring turn-rate lag (`T1, T2, T4`), vertical G lag (`±0.2 G` at `T1, T2`, `D13`), engine step (`+10%` throttle at `T1`), and steady-turn ripple of arc closure (`S20`) and slant closure (`S14`, `D25`); fix `in-position` gauge start classification (`780 ft` vs `700 ft` edge).
@@ -431,21 +434,21 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Model rows:** `B01`, `B02`, `B15` and `S01–S05`, `S06–S20` (`3/15` blocks, `19/53` signals built).
             - **Links:** Spec 7e §7.4; `TS-233` "where #2's 0.4 s sits" & "Lead's roll carried on"; Fable `D3`, `D7`, `D11`, `D13`, `D25`, `3b` §9; control model `R1`, `R2`, §3; gate `C11`.
             - **Numbers:** `FW_SEE.delaySec = 0.4 s` (Patrick); bank carry-on end-bank cap `~70°` and roll-rate filter `~0.2 s` (estimates in `FW_SEE`).
-            - **Acceptance:** Default gauge traces unchanged; Live `b5-` traces within shared margins (`±10 kt, ±100 ft, ±5°, ±0.5 G`); turn-rate lag and G lag fitted and recorded (confirming `Kχ = 0.5 /s, Ke = 0.026°/ft` or selecting the `0.4 / 0.13` fallback if turn-rate lag `> 0.52 s`); both closure ripples reported (`D25`); gate `C11`.
-            - **Who:** Writer agent, Opus high, own worktree; files `perception.js`, `fighting-wing.js`, `wing-moves.js`, `tools/fw-rig.mjs`, `tools/control-map/signals.mjs`; size **S–M**; budget ~1.5 h.
-            - **Done:** Traces within shared margins and rig lag/ripple report filed (`C11`).
+            - **Acceptance:** Default gauge traces unchanged; Live `b5-` traces within shared margins (`±10 kt, ±100 ft, ±5°, ±0.5 G`); turn-rate lag (`0.15–0.25 s`) and G lag (`0.15 s`) fitted and recorded (confirming `Kχ = 0.5 /s, Ke = 0.026°/ft`); both closure ripples reported (`S14` p2p `21.66 ft/s` at `60°` $\to$ `10 ft/s` brake retract for `S4`, `D25`); gate `C11`.
+            - **Who:** `fw-slice-builder` (**Argon / `pro`**) + `fw-slice-verifier` (**Flash / `flash`**); files `perception.js`, `fighting-wing.js`, `wing-moves.js`, `tools/fw-rig.mjs`, `tools/control-map/signals.mjs`; size **S–M**.
+            - **Done:** Built and verified (`54655fde`); rig lag/ripple report filed in `b5-assumptions-decisions-log.md` (`C11`).
 
-          - **`S1` The reference plumbing, lift cap & shaper · `not started`**
+          - **`S1` The reference plumbing, lift cap & shaper · `built (54655fde)`**
             - **Goal:** Today's flying, unchanged, but flown through the new reference record, blender, lift composer (with the G cap in Patrick's order and a 0.2 G soft knee) and shaper (G onset by urgency), so every later slice only changes what feeds the reference.
             - **Before:** `S0` (one-delay perception `S01–S20`, lags measured). **After:** Hands `B08` blender (`S25–S27f`), `B13` lift composer (`S42–S43`), and `B14` shaper (`S45`) to `S2`, which swaps today's aim-point law for the normal follower writing `S25`.
             - **Builds:** Reference record and scalar signal blender (`B08` in new `fw-reference.js`, blending `χ_w, ω_FF, h_T, ḣ_T, Δv_ref, intent, u, cap` per `D1`, `D5`); lift composer (`B13` in `fighting-wing.js`, reading `S05b` Lead G `D22`, `minG = 0.5 G` floor with unload-roll-pull, `0.2 G` soft knee below cap, trimming positive climb `ΔG_v` first, then `1 G` hold, then turn last per `TS-233` & `D20`); fighting-wing shaper (`B14` in `shaper.js`, G onset `1 + 3u G/s` with `u = 0` for now, roll `≤ 60°/s`, leaving close formation's `shape()` untouched); today's law wired to write `S25`.
             - **Removes:** Today's `liftWithin` cap rule that keeps vertical and cuts the turn (`R6`); pitch-owner priority as a direct loop switch (today's owners write `S25`/`S26` height targets through `B08`).
-            - **Model rows:** Adds `B08`, `B13`, `B14` and `S05b`, `S25`, `S26`, `S27a–S27f`, `S42`, `S43`, `S45` (`6/15` blocks, `31/53` signals built).
+            - **Model rows:** Adds `B08`, `B13`, `B14` and `S05b`, `S25`, `S26`, `S27a–S27f`, `S42`, `S43`, `S45` (`6/15` blocks, `33/53` signals built).
             - **Links:** Spec 7e §7.8, §7.10; `TS-233` "at the G cap" & "G onset by urgency"; Fable `D1`, `D5`, `D20`, `D22`; control model `R6`, §9; gates `C1`, `C8`, `C11`.
             - **Numbers:** G onset `1 + 3u G/s` (ends `1` and `4 G/s` Patrick, linear shape estimate); cap `Lead G + 1.5 G` and soft knee `0.2 G` (estimates in `FW_WING`).
-            - **Acceptance:** Pure refactor on academic and close-formation traces (academic within `±10 kt, ±100 ft, ±5°, ±0.5 G`; close formation byte-identical); forced 3.5 G Lead rig case (`#2` inside and gaining) proves climb vertical demand gives way first, then level hold, turn last (`C8`); gates `C1`, `C8`, `C11`.
-            - **Who:** Writer agent, Opus high, own worktree; files `fw-reference.js` (new), `fighting-wing.js`, `shaper.js`, `wing-moves.js`, `tools/control-map/signals.mjs`; size **M**; budget ~2 h.
-            - **Done:** Traces unchanged and forced 3.5 G cap case passes; onset shape ratified when flying `S2`.
+            - **Acceptance:** Pure refactor on academic and close-formation traces (`four-ship-probe.mjs` `2d5b5a8020839796`); forced 3.5 G Lead rig case (`#2` inside and gaining) proves climb vertical demand gives way first, then level hold, turn last (`C8`); gates `C1`, `C8`, `C11`.
+            - **Who:** `fw-slice-builder` (**Argon / `pro`**) + `fw-slice-verifier` (**Flash / `flash`**); files `fw-reference.js` (new), `fighting-wing.js`, `shaper.js`, `wing-moves.js`, `tools/control-map/signals.mjs`; size **M**.
+            - **Done:** Built and verified (`54655fde`); onset shape ratified when flying `S2`.
 
           - **`S2` Normal follower, arc loop & level range hold · `not started`**
             - **Goal:** Follow Lead's turn circle (or the swept line when wings level) with bounded approach angles (`20°` out, `12°` in), the arc loop holding `650 ft` within `±250 ft` of offset, and unmet closure handed smoothly to the `0.3 /s` proportional speed loop so range holds in both turns and level flight without aim-point jumps or wrong-way rolls.
