@@ -5,7 +5,28 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (14 Oct 2026, small hours): the first delivery of chunks 2 to 7, its import, the flight-photo fixes; read `3d-work` `ct156/plan.md` first (its decisions log, newest first)
+## Latest (14 Oct 2026, early morning): chunk 8b delivered and imported, the chunk 9 design reviewed and merged; read `3d-work` `ct156/plan.md` first (its decisions log, newest first)
+
+- **Chunk 8b** (`3d-work` #87, verified): the light line over the EADI closed (the lamp strip's plate stood above the
+  rail's lip), the rear hood dark grey (E3), the prop's blades off the CT-156 photos (the CFAFM drawing's are about a
+  fifth wider; the photos win), feathered 86 degrees stopped and 23 degrees running at 30 in, each blade on its own
+  pitch axis, cuffs on High, the rest pose 45 degrees; the landing and taxi lamps (12 LEDs, photo 13) folding into the
+  wing with the gear.
+- **Delivered and imported:** delivery `ct156-2026-10-14-423e5eb` (`3d-work` #90: the blade, tip, cuffs and lamps
+  leave the app's code; the gear bakes its two versions in two passes), every picture checked against b2012a8; app
+  **#1036** (`shared-3d-ct156-prop-lamps` on #1035, V2.434): the delivered blade drawn four times with its pitch, the
+  red-white-red tip bands, the lamps on their hinges. The feathering movement is built but no module calls it yet.
+- **Patrick's rulings:** the AOA vane stays (photo 22 is the right wing, filed as the left; F12's "move inboard"
+  withdrawn, observation 0081); the prop's tips red, white and red (G2); the lamps inboard of the strut as the CFAFM;
+  Performance's outside budget 15,000, aiming lower (was 10,000); his look in the app is for the shapes only.
+- **The chunk 9 design** (`3d-work` `ct156/chunk9-design.md`, merged #86): drafted, reviewed once by a Fable agent
+  (findings checked against the code), revised: 9a High detail, 9b Performance's outside, 9c fixed layouts, 9d bakes,
+  9e wear, 9f close-out; each level's recipe; decisions left for Patrick: the outside's picture size, the parts the app
+  still draws, the wear's strength.
+- **Next:** a one-time Fable review of the shapes beside the photos (offered), Patrick's shape look (the app at
+  http://localhost:5197 from the `Dads-debreif-prop` worktree), the merges in order, then chunk 9.
+
+## Earlier (14 Oct 2026, small hours): the first delivery of chunks 2 to 7, its import, the flight-photo fixes; read `3d-work` `ct156/plan.md` first (its decisions log, newest first)
 
 - **Delivery and import:** delivery `ct156-2026-10-13-17f0c75` (from `ct156-pilots`) passed and is imported on app
   **#1035** (`shared-3d-ct156-import-c2c7`, on #1034; every chunk's app numbers, the inboard doors open when parked as
