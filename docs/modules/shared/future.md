@@ -28,3 +28,7 @@ Ideas for the shared parts (flight core, app frame, weather, airfields, storage,
   - The left-side walls and canopy rail look near-black whenever the sun is on the right (Patrick, 12 Oct 2026, "it doesn't though?"). Found 12 Oct: the 3D views' sky light (three.js HemisphereLight) shines along +Y, three.js's default up, but these scenes are Z-up, so the "sky" lights faces turned to +Y (north in Traffic) and the "ground" colour lights the rest, whatever way they face up or down. One line per scene (`hemisphere.position.set(0, 0, 1)`) points it up; a render with it lifts the shaded left wall but it stays dark. It changes every module's look, so it waits for Patrick's yes, and each scene's owner makes it.
   - The pilots are drawn in code and are not in the Blender cockpit file, so they have no rounded edges or baked shadows yet.
   - Rear seat raised 0.5 in (Patrick's pick, 12 Oct 2026): check the rear seat's 220 KIAS view in flight.
+
+## Aircraft models
+
+- The CT-102B Astra II model moved up to `plan.md` Step 3c (Patrick approved, 13 Oct 2026).
