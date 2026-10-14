@@ -211,6 +211,33 @@ How a technique works: it starts from a predicted cue (left alone, the normal fo
 
 The reference is plain data (path kind, offset and side; approach limits; height target; intent −1 to +1; urgency 0 to 1; any cap change), every field blendable. Each technique is one small module with four functions: cue (wanted now, how urgently), plan (the reference and limits, sized once), monitor (keep, re-plan or abort to pass clear), done (true once well inside the normal follower's envelope). The project's model of the wingman (a master list of blocks and signals, with a checker run against the gauge's traces) will list each technique as a block that writes only reference signals, and the checker will fail a technique that writes a control.
 
+## The build plan: slices
+
+The design is built in slices, each behind a switch (today's law stays the default until the instructor flies the new one). Every slice keeps the close-formation wingman's traces and the four-aircraft formation unchanged, meets the gates below before the instructor flies it, and runs model-first:
+1. it names the model rows and N² cells it adds, changes or removes, and writes them first;
+2. each new or changed loop is sized on the linear model, margins at 0.4 s, blend times against the loops they retarget;
+3. it is built to that design;
+4. on the rig, each loop's real response is set beside its linear one (C11), and any gap explained;
+5. in the full simulator: both delay sweeps (C3), the switch counts (C6), the guard's share (C7);
+6. the model's checker passes, and the slice reports what it removed as well as added.
+
+Structure reviews come after slice 3b and after slice 7.
+
+| Slice | What it builds | What it removes | Acceptance (the academic set) |
+|---|---|---|---|
+| 1 | The guard as a constraint: one predictor, the taper, the bleed request, vertical escapes, the side-change hold, the cap opened smoothly | The guard's on/off lines and holds, its second predictor, the power cut, the guard owning height | Acts under about 10% of each turn (C7); never inside 500 ft beyond a brief, shallow entry while correcting; a pass predicted near 550 ft gets a gentle correction (G onset near 1 G/s); no case breaks at +0.2 s of delay (C3) |
+| 2 | The normal follower and the arc loop (offset ±250 ft); the reference and its blender; G onset by urgency; the lift at the cap in the instructor's order | The aim point, turn toward Lead first, nose behind, the aim-turn cap, the always-on aim blend, power's arc term, today's lift rule | No wrong-way roll; at most about 2 s a turn over Lead's G + 0.5; G onset about 1 G/s in ordinary turns; at the cap the vertical gives way before the turn (C8); never ahead of the wing line; every turn ends 500-900 ft; the design sketch's cases still capture inside ±250 ft |
+| 3a | The phases from Lead's seen roll, no hold, blended; a reversal as exit then entry; every signal onto the 0.4 s rule | The jobs and their hysteresis, the 1 s turn-start hold, the quick fix | Settled in the cone within 30 s of wings level; a reversal flown like any other entry; no phase flicker (C6) |
+| 3b | The technique picker (priority, one at a time, no-restart time, longest run) and the first technique, pass clear; the checker rule that a technique writes only the reference | - | From tight with Lead turning toward him: vertical first and below, never inside 500 ft beyond a brief entry, ends outside Lead's circle and recaptures; pass clear runs only where its cue says |
+| 4 | The energy intent: power as drag fed forward + roll-in lead + intent + slow trim; the guard's bleed request; the drop low inside folded into "gain" | The low-inside relay, every other throttle writer | Within 15 KIAS of Lead at each turn's end; fewer than 5 torque swings a turn; full power and idle only by intent (C9) |
+| 5 | The vertical with blended targets; the exit vertical; S-turns | The pitch-owner priority, the 300 ft-low owners | Ends within 200 ft of Lead's height; no more than about 100 ft below the stack outside a planned technique, every drop low inside counted; settled in the cone within 30 s |
+| 6 | Abeam counts as the trail cone for Lead's moves; steer-behind from abeam | - | Truly abeam: never banks with Lead toward him; never ahead of the wing line; never inside 500 ft beyond a brief entry; captured behind Lead within about 30 s |
+| 7 | Climb-out-of-plane reset, very-stretched cut-across, back behind the wing line | - | Each technique's own case; each rare in the academic set |
+| 8a | Climbs and descents (the line in Lead's flight-path plane) | - | The descent under Lead's G + 1.5 (today 4.1 G); in the cone throughout |
+| 8b | The hard-manoeuvring Lead (to 4 G, 90°/s, reversals) | - | The academic set's lines, stretching allowed while Lead manoeuvres |
+
+Then: the live readout on the instructor's display, the blended hand-over from close formation (with the moving-out technique), and the final check, the instructor flying the whole set.
+
 ## The design gates (each slice must meet them before the instructor flies it; every number an estimate)
 
 | Gate | What | Pass |
@@ -246,6 +273,7 @@ c. **Check the design against C1-C11**, gate by gate: pass, fail, or can't tell 
 - Which technique cues and hand-backs could flicker on and off under the 0.4 s delay, and what hysteresis or dwell each needs (C6)?
 - Does ±250 ft leave the arc loop enough authority when he is 10-20 kt slow inside Lead's turn (d_ss 115-230 ft), and if not, what should carry the rest?
 - At the G cap with the new order (the vertical gives way before the turn): is the hand-down smooth, or does it become a switch?
+- **The build plan:** is the slice order sound? Each slice should add one loop group or one technique family, leave the wingman flyable, and have acceptance measurable for that slice alone. Say where the order or an acceptance line is wrong, what a slice depends on that only comes later, and which gates each slice can and can't be judged on.
 
 **3. Anything else** that is unsafe, will not converge, or breaks the three rules.
 
