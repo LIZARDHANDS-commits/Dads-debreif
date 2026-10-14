@@ -64,31 +64,21 @@ Each item below has an active working estimate in the code (`TS-233` / `spec.md`
   - Unmet closure $w - \omega \cdot d_{\text{cmd}}$ (`S29b`) from `B07` is converted to knots and clipped to `±15 kt` to form $\Delta v_{\text{ref}}$ (`S27g`), giving one `10 s` range time constant in both turns and straight-and-level flight (`D21`, `D23`).
   - Intermediate slice note: before `S3` replaces the legacy separation filter with the silent-above-600-ft barrier and `S4` adds full physics power feed-forwards, full-sim turns will still reflect legacy guard/power interactions; `S2` is judged "close enough for tuning" on `fw-rig.mjs` step responses, `check.mjs`, and non-regression.
 
-### `S3` — The guard as a barrier
-- **Status:** Pending build.
-- **Planned assumptions & checks:**
-  - Single forward predictor (`B12`) over the closing part of the next `10 s` on raw loop demands (`S31`, `S32`) using run-forward Lead bank (`S03`).
-  - Cubic barrier $x = \text{clip}((600 - p)/100, 0, 1)$, allowed closing speed $c_{\max}(1 - x^3)$, urgency $u = x^3$ with immediate rise and `~2 s` decay, and `3 s` hold on turn-escape side choice (`S41`).
+### `S2 + S3 + S3a + S3b + A1` — Step 1 (`B03–B10`, `B12`, `T1: pass-clear`, Audit 1)
+- **Status:** **Built & verified (`e25b131d`).**
+- **What was built & verified:**
+  - `S2` (`B05`, `B07`, `B09`): normal follower on concentric circle (`R - d_cmd`, radius clipped at `20,000 ft`) or swept line with asymmetric approach caps `20°` out / `12°` in ($K_e = 0.026^\circ/\text{ft}$, `D2`), true path curvature feed-forward $\omega_{\text{FF}}$ (`R3` closed), arc/range loop ($\tau_s = \tau_r = 10\text{ s}$, $k_c = 0.5$, soft closure limit `25 → 60 ft/s` over `200–400 ft`, `d_cmd` `±250 ft` slewed `60 ft/s`, unmet closure `S29b` $\to$ `S27g` $\Delta v_{\text{ref}}$, `D9`, `D10`, `D21`), steering loop ($K_\chi = 0.5\text{ /s}$), and `90°`/`180°` turn cases (`D26`).
+  - `S3` (`B12` in `separation.js`): single `10 s` closing-pass predictor `leastPass` on raw demands (`S31`, `S32`) using extrapolated Lead bank (`S03`), cubic barrier $x = \text{clip}((600 - p)/100, 0, 1)$, urgency $u = x^3$ (`2 s` decay), least-change horizontal (`S37`) and vertical (`S38`, below unless `> 100 ft` high, `D16`) bounds, `3 s` side hold (`S41`), graded bleed request (`S39`), and smooth cap opening (`S40`, `550 → 500 ft`); `R8` and `R9` closed.
+  - `S3a` (`B03` in `supervisor.js`): continuous phase weights `S21` (`1.5 s` blend, no `1 s` hold), latched case label `S22` (`±50 ft` dead band, `D17`), and `6 s` `sideBlend`; `R7` and `R12` (entry/capture) closed.
+  - `S3b + A1` (`B04`, `B06` `T1: pass-clear` in `techniques/miss.js`, `B10` with $\dot{h}_T - \dot{h}$ damping `D1`): `3 s ≤ t_pass ≤ 10 s`, depth $h = \sqrt{625^2 - p^2}$ below Lead, `minG = 0.5 G` unload-roll-pull (rolling and pulling positive G, never pushing 0/neg G), least outward turn mix $\Delta\omega$ (`D4`), picture-based energy intent, `14/15` blocks and `51/53` signals built, `5/5` `fw-rig.mjs` step responses clean.
 
-### `S3a` — Phases & case from Lead's seen roll
-- **Status:** Pending build.
-- **Planned assumptions & checks:**
-  - Continuous phase weights (`S21`, `1.5 s` blend) from Lead's seen bank and roll rate (`10°` entry with no `1 s` hold, `5°` exit); entry/exit case (`S22`) latched once per phase with `±50 ft` dead band and `≥ 6 s` side blend (`D17`).
-
-### `S3b` — Technique picker, vertical profile & the miss
-- **Status:** Pending build.
-- **Planned assumptions & checks:**
-  - `B04` supervisor enforces priority order, one active technique at a time, `3 s` no-restart timer, and blend weights over `≥ 6 s` path / `≥ 4.3 s` height (`15 s` height return to stack).
-  - `techniques/miss.js` (`T1`) plans a parabolic vertical profile $n_p = 0.5(1 - u)$ below Lead ($h = \sqrt{625^2 - p^2}$), flown via `minG = 0.5 G` unload-roll-pull (rolling and pulling positive G, never pushing to `0 G` or negative G), with least turn mix $\Delta\omega \approx 2\Delta q / (V t_{\text{pass}}^2)$ (`D4`) and picture-based energy intent (`-0.5 / 0 / +0.5`).
-
-### `A1` — Structure audit 1 (after `S3b`)
-- **Status:** Pending audit.
-
-### `S4` — Energy intent, power feed-forwards & drop-low
-- **Status:** Pending build.
-- **Planned assumptions & checks:**
-  - Completes `B11` (`15/15` blocks, `53/53` signals in `signals.mjs`): commanded-G drag (`S44`), climb rate (`S27c`), speed-brake drag, seen roll-in lead (`S03, S04`), `0.3 /s` proportional speed term, and $\min(\text{intent}, -\text{bleed request})$.
-  - Continuous drop-low-inside height term (`20 ft/kt` past `5 kt` slow inside a turn, capped at `-300 ft`, blended over `4.3 s`, `D24`).
+### `S4` — Energy intent, power feed-forwards & drop-low (Step 2)
+- **Status:** **Built & verified (`15/15` target blocks, `53/53` target signals built — `100%` of target control model).**
+- **What was built & verified:**
+  - Complete `B11` (`powerFromRef` in `fighting-wing.js`): physics feed-forwards for commanded-G drag (`S44` from `B13` before unload-roll-pull and shaper), climb rate (`S27c` $0.5\dot{h} + 0.5(\dot{z}_L + \dot{h}_T)$), speed-brake drag when `S34` is out, and Lead's seen roll-in rate (`S03, S04` above `10°/s` ramping to `30°/s`), plus `0.3 /s` proportional speed loop on $(V_L + \Delta v_{\text{ref}} - V)$ (`D21`, `D23`) and effective intent bias $\min(\text{intent `S27d`}, -\text{bleedReq `S39`}) \times 2\text{ kt/s}$, handing `{ throttle }` directly to `stepLead` (`R4` `ac.speedHold` series cascade and `lowMax` relay retired; `R10` closed).
+  - Intent-gated speed brake switch `S34` (`D8`, `D25`): deploys only when `slantClosing > 60 ft/s` for `1 s` (`boardsOnSec`) under deliberate bleed (`effectiveIntent <= -0.5`), retracts below `10 ft/s` (`boardsOffFtps = 10` per `S0`'s `D25` `21.66 ft/s` ripple measurement) or when `effectiveIntent > -0.2`, held at least `3 s` (`boardsHoldSec`).
+  - Continuous drop-low-inside height term in `B05` (`D24`): $h_T = \text{stack} - \min(300, 20 \times \max(0, \text{deficit} - 5))$ when turning inside, blended over `4.3 s` going down and `15 s` returning to stack, with profile rate $\dot{h}_T$ (`D1`) and `lowCounted = dropLowFt > 100` (`TS-233`).
+  - Rig check (`fw-rig.mjs`): `power-T1` `t63 = 3.45 s` (matching $\tau = 1/0.3 = 3.33\text{ s}$ + `0.12 s` engine lag), `0%` overshoot; all `30 s`, `90°`, and `180°` gauge turns end within `15 KIAS` of Lead at roll-out and settle (`D26`).
 
 ### `S5` — Exit vertical & S-turns (`T6`, `T7`)
 - **Status:** Pending build.
@@ -136,44 +126,45 @@ Each item below has an active working estimate in the code (`TS-233` / `spec.md`
 
 | ID | Summary | Target Slice | Status | Verification / Notes |
 |---|---|---|---|---|
-| **D1** | Vertical loop's damping on own $\dot{h}$ fights planned descents | `S1` / `S3b` | `S27c` built (`54655fde`) / `B10` in `S2`/`S3b` | `S27c` carries $(h_T, \dot{h}_T)$ in `fw-reference.js`; `B10` damps $(\dot{h}_T - \dot{h})$ in `S2`/`S3b` |
-| **D2** | Drafted steering ($K_\chi = 0.3\text{ /s}$, $k = 1/150\text{ ft}$) fails `C2` | `S2` | Planned | Resized to $K_\chi = 0.5\text{ /s}$, $K_e = 0.026^\circ/\text{ft}$ (48–65° PM; confirmed by `S0` $t_{63} = 0.15\text{–}0.25\text{ s}$) |
+| **D1** | Vertical loop's damping on own $\dot{h}$ fights planned descents | `S1` / `S3b` | **Built (`e25b131d`)** | `S27c` carries $(h_T, \dot{h}_T)$ in `fw-reference.js`; `B10` damps $(\dot{h}_T - \dot{h})$ in `fighting-wing.js` |
+| **D2** | Drafted steering ($K_\chi = 0.3\text{ /s}$, $k = 1/150\text{ ft}$) fails `C2` | `S2` | **Built (`e25b131d`)** | Resized to $K_\chi = 0.5\text{ /s}$, $K_e = 0.026^\circ/\text{ft}$ (48–65° PM; `steering-T1` $t_{63} = 6.75\text{ s}$, `1%` overshoot) |
 | **D3** | Guard predictor uses Lead's bank 0.4 s stale | `S0` | **Built (`54655fde`)** | `seeFw` / `leadNowOf` extrapolates Lead's seen bank by seen roll rate (`S03`, capped `±70°`) |
-| **D4** | Miss vertical reach vs cue time & floor G | `S3b` | Planned | $3\text{ s} \le t_{\text{pass}} \le 10\text{ s}$; `minG = 0.5 G` roll-and-pull; least turn mix $\Delta\omega$ |
-| **D5** | Blend scalar loop inputs (`B08`) over $\ge 6\text{ s}$ path / $\ge 4.3\text{ s}$ height | `S1` / `S3b` | **`B08` built (`54655fde`)** | `fw-reference.js` blends scalar loop inputs; `B07` runs on measured $(s, d)$ in `S2` |
-| **D6** | Explicit hysteresis bands ($\ge 2\times$ ripple) and dwells on all technique cues | `S3b, S5–S7` | Planned | Applied across `T1–T7` with 3 s no-restart timer |
+| **D4** | Miss vertical reach vs cue time & floor G | `S3b` | **Built (`e25b131d`)** | $3\text{ s} \le t_{\text{pass}} \le 10\text{ s}$; `minG = 0.5 G` roll-and-pull; least turn mix $\Delta\omega$ in `techniques/miss.js` |
+| **D5** | Blend scalar loop inputs (`B08`) over $\ge 6\text{ s}$ path / $\ge 4.3\text{ s}$ height | `S1` / `S3b` | **Built (`e25b131d`)** | `fw-reference.js` blends scalar loop inputs; `B07` runs on measured $(s, d)$ |
+| **D6** | Explicit hysteresis bands ($\ge 2\times$ ripple) and dwells on all technique cues | `S3b, S5–S7` | **`T1` Built (`e25b131d`)** / `T2–T7` in `S5–S7` | Applied to `T1` (`pass-clear`) with `3 s` no-restart timer; `T2–T7` in `S5–S7` |
 | **D7** | Re-cut slice order so perception (`S0`) and plumbing (`S1`) precede follower/guard | `S0, S1` | **Built (`54655fde`)** | `S0` and `S1` landed first on `formation-b5-slices` and merged into `formation-close-wingman-b2` |
-| **D8** | Speed brake out $> 60\text{ ft/s}$ for 1 s under bleed $\le -0.5$, in $< 20\text{ ft/s}$, hold $\ge 3\text{ s}$ | `S4` | Planned | Implemented in `B11` (`S34`); retract set to `10 ft/s` per `S0` `D25` ripple (`21.66 ft/s`) |
-| **D9** | $\pm 250\text{ ft}$ offset saturation hands unmet closure to energy/speed | `S2` | Planned | Generalized by `D21` via `S29b` ($w - \omega \cdot d_{\text{cmd}}$) $\to$ `S27g` ($\Delta v_{\text{ref}}$) |
-| **D10** | Keep $k_c = 0.5$ and $\tau_s = 10\text{ s}$ in arc loop | `S2` | Planned | `B07` uses $\tau_s = 10\text{ s}$, $k_c = 0.5$ |
+| **D8** | Speed brake out $> 60\text{ ft/s}$ for 1 s under bleed $\le -0.5$, in $< 20\text{ ft/s}$, hold $\ge 3\text{ s}$ | `S4` | **Built (`S4`)** | Implemented in `B11` (`S34`); retract set to `10 ft/s` per `S0` `D25` ripple (`21.66 ft/s`), held $\ge 3\text{ s}$ |
+| **D9** | $\pm 250\text{ ft}$ offset saturation hands unmet closure to energy/speed | `S2` | **Built (`e25b131d`)** | Generalized by `D21` via `S29b` ($w - \omega \cdot d_{\text{cmd}}$) $\to$ `S27g` ($\Delta v_{\text{ref}}$) |
+| **D10** | Keep $k_c = 0.5$ and $\tau_s = 10\text{ s}$ in arc loop | `S2` | **Built (`e25b131d`)** | `B07` uses $\tau_s = 10\text{ s}$, $k_c = 0.5$ (`offset-T2` `1%` overshoot, `arc-T2` `6%` overshoot) |
 | **D11** | Drop 1 s smoother on slant closure | `S0` | **Built (`54655fde`)** | `S14` computed directly from dead-reckoned Lead velocity and own velocity (`FW_SEE.closureSec` removed) |
-| **D12** | Power PI integral time $T_i = 45\text{ s}$ | `S2` / `S4` | Superseded by `D23` | Integrator dropped in favour of `0.3 /s` proportional speed loop + feed-forwards |
+| **D12** | Power PI integral time $T_i = 45\text{ s}$ | `S2` / `S4` | **Built (`S4`, superseded by `D23`)** | Integrator dropped in favour of `0.3 /s` proportional speed loop + physics feed-forwards |
 | **D13** | Measure vertical G lag and turn-rate lag on rig in `S0` | `S0` | **Built (`54655fde`)** | `fw-rig.mjs --s0-lags`: turn-rate $t_{63} = 0.15\text{–}0.25\text{ s}$, vertical G $t_{63} = 0.15\text{ s}$ |
-| **D14** | Sustained turn energy bleed vs constant-speed Lead | `S4` / `S8b` | Planned | Withdrawn at 2 G (+0.93 kt/s spare); accounted for at 3–4 G in `S8b` |
-| **D15** | `C10` counts core loops ($\approx 48$) separately from technique plans ($\approx 36$) | `A2` | Planned | Checked in `A2` audit |
-| **D16** | Guard vertical bound (`S38`) stated in resource matrix | `S3` | Planned | Documented in `control-model.md` and built in `separation.js` |
-| **D17** | Continuous phase weights (`S21`) and latched case label (`S22`, $\pm 50\text{ ft}$ band) | `S3a` | Planned | Built in `supervisor.js` |
-| **D18** | `lag-abeam` reverses on crossing Lead's track behind him (LOS rate backup) | `S6` | Planned | Built in `techniques/lag-abeam.js` |
-| **D19** | Verify large-signal roll-rate capture within $\pm 250\text{ ft}$ ($\le 1$ overshoot) | `S2` | Planned | Checked on `S2` sketch capture cases |
+| **D14** | Sustained turn energy bleed vs constant-speed Lead | `S4` / `S8b` | **Built at 2 G (`S4`)** / 3–4 G in `S8b` | Withdrawn at 2 G (+0.93 kt/s spare, all 2 G turns within 15 KIAS); accounted for at 3–4 G in `S8b` |
+| **D15** | `C10` counts core loops ($\approx 48$) separately from technique plans ($\approx 36$) | `A2` | Planned (`A2`) | Checked in `A2` audit |
+| **D16** | Guard vertical bound (`S38`) stated in resource matrix | `S3` | **Built (`e25b131d`)** | Documented in `control-model.md` and built in `separation.js` |
+| **D17** | Continuous phase weights (`S21`) and latched case label (`S22`, $\pm 50\text{ ft}$ band) | `S3a` | **Built (`e25b131d`)** | Built in `supervisor.js` (`1.5 s` phase weights, `6 s` `sideBlend`) |
+| **D18** | `lag-abeam` reverses on crossing Lead's track behind him (LOS rate backup) | `S6` | Planned (`S6`) | Built in `techniques/lag-abeam.js` |
+| **D19** | Verify large-signal roll-rate capture within $\pm 250\text{ ft}$ ($\le 1$ overshoot) | `S2` | **Built (`e25b131d`)** | Verified on `fw-rig.mjs` (`offset-T2` `1%` overshoot) and `b5-` turns |
 | **D20** | G cap trims positive climb $\Delta G_v$ first, 1 G hold second, turn last (0.2 G knee) | `S1` | **Built (`54655fde`)** | Built in `B13` (`liftWithin`) and verified by `--s0-lags` `C8` 3.5 G cap test |
-| **D21** | One 10 s range constant in turns and level via unmet closure `S29b` $\to$ `S27g` | `S2` | Planned | `S27g` built in `S1` (`54655fde`); `S29b` and `0.3 /s` speed loop in `S2` |
+| **D21** | One 10 s range constant in turns and level via unmet closure `S29b` $\to$ `S27g` | `S2` | **Built (`e25b131d`)** | `S29b` and `0.3 /s` speed loop hold range in both turns and wings-level flight |
 | **D22** | Wire `S05b` (Lead G), `S31`, `S32` into `B13` in `signals.mjs` | `D2b` / `S1` | **Built (`54655fde`)** | Target rows in `D2b` (`b2527e14`); `S05b` and `B13` flight wiring in `S1` (`54655fde`) |
-| **D23** | Proportional `0.3 /s` speed loop + physics feed-forwards, no integrator | `S2` / `S4` | Planned | Proportional loop in `S2`; full feed-forwards in `S4` |
-| **D24** | Continuous drop-low-inside height term (`20 ft/kt` past `5 kt` slow, cap `-300 ft`) | `S4` | Planned | Built in `B05` normal follower |
-| **D25** | Measure un-smoothed slant closure ripple in `S0` to confirm `20` vs `10 ft/s` brake in-level | `S0` / `S4` | **Measured in `S0` (`54655fde`)** | `S14` ripple at `T2` is `21.66 ft/s` p2p (`> 20 ft/s`) $\to$ `S4` brake retract threshold set to `10 ft/s` |
-| **D26** | Add `90°` and `180°` turns in `S2`; judge `±15 KIAS` after `30 s` exit settle | `S2` / `S4` / `S8b` | Planned | Scenarios added in `S2`; speed check in `S4` and `S8b` |
+| **D23** | Proportional `0.3 /s` speed loop + physics feed-forwards, no integrator | `S2` / `S4` | **Built (`S4`)** | Complete `B11` law (`power-T1` $t_{63} = 3.45\text{ s}$, `0%` overshoot; `15/15` blocks built) |
+| **D24** | Continuous drop-low-inside height term (`20 ft/kt` past `5 kt` slow, cap `-300 ft`) | `S4` | **Built (`S4`)** | Built in `B05` (`buildNormalReference`, blended `4.3 s` down / `15 s` return, counted past `100 ft`) |
+| **D25** | Measure un-smoothed slant closure ripple in `S0` to confirm `20` vs `10 ft/s` brake in-level | `S0` / `S4` | **Built (`S4`)** | `S14` ripple at `T2` is `21.66 ft/s` p2p (`> 20 ft/s`) $\to$ `FW_WING.brakes.boardsOffFtps = 10` in `S4` |
+| **D26** | Add `90°` and `180°` turns in `S2`; judge `±15 KIAS` after `30 s` exit settle | `S2` / `S4` / `S8b` | **Built (`S2` / `S4`)** | `b5-into-90/180` and `b5-away-90/180` all within `15 KIAS` at roll-out and settle |
 | **R1** | Bring all fighting-wing signals onto one `L`/`N` delay rule | `S0` | **Built (`54655fde`)** | Built in `perception.js` and `fighting-wing.js` |
 | **R2** | Unify slant closure on velocity projection with no 1 s smoother | `S0` | **Built (`54655fde`)** | Built in `perception.js` (`S14`) |
-| **R3** | Replace aim-line turn hidden feedback with true path turn-rate $\omega_{\text{FF}}$ | `S2` | Planned | Built in `B05` / `B08` / `B09` |
-| **R4** | Replace 3-in-series power hold with `B11` speed + physics feed-forward loop | `S4` | Planned | Built in `fighting-wing.js` |
-| **R5** | Remove duplicate arc-error power term (`powerArcSec`) | `S2` | Planned | Removed in `S2`; replaced by `S29b` unmet-closure hand-off |
+| **R3** | Replace aim-line turn hidden feedback with true path turn-rate $\omega_{\text{FF}}$ | `S2` | **Built (`e25b131d`)** | Built in `B05` / `B08` / `B09` (`0` aim jumps across all `b5-` cases) |
+| **R4** | Replace 3-in-series power hold with `B11` speed + physics feed-forward loop | `S4` | **Built (`S4`)** | `B11` hands `{ throttle }` directly to `stepLead`, retiring `ac.speedHold` in fighting wing |
+| **R5** | Remove duplicate arc-error power term (`powerArcSec`) | `S2` | **Built (`e25b131d`)** | Removed in `S2`; replaced by `S29b` unmet-closure hand-off |
 | **R6** | Fix `liftWithin` cap order so turn does not give way first | `S1` | **Built (`54655fde`)** | Built in `S1` (`B13`) and verified by `--s0-lags` `C8` 3.5 G cap test |
-| **R7** | Fix `in-position` 780 ft start and make `B03` phase/case drive entry/exit placement | `S0` / `S3a` | Planned | Gauge start fixed in `S0`; `B03` built in `S3a` |
-| **R8** | Replace dual predictors (`fwGuard` + `separationFilter`) with single predictor `B12` | `S3` | Planned | Built in `separation.js` |
-| **R9** | Remove switch-to-switch relays (`filterHold → powerCut`, `lineShort → noseBehind`) | `S2` / `S3` / `S3b` | Planned | Removed across `S2–S3b` |
-| **R10** | Carry close formation's physics feed-forward pattern into fighting wing | `S4` | Planned | Built in `B11` (`S4`) |
-| **R11** | Remove every-step 1.5 s world-axes aim blend that lags steady turns by 12–26° | `S2` | Planned | Removed in `S2`; transitions blended by `B08` |
-| **R12** | Connect seen sweep/aspect/HCA and LOS rate (`S15`) to phases and `lag-abeam` | `S3a` / `S6` | Planned | Connected in `S3a` and `S6` |
-| **R13** | Verify linear step responses on rig (`offset-T2`, `arc-T2`) once filter stops acting at trim | `S2` / `S3` | Planned | Checked via `fw-rig.mjs` (`C11`) |
-| **R14** | Widen fighting-wing band to `0°` sweep (truly abeam) and build `lag-abeam` (`T3`) | `S6` | Planned | Built in `slots.js` and `techniques/lag-abeam.js` |
-| **R15** | Eliminate baseline over-control faults (G onset, aim jumps, 300 ft low, torque swings) | `S2–T31` | Planned | Verified by `faults.mjs` at `A2` and `T31` |
+| **R7** | Fix `in-position` 780 ft start and make `B03` phase/case drive entry/exit placement | `S0` / `S3a` | **Built (`e25b131d`)** | Gauge start fixed in `S0`; `B03` built in `S3a` |
+| **R8** | Replace dual predictors (`fwGuard` + `separationFilter`) with single predictor `B12` | `S3` | **Built (`e25b131d`)** | Built in `separation.js` (`leastPass` + $x^3$ barrier) |
+| **R9** | Remove switch-to-switch relays (`filterHold → powerCut`, `lineShort → noseBehind`) | `S2` / `S3` / `S3b` | **Built (`e25b131d`)** | Removed across `S2–S3b` |
+| **R10** | Carry close formation's physics feed-forward pattern into fighting wing | `S4` | **Built (`S4`)** | Built in `B11` (`S44` commanded-G drag, `S27c` climb rate, `S03/S04` roll-in lead) |
+| **R11** | Remove every-step 1.5 s world-axes aim blend that lags steady turns by 12–26° | `S2` | **Built (`e25b131d`)** | Removed in `S2`; transitions blended by `B08` |
+| **R12** | Connect seen sweep/aspect/HCA and LOS rate (`S15`) to phases and `lag-abeam` | `S3a` / `S6` | **`S3a` Built** / `lag-abeam` in `S6` | Connected to phases in `S3a`; `lag-abeam` in `S6` |
+| **R13** | Verify linear step responses on rig (`offset-T2`, `arc-T2`) once filter stops acting at trim | `S2` / `S3` | **Built (`e25b131d`)** | Verified via `fw-rig.mjs` (`5/5` rig cases have `0` filter/guard steps at trim, `C11`) |
+| **R14** | Widen fighting-wing band to `0°` sweep (truly abeam) and build `lag-abeam` (`T3`) | `S6` | Planned (`S6`) | Built in `slots.js` and `techniques/lag-abeam.js` |
+| **R15** | Eliminate baseline over-control faults (G onset, aim jumps, 300 ft low, torque swings) | `S2–T31` | In progress (`S0–S4` built) | `0` aim jumps, `< 5` torque swings, `±15 KIAS` met; final sign-off at `A2` and `T31` |
+

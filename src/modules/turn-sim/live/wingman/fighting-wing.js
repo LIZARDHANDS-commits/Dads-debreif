@@ -1,27 +1,29 @@
 // Fighting wing on the live wingman (B5; Spec 7e, TS-233, TS-234): normal follower (B05), arc/range loop (B07),
-// Where it fits: stepped by wingman.js when #2 is in fighting wing; orchestrates perception (B02), phase/case (B03),
+// Where it fits: stepped by formation.js when #2 is in fighting wing; orchestrates perception (B02), phase/case (B03),
 // Exports: setFwAnalysis, startFwWing, stepFwWingman, liftWithin.
 // Does not: compute perception delays (perception.js) or separation guard search internals (separation.js).
 //
 // Signal flow each 20 Hz step:
-//  1. B02 (perception.js seeFw): sees Lead 0.4 s late dead-reckoned across 0.4 s with extrapolated bank (S01-S05b) and own state now (S08-S11).
+//  1. B02 (perception.js seeFw): sees Lead 0.4 s late dead-reckoned across 0.4 s with extrapolated bank (S01-S05b) and own state now (S08-S12).
 //  2. B03 (supervisor.js fwJob): continuous phase weights S21 = { level, entry, turning, exit } (1.5 s blend) and latched case label S22 (±50 ft dead band).
-//  3. B07 (runArcLoop): arc/range error over τ_s = 10 s -> wanted closure w (S28) -> circle offset d_cmd within ±250 ft (S29) and unmet closure S29b -> Δv_ref (S27g, ±15 kt).
-//  4. B05 (buildNormalReference): concentric circle at offset d_cmd (radius clipped at 20,000 ft) or swept line, asymmetric approach caps 20° out / 12° in (Ke = 0.026°/ft) and true path turn rate ω_FF -> S25.
+//  3. B07 (runArcLoop): arc/range error over τ_s = 10 s -> wanted closure w (S29) -> circle offset d_cmd within ±250 ft (S30) and unmet closure S29b -> Δv_ref (S27g, ±15 kt).
+//  4. B05 (buildNormalReference): concentric circle at offset d_cmd (radius clipped at 20,000 ft) or swept line, asymmetric approach caps 20° out / 12° in (Ke = 0.026°/ft), true path turn rate ω_FF, and continuous drop-low-inside height target (20 ft/kt past 5 kt slow, cap -300 ft, blended 4.3 s, D24) -> S25.
 //  5. B04 & B06 (supervisor.js stepFwPicker, techniques/miss.js): polls techniques in priority order -> S23 blend weight and S26 technique reference.
 //  6. B08 (fw-reference.js blendFwReferences): scalar loop-input blend of S25 and S26 -> S27a-S27g.
 //  7. B09 (steerFromRef): ω_cmd = ω_FF + 0.5 * (χ_w - χ) (S31); B10 (verticalFromRef): ΔG_v = 0.005*(h_T - h) + 0.02*(ḣ_T - ḣ) (S32).
 //  8. B12 (separation.js stepFwGuard): single 10 s closing-pass predictor on raw (S31, S32) with 600 -> 500 ft cubic barrier -> S35-S41.
-//  9. B13 (liftWithin): 3D lift composition in Patrick's priority order (1. positive climb, 2. 1 G hold, 3. turn) with 0.2 G soft knee and 0.5 G unload-roll-pull -> S43, S44.
-// 10. B14 (shaper.js shapeFwLift): urgency-scaled G onset 1 + 3u G/s -> S45; B11 (powerFromRef): 0.3 /s proportional speed loop on V_L + Δv_ref - V -> S33; B15 (stepLead).
+//  9. B13 (liftWithin): 3D lift composition in Patrick's priority order (1. positive climb, 2. 1 G hold, 3. turn) with 0.2 G soft knee and 0.5 G unload-roll-pull -> S42, S43, S44 (drag of commanded G and climb).
+// 10. B14 (shaper.js shapeFwLift): urgency-scaled G onset 1 + 3u G/s -> S45; B11 (powerFromRef): physics feed-forwards (commanded G drag S44, climb rate S27c, speed-brake drag, Lead roll-in lead S03/S04) + 0.3 /s proportional speed loop on (V_L + Δv_ref - V) + intent/bleed bias -> throttle S33 and intent-gated speed brake S34; B15 (stepLead).
 import { DEG } from '../../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../../core/units.js';
 import { softMin } from '../../../../core/flight-math.js';
-import { availableG, shakerG, tasToIasKt } from '../../../../core/t6-performance.js';
+import { availableG, shakerG, tasToIasKt, iasToTasKt, dragPerWeight, thrustPerWeight } from '../../../../core/t6-performance.js';
 import { STEP_SEC } from '../flight.js';
 import { leadStateOf, stepLead } from '../fluid-lead.js';
+import { throttleFor } from '../power.js';
+import { extraDragPerWeight } from '../slow-down.js';
 import { ROLL } from '../rates.js';
-import { FW_WING } from '../wing-moves.js';
+import { FW_SEE, FW_WING } from '../wing-moves.js';
 import { add3, sub3, scale3, cross3, unit3, perp3, dot3, len3 } from '../attitude.js';
 import { seenOf, startFwSight, seeFw } from './perception.js';
 import { startFwJob, fwJob, startFwPicker, stepFwPicker } from './supervisor.js';
@@ -67,6 +69,9 @@ export function startFwWing(aircraft, refSt, { blockFt }) {
     blockFt,
     t: 0,
     offFt: 0, // B07 slewed circle offset d_cmd (ft, + inside)
+    dropLowFt: 0, // B05 slewed continuous drop-low-inside offset (ft, >= 0, D24)
+    boardsOnSec: 0, // B11 speed brake on-dwell timer (s, D8)
+    boardsHoldSec: 0, // B11 speed brake minimum hold timer (s, D8)
     shapedG: st.g ?? 1, // B14 urgency shaper's slewed G command
     lastChiOwnDeg: 0,
     lastChiWantedDeg: 0,
@@ -145,7 +150,7 @@ function arcRange(seen, job, now, cone) {
 }
 
 /**
- * B07 Arc / Range Loop (Spec 7e §7.7; Fable D9, D10, D21; S28, S29, S29b, S27g):
+ * B07 Arc / Range Loop (Spec 7e §7.7; Fable D9, D10, D21; S28, S29, S29b, S30, S27g):
  *  - Range time constant τ_s = τ_r = 10 s (W.aimSec), closure feedback kc = 0.5 (W.arcKc).
  *  - Soft closure limit ramping linearly from 25 ft/s to 60 ft/s over 200-400 ft of range error (W.arcNearBandFt).
  *  - Circle offset d_cmd clamped to ±250 ft (W.arcOffsetMaxFt) and slewed at 60 ft/s (W.arcSlewFtps).
@@ -167,12 +172,12 @@ function runArcLoop(w, seen, job, V, omegaL, now, cone, arc) {
   const bandFrac = clamp01((Math.abs(eRange) - nearLo) / Math.max(nearHi - nearLo, 1));
   const lim = W.arcNearFtps + bandFrac * (W.arcFarFtps - W.arcNearFtps);
   const cWant0 = clamp(eRange / W.aimSec, -lim, lim);
-  const cWant = w.probe ? cWant0 + probeAt(w, 'cWant') : cWant0; // S28
+  const cWant = w.probe ? cWant0 + probeAt(w, 'cWant') : cWant0; // S29
 
   const omegaMag = len3(omegaL);
   const omegaEff = Math.max(omegaMag, W.minTurnRadps);
   const vLead = Math.max(len3(now.leadV), 1);
-  const dss = arc.onCircle ? seen.turn.radiusFt * (1 - V / vLead) : 0;
+  const dss = arc.onCircle ? seen.turn.radiusFt * (1 - V / vLead) : 0; // S28
   const cActual = (1 - wTurn) * arc.linClosing + wTurn * arc.closing;
 
   // Case entry bias on circle offset (S3a, Spec 7e §7.7): stretched-away biases inside; tight-away biases outside
@@ -187,7 +192,7 @@ function runArcLoop(w, seen, job, V, omegaL, now, cone, arc) {
   const dRawTurn = probeKind === 'aimLateral' ? w.offFt : dss + (cWant + W.arcKc * (cWant - cActual)) / omegaEff + caseBiasFt;
   const dRaw = wTurn * dRawTurn;
   const want = clamp(dRaw, -W.arcOffsetMaxFt, W.arcOffsetMaxFt);
-  const offFt = w.offFt + clamp(want - w.offFt, -W.arcSlewFtps * STEP_SEC, W.arcSlewFtps * STEP_SEC); // S29
+  const offFt = w.offFt + clamp(want - w.offFt, -W.arcSlewFtps * STEP_SEC, W.arcSlewFtps * STEP_SEC); // S30
 
   // Unmet closure S29b -> speed offset Δv_ref S27g (D9, D21)
   const omegaGeom = arc.onCircle ? omegaMag : 0;
@@ -227,13 +232,15 @@ function runArcLoop(w, seen, job, V, omegaL, now, cone, arc) {
 }
 
 /**
- * B05 Normal Follower (Spec 7e §7.7; TS-233; Fable D2, D17; writes S25):
+ * B05 Normal Follower (Spec 7e §7.6-7.8; TS-233; Fable D2, D17, D24; writes S25):
  *  - Follows a circle concentric with Lead's at offset d_cmd (radius R - d_cmd, clipped at maxCircleRadiusFt = 20,000 ft)
  *    or the level swept line when Lead is wings level, blended by continuous phase weights S21.
- *  - Asymmetric approach-angle law:chiMaxOutDeg = 20° when outside the target circle, chiMaxInDeg = 12° when inside,
+ *  - Asymmetric approach-angle law: chiMaxOutDeg = 20° when outside the target circle, chiMaxInDeg = 12° when inside,
  *    with slope Ke = 0.026°/ft (D2).
  *  - True path curvature feed-forward ω_FF (S27b): on the circle, V cos(α) / r, relaxed toward 0 when well inside the
  *    circle on an into-turn so #2 flies straight ahead until reaching the circle (TS-233).
+ *  - Continuous drop-low-inside height target (D24): h_T = stack - min(300, 20 * max(0, deficit - 5 kt)) when turning on the
+ *    inside, blended over 4.3 s (heightBlendSec) on the way down and 15 s (stackReturnSec) returning to stack, with rate ḣ_T.
  */
 function buildNormalReference(w, seen, job, st, V, u, plane, now, cone, arc, arcLoop) {
   const flat = (vec3) => perp3(vec3, plane.out);
@@ -297,7 +304,28 @@ function buildNormalReference(w, seen, job, st, V, u, plane, now, cone, arc, arc
   const chiWantedDeg = Math.atan2(dot3(cross3(nLIn, uWant), plane.out), dot3(nLIn, uWant)) / DEG; // S27a
   const omegaFfRadps = wTurn * omegaCircleRadps; // S27b
   const aimKind = !job.turning ? (job.sTurn ? 'sTurn' : 'swept') : aimOffFt > 75 ? 'lead' : aimOffFt < -75 ? 'lag' : 'pure';
-  const pitchOwner = job.low ? 'lowInside' : 'stack';
+
+  // Continuous drop-low-inside height term (D24, Spec 7e §7.8): 20 ft/kt past 5 kt slow inside a turn, capped at -300 ft,
+  // blended over 4.3 s (heightBlendSec) going down and 15 s (stackReturnSec) returning to stack.
+  const deficitKt = Math.max(0, seen.leadKias - st.kias);
+  const insideShare = arc.onCircle ? clamp01((arc.dContFt + 75) / 100) : 1;
+  const rawDropLowFt = wTurn * insideShare * Math.min(W.lowFt, W.lowFtPerKt * Math.max(0, deficitKt - W.lowStartKt));
+  const prevDropLowFt = w.dropLowFt ?? 0;
+  const dropBlendSec = rawDropLowFt > prevDropLowFt ? W.picker.heightBlendSec : W.stackReturnSec;
+  const dropLowFt = prevDropLowFt + (rawDropLowFt - prevDropLowFt) * Math.min(1, STEP_SEC / Math.max(dropBlendSec, 1e-6));
+  const heightTargetFt = W.stackFt - dropLowFt;
+  const heightRateTargetFtps = -(dropLowFt - prevDropLowFt) / STEP_SEC;
+  const lowCounted = dropLowFt > 100; // every foot past 100 ft below the 50 ft stack counts (TS-233, D24)
+  const pitchOwner = lowCounted ? 'lowInside' : 'stack';
+
+  // Energy intent from phase & case (Spec 7e §7.6, §7.8): stretched entry asks gain (+0.5); tight entry asks bleed (-0.35)
+  const entryW = job.weights?.entry ?? 0;
+  const energyIntent =
+    job.caseLabel === 'stretched-away' || job.caseLabel === 'very-stretched-away' || job.caseLabel === 'stretched-into' || job.caseLabel === 'very-stretched-into'
+      ? 0.5 * entryW
+      : job.caseLabel === 'tight-away'
+        ? -0.35 * entryW
+        : 0;
 
   const normalRef = makeFwReference({
     pathKind: arc.onCircle && wTurn >= 0.5 ? 'circle' : 'line',
@@ -310,10 +338,10 @@ function buildNormalReference(w, seen, job, st, V, u, plane, now, cone, arc, arc
     keDegPerFt: W.keDegPerFt,
     chiWantedDeg,
     omegaFfRadps,
-    heightTargetFt: job.heightFt,
-    heightRateTargetFtps: 0,
+    heightTargetFt,
+    heightRateTargetFtps,
     speedOffsetKt: arcLoop.speedOffsetKt,
-    energyIntent: 0,
+    energyIntent,
     urgency: 0,
     capChangeG: 0,
     aimKind,
@@ -326,6 +354,8 @@ function buildNormalReference(w, seen, job, st, V, u, plane, now, cone, arc, arc
     normalRef,
     chiOwnDeg,
     eTrackFt: wTurn >= 0.5 ? Math.abs(eCircleFt) : Math.abs(eLeftFt),
+    dropLowFt,
+    lowCounted,
   };
 }
 
@@ -344,7 +374,7 @@ function steerFromRef(w, ref, chiOwnDeg, V, u, plane) {
   const terms = {
     chiErrDeg,
     angleDeg: Math.abs(chiErrDeg),
-    pG: ( Math.abs(omegaP) * V) / G_FTPS2,
+    pG: (Math.abs(omegaP) * V) / G_FTPS2,
     ffG: (omegaFf * Math.sign(omegaP || omegaFf || 1) * V) / G_FTPS2,
     aimTurnDps: Math.abs(omegaFf) / DEG,
     aimTurnRawDps: Math.abs(omegaCmd) / DEG,
@@ -355,7 +385,7 @@ function steerFromRef(w, ref, chiOwnDeg, V, u, plane) {
 
 /**
  * B10 Vertical Loop (Spec 7e §7.7; Fable D1; writes S32 ΔG_v):
- *  - ΔG_v = 0.005 * (h_T - h) + 0.02 * (ḣ_T - ḣ), clipped to ±vertMaxG (±1.5 G).
+ *  - ΔG_v = 0.005 * (h_T - h) + 0.02 * (ḣ_T - ḣ), clipped to ±vertMaxG (±1 G).
  *  - Acting on (ḣ_T - ḣ) instead of -ḣ ensures the rate term helps planned descents (T1: pass-clear) instead of fighting them.
  */
 function verticalFromRef(w, ref, now, st, u, out) {
@@ -392,13 +422,13 @@ function scaleToCap(fixed, trim, limG) {
 }
 
 /**
- * Lift composer (B13, R6, D17, D20, S43; Spec 7e §7.9): composes 3D lift vector (G) from 1 G hold, vertical demand, and
- * horizontal turn (aTurn, ft/s²), trimming over a 0.2 G soft knee (W.capKneeG, softMin) in Patrick's priority order:
+ * Lift composer (B13, R6, D17, D20, S42, S43, S44; Spec 7e §7.8): composes 3D lift vector (G) from 1 G hold, vertical demand,
+ * and horizontal turn (aTurn, ft/s²), trimming over a 0.2 G soft knee (W.capKneeG, softMin) in Patrick's priority order:
  *  1. positive climb (vertG > 0) gives way first ('climb');
  *  2. 1 G level hold gives way second ('hold') — #2 accepts temporary descent before giving up turn;
  *  3. horizontal turn gives way last ('turn').
  * Unload, roll, pull: while his wings are more than pullWithinDeg off where the lift is wanted he pulls only its share
- * along them; never under minG (0.5 G). Returns { lift, capGaveWay, rawG, gLim }.
+ * along them; never under minG (0.5 G). Returns { lift, commandedG, capGaveWay, rawG, gLim }.
  */
 export function liftWithin(aTurn, hold, cap, bodyUp, vert = null) {
   const turn = scale3(aTurn, 1 / G_FTPS2);
@@ -425,43 +455,112 @@ export function liftWithin(aTurn, hold, cap, bodyUp, vert = null) {
       }
     }
   }
+  const commandedG = Math.max(W.minG, len3(lift)); // S44 commanded G before unload-roll-pull and shaper
   const along = dot3(lift, bodyUp);
   if (len3(lift) > 1e-9 && along < len3(lift) * Math.cos(W.pullWithinDeg * DEG)) lift = scale3(unit3(lift), Math.max(W.minG, along));
   if (len3(lift) < W.minG) lift = len3(lift) > 1e-9 ? scale3(unit3(lift), W.minG) : scale3(unit3(hold), W.minG);
-  return { lift, capGaveWay, rawG, gLim };
+  return { lift, commandedG, capGaveWay, rawG, gLim };
 }
 
 /**
- * B11 Proportional Speed & Drag Law (S2 baseline; Fable D21, D23; writes S33):
- *  - Proportional speed loop Kv = 0.3 /s on (V_L + Δv_ref - V) with no integrator (powerI = 0 retired, D23).
- *  - Full physics feed-forwards and intent-gated speed brake follow in S4.
+ * B11 Energy, Physics Feed-Forward & Proportional Speed Law (S4; Spec 7e §7.8; Fable D8, D21, D23, D25; R4, R10; writes S33, S34):
+ *  - One throttle owner (no ac.speedHold cascade, no integrator, no low-inside MAX relay):
+ *    throttle = FF(drag of commanded G S44, climb rate S27c, speed-brake drag)
+ *             + roll-in lead (S03, S04 when Lead's seen roll rate passes 10°/s)
+ *             + Kv * (V_L + Δv_ref - V) (Kv = 0.3 /s, Δv_ref S27g clipped ±15 kt)
+ *             + intent bias min(intent S27d, -bleedReq S39), clipped 0..1.
+ *  - Speed brake switch S34 only under deliberate bleed:
+ *    out when slant closure S14 > 60 ft/s held for 1 s AND effective bleed intent <= -0.5;
+ *    in when slant closure < 10 ft/s (per S0 D25 ripple check) OR effective intent > -0.2, after a minimum 3 s hold (D8).
+ *    While out, speed-brake drag enters the feed-forward so the speed loop is not surprised (Fable 3b §3).
  */
-function powerFromRef(w, seen, job, st, guard, ref, closing, leadKias) {
+function powerFromRef(w, seen, st, guard, ref, commandedG, leadKias) {
+  const BI = W.brakes;
   const bandKt = W.powerBandKias;
-  const dKt = clamp(ref.speedOffsetKt, -bandKt, bandKt);
+  const dKt = clamp(ref.speedOffsetKt, -bandKt, bandKt); // S27g
   const wantKias0 = leadKias + dKt;
   const wantKias = w.probe ? wantKias0 + probeAt(w, 'wantKias') : wantKias0;
-  const pFtps = dKt * KT_TO_FTPS;
-  const lowMax = job.low && ref.pitchOwner === 'lowInside';
+  const speedErrKt = wantKias - st.kias;
+  const pKtps = W.speedKvPerSec * speedErrKt;
+  const pFtps = speedErrKt * KT_TO_FTPS;
 
-  const BI = W.brakes;
-  const effectiveBleed = Math.min(ref.energyIntent, -guard.bleedReq);
-  const where = seen.slant < W.happyFt[1] || guard.on || effectiveBleed <= -0.25;
+  // Effective energy intent: min(reference intent S27d, -guard bleed request S39) in [-1, +1]
+  const effectiveIntent = clamp(Math.min(ref.energyIntent ?? 0, -(guard.bleedReq ?? 0)), -1, 1);
+
+  // Speed brake switch S34 (D8, D25): uses un-smoothed velocity-projected slant closure S14 (seen.closure)
+  const slantClosing = seen.closure;
   const fastEnough = st.kias >= leadKias - 5;
-  const idle = fastEnough && (w.idle ? closing > BI.idleOffFtps : closing > BI.idleFtps && where);
-  const boards = fastEnough && (w.boards ? closing > BI.boardsOffFtps : closing > BI.boardsFtps && where);
-  const power = lowMax ? { throttle: 1 } : { holdKias: wantKias };
+  const triggerCond = fastEnough && slantClosing > BI.boardsFtps && effectiveIntent <= BI.bleedOnIntent;
+  const boardsOnSec = triggerCond ? (w.boardsOnSec ?? 0) + STEP_SEC : 0;
+  let boards = Boolean(w.boards);
+  let boardsHoldSec = w.boardsHoldSec ?? 0;
+  if (!boards) {
+    if (boardsOnSec >= BI.boardsOnSec - 1e-9) {
+      boards = true;
+      boardsHoldSec = 0;
+    }
+  } else {
+    boardsHoldSec += STEP_SEC;
+    const retractCond = slantClosing < BI.boardsOffFtps || effectiveIntent > BI.bleedOffIntent || !fastEnough;
+    if (boardsHoldSec >= BI.boardsHoldSec - 1e-9 && retractCond) {
+      boards = false;
+      boardsHoldSec = 0;
+    }
+  }
+
+  // Physics feed-forwards (S44 drag of commanded G + climb rate S27c + speed-brake drag when boards are out)
+  const kias = Math.max(st.kias, 1);
+  const altFt = st.pm.z;
+  const thrMax = Math.max(thrustPerWeight(kias, altFt), 1e-6);
+  const leadClimbFtps = seen.lead?.v?.z ?? 0;
+  const ownClimbFtps = st.vel.z;
+  const plannedClimbFtps = leadClimbFtps + (ref.heightRateTargetFtps ?? 0);
+  const climbFfFtps = 0.5 * ownClimbFtps + 0.5 * plannedClimbFtps;
+  const ffThrottle = throttleFor(0, kias, altFt, commandedG, climbFfFtps, boards ? 'boards' : null);
+  const cmdGDragFrac = ffThrottle; // S44
+
+  // Roll-in power lead from Lead's seen roll rate S04 and extrapolated bank S03 (Spec 7e §7.8, Fable 3b §1)
+  const rollDpsAbs = Math.abs(seen.leadRollDps ?? 0);
+  const rollingIn = (seen.leadBankDeg ?? 0) * (seen.leadRollDps ?? 0) > 0;
+  const rollLeadShare = rollingIn ? clamp01((rollDpsAbs - W.rollInLeadMinDps) / Math.max(W.rollInLeadFullDps - W.rollInLeadMinDps, 1)) : 0;
+  const gEndExpected = 1 / Math.max(0.25, Math.cos(clamp(seen.leadBankDeg ?? 0, -FW_SEE.bankCarryMaxDeg, FW_SEE.bankCarryMaxDeg) * DEG));
+  const extraRollGDrag = Math.max(0, dragPerWeight(kias, altFt, Math.max(commandedG, gEndExpected)) - dragPerWeight(kias, altFt, commandedG));
+  const rollInLeadThr = rollLeadShare * (extraRollGDrag / thrMax);
+
+  // Proportional speed loop (Kv = 0.3 /s, D21, D23) + energy intent / bleed bias converted to throttle authority
+  const ktasRatio = iasToTasKt(kias, altFt) / kias;
+  const speedLoopThr = ((pKtps * ktasRatio * KT_TO_FTPS) / G_FTPS2) / thrMax;
+  const biasKtps = effectiveIntent * W.intentBiasKtps;
+  const biasThr = ((biasKtps * ktasRatio * KT_TO_FTPS) / G_FTPS2) / thrMax;
+
+  // Continuous throttle saturation (C9): idle and max reached only when the unified throttle law saturates, with 5% hysteresis
+  const rawThrottle = ffThrottle + rollInLeadThr + speedLoopThr + biasThr;
+  const throttle = clamp01(rawThrottle); // S33
+  const idle = w.idle ? throttle < 0.05 : throttle <= 1e-6;
+  const maxPower = w.maxPower ? throttle > 0.95 : throttle >= 1 - 1e-6;
+
   const terms = {
-    kind: idle ? 'idle' : lowMax ? 'max' : 'hold',
+    kind: idle ? 'idle' : maxPower ? 'max' : 'hold',
     pFtps,
     iFtps: 0,
     bandClip: Math.abs(ref.speedOffsetKt) >= bandKt - 1e-6,
+    ffThr: ffThrottle,
+    leadThr: rollInLeadThr,
+    speedThr: speedLoopThr,
+    biasThr,
+    cmdGDragFrac,
   };
+
   return {
-    ask: { ...(idle ? { throttle: 0 } : power), ...(boards ? { boards: true } : {}) },
+    ask: { throttle: idle ? 0 : throttle, ...(boards ? { boards: true } : {}) },
+    throttle: idle ? 0 : throttle,
     idle,
+    maxPower,
     boards,
+    boardsOnSec,
+    boardsHoldSec,
     wantKias,
+    cmdGDragFrac,
     terms,
   };
 }
@@ -495,10 +594,10 @@ export function stepFwWingman(w, refSt) {
   const prevArcErr = w.lastArcErrAbs ?? Infinity;
   const job = probeActive ? w.job : fwJob(w.job, seen, { shortKt: leadKias - st.kias, arcErrAbs: prevArcErr, chiErrAbs: prevChiErr });
 
-  // Curvilinear range (S18-S20), B07 Arc/Range Loop (S28, S29, S29b, S27g), and B05 Normal Follower (S25)
+  // Curvilinear range (S18-S20), B07 Arc/Range Loop (S28, S29, S29b, S30, S27g), and B05 Normal Follower (S25 + D24 drop-low)
   const arc = arcRange(seen, job, now, cone);
   const arcLoop = runArcLoop(w, seen, job, V, plane.omegaL, now, cone, arc);
-  const { normalRef, chiOwnDeg, eTrackFt } = buildNormalReference(w, seen, job, stC, V, u, plane, now, cone, arc, arcLoop);
+  const { normalRef, chiOwnDeg, eTrackFt, dropLowFt, lowCounted } = buildNormalReference(w, seen, job, stC, V, u, plane, now, cone, arc, arcLoop);
 
   // Step B04 Technique Picker & B06 Active Technique (T1: pass-clear in S3b; writes S23, S24, S26)
   const pickerCtx = { seen, guard: w.guard, phase: job, arc, normalRef, V };
@@ -539,16 +638,25 @@ export function stepFwWingman(w, refSt) {
       }
     : guardRaw;
 
-  // Merge guard urgency (S36) and smooth cap opening (S40) into B13 (liftWithin) and B14 (shapeFwLift)
+  // Merge guard urgency (S36) and smooth cap opening (S40) into B13 (liftWithin -> S42, S43, S44) and B14 (shapeFwLift -> S45)
   const urgency = clamp01(Math.max(ref.urgency, guard.urgency));
   const capG = Math.max(guard.capNormal, guard.cap + ref.capChangeG);
   const composed = liftWithin(guard.aTurn, guard.hold, capG, st.bodyUp, guard.vert);
   const shaped = shapeFwLift(w.shapedG ?? st.g, composed.lift, urgency, STEP_SEC, W);
   const lift = shaped.lift;
 
-  // Step B11 Power Law (S33) and B15 Plant (stepLead)
-  const pw = powerFromRef(w, seen, job, st, guard, ref, arc.closing, leadKias);
-  const cmdGDrag = { lift, g: shaped.shapedG, wantKias: pw.wantKias, idle: pw.idle, boards: pw.boards };
+  // Step B11 Power Law (S44 commanded G drag + S27c climb + roll-in lead + 0.3 /s speed loop + intent/bleed -> S33, S34) and B15 Plant (stepLead)
+  const pw = powerFromRef(w, seen, stC, guard, ref, composed.commandedG, leadKias);
+  const cmdGDrag = {
+    lift,
+    g: shaped.shapedG,
+    commandedG: composed.commandedG,
+    dragThrustFrac: pw.cmdGDragFrac,
+    wantKias: pw.wantKias,
+    throttle: pw.throttle,
+    idle: pw.idle,
+    boards: pw.boards,
+  };
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...pw.ask });
 
   const gAsk = len3(composed.lift);
@@ -612,7 +720,11 @@ export function stepFwWingman(w, refSt) {
       picker,
       t: w.t + STEP_SEC,
       offFt: arcLoop.offFt,
+      dropLowFt,
+      boardsOnSec: pw.boardsOnSec,
+      boardsHoldSec: pw.boardsHoldSec,
       idle: pw.idle,
+      maxPower: pw.maxPower,
       boards: pw.boards,
       shapedG: shaped.shapedG,
       activeRef: ref,
@@ -641,7 +753,7 @@ export function stepFwWingman(w, refSt) {
       overEstimate: guard.on && gAsk > guard.capNormal + 1e-6,
       cWantFtps: guard.on ? null : arcLoop.cWant,
       cActualFtps: arcLoop.cActual,
-      low: job.low,
+      low: lowCounted,
       sFt: arcFt == null ? null : Math.round(arcFt),
       dFt: dFt == null ? null : Math.round(dFt),
       pitchOwner: pitch,

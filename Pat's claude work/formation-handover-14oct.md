@@ -14,26 +14,28 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
     - Rig lag results (`D13`): turn-rate $t_{63} = 0.15\text{–}0.25\text{ s}$ (confirming $K_\chi = 0.5\text{ /s}, K_e = 0.026^\circ/\text{ft}$ for `S2`, `D2`); vertical G $t_{63} = 0.15\text{ s}$.
     - Un-smoothed slant-closure ripple (`D25`): `21.66 ft/s` p2p in `T2` (`> 20 ft/s`), setting `S4`'s speed-brake retract threshold to `10 ft/s`.
   - **`S1` (Reference blender, lift cap order & urgency shaper):** scalar reference record & blender (`B08` in `src/modules/turn-sim/live/wingman/fw-reference.js`, carrying $h_T$ and $\dot{h}_T$ `D1`, `D5`), lift composer (`B13` `liftWithin` with `0.2 G` soft knee and cap order: 1. positive climb $\Delta G_v > 0$, 2. `1 G` level hold, 3. horizontal turn `D20`, `R6` closed, verified on 3.5 G forced cap test), and urgency G-onset shaper (`B14` `shapeFwLift` with $\dot{G}_{\max} = 1 + 3u\text{ G/s}$; close formation's `shape()` untouched).
-- **Round 5 (`B5`) Step 1 (`S2 + S3 + S3a + S3b + A1`, `98416ddb`):** built, verified, and merged (`14/15` target blocks `B01–B10, B12–B15` and `51/53` target signals built; `5/5` rig cases clean):
+- **Round 5 (`B5`) Step 1 (`S2 + S3 + S3a + S3b + A1`, `e25b131d`):** built, verified, and merged (`14/15` target blocks `B01–B10, B12–B15` and `51/53` target signals built; `5/5` rig cases clean):
   - **`S2` (Normal circle & line follower):** `B05` (`buildNormalReference`, `S25`), `B07` (`runArcLoop` with $\tau_s = \tau_r = 10\text{ s}$ `D21`, unmet closure `S29b` $\to$ `S27g` $\Delta v_{\text{ref}}$), `B09` (`steerFromRef`, $K_\chi = 0.5\text{ /s}, K_e = 0.026^\circ/\text{ft}$ `D2`), `B10` (`verticalFromRef` with $\dot{h}_T - \dot{h}$ damping `D1`), `B11` baseline (`powerFromRef` `0.3 /s` proportional speed loop `D23`), and `90°`/`180°` turn cases (`D26`).
   - **`S3` (Separation guard `B12`):** single closing-pass predictor `leastPass` (up to `10 s` closing pass, `thenSec = 2.5`) using `S03`, `600 → 500 ft` $x^3$ smooth barrier, `350 ft` hard floor, vertical floor `S38` (`D16`), retiring `separationFilter` (`R8`, `R9`).
   - **`S3a` (`B03` phase & case classifier + `B04` picker):** continuous `entry / turning / exit` weights (`S21`, `1.5 s` blend, no `1 s` hold), latched `tight / inBand / stretched / veryStretched` case (`S22`, `±50 ft` band `D17`, `6 s` `sideBlend`), phase-driven normal follower (`R7`, `R12`).
   - **`S3b + A1` (`B06` technique scheduler + `T1` the miss + Audit 1):** `techniques/index.js` + `techniques/miss.js` (`3 s ≤ t_pass ≤ 10 s`, depth $h = \sqrt{625^2 - p^2}$ below Lead, `minG = 0.5 G` unload-roll-pull overbanking past `90°` when urgent, least outward turn mix $\Delta\omega$ `D4`, picture-based energy intent), verified across `5/5` `fw-rig.mjs` step cases (`T1`–`T5` all `0` bank flips, `minDist 650–682 ft`, `four-ship-probe` `2d5b5a8020839796`).
-- **Nothing is running.** All worktrees (`Dads-debreif-physics` and `../formation-b5-slices`) are clean at `98416ddb`.
+- **Round 5 (`B5`) Step 2 (`S4` — `B11` Energy/Power Loop & `D24` Continuous Drop-Low-Inside):** built, verified, and merged (**`15/15` target blocks (`100%`) and `53/53` target signals (`100%`) built**):
+  - **`B11` (`powerFromRef` in `fighting-wing.js`):** physics feed-forwards for commanded-G drag (`S44` from `B13`), climb rate (`S27c`), speed-brake drag (`S34`), and Lead's seen roll-in rate (`S03, S04` above `10°/s`), plus `0.3 /s` proportional speed loop on $(V_L + \Delta v_{\text{ref}} - V)$ (`D21`, `D23`) and effective intent bias $\min(\text{intent `S27d`}, -\text{bleedReq `S39`}) \times 2\text{ kt/s}$, handing `{ throttle }` directly to `stepLead` (`R4` `ac.speedHold` series cascade and `lowMax` relay retired; `R10` closed; `power-T1` rig step $t_{63} = 3.45\text{ s}$, `0%` overshoot).
+  - **Speed brake `S34` (`D8`, `D25`):** out when `slantClosing > 60 ft/s` for `1 s` under deliberate bleed (`effectiveIntent <= -0.5`), in when `< 10 ft/s` (`boardsOffFtps = 10` per `S0` `D25` ripple check) or `effectiveIntent > -0.2`, held `≥ 3 s`.
+  - **Continuous drop-low-inside (`D24` in `B05`):** $h_T = \text{stack} - \min(300, 20 \times \max(0, \text{deficit} - 5))$ when turning inside, blended `4.3 s` down / `15 s` return to stack, with profile rate $\dot{h}_T$ (`D1`) and `lowCounted = dropLowFt > 100`.
+- **Nothing is running.** Both worktrees (`Dads-debreif-physics` and `../formation-b5-slices`) are synced and clean.
 
 ## Next, in order (`docs/modules/turn-sim/plan.md`)
 
-1. **Step 2 (`S4` — `B11` energy & power loop + `D24` drop-low-inside):**
-   - Complete `B11` (`powerFromRef`) with physics feed-forwards + `0.3 /s` speed loop (`D23`, `R4`, `R10`), speed brake (`S34`: out `> 60 ft/s` for `1 s`, in `< 10 ft/s` per `D25`, hold `≥ 3 s` `D8`), and continuous drop-low-inside height term (`20 ft/kt` past `5 kt` slow, cap `-300 ft` `D24`), reaching `15/15` blocks (`100%`).
-2. **Step 3 (`S5 → S6 → S7 + A2` — Techniques `T2–T7` + Audit 2 `C10`):**
-   - **`S5` (`T2` high yo-yo + `T4` exit vertical):** `techniques/high-yoyo.js` and `techniques/exit-vertical.js`.
-   - **`S6` (Abeam to `0°` & `T3` lag-abeam):** widen band to `0°` sweep (`R14`) + `techniques/lag-abeam.js` (track crossing `S15` + LOS rate `S16` backup `D18`).
-   - **`S7 + A2` (`T5` S-turns, `T6` cut-across, `T7` behind 3/9 + Audit 2 `C10` self-check):** `techniques/s-turns.js`, `cut-across.js`, `behind-3-9.js` (`15/15` blocks, `53/53` signals built).
-3. **Step 4 (`S8a → S8b → T30 → CR`):**
+1. **Step 3 (`S5 → S6 → S7 + A2` — Techniques `T2–T7` + Audit 2 `C10`):**
+   - **`S5` (`T6` exit-vertical + `T7` s-turns):** `techniques/exit-vertical.js` and `techniques/s-turns.js`.
+   - **`S6` (Abeam to `0°` & `T3` lag-abeam):** widen band to `0°` sweep (`R14`) + `techniques/lag-abeam.js` (track crossing + LOS rate `S15` backup `D18`).
+   - **`S7 + A2` (`T4` yo-yo, `T5` cut-across, `T2` behind-39 + Audit 2 `C10` self-check):** `techniques/yo-yo.js`, `cut-across.js`, `behind-39.js` (`15/15` blocks, `53/53` signals built).
+2. **Step 4 (`S8a → S8b → T30 → CR`):**
    - Climbs/descents (`S8a` / `T29b`), aggressive Lead to `4 G` / `90°/s` (`S8b` / `T29d`), blended move-out from close (`T30` / `T8`), and dead-code removal (`CR`).
-4. **Step 5 (`T29r + Systems Engineering Plots` — `flash`):**
+3. **Step 5 (`T29r + Systems Engineering Plots` — `flash`):**
    - `fw-systems-plot-agent` (`flash`) wires `T29r` HUD readout + `D3b` phase-plane plot and runs the full systems-engineering diagram/plot suite (`draw.mjs`, `fw_loops.py`, `fw-rig.mjs`, `ripple.mjs`, `faults.mjs`).
-5. **Step 6 (`T31` Consolidated Docs, Log & Walkthrough — Orchestrator):**
+4. **Step 6 (`T31` Consolidated Docs, Log & Walkthrough — Orchestrator):**
    - Orchestrator (`pro`) audits final diff, merges to `formation-close-wingman-b2`, updates `plan.md`, `b5-assumptions-decisions-log.md`, `README.md`, and `formation-handover-14oct.md` in one pass, and delivers the final architecture walkthrough.
 
 ## Patrick's rulings on 14 Oct (all in `TS-233` and `TS-234` in `decisions.md`, and in `spec.md` §7e and §7a)
@@ -60,7 +62,7 @@ For the next Formation session. Read `AGENTS.md`, `docs/PLAN.md` (its waiting li
 
 ## The checks
 
-- **Build & numbers:** `npm run build` (no local unit/browser tests; GitHub CI not watched per Patrick); `node tools/turn-sim-numbers.mjs` (`795 rows`).
-- **Control model:** `node tools/control-map/draw.mjs --check` (no diff) and `node tools/control-map/check.mjs --tag cm` (`14/15` blocks built, `51/53` signals built).
+- **Build & numbers:** `npm run build` (no local unit/browser tests; GitHub CI not watched per Patrick); `node tools/turn-sim-numbers.mjs` (`815 rows`).
+- **Control model:** `node tools/control-map/draw.mjs --check` (no diff) and `node tools/control-map/check.mjs --tag cm` (`15/15` blocks built, `53/53` signals built).
 - **Rig (`S0` lags & 5 step cases):** `node tools/fw-rig.mjs --s0-lags`.
 - **Close & 4-ship non-regression:** `node "Pat's claude work/formation-review-12oct/four-ship-probe.mjs" file:///C:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif-physics/` (`2d5b5a8020839796` for both `{}` and `{"fwWing":"live"}`).

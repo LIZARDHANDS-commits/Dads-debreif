@@ -88,7 +88,7 @@ Spec 7e Draft 4 reconciled with Fable's control-systems model and audit (`fable-
 3. **B03 Supervisor: phase and case**: Phase weights (level, entry, turning, exit, sum 1) from Lead's seen roll, blended 1.5 s; case label read once per phase with ±50 ft dead band, side/case blended ≥6 s · **B04 Supervisor: technique picker**: Polls each technique's cue; one active at a time by priority; 3 s no-restart timer; longest-run timer; writes blend weight 0→1→0 (≥6 s path, ≥4.3 s height)
 4. **B07 Arc loop**: d = d_ss + w/ω + kc(w − c)/ω, w = (s − 650)/10 s, soft closure limit 25→60 ft/s, d within ±250 ft, slewed 60 ft/s (radius clipped ~20,000 ft); writes offset d (S30) and unmet closure w − ω·d_cmd (S29b, clipped ±15 kt, D21) · **B05 Normal follower**: Writes the normal reference: path (circle concentric with Lead's at B07's offset d, or swept line parallel to Lead's track), caps 20° out / 12° in, Ke 0.026°/ft, height target = stack − planned drop low inside (20 ft/kt past 5 kt slow, cap −300 ft, D24), speed offset from B07's unmet closure, intent 0, urgency 0 · **B06 Techniques T1-T8**: T1 pass clear (S3b), T2 back behind 3/9 line (S7), T3 lag pursuit from abeam (S6), T4 high yo-yo ending stacked low (S7), T5 cut-across (S7), T6 exit vertical (S5), T7 S-turns (S5), T8 moving out from close formation (T30); each cue, plan once, monitor, done; writes candidate reference S26 and cue state S24 only
 5. **B08 Reference blender**: From normal reference (S25), technique reference (S26) and #2's position computes and blends by B04's weight (S23): wanted course χ_w, path turn-rate ω_FF, height target h_T and rate ḣ_T, speed offset Δv_ref, intent, urgency, cap change
-6. **B09 Steering loop**: ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s · **B10 Vertical loop**: ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included) · **B11 Power loop**: throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 20 ft/s, held ≥ 3 s, D8, D25)
+6. **B09 Steering loop**: ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s · **B10 Vertical loop**: ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included) · **B11 Power loop**: throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 10 ft/s per D25, held ≥ 3 s, D8)
 7. **B12 Guard**: One predictor on raw demands (S31, S32) over closing part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500 ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38); graded bleed request (S39); smooth cap opening 550→500 ft (S40); side choice held 3 s (S41)
 8. **B13 Lift composer**: Composes bounded turn, 1 G hold and bounded vertical within cap = min(stall warning, Lead G + 1.5 + S40 + S27f) with 0.2 G soft knee; cap order: climb height demand gives way first, then 1 G hold, turn last (D20); minG 0.5 G floor with unload-roll-pull (never pushes to 0 or negative G); hands drag of commanded G and climb (S44) to B11
 9. **B14 Shaper**: G onset 1 + 3u G/s by urgency u; roll ≤ 60°/s; unload, roll, pull when wings are > 20° off wanted lift (fighting wing only; close formation shape() untouched)
@@ -218,7 +218,7 @@ flowchart LR
 | B08 | B08 Reference blender | reference | `live/wingman/fw-reference.js` | S1 | built | From normal reference (S25), technique reference (S26) and #2's position computes and blends by B04's weight (S23): wanted course χ_w, path turn-rate ω_FF, height target h_T and rate ḣ_T, speed offset Δv_ref, intent, urgency, cap change |
 | B09 | B09 Steering loop | loop | `live/wingman/fighting-wing.js` | S2 | built | ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s |
 | B10 | B10 Vertical loop | loop | `live/wingman/fighting-wing.js` | S3b | built | ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover 0.68 rad/s (D1 profile rate included) |
-| B11 | B11 Power loop | loop | `live/wingman/fighting-wing.js` | S4 | target | throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 20 ft/s, held ≥ 3 s, D8, D25) |
+| B11 | B11 Power loop | loop | `live/wingman/fighting-wing.js` | S4 | built | throttle = FF (drag of commanded G, climb, speed-brake drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent, −bleed request), clipped 0-1 (D21, D23); speed brake switch under bleed intent ≤ −0.5 (out > 60 ft/s for 1 s, in < 10 ft/s per D25, held ≥ 3 s, D8) |
 | B12 | B12 Guard | guard | `live/wingman/separation.js` | S3 | built | One predictor on raw demands (S31, S32) over closing part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500 ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38); graded bleed request (S39); smooth cap opening 550→500 ft (S40); side choice held 3 s (S41) |
 | B13 | B13 Lift composer | shaper | `live/wingman/fighting-wing.js` | S1 | built | Composes bounded turn, 1 G hold and bounded vertical within cap = min(stall warning, Lead G + 1.5 + S40 + S27f) with 0.2 G soft knee; cap order: climb height demand gives way first, then 1 G hold, turn last (D20); minG 0.5 G floor with unload-roll-pull (never pushes to 0 or negative G); hands drag of commanded G and climb (S44) to B11 |
 | B14 | B14 Shaper | shaper | `live/wingman/shaper.js` | S1 | built | G onset 1 + 3u G/s by urgency u; roll ≤ 60°/s; unload, roll, pull when wings are > 20° off wanted lift (fighting wing only; close formation shape() untouched) |
@@ -269,7 +269,7 @@ flowchart LR
 | S31 | turn-rate command ω_cmd | rad/s | B09 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S2 | built |
 | S32 | vertical G command ΔG_v | G | B10 | B12, B13 | N | none | to B12 for bounding and B13 for composing (D22) | S3b | built |
 | S33 | throttle command | 0-1 | B11 | B15 | N | engine lag in B15 | 0-1 | S2 | built |
-| S34 | speed brake command | bool | B11 | B15 | L | hold ≥ 3 s; drag fed forward in B11 | out > 60 ft/s for 1 s & intent ≤ −0.5; in < 20 ft/s (D8, D25) | S4 | target |
+| S34 | speed brake command | bool | B11 | B15 | L | hold ≥ 3 s; drag fed forward in B11 | out > 60 ft/s for 1 s & intent ≤ −0.5; in < 10 ft/s per D25 (D8) | S4 | built |
 | S35 | predicted pass p, time to pass t_pass | ft, s | B12 | B06, B14, gauge | L | none (D3; on raw S31, S32 from achieved state) | horizon ≤ 10 s | S3 | built |
 | S36 | guard urgency | 0-1 | B12 | B08 | L | rises at once, decays ~2 s | cubic ((600 − p)/100)³ | S3 | built |
 | S37 | turn bounds (lo, hi) on ω_cmd | rad/s | B12 | B13 | L | none | least change | S3 | built |
@@ -279,7 +279,7 @@ flowchart LR
 | S41 | guard side choice | ±1 | B12 | B12 | L | held ≥ 3 s | internal to B12 | S3 | built |
 | S42 | commanded lift vector (G and direction) | G, deg | B13 | B14 | N | 0.2 G soft knee at cap | cap = min(stall warning, Lead G + 1.5 + S40 + S27f); minG 0.5 G | S1 | built |
 | S43 | what gave way at the cap | label | B13 | gauge | N | none | telemetry only | S1 | built |
-| S44 | drag of commanded G and climb | thrust fraction | B13 | B11 | N | none | physics cross-feed before shaper | S4 | target |
+| S44 | drag of commanded G and climb | thrust fraction | B13 | B11 | N | none | physics cross-feed before shaper | S4 | built |
 | S45 | achieved G, bank rate | G, deg/s | B14 | B15 | N | onset 1 + 3u G/s; roll ≤ 60°/s | unload-roll-pull past 20° | S1 | built |
 
 ## 3. Where the delay sits
@@ -601,7 +601,7 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | CLOSE_SEE | 3 | 1 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | CLOSE_WING | 62 | 8 | 1 | 0 | 53 | 0 | 0 | 0 | 0 | 0 |
 | FW_SEE | 6 | 1 | 0 | 0 | 4 | 1 | 0 | 0 | 0 | 0 |
-| FW_WING | 104 | 18 | 0 | 3 | 83 | 0 | 0 | 0 | 6 | 5 |
+| FW_WING | 111 | 18 | 0 | 3 | 90 | 0 | 0 | 0 | 3 | 5 |
 
 | Added by the recommended structure | Value | Role | Source |
 |---|---|---|---|
@@ -743,9 +743,9 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | `FW_WING.vertGPerFtps` | 0.02 | tuning | Vertical PD | keeps | 0.02 G per ft/s of (ḣ_T - ḣ) height-rate error including planned profile rate (spec 7e §7.8, Fable D1; estimate) |
 | `FW_WING.vertMaxG` | 1 | tuning | Vertical PD | keeps | vertical loop demand bounded within ±1 G (estimate) |
 | `FW_WING.stackReturnSec` | 15 | tuning | Jobs (fwJob) | keeps | height blend time returning to stack: 15 s (spec 7e §7.8, Fable D5; estimate) |
-| `FW_WING.lowFt` | 300 | tuning | Jobs (fwJob) | removes: low inside folds into the energy intent (review 3) | drop-low-inside cap 300 ft below Lead (Patrick 14 Oct 2026, TS-233; estimate) |
-| `FW_WING.lowStartKt` | 5 | tuning | Jobs (fwJob) | removes: into the intent | drop-low-inside starts past 5 kt slow (Patrick 14 Oct 2026, Fable D24; estimate) |
-| `FW_WING.lowEndKt` | 1 | tuning | Jobs (fwJob) | removes: into the intent | drop-low-inside release threshold (kept until S4; estimate) |
+| `FW_WING.lowFt` | 300 | tuning | Jobs (fwJob) | keeps: B05 continuous drop-low-inside cap (-300 ft, D24) | continuous drop-low-inside cap 300 ft below stack (Patrick 14 Oct 2026, TS-233, Fable D24; estimate) |
+| `FW_WING.lowStartKt` | 5 | tuning | Jobs (fwJob) | keeps: B05 continuous drop-low-inside start deficit (5 kt, D24) | continuous drop-low-inside starts past 5 kt slow inside a turn (Patrick 14 Oct 2026, Fable D24; estimate) |
+| `FW_WING.lowFtPerKt` | 20 | tuning | Jobs (fwJob) | keeps: B05 continuous drop-low-inside slope (20 ft/kt past 5 kt slow, D24) | continuous drop-low-inside slope: 20 ft/kt past 5 kt slow (100 ft low at 10 kt slow, capped at -300 ft at 20 kt slow, blended over 4.3 s; Fable D24; estimate) |
 | `FW_WING.yoyo.slowKt` | 10 | tuning | High yo-yo | removes: the yo-yo's speed trigger (review 3) | speed deficit trigger (kept until S7; estimate) |
 | `FW_WING.yoyo.powerBackKt` | 5 | tuning | High yo-yo | removes: a power-to-yo-yo link (R9) | power-back trigger (kept until S7; estimate) |
 | `FW_WING.yoyo.excessFtps` | 20 | tuning | High yo-yo | removes: the speed trigger | excess arc closure trigger (kept until S7; estimate) |
@@ -756,11 +756,18 @@ Every number of CLOSE_SEE, CLOSE_WING, FW_SEE and FW_WING, its value read from t
 | `FW_WING.yoyo.highFt` | 100 | ruling | Pitch owner | keeps | "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233) |
 | `FW_WING.yoyo.ownerHoldSec` | 2 | tuning | High yo-yo | keeps | pitch owner hold time (kept until S7; estimate) |
 | `FW_WING.powerBandKias` | 15 | ruling | Power (powerAsk) | keeps | speed offset Δv_ref bounded within ±15 KIAS of Lead (Patrick 4 Oct 19:12Z, Fable D21) |
-| `FW_WING.speedKvPerSec` | 0.3 | tuning | Power (powerAsk) | keeps: B11 proportional speed loop gain (0.3 /s, D21, D23) | proportional speed loop gain Kv = 0.3 /s with no integrator (Patrick 14 Oct 2026, Fable D21, D23; estimate) |
-| `FW_WING.brakes.idleFtps` | 40 | tuning | Power (powerAsk) | keeps | idle closure threshold (estimate) |
-| `FW_WING.brakes.idleOffFtps` | 25 | tuning | Power (powerAsk) | keeps | idle release threshold (estimate) |
-| `FW_WING.brakes.boardsFtps` | 60 | tuning | Power (powerAsk) | keeps | speed brake out threshold > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate) |
-| `FW_WING.brakes.boardsOffFtps` | 35 | tuning | Power (powerAsk) | keeps | speed brake retract threshold (updated to 10 ft/s in S4 per D25; estimate) |
+| `FW_WING.speedKvPerSec` | 0.3 | tuning | Power (powerAsk) | keeps: B11 proportional speed loop gain (0.3 /s, D21, D23) | proportional speed loop gain Kv = 0.3 /s with no integrator, crossover 0.3 rad/s, PM 89°/82° (Patrick 14 Oct 2026, Fable D21, D23; estimate) |
+| `FW_WING.rollInLeadMinDps` | 10 | tuning | Power (powerAsk) | keeps: B11 roll-in power lead start roll rate (10°/s, Spec 7e §7.8) | Lead's seen roll rate threshold to ramp in roll-in power lead ahead of his expected end-bank G drag (spec 7e §7.8, Fable 3b §1; estimate) |
+| `FW_WING.rollInLeadFullDps` | 30 | tuning | Power (powerAsk) | keeps: B11 roll-in power lead full roll rate (30°/s, Spec 7e §7.8) | Lead's seen roll rate for full roll-in power lead (spec 7e §7.8; estimate) |
+| `FW_WING.intentBiasKtps` | 2 | tuning | Power (powerAsk) | keeps: B11 full-authority speed-rate bias for energy intent or bleed request (2 kt/s) | full-authority speed-rate bias for energy intent (±1) or guard bleed request (spec 7e §7.8, Fable 3b §4; estimate) |
+| `FW_WING.brakes.idleFtps` | 40 | tuning | Power (powerAsk) | keeps | closure threshold where bleed intent phases throttle to idle (estimate) |
+| `FW_WING.brakes.idleOffFtps` | 25 | tuning | Power (powerAsk) | keeps | idle release closure threshold (estimate) |
+| `FW_WING.brakes.boardsFtps` | 60 | tuning | Power (powerAsk) | keeps | speed brake out threshold: slant closure > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate) |
+| `FW_WING.brakes.boardsOffFtps` | 10 | tuning | Power (powerAsk) | keeps | speed brake retract threshold: slant closure < 10 ft/s (lowered from 20 to 10 ft/s per Fable D25 since S0 measured 21.66 ft/s > 20 ft/s p2p ripple; estimate) |
+| `FW_WING.brakes.boardsOnSec` | 1 | tuning | Power (powerAsk) | keeps | speed brake out dwell: closing > 60 ft/s must hold for 1 s under effective bleed intent <= -0.5 (Fable D8; estimate) |
+| `FW_WING.brakes.boardsHoldSec` | 3 | tuning | Power (powerAsk) | keeps | speed brake minimum hold time once deployed: >= 3 s (Fable D8; estimate) |
+| `FW_WING.brakes.bleedOnIntent` | -0.5 | tuning | Power (powerAsk) | keeps | effective bleed intent threshold <= -0.5 required to deploy speed brake (Fable D8, 3b §5; estimate) |
+| `FW_WING.brakes.bleedOffIntent` | -0.2 | tuning | Power (powerAsk) | keeps | effective bleed intent threshold > -0.2 that retracts speed brake after its 3 s hold (Fable 3b §5; estimate) |
 | `FW_WING.guard.hardFloorFt` | 350 | ruling | Separation filter | keeps: B12 hard separation floor (350 ft, Spec 7e §7.6) | emergency separation floor where guard uses full available authority (spec 7e §7.8b; estimate) |
 | `FW_WING.guard.minFt` | 500 | ruling | Separation filter | keeps | 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233) |
 | `FW_WING.guard.taperStartFt` | 600 | ruling | Guard (fwGuard) | keeps: B12 cubic barrier outer boundary (600 ft, TS-233) | guard is completely silent at >= 600 ft and tapers cubically x = ((600 - p)/100)^3 down to 500 ft (Patrick 14 Oct 2026, TS-233) |

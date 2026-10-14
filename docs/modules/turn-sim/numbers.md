@@ -438,9 +438,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.vertGPerFtps | `0.02` | 0.02 G per ft/s of (ḣ_T - ḣ) height-rate error including planned profile rate (spec 7e §7.8, Fable D1; estimate) |
 | FW_WING.vertMaxG | `1` | vertical loop demand bounded within ±1 G (estimate) |
 | FW_WING.stackReturnSec | `15` | height blend time returning to stack: 15 s (spec 7e §7.8, Fable D5; estimate) |
-| FW_WING.lowFt | `300` | drop-low-inside cap 300 ft below Lead (Patrick 14 Oct 2026, TS-233; estimate) |
-| FW_WING.lowStartKt | `5` | drop-low-inside starts past 5 kt slow (Patrick 14 Oct 2026, Fable D24; estimate) |
-| FW_WING.lowEndKt | `1` | drop-low-inside release threshold (kept until S4; estimate) |
+| FW_WING.lowFt | `300` | continuous drop-low-inside cap 300 ft below stack (Patrick 14 Oct 2026, TS-233, Fable D24; estimate) |
+| FW_WING.lowStartKt | `5` | continuous drop-low-inside starts past 5 kt slow inside a turn (Patrick 14 Oct 2026, Fable D24; estimate) |
+| FW_WING.lowFtPerKt | `20` | continuous drop-low-inside slope: 20 ft/kt past 5 kt slow (100 ft low at 10 kt slow, capped at -300 ft at 20 kt slow, blended over 4.3 s; Fable D24; estimate) |
 | FW_WING.yoyo | `Object.freeze({` | High yo-yo (kept until S7 replaces with techniques/yo-yo.js): |
 | FW_WING.…slowKt | `10` | speed deficit trigger (kept until S7; estimate) |
 | FW_WING.…powerBackKt | `5` | power-back trigger (kept until S7; estimate) |
@@ -452,12 +452,19 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.…highFt | `100` | "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233) |
 | FW_WING.…ownerHoldSec | `2` | pitch owner hold time (kept until S7; estimate) |
 | FW_WING.powerBandKias | `15` | speed offset Δv_ref bounded within ±15 KIAS of Lead (Patrick 4 Oct 19:12Z, Fable D21) |
-| FW_WING.speedKvPerSec | `0.3` | proportional speed loop gain Kv = 0.3 /s with no integrator (Patrick 14 Oct 2026, Fable D21, D23; estimate) |
-| FW_WING.brakes | `Object.freeze({` | ---- speed & power loop (B11; spec 7e §7.8, Fable D21, D23) ---- |
-| FW_WING.…idleFtps | `40` | idle closure threshold (estimate) |
-| FW_WING.…idleOffFtps | `25` | idle release threshold (estimate) |
-| FW_WING.…boardsFtps | `60` | speed brake out threshold > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate) |
-| FW_WING.…boardsOffFtps | `35` | speed brake retract threshold (updated to 10 ft/s in S4 per D25; estimate) |
+| FW_WING.speedKvPerSec | `0.3` | proportional speed loop gain Kv = 0.3 /s with no integrator, crossover 0.3 rad/s, PM 89°/82° (Patrick 14 Oct 2026, Fable D21, D23; estimate) |
+| FW_WING.rollInLeadMinDps | `10` | Lead's seen roll rate threshold to ramp in roll-in power lead ahead of his expected end-bank G drag (spec 7e §7.8, Fable 3b §1; estimate) |
+| FW_WING.rollInLeadFullDps | `30` | Lead's seen roll rate for full roll-in power lead (spec 7e §7.8; estimate) |
+| FW_WING.intentBiasKtps | `2` | full-authority speed-rate bias for energy intent (±1) or guard bleed request (spec 7e §7.8, Fable 3b §4; estimate) |
+| FW_WING.brakes | `Object.freeze({` | ---- speed & power loop (B11; spec 7e §7.8, TS-233, Fable D8, D21, D23, D25, R4, R10) ---- |
+| FW_WING.…idleFtps | `40` | closure threshold where bleed intent phases throttle to idle (estimate) |
+| FW_WING.…idleOffFtps | `25` | idle release closure threshold (estimate) |
+| FW_WING.…boardsFtps | `60` | speed brake out threshold: slant closure > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate) |
+| FW_WING.…boardsOffFtps | `10` | speed brake retract threshold: slant closure < 10 ft/s (lowered from 20 to 10 ft/s per Fable D25 since S0 measured 21.66 ft/s > 20 ft/s p2p ripple; estimate) |
+| FW_WING.…boardsOnSec | `1` | speed brake out dwell: closing > 60 ft/s must hold for 1 s under effective bleed intent <= -0.5 (Fable D8; estimate) |
+| FW_WING.…boardsHoldSec | `3` | speed brake minimum hold time once deployed: >= 3 s (Fable D8; estimate) |
+| FW_WING.…bleedOnIntent | `-0.5` | effective bleed intent threshold <= -0.5 required to deploy speed brake (Fable D8, 3b §5; estimate) |
+| FW_WING.…bleedOffIntent | `-0.2` | effective bleed intent threshold > -0.2 that retracts speed brake after its 3 s hold (Fable 3b §5; estimate) |
 | FW_WING.guard | `Object.freeze({` | ---- separation guard barrier (B12; separation.js, spec 7e §7.8b, TS-233, Fable D3, D16, R8, R9) ---- |
 | FW_WING.…hardFloorFt | `350` | emergency separation floor where guard uses full available authority (spec 7e §7.8b; estimate) |
 | FW_WING.…minFt | `500` | 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233) |

@@ -439,10 +439,10 @@ export const FW_WING = Object.freeze({
   vertGPerFtps: 0.02, // 0.02 G per ft/s of (ḣ_T - ḣ) height-rate error including planned profile rate (spec 7e §7.8, Fable D1; estimate)
   vertMaxG: 1, // vertical loop demand bounded within ±1 G (estimate)
   stackReturnSec: 15, // height blend time returning to stack: 15 s (spec 7e §7.8, Fable D5; estimate)
-  // Drop low inside (kept until S4 replaces the switch with D24 continuous term):
-  lowFt: 300, // drop-low-inside cap 300 ft below Lead (Patrick 14 Oct 2026, TS-233; estimate)
-  lowStartKt: 5, // drop-low-inside starts past 5 kt slow (Patrick 14 Oct 2026, Fable D24; estimate)
-  lowEndKt: 1, // drop-low-inside release threshold (kept until S4; estimate)
+  // Continuous drop low inside (D24, TS-233; spec 7e §7.8):
+  lowFt: 300, // continuous drop-low-inside cap 300 ft below stack (Patrick 14 Oct 2026, TS-233, Fable D24; estimate)
+  lowStartKt: 5, // continuous drop-low-inside starts past 5 kt slow inside a turn (Patrick 14 Oct 2026, Fable D24; estimate)
+  lowFtPerKt: 20, // continuous drop-low-inside slope: 20 ft/kt past 5 kt slow (100 ft low at 10 kt slow, capped at -300 ft at 20 kt slow, blended over 4.3 s; Fable D24; estimate)
   // High yo-yo (kept until S7 replaces with techniques/yo-yo.js):
   yoyo: Object.freeze({
     slowKt: 10, // speed deficit trigger (kept until S7; estimate)
@@ -455,14 +455,21 @@ export const FW_WING = Object.freeze({
     highFt: 100, // "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233)
     ownerHoldSec: 2, // pitch owner hold time (kept until S7; estimate)
   }),
-  // ---- speed & power loop (B11; spec 7e §7.8, Fable D21, D23) ----
+  // ---- speed & power loop (B11; spec 7e §7.8, TS-233, Fable D8, D21, D23, D25, R4, R10) ----
   powerBandKias: 15, // speed offset Δv_ref bounded within ±15 KIAS of Lead (Patrick 4 Oct 19:12Z, Fable D21)
-  speedKvPerSec: 0.3, // proportional speed loop gain Kv = 0.3 /s with no integrator (Patrick 14 Oct 2026, Fable D21, D23; estimate)
+  speedKvPerSec: 0.3, // proportional speed loop gain Kv = 0.3 /s with no integrator, crossover 0.3 rad/s, PM 89°/82° (Patrick 14 Oct 2026, Fable D21, D23; estimate)
+  rollInLeadMinDps: 10, // Lead's seen roll rate threshold to ramp in roll-in power lead ahead of his expected end-bank G drag (spec 7e §7.8, Fable 3b §1; estimate)
+  rollInLeadFullDps: 30, // Lead's seen roll rate for full roll-in power lead (spec 7e §7.8; estimate)
+  intentBiasKtps: 2, // full-authority speed-rate bias for energy intent (±1) or guard bleed request (spec 7e §7.8, Fable 3b §4; estimate)
   brakes: Object.freeze({
-    idleFtps: 40, // idle closure threshold (estimate)
-    idleOffFtps: 25, // idle release threshold (estimate)
-    boardsFtps: 60, // speed brake out threshold > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate)
-    boardsOffFtps: 35, // speed brake retract threshold (updated to 10 ft/s in S4 per D25; estimate)
+    idleFtps: 40, // closure threshold where bleed intent phases throttle to idle (estimate)
+    idleOffFtps: 25, // idle release closure threshold (estimate)
+    boardsFtps: 60, // speed brake out threshold: slant closure > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate)
+    boardsOffFtps: 10, // speed brake retract threshold: slant closure < 10 ft/s (lowered from 20 to 10 ft/s per Fable D25 since S0 measured 21.66 ft/s > 20 ft/s p2p ripple; estimate)
+    boardsOnSec: 1, // speed brake out dwell: closing > 60 ft/s must hold for 1 s under effective bleed intent <= -0.5 (Fable D8; estimate)
+    boardsHoldSec: 3, // speed brake minimum hold time once deployed: >= 3 s (Fable D8; estimate)
+    bleedOnIntent: -0.5, // effective bleed intent threshold <= -0.5 required to deploy speed brake (Fable D8, 3b §5; estimate)
+    bleedOffIntent: -0.2, // effective bleed intent threshold > -0.2 that retracts speed brake after its 3 s hold (Fable 3b §5; estimate)
   }),
   // ---- separation guard barrier (B12; separation.js, spec 7e §7.8b, TS-233, Fable D3, D16, R8, R9) ----
   guard: Object.freeze({

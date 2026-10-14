@@ -330,18 +330,15 @@ export function fwJob(j, seen, { shortKt = 0, arcErrAbs = Infinity, chiErrAbs = 
     } else if (sTurn && seen.levelSide === side && Math.abs(seen.levelLeftFt) > FJ.sweptFt * Math.cos(FJ.sweptDeg * DEG) / 2) {
       side = -side;
     }
-    low = false;
-  } else {
-    if (!low && shortKt > FJ.lowStartKt) low = true;
-    else if (low && shortKt < FJ.lowEndKt) low = false;
   }
 
   const targetSide = side || seen.levelSide || -1;
   const maxSideStep = (2 * STEP_SEC) / Math.max(FJ.sideBlendSec, 1e-6);
   sideBlend = clamp(sideBlend + clamp(targetSide - sideBlend, -maxSideStep, maxSideStep), -1, 1);
 
-  const targetHeight = low ? -FJ.lowFt : FJ.stackFt;
-  const heightFt = j.heightFt + (targetHeight - j.heightFt) * Math.min(1, STEP_SEC / (low ? FJ.picker.heightBlendSec : FJ.stackReturnSec));
+  // Continuous drop-low-inside (D24) is computed in B05 (fighting-wing.js); telemetry flag low reflects >100 ft below stack
+  low = turning && shortKt > FJ.lowStartKt;
+  const heightFt = FJ.stackFt;
 
   return {
     phase,

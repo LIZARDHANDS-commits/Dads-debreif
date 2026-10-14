@@ -60,8 +60,8 @@
 <text x="450" y="366" font-size="10.5"  fill="#1d2433">Does: throttle = FF (drag of commanded G, climb, speed-brake</text>
 <text x="450" y="379.5" font-size="10.5"  fill="#1d2433">drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent,</text>
 <text x="450" y="393" font-size="10.5"  fill="#1d2433">−bleed request), clipped 0-1 (D21, D23); speed brake switch</text>
-<text x="450" y="406.5" font-size="10.5"  fill="#1d2433">under bleed intent ≤ −0.5 (out &gt; 60 ft/s for 1 s, in &lt; 20</text>
-<text x="450" y="420" font-size="10.5"  fill="#1d2433">ft/s, held ≥ 3 s, D8, D25)</text>
+<text x="450" y="406.5" font-size="10.5"  fill="#1d2433">under bleed intent ≤ −0.5 (out &gt; 60 ft/s for 1 s, in &lt; 10</text>
+<text x="450" y="420" font-size="10.5"  fill="#1d2433">ft/s per D25, held ≥ 3 s, D8)</text>
 <rect x="864" y="349" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="874" y="366" font-size="12.5" font-weight="bold" fill="#1d2433">B12 Guard (S3)</text>
 <text x="874" y="379.5" font-size="10.5"  fill="#1d2433">Does: One predictor on raw demands (S31, S32) over closing</text>
@@ -102,8 +102,7 @@
 <text x="26" y="679.5" font-size="10.5"  fill="#1d2433">onset 1 + 3u G/s; soft cap knee 0.2 G (tuning); exit</text>
 <text x="26" y="693" font-size="10.5"  fill="#1d2433">vertical and technique cue bands/dwells 12 ft per ft/s</text>
 <text x="26" y="706.5" font-size="10.5"  fill="#1d2433">(physics); D6 bands and dwells (tuning)</text>
-<rect x="440" y="530.5" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<rect x="440" y="530.5" width="410" height="45" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
 <text x="450" y="547.5" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it removes</text>
-<text x="450" y="561" font-size="10.5"  fill="#1d2433">Removes: lowFt; lowStartKt; lowEndKt; yoyo.slowKt;</text>
-<text x="450" y="574.5" font-size="10.5"  fill="#1d2433">yoyo.powerBackKt; yoyo.excessFtps</text>
+<text x="450" y="561" font-size="10.5"  fill="#1d2433">Removes: yoyo.slowKt; yoyo.powerBackKt; yoyo.excessFtps</text>
 </svg>
