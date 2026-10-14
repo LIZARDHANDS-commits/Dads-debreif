@@ -46,6 +46,20 @@ import { startFwGuard, fwGuard, separationFilter } from './separation.js';
 
 const W = FW_WING;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
+
+// Analysis only (plan T29m part 2: tools/formation-gauge.mjs --extra-delay and --delay-mode, tools/fw-rig.mjs): never set
+// in flying, so with the defaults every step flies exactly as before. extraDelaySec: a further delay on what he sees (as
+// FW_SEE.extraDelaySec, which stays 0). delayMode 'picture': his own position and velocity are read from the picture he
+// sees, late like Lead's, not as they are now (the control model's D-Picture; Patrick 14 Oct 2026 kept 'lead', the 0.4 s on
+// Lead only, and asked for the other measured beside it). probe: { at, fn(t) } adds fn(his time) at one summing point:
+// 'cWant' (ft/s, the arc loop's wanted closure), 'aimLateral' (ft: his aim's offset from Lead's circle, + inside; level,
+// his swept place, + out), 'heightTarget' (ft, + up), 'wantKias' (KIAS). A wingman takes them when he starts.
+let ANALYSIS = { extraDelaySec: 0, delayMode: 'lead', probe: null };
+/** Set the analysis options for wingmen started from now on (the gauge's flags, the rig); setFwAnalysis() restores flying. */
+export function setFwAnalysis(a = {}) {
+  ANALYSIS = { extraDelaySec: a.extraDelaySec ?? 0, delayMode: a.delayMode ?? 'lead', probe: a.probe ?? null };
+}
+const probeAt = (w, at) => (w.probe && w.probe.at === at ? w.probe.fn(w.t) : 0);
 const vec = (a) => (a ? { x: a[0], y: a[1], z: a[2] } : null);
 const ease3 = (y, x, sec) => {
   const k = Math.min(1, STEP_SEC / sec);
@@ -58,7 +72,7 @@ const ease3 = (y, x, sec) => {
  */
 export function startFwWing(aircraft, refSt, { blockFt }) {
   const st = leadStateOf(aircraft, blockFt);
-  const sight = startFwSight(seenOf(refSt), seenOf(st), { ownAcc: vec(aircraft.accFtps2), g: refSt.g ?? 1 });
+  const sight = startFwSight(seenOf(refSt), seenOf(st), { ownAcc: vec(aircraft.accFtps2), g: refSt.g ?? 1, ...(ANALYSIS.extraDelaySec ? { extraSec: ANALYSIS.extraDelaySec } : {}) });
   const aimDir = unit3(sub3(refSt.pm, st.pm));
   const first = seeFw(sight, seenOf(refSt), seenOf(st)).seen;
   return {
@@ -66,6 +80,8 @@ export function startFwWing(aircraft, refSt, { blockFt }) {
     offFt: 0, // the aim loop's offset from Lead's circle (ft, + inside), slewed
     aimOff: null, // his aim against Lead's place (ft, world axes), blended across a change of aim
     powerI: 0, // the power loop's integral (ft/s of speed), held at its limits
+    ...(ANALYSIS.probe ? { probe: ANALYSIS.probe } : {}),
+    ...(ANALYSIS.delayMode === 'picture' ? { picture: true } : {}),
   };
 }
 
@@ -89,7 +105,9 @@ function turnPlaneOf(seen) {
 }
 
 /** Lead now: { leadNow, leadV } carried FW_SEE.delaySec round his seen turn (Fable F5); { ownP, ownV } his own, now. */
-function leadNowOf(seen, st) {
+function leadNowOf(seen, st, picture = false) {
+  // analysis only (delayMode 'picture'): the whole picture as he saw it, Lead not carried across, himself as seen
+  if (picture) return { leadNow: seen.lead.p, leadV: seen.lead.v, ownP: seen.own.p, ownV: seen.own.v };
   const leadDR = aheadOnTurn(seen.lead, seen.turn, FW_SEE.delaySec);
   return { leadNow: leadDR.p, leadV: leadDR.v, ownP: st.pm, ownV: st.vel };
 }
@@ -151,16 +169,24 @@ function aimInTurn(w, seen, job, st, V, omegaL, now, cone, arc) {
   const dss = straight ? 0 : seen.turn.radiusFt * (1 - V / Math.max(len3(now.leadV), 1));
   const eArc = arcFt - W.arcTargetFt;
   const lim = Math.abs(eArc) < W.arcNearFt ? W.arcNearFtps : W.arcFarFtps;
-  const cArc = Math.max(-lim, Math.min(lim, eArc / W.aimSec));
+  const cArc0 = Math.max(-lim, Math.min(lim, eArc / W.aimSec));
+  const cArc = w.probe ? cArc0 + probeAt(w, 'cWant') : cArc0; // analysis only
   const dRaw = dss + cArc / omega + (W.arcKc * (cArc - closing)) / omega;
   const want = Math.max(-W.arcOffsetMaxFt, Math.min(W.arcOffsetMaxFt, dRaw));
   const offFt = w.offFt + Math.max(-W.arcSlewFtps * STEP_SEC, Math.min(W.arcSlewFtps * STEP_SEC, want - w.offFt));
   const residual = Math.max(-W.powerBandKias * KT_TO_FTPS, Math.min(W.powerBandKias * KT_TO_FTPS, eArc / W.powerArcSec));
+  const aimOffFt = w.probe ? offFt + probeAt(w, 'aimLateral') : offFt; // analysis only
   const target = seen.turn.centre
-    ? aheadOnCircle(seen.turn, st.pm, seen.lead.p, V, offFt)
-    : add3(now.leadNow, scale3(scale3(cone.left, job.dir || 1), offFt));
+    ? aheadOnCircle(seen.turn, st.pm, seen.lead.p, V, aimOffFt)
+    : add3(now.leadNow, scale3(scale3(cone.left, job.dir || 1), aimOffFt));
   const aimKind = offFt > W.routeFt / 4 ? 'lead' : offFt < -W.routeFt / 4 ? 'lag' : 'pure';
-  return { target, aimKind, offFt, residual, cTarget: cArc, cActual: closing };
+  // the loop's terms, for the trace (plan T29m part 2; T29r): the station-holding offset, the wanted closure over Lead's
+  // turn rate (its feed-forward) and the shortfall's share, the offset before the slew, and which limit binds
+  const terms = {
+    dssFt: dss, ffFt: cArc / omega, kcFt: (W.arcKc * (cArc - closing)) / omega, wantFt: want,
+    limit: Math.abs(dRaw) > W.arcOffsetMaxFt ? 'offset' : Math.abs(want - w.offFt) > W.arcSlewFtps * STEP_SEC ? 'slew' : Math.abs(eArc / W.aimSec) > lim ? 'closure' : null,
+  };
+  return { target, aimKind, offFt, residual, cTarget: cArc, cActual: closing, terms };
 }
 
 /**
@@ -174,7 +200,8 @@ function aimSwept(w, seen, job, st, now, cone) {
   const back = W.sweptFt * Math.sin(W.sweptDeg * DEG);
   const out2 = W.sweptFt * Math.cos(W.sweptDeg * DEG);
   const place = add3(add3(now.leadNow, scale3(cone.nose, -back)), scale3(cone.left, s * out2));
-  const target = add3(place, scale3(seen.lead.v, W.sweptLookSec));
+  const target0 = add3(place, scale3(seen.lead.v, W.sweptLookSec));
+  const target = w.probe ? add3(target0, scale3(cone.left, s * probeAt(w, 'aimLateral'))) : target0; // analysis only
   const behindFt = dot3(sub3(place, st.pm), cone.nose); // + he is behind his place
   const residual = Math.max(-W.aimMaxFtps, Math.min(W.aimMaxFtps, behindFt / W.aimSec));
   const cActual = dot3(sub3(st.vel, seen.lead.v), cone.nose); // how fast he is catching his place up along Lead's path
@@ -250,7 +277,13 @@ function steerToAim(w, guardOn, aimed, now, st, V, u, plane) {
   const n = len3(toward) > 1e-9 ? unit3(toward) : { x: 0, y: 0, z: 0 };
   const aFf = scale3(cross3(aimTurn, u), V); // his speed x the aim line's turn
   const aP = scale3(n, G_FTPS2 * W.gPerDeg * angleDeg);
-  return { aimOff, d, aimTurn, aTurn0: perp3(add3(aFf, aP), u) };
+  // the trace's terms (plan T29m part 2): the angle to the aim line, P's G, the fed-forward G along the turn P asks, the aim
+  // line's turn (raw and as fed forward, °/s) and how far the aim moved against Lead this step (ft)
+  const terms = {
+    angleDeg, pG: len3(aP) / G_FTPS2, ffG: dot3(aFf, n) / G_FTPS2, aimTurnDps: len3(aimTurn) / DEG, aimTurnRawDps: len3(aimTurnRaw) / DEG,
+    aimJumpFt: w.aimOff ? len3(sub3(aimOff, w.aimOff)) : 0,
+  };
+  return { aimOff, d, aimTurn, aTurn0: perp3(add3(aFf, aP), u), terms };
 }
 
 /**
@@ -326,7 +359,8 @@ function verticalFor(dz, now, st, u, out) {
   const vertG = Math.max(-W.vertMaxG, Math.min(W.vertMaxG, W.vertGPerFt * errFt + W.vertGPerFtps * errRate));
   const aV = scale3(out, vertG * G_FTPS2);
   const hold = add3(perp3(Z, u), scale3(perp3(aV, u), 1 / G_FTPS2));
-  return { dz, errFt, aV, hold };
+  const terms = { errRate, pG: W.vertGPerFt * errFt, dG: W.vertGPerFtps * errRate, vertG, limit: Math.abs(W.vertGPerFt * errFt + W.vertGPerFtps * errRate) > W.vertMaxG };
+  return { dz, errFt, aV, hold, terms };
 }
 
 /** Who has pitch, for the trace (Fable Q7): the owner's name, or within the stack's family the jobs' choice. */
@@ -390,7 +424,8 @@ function powerAsk(w, seen, job, st, guard, aim, closing, flt, owner, pitch, lead
   const iRaw = w.powerI + (guard.on || job.turning ? 0 : ((aim.cTarget - aim.cActual) * STEP_SEC) / W.powerSec);
   const powerI = Math.max(-band, Math.min(band, iRaw)); // held at its limits
   const wantTas = len3(seen.lead.v) + Math.max(-band, Math.min(band, P + powerI)); // ft/s
-  const wantKias = tasToIasKt(wantTas / KT_TO_FTPS, seen.lead.p.z);
+  const wantKias0 = tasToIasKt(wantTas / KT_TO_FTPS, seen.lead.p.z);
+  const wantKias = w.probe ? wantKias0 + probeAt(w, 'wantKias') : wantKias0; // analysis only
   const downPower = pitch === 'yoyoDown' && st.kias > leadKias;
   const lowMax = job.low && owner.name === 'stack';
   const power = missPower || downPower ? { throttle: throttleAtTorque(W.guard.torquePct, st.kias, st.pm.z) } : lowMax ? { throttle: 1 } : { holdKias: wantKias };
@@ -400,7 +435,12 @@ function powerAsk(w, seen, job, st, guard, aim, closing, flt, owner, pitch, lead
   const idle = fastEnough && (w.idle ? closing > BI.idleOffFtps : closing > BI.idleFtps && where);
   const boards = fastEnough && (w.boards ? closing > BI.boardsOffFtps : closing > BI.boardsFtps && where);
   const powerBack = missPower || downPower || idle || wantKias < leadKias - W.yoyo.powerBackKt;
-  return { ask: { ...(idle ? { throttle: 0 } : power), ...(boards ? { boards: true } : {}) }, idle, boards, powerI, wantKias, powerBack };
+  // the trace's terms (plan T29m part 2): which writer won the throttle, P and I (ft/s of speed), the band clipping them
+  const terms = {
+    kind: idle ? 'idle' : missPower ? 'cut' : downPower ? 'yoyoDown' : lowMax ? 'max' : 'hold',
+    pFtps: P, iFtps: powerI, bandClip: Math.abs(P + powerI) > band,
+  };
+  return { ask: { ...(idle ? { throttle: 0 } : power), ...(boards ? { boards: true } : {}) }, idle, boards, powerI, wantKias, powerBack, terms };
 }
 
 /** The job for the trace: the filter while engaged, else Lead's turn with its entry case, the S-turns or swept. */
@@ -419,33 +459,37 @@ function jobLabel(engaged, job) {
 export function stepFwWingman(w, refSt) {
   const { mem, seen } = seeFw(w.sight, seenOf(refSt), seenOf(w.st));
   const st = w.st;
-  const V = Math.max(len3(st.vel), 1);
-  const u = scale3(st.vel, 1 / V);
-  const ownOmega = scale3(cross3(st.vel, st.accPerp ?? { x: 0, y: 0, z: 0 }), 1 / (V * V)); // he feels his own turn
+  // stC: what the technique reads of his own position and velocity: now (flying), or as he saw it (analysis, 'picture')
+  const stC = w.picture ? { ...st, pm: { ...st.pm, x: seen.own.p.x, y: seen.own.p.y, z: seen.own.p.z }, vel: seen.own.v } : st;
+  const V = Math.max(len3(stC.vel), 1);
+  const u = scale3(stC.vel, 1 / V);
+  const Vf = Math.max(len3(st.vel), 1); // his speed as he feels it (now, whatever the analysis delay mode)
+  const ownOmega = scale3(cross3(st.vel, st.accPerp ?? { x: 0, y: 0, z: 0 }), 1 / (Vf * Vf)); // he feels his own turn
   const guard = fwGuard(w.guard, seen, ownOmega);
   const plane = turnPlaneOf(seen);
   // short of energy (the ruling "Drop low inside, MAX"): Lead's indicated speed from what he sees of his true speed
   const leadKias = tasToIasKt(len3(seen.lead.v) / KT_TO_FTPS, seen.lead.p.z);
   const job = fwJob(w.job, seen, { shortKt: leadKias - st.kias });
-  const now = leadNowOf(seen, st);
+  const now = leadNowOf(seen, st, Boolean(w.picture));
   const cone = coneFrame(seen.lead.v);
   const arc = arcRange(seen, job, now, cone);
 
   // the aim, its overrides and steering
-  const aim = job.turning ? aimInTurn(w, seen, job, st, V, plane.omegaL, now, cone, arc) : aimSwept(w, seen, job, st, now, cone);
-  const lag = lagFirst(w, seen, st, V, aim);
+  const aim = job.turning ? aimInTurn(w, seen, job, stC, V, plane.omegaL, now, cone, arc) : aimSwept(w, seen, job, stC, now, cone);
+  const lag = lagFirst(w, seen, stC, V, aim);
   const aimed = noseBehind(w, job, now, lag);
-  const steer = steerToAim(w, guard.on, aimed, now, st, V, u, plane);
+  const steer = steerToAim(w, guard.on, aimed, now, stC, V, u, plane);
 
   // the vertical's owner, then the filter; a climb that can't keep the pass outside the line gives pitch to pass-clear (F9)
-  const yoyo = highYoYo(w, seen, job, st, V, plane.omegaL, arc);
-  const sit = { seen, st, job, turning: plane.turning, out: plane.out, u, V, ownP: now.ownP, ownV: now.ownV, leadNow: now.leadNow, leadV: now.leadV };
+  const yoyo = highYoYo(w, seen, job, stC, V, plane.omegaL, arc);
+  const sit = { seen, st: stC, job, turning: plane.turning, out: plane.out, u, V, ownP: now.ownP, ownV: now.ownV, leadNow: now.leadNow, leadV: now.leadV };
+  const dzOf = (o) => (w.probe ? heightTargetFt(o, guard, yoyo, job) + probeAt(w, 'heightTarget') : heightTargetFt(o, guard, yoyo, job)); // probe: analysis only
   let owner = takePitch(w, seen, guard, aimed.behindOn, yoyo);
-  let vert = verticalFor(heightTargetFt(owner, guard, yoyo, job), now, st, u, plane.out);
+  let vert = verticalFor(dzOf(owner), now, stC, u, plane.out);
   let flt = separationFilter(w, steer.aTurn0, vert, sit);
   if (owner.name === 'yoyo' && yoyo.phase === 'up' && flt.passShort && !flt.cleared) {
     owner = nextOwner(owner, 'passClear', seen);
-    vert = verticalFor(heightTargetFt(owner, guard, yoyo, job), now, st, u, plane.out);
+    vert = verticalFor(dzOf(owner), now, stC, u, plane.out);
     flt = separationFilter(w, steer.aTurn0, vert, sit);
   }
   const pitch = pitchLabel(owner, yoyo, job);
@@ -457,6 +501,23 @@ export function stepFwWingman(w, refSt) {
   const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...pw.ask });
   const gAsk = len3(lift);
   const { arcFt, dFt } = arc;
+  // the trace's controller terms (plan T29m part 2; T29r's trace half): the turn asked, flown after the filter and granted
+  // after the cap (G, in the turn plane, + left), who won it, the cap and whether it bound, unload-roll-pull, each loop's
+  // terms; numbers rounded for the trace only
+  const side = unit3(cross3(plane.out, u));
+  const r3 = (x) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 1000) / 1000);
+  const liftDir = len3(lift) > 1e-9 ? unit3(lift) : null;
+  const ctl = {
+    steerAngleDeg: r3(steer.terms.angleDeg), steerPG: r3(steer.terms.pG), steerFfG: r3(steer.terms.ffG),
+    aimTurnDps: r3(steer.terms.aimTurnDps), aimTurnRawDps: r3(steer.terms.aimTurnRawDps), aimJumpFt: r3(steer.terms.aimJumpFt),
+    turnAskG: r3(dot3(steer.aTurn0, side) / G_FTPS2), turnFlownG: r3(dot3(flt.aTurn, side) / G_FTPS2), turnGrantedG: r3(dot3(lift, side)),
+    turnWinner: flt.filterOn ? 'filter' : 'steer', capG: r3(cap), capBind: len3(add3(vert.hold, scale3(flt.aTurn, 1 / G_FTPS2))) > cap + 1e-9,
+    urp: Boolean(liftDir) && dot3(liftDir, st.bodyUp) < Math.cos(W.pullWithinDeg * DEG) - 1e-9,
+    arcDssFt: r3(aim.terms?.dssFt), arcFfFt: r3(aim.terms?.ffFt), arcKcFt: r3(aim.terms?.kcFt), arcWantFt: r3(aim.terms?.wantFt), arcLimit: aim.terms?.limit ?? null,
+    vertErrFt: r3(vert.errFt), vertRateFtps: r3(vert.terms.errRate), vertPG: r3(vert.terms.pG), vertDG: r3(vert.terms.dG), vertG: r3(vert.terms.vertG), vertLimit: vert.terms.limit,
+    powerKind: pw.terms.kind, powerPFtps: r3(pw.terms.pFtps), powerIFtps: r3(pw.terms.iFtps), powerBandClip: pw.terms.bandClip,
+    guardOn: guard.on, filterOn: flt.filterOn, filterEngaged: flt.engaged, leadG: r3(seen.leadG),
+  };
   return {
     w: {
       ...w, st: next, sight: mem, guard, job, aimDir: steer.d, aimTurn: steer.aimTurn, t: w.t + STEP_SEC, offFt: aim.offFt, aimOff: steer.aimOff,
@@ -470,6 +531,7 @@ export function stepFwWingman(w, refSt) {
       cWantFtps: guard.on ? null : aim.cTarget, cActualFtps: aim.cActual, low: job.low, sFt: arcFt == null ? null : Math.round(arcFt), dFt: dFt == null ? null : Math.round(dFt),
       pitchOwner: pitch, lineShort: flt.lineShort, passFt: flt.passFt == null ? null : Math.round(flt.passFt), yoyoFt: yoyo.phase === 'up' ? Math.round(yoyo.hFt) : null,
       omNomDps: flt.omNom, omPickDps: flt.omPick, brakes: pw.boards ? (pw.idle ? 'IDLE + BOARDS' : 'BOARDS') : pw.idle ? 'IDLE' : null,
+      ctl,
     },
   };
 }

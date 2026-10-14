@@ -36,6 +36,7 @@ import { seenOf, placeDeviation, frameOf } from '../src/modules/turn-sim/live/wi
 import { torqueFromThrottle } from '../src/modules/turn-sim/live/wingman/close-formation.js';
 import { setCloseBank, DEFAULT_CLOSE_BANK_DEG } from '../src/modules/turn-sim/live/tuning.js';
 import { relativeTo } from '../src/modules/turn-sim/live/manoeuvres.js';
+import { setFwAnalysis } from '../src/modules/turn-sim/live/wingman/fighting-wing.js';
 
 const ROLL_REVERSAL_DPS = 10; // a roll counts once it is faster than this either way (estimate)
 const G_REVERSAL_GPS = 0.3; // a G change counts once it is faster than this either way (estimate)
@@ -57,6 +58,14 @@ const fwArg = args.includes('--fw') ? args[args.indexOf('--fw') + 1] : 'law';
 // --tag name: the traces are written as <scenario>.<name>.json and added to the plot page's list beside the others, so
 // two runs (today's law and the live technique, say) can be opened side by side on tools/flight-plot/.
 const tag = args.includes('--tag') ? args[args.indexOf('--tag') + 1] : null;
+// Plan T29m part 2 (analysis only; the control model's delay sweeps): --extra-delay s adds a delay #2 does not know he has to
+// what he sees in fighting wing (in place of editing FW_SEE.extraDelaySec); --delay-mode picture reads his own position and
+// velocity from the picture as late as Lead's (D-Picture; 'lead', the default, is the 0.4 s on Lead only, Patrick 14 Oct
+// 2026). Neither is set in flying. Tag such runs (--tag) so they never overwrite the plain traces.
+const extraDelay = args.includes('--extra-delay') ? Number(args[args.indexOf('--extra-delay') + 1]) : 0;
+const delayMode = args.includes('--delay-mode') ? args[args.indexOf('--delay-mode') + 1] : 'lead';
+if (!['lead', 'picture'].includes(delayMode) || !(extraDelay >= 0)) throw new Error('--delay-mode lead|picture, --extra-delay seconds (0 or more)');
+if (extraDelay || delayMode !== 'lead') setFwAnalysis({ extraDelaySec: extraDelay, delayMode });
 if (save && nudge) throw new Error('--nudge is a known-bad case for checking the comparison: never --save it');
 
 const wings = (a) => a.attitudeDeg ?? liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
@@ -171,7 +180,16 @@ function b5(name, at, presses, first = 'fw') {
   const setup = (f) => {
     f.change(first);
     settle(f);
-    if (at) {
+    if (at && typeof at === 'object' && at.abeamFt) {
+      // T29m part 2: #2 abeam Lead, on the side he is on, at abeamFt, his height, heading and speed kept (Patrick 14 Oct
+      // 2026: "if h's abeam 1 and lead turns towards him h just matches his bank? ... which is wrong"; a measuring case)
+      const [L, two] = f.state.aircraft;
+      const nx = Math.cos(L.headingRad);
+      const ny = Math.sin(L.headingRad);
+      const left = Math.sign(-ny * (two.xFt - L.xFt) + nx * (two.yFt - L.yFt)) || -1; // + left of Lead's path
+      two.xFt = L.xFt - ny * left * at.abeamFt;
+      two.yFt = L.yFt + nx * left * at.abeamFt;
+    } else if (at) {
       const [L, two] = f.state.aircraft;
       const dx = two.xFt - L.xFt;
       const dy = two.yFt - L.yFt;
@@ -198,6 +216,10 @@ const B5 = [
   ]),
   b5('climb', null, [{ label: 'Straight climb, 40 s', press: (f) => f.pressFw('climb'), sec: 40 }, { label: 'Descend, 40 s', press: (f) => f.pressFw('descend'), sec: 40 }]),
   b5('turn-button', null, [{ label: 'Turn button: 90° into #2 in fighting wing', press: (f) => f.press('delayed90', -1), sec: 'done' }]),
+  // T29m part 2: abeam Lead (625 ft, the swept place's range, Patrick 14 Oct 2026; abeam an estimate of his "abeam 1")
+  // with Lead turning into him: today's known-bad baseline (he matches Lead's bank; the thread's reading of the technique:
+  // lag pursuit toward Lead's tail, the miss, then reverse and capture). A measuring case, not a flying change.
+  b5('into-abeam', { abeamFt: 625 }, [turnFw(-1, 'Level turn into #2 from abeam (625 ft), 30 s'), wingsLevel]),
   b5('outside-cone', 1300, [turnFw(-1, 'Level turn into #2 from outside the cone (1,300 ft), 30 s'), wingsLevel]),
   b5('echelon-to-fw', null, [{ label: 'Echelon to fighting wing', press: (f) => f.change('fw'), sec: 'done' }], 'echelon'),
 ];
@@ -305,7 +327,70 @@ function fwTally() {
     slantMin: Infinity, horizMin: Infinity, in500: 0, in600: 0, gMax: -Infinity, rollMax: 0,
     gS: null, gRateS: 0, lastGRateS: 0, gRev: 0, rollS: null, lastRollS: 0, rollRev: 0,
     pic: null, aimLast: null, aimSwitches: 0, jobLast: null, jobSwitches: 0,
+    // T29m part 2: what a pilot would call over-control and lost energy (Patrick 14 Oct 2026, his first flight of Live), and
+    // the controllers' counts (the control model's switching map and resource matrix)
+    n: 0, onsetMax: 0, onsetFast: 0, aimJumps: 0, aimTurnMax: 0, wrongWay: 0, overLead: 0, low: 0, lowest: Infinity,
+    tqLast: null, tqExt: null, tqDir: 0, tqSwings: 0, gExcess: 0, kias0: null, leadKias0: null,
+    filterActs: 0, engaged: 0, guardOn: 0, last: {}, changes: {}, holds: {}, limits: {},
   };
+}
+
+// T29m part 2 thresholds (estimates, chosen as a pilot would call them; measures, never rules in the flight code):
+const ONSET_FAST_GPS = 1; // a smoothed G onset faster than 1 G/s counts as fast (Lead's own academic roll-in builds about 1 G in 1-2 s)
+const AIM_JUMP_FT = 25; // the aim moving more than 25 ft against Lead in one 0.05 s step (500 ft/s) counts as a jump
+const WRONG_WAY_DEG = 30; // a wrong-way roll: his bank 30° or more the other way from Lead's while Lead is banked 30° or more (T29t review F7)
+const OVER_LEAD_G = 0.5; // time over Lead's G + 0.5 (review F7; the shared margin's 0.5 G)
+const LOW_FT = -150; // too low: more than 100 ft below his 50 ft stack (stack, Patrick 14 Oct 2026; 100 ft an estimate)
+const TQ_SWING_PCT = 30; // a torque reversal: a swing of 30 points or more before the torque turns back (review F7)
+const CTL_KEYS = ['steerAngleDeg', 'steerPG', 'steerFfG', 'aimTurnDps', 'aimTurnRawDps', 'aimJumpFt', 'turnAskG', 'turnFlownG', 'turnGrantedG', 'turnWinner', 'capG', 'capBind', 'urp', 'arcDssFt', 'arcFfFt', 'arcKcFt', 'arcWantFt', 'arcLimit', 'vertErrFt', 'vertRateFtps', 'vertPG', 'vertDG', 'vertG', 'vertLimit', 'powerKind', 'powerPFtps', 'powerIFtps', 'powerBandClip', 'guardOn', 'filterOn', 'filterEngaged', 'leadG'];
+const CTL_COL = (k) => `fw${k[0].toUpperCase()}${k.slice(1)}`;
+const SWITCH_KEYS = ['turnWinner', 'pitchOwner', 'powerKind', 'guardOn', 'filterOn', 'filterEngaged', 'job', 'fwLow', 'brakes'];
+const LIMIT_KEYS = ['arcLimit', 'vertLimit', 'capBind', 'powerBandClip', 'urp'];
+
+/** T29m part 2: one step of the fault measures and the controllers' counts. */
+function fwFaults(c, lead, two, pic, lt, gRateS) {
+  c.n++;
+  c.onsetMax = Math.max(c.onsetMax, Math.abs(gRateS));
+  if (Math.abs(gRateS) > ONSET_FAST_GPS) c.onsetFast += STEP_SEC;
+  if (lt?.ctl) {
+    if (lt.ctl.aimJumpFt > AIM_JUMP_FT) c.aimJumps++;
+    c.aimTurnMax = Math.max(c.aimTurnMax, lt.ctl.aimTurnRawDps ?? 0);
+    if (lt.ctl.filterOn) c.filterActs += STEP_SEC;
+    if (lt.ctl.filterEngaged) c.engaged += STEP_SEC;
+    if (lt.ctl.guardOn) c.guardOn += STEP_SEC;
+  }
+  const bL = lead.bankDeg ?? 0;
+  const b2 = two.bankDeg ?? 0;
+  if (Math.abs(bL) >= WRONG_WAY_DEG && Math.abs(b2) >= WRONG_WAY_DEG && Math.sign(bL) !== Math.sign(b2)) c.wrongWay += STEP_SEC;
+  if (two.g > lead.g + OVER_LEAD_G) c.overLead += STEP_SEC;
+  c.gExcess += Math.max(0, two.g - lead.g) * STEP_SEC;
+  if (pic.height < LOW_FT) c.low += STEP_SEC;
+  c.lowest = Math.min(c.lowest, pic.height);
+  if (c.kias0 === null) { c.kias0 = two.kias ?? 0; c.leadKias0 = lead.kias ?? 0; }
+  c.kiasEnd = two.kias ?? 0;
+  c.leadKiasEnd = lead.kias ?? 0;
+  const tq = torqueOf(two);
+  if (tq !== null) {
+    // turning points: a swing is from one turning point to the next; one of TQ_SWING_PCT or more that turns back counts
+    if (c.tqTurn === undefined) { c.tqTurn = tq; c.tqExt = tq; c.tqDir = 0; }
+    else if (!c.tqDir) { if (Math.abs(tq - c.tqTurn) > 1) { c.tqDir = Math.sign(tq - c.tqTurn); c.tqExt = tq; } }
+    else if ((tq - c.tqExt) * c.tqDir > 0) c.tqExt = tq;
+    else if (Math.abs(tq - c.tqExt) > 1) {
+      if (Math.abs(c.tqExt - c.tqTurn) >= TQ_SWING_PCT) c.tqSwings++;
+      c.tqTurn = c.tqExt;
+      c.tqExt = tq;
+      c.tqDir = -c.tqDir;
+    }
+  }
+  const states = { ...(lt?.ctl ?? {}), pitchOwner: lt?.pitchOwner ?? null, job: lt?.job ?? null, fwLow: lt ? Boolean(lt.low) : null, brakes: lt?.brakes ?? null };
+  for (const k of SWITCH_KEYS) {
+    const v = states[k] ?? null;
+    if (c.last[k] !== undefined && v !== c.last[k]) { c.changes[k] = (c.changes[k] ?? 0) + 1; (c.holds[k] ??= []).push(c.since?.[k] ?? 0); (c.since ??= {})[k] = 0; }
+    c.since = c.since ?? {};
+    c.since[k] = (c.since[k] ?? 0) + STEP_SEC;
+    c.last[k] = v;
+  }
+  for (const k of LIMIT_KEYS) if (lt?.ctl?.[k]) c.limits[k] = (c.limits[k] ?? 0) + STEP_SEC;
 }
 
 /** One step of the fighting wing tally: #2 (two) against Lead; trace: his trace arrays (added to). */
@@ -345,7 +430,11 @@ function fwStep(c, lead, two, tr, liveTrace) {
     ['predFt', lt?.predFt ?? null], ['offFt', lt?.offFt ?? null], ['heightTargetFt', lt?.heightTargetFt ?? null],
     ['cWantFtps', r1(lt?.cWantFtps)], ['cActualFtps', r1(lt?.cActualFtps)], ['fwTorquePct', tq === null ? null : +tq.toFixed(1)],
     ['fwLow', lt ? (lt.low ? 1 : 0) : null], ['sFt', lt?.sFt ?? null], ['dFt', lt?.dFt ?? null], ['pitchOwner', lt?.pitchOwner ?? null], ['lineShort', lt ? (lt.lineShort ? 1 : 0) : null], ['passFt', lt?.passFt ?? null], ['yoyoFt', lt?.yoyoFt ?? null], ['omNomDps', r1(lt?.omNomDps)], ['omPickDps', r1(lt?.omPickDps)], ['fwBrakes', lt?.brakes ?? null],
+    // T29m part 2: each controller's terms and asks (fighting-wing.js trace.ctl; T29r's trace half), and Lead's G as flown
+    ...CTL_KEYS.map((k) => [CTL_COL(k), lt?.ctl ? (typeof lt.ctl[k] === 'boolean' ? (lt.ctl[k] ? 1 : 0) : (lt.ctl[k] ?? null)) : null]),
+    ['fwLeadGFlown', +lead.g.toFixed(3)],
   ]) (tr[key] ??= []).push(v);
+  fwFaults(c, lead, two, pic, lt, gRateS);
 }
 
 function fwResult(c, lead, two) {
@@ -356,6 +445,19 @@ function fwResult(c, lead, two) {
     gMax: +c.gMax.toFixed(2), rollMaxDps: Math.round(c.rollMax), gReversalsSmoothed: c.gRev, rollReversalsSmoothed: c.rollRev,
     aimSwitches: c.aimSwitches, jobSwitches: c.jobSwitches,
     end: { slantFt: Math.round(pic.slant), sweepDeg: r1(pic.sweep), heightFt: Math.round(pic.height), dKias: r1(pic.dKias) },
+    // T29m part 2: Patrick's faults (14 Oct 2026) and the controllers' counts; null where only the live technique has it
+    faults: {
+      onsetMaxGps: r1(c.onsetMax), onsetFastSec: r1(c.onsetFast), gReversals: c.gRev, rollReversals: c.rollRev,
+      aimJumps: c.n && c.aimTurnMax ? c.aimJumps : null, aimTurnMaxDps: c.aimTurnMax ? Math.round(c.aimTurnMax) : null,
+      wrongWaySec: r1(c.wrongWay), overLeadSec: r1(c.overLead), torqueSwings: c.tqSwings,
+      lowSec: r1(c.low), lowestFt: Number.isFinite(c.lowest) ? Math.round(c.lowest) : null,
+      kiasLostVsLead: c.kias0 === null ? null : r1((c.kias0 - c.kiasEnd) - (c.leadKias0 - c.leadKiasEnd)), gExcessGs: r1(c.gExcess),
+      filterShare: c.n ? +(c.filterActs / (c.n * STEP_SEC)).toFixed(2) : null, engagedShare: c.n ? +(c.engaged / (c.n * STEP_SEC)).toFixed(2) : null, guardShare: c.n ? +(c.guardOn / (c.n * STEP_SEC)).toFixed(2) : null,
+    },
+    counts: {
+      changes: c.changes, meanHoldSec: Object.fromEntries(Object.entries(c.holds).map(([k, v]) => [k, r1(v.reduce((a, b) => a + b, 0) / v.length)])),
+      limitSec: Object.fromEntries(Object.entries(c.limits).map(([k, v]) => [k, r1(v)])),
+    },
   };
 }
 
@@ -522,6 +624,15 @@ function runScenario(sc) {
           tr.lineFt.push(+dev.line.toFixed(2));
           tr.alongFt.push(+dev.along.toFixed(2));
           tr.torquePct.push(tq === null ? null : +tq.toFixed(1));
+          // T29m part 2: the close wingman's loop terms and his asks against what his hand gave (wingman.js trace; null Held)
+          const lv = f.state.liveTrace;
+          const r3 = (x) => (x === null || x === undefined || !Number.isFinite(x) ? null : +x.toFixed(3));
+          for (const [key, v] of [
+            ['cfPlaneP', r3(lv?.terms?.planeP)], ['cfPlaneD', r3(lv?.terms?.planeD)], ['cfPlaneI', r3(lv?.terms?.planeI)],
+            ['cfLineP', r3(lv?.terms?.lineP)], ['cfLineD', r3(lv?.terms?.lineD)], ['cfHingeP', r3(lv?.terms?.hingeP)], ['cfHingeD', r3(lv?.terms?.hingeD)],
+            ['cfLeadPct', r3(lv?.terms?.lead)], ['cfHoldPct', r3(lv?.holdPct)], ['cfAskUpG', r3(lv?.asked?.upCorrG)], ['cfAskLeftG', r3(lv?.asked?.leftCorrG)],
+            ['cfAskTorquePct', r3(lv?.asked?.torquePct)], ['cfFfUpG', r3(lv?.ffUpG)], ['cfFfLeftG', r3(lv?.ffLeftG)], ['cfGAheadG', r3(lv?.gAheadG)], ['cfJob', lv?.job ?? null],
+          ]) (tr[key] ??= []).push(v);
         }
       }
       prev = new Map(f.state.aircraft.map((a) => [a.id, { ...a }]));
@@ -553,6 +664,8 @@ function runScenario(sc) {
       }
     }
     results.push({ label: p.label, how, pressMs: Math.round(pressMs), stepMsMax: +stepMsMax.toFixed(2), aircraft });
+    // T29m part 2: the fighting wing faults and counts in the trace, under their own key (the existing ones untouched)
+    for (const [name, a] of Object.entries(aircraft)) if (a.fw) (trace.faults ??= []).push({ press: trace.presses.length - 1, aircraft: name, ...a.fw.faults, counts: a.fw.counts });
   }
   return { results, trace };
 }
@@ -590,6 +703,15 @@ for (const sc of SCENARIOS) {
         const be = bw.end ?? {};
         console.log(`          least slant ${fmt(w.slantMinFt, bw.slantMinFt, false)} ft, least horizontal ${fmt(w.horizMinFt, bw.horizMinFt, false)} ft | inside 500 ft ${fmt(w.in500Sec, bw.in500Sec)} s, inside 600 ft ${fmt(w.in600Sec, bw.in600Sec)} s | most G ${fmt(w.gMax, bw.gMax)}, most roll ${fmt(w.rollMaxDps, bw.rollMaxDps)}°/s | reversals (smoothed) G ${fmt(w.gReversalsSmoothed, bw.gReversalsSmoothed)}, roll ${fmt(w.rollReversalsSmoothed, bw.rollReversalsSmoothed)} | aim switches ${w.aimSwitches}, job switches ${w.jobSwitches}`);
         console.log(`          at the end: ${fmt(w.end.slantFt, be.slantFt)} ft, sweep ${fmt(w.end.sweepDeg, be.sweepDeg)}°, ${fmt(w.end.heightFt, be.heightFt)} ft against Lead's height, ${fmt(w.end.dKias, be.dKias)} KIAS against Lead's`);
+        const q = w.faults;
+        if (q) {
+          // T29m part 2: Patrick's faults, against the ruled ends (TS-233: 100 ft low at a turn's end; the cone 500-1,000 ft;
+          // within 15 KIAS of Lead, Patrick 4 Oct 19:12Z)
+          console.log(`          faults: G onset max ${q.onsetMaxGps} G/s, ${q.onsetFastSec} s over ${ONSET_FAST_GPS} G/s | aim jumps ${q.aimJumps ?? '-'}, aim turn max ${q.aimTurnMaxDps ?? '-'}°/s | wrong-way roll ${q.wrongWaySec} s | over Lead's G + ${OVER_LEAD_G} ${q.overLeadSec} s | torque swings ${q.torqueSwings} | below ${LOW_FT} ft ${q.lowSec} s (lowest ${q.lowestFt}) | speed lost against Lead ${q.kiasLostVsLead} kt for ${q.gExcessGs} G·s over his G | filter acting ${q.filterShare ?? '-'}, engaged ${q.engagedShare ?? '-'}, guard ${q.guardShare ?? '-'}`);
+          console.log(`          the end against the rulings: ${w.end.slantFt >= 500 && w.end.slantFt <= 1000 ? 'in' : 'outside'} 500-1,000 ft; ${w.end.heightFt} ft against 100 ft low; ${Math.abs(w.end.dKias) <= 15 ? 'within' : 'outside'} 15 KIAS`);
+          const ct = w.counts;
+          if (Object.keys(ct.changes).length || Object.keys(ct.limitSec).length) console.log(`          counts: changes ${Object.entries(ct.changes).map(([k, v]) => `${k} ${v} (hold ${ct.meanHoldSec[k]} s)`).join(', ') || 'none'} | at a limit ${Object.entries(ct.limitSec).map(([k, v]) => `${k} ${v} s`).join(', ') || 'none'}`);
+        }
       }
       if (a.close) {
         const c = a.close;

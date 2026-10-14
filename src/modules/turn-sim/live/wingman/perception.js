@@ -329,14 +329,17 @@ function fwRaw(ref, own) {
  * dead-reckoned back from the motion each has, the smoothed readings started on the picture as it is. ref, own: seenOf's;
  * refAcc, ownAcc: their accelerations (ft/s²) when known; g: Lead's G now (else 1).
  */
-export function startFwSight(ref, own, { refAcc = null, ownAcc = null, g = 1 } = {}) {
+export function startFwSight(ref, own, { refAcc = null, ownAcc = null, g = 1, extraSec = 0 } = {}) {
+  // extraSec: analysis only (the gauge's --extra-delay, fighting-wing.js setFwAnalysis): a further delay he does not know
+  // he has, kept in the memory; 0 in flying, where the memory is exactly as before
+  const late = extraSec ? Math.round((FW_SEE.delaySec + (FW_SEE.extraDelaySec ?? 0) + extraSec) / STEP_SEC) : FW_LATE;
   const buf = [];
-  for (let k = FW_LATE + 2; k >= 0; k--) buf.push({ ref: backOf(ref, k, refAcc), own: backOf(own, k, ownAcc) });
-  const seen = buf[buf.length - 1 - FW_LATE];
+  for (let k = late + 2; k >= 0; k--) buf.push({ ref: backOf(ref, k, refAcc), own: backOf(own, k, ownAcc) });
+  const seen = buf[buf.length - 1 - late];
   const raw = fwRaw(seen.ref, seen.own);
   const hist = [];
   for (let k = FW_HIST; k >= 0; k--) hist.push(backOf(seen.ref, k, refAcc).p);
-  return { buf, hist, filt: { closure: 0, losRate: { x: 0, y: 0, z: 0 }, g, los: raw.los, slant: raw.slant } };
+  return { buf, hist, filt: { closure: 0, losRate: { x: 0, y: 0, z: 0 }, g, los: raw.los, slant: raw.slant }, ...(extraSec ? { late } : {}) };
 }
 
 /**
@@ -346,8 +349,9 @@ export function startFwSight(ref, own, { refAcc = null, ownAcc = null, g = 1 } =
  * leadG, turn (turnOf), wasAt(sec) (where Lead was sec before the seen moment) }.
  */
 export function seeFw(mem, ref, own) {
-  const buf = [...mem.buf.slice(1 - (FW_LATE + 3)), { ref, own }];
-  const i = buf.length - 1 - FW_LATE;
+  const late = mem.late ?? FW_LATE; // FW_LATE in flying (mem.late: the analysis's extra delay)
+  const buf = [...mem.buf.slice(1 - (late + 3)), { ref, own }];
+  const i = buf.length - 1 - late;
   const s0 = buf[i];
   const s1 = buf[i - 1];
   const raw = fwRaw(s0.ref, s0.own);
@@ -364,7 +368,7 @@ export function seeFw(mem, ref, own) {
     slant: raw.slant,
   };
   const hist = [...mem.hist.slice(-FW_HIST), s0.ref.p];
-  const next = { buf, hist, filt };
+  const next = { buf, hist, filt, ...(mem.late ? { late: mem.late } : {}) };
   const seen = {
     ...raw,
     closure: filt.closure,
