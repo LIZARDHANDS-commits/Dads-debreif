@@ -29,6 +29,7 @@ import { STEP_SEC } from '../flight.js';
 import { WINGSPAN_FT, LENGTH_FT, pairSlot } from '../slots.js';
 import { CLOSE_WING, FW_WING, FW_SEE } from '../wing-moves.js';
 import { KT_TO_FTPS } from '../../../../core/units.js';
+import { DEG } from '../../../../core/angles.js';
 import { add3, sub3, scale3, cross3, len3 } from '../attitude.js';
 
 const C = CLOSE_WING;
@@ -192,6 +193,110 @@ export function deconflict(place, rel, vLeft, guard, vFwd = 0) {
 
 const FG = FW_WING.guard;
 
+// ---- B5 T29: fighting wing's jobs (spec 7e.7) ------------------------------------------------------------------------------
+//
+// Below the guard, by what Lead is doing as he sees it (each switch with hysteresis, F4, F17):
+//  - turn: Lead's turn started (his bank past 10° for 1 s) and not yet ended (under 5° for 1 s); at its start, and again
+//    whenever Lead reverses (his bank's sign changes past 10°), the entry case is set from range and closure and whether
+//    the turn is into #2 (SMM 12.29 Figs 12.20-12.22): in position, stretched or tight, into or away;
+//  - swept: Lead wings level, straight, climbing or descending; on the side the turn exit chose (Fig 12.23: tight or closing
+//    fast, the outside of the turn; stretched or opening, the inside; good, the side he is on), else the side he is on;
+//    S-turns across the cone when too tight (Patrick 14 Oct 2026);
+//  - the height target, one pitch owner below the guard (F7): the quick fix (±150 ft, down to close, up to open) while the
+//    range error or the closure is large, else the stack, 50 ft below, coming back over about 15 s.
+// Numbers: wing-moves.js FW_WING.
+
+const FJ = FW_WING;
+const happyMid = (FJ.happyFt[0] + FJ.happyFt[1]) / 2;
+
+/** The jobs at the start: Lead taken as he is (turning if banked past 10°), his side and the stack as they are. */
+export function startFwJob(seen) {
+  const turning = Math.abs(seen.leadBankDeg) > FJ.turnStartDeg;
+  return {
+    turning, dir: turning ? Math.sign(seen.leadBankDeg) : 0, hold: 0, entry: turning ? entryOf(seen, Math.sign(seen.leadBankDeg)) : null,
+    side: seen.levelSide, sTurn: false, quick: 0, low: false, heightFt: Math.max(-FJ.heightBandFt, Math.min(FJ.heightBandFt, seen.heightFt)),
+  };
+}
+
+/** The entry case (SMM 12.29 Figs 12.20-12.22): { into (Lead turning toward #2's side), range: 'tight' | 'in' | 'stretched' }. */
+function entryOf(seen, dir) {
+  const range = seen.slant < FJ.tightFt || seen.closure > FJ.quickFixFtps ? 'tight' : seen.slant > FJ.stretchedFt ? 'stretched' : 'in';
+  return { into: dir === seen.levelSide, range };
+}
+
+/**
+ * One step of the jobs. j: last step's; seen: perception.js seeFw's, with levelSide (#2's side of Lead's path, level: +1
+ * left). Returns { turning, dir (+1 Lead turning left), hold, entry, side (the swept side), sTurn, quick (the quick fix:
+ * +1 up, -1 down, 0 off), heightFt (the height target against Lead's, eased) }.
+ */
+export function fwJob(j, seen, { shortKt = 0 } = {}) {
+  const b = seen.leadBankDeg;
+  let { turning, dir, hold, entry, side, sTurn, quick, low } = j;
+  if (!turning) {
+    hold = Math.abs(b) > FJ.turnStartDeg ? hold + STEP_SEC : 0;
+    if (hold >= FJ.turnHoldSec) {
+      turning = true;
+      dir = Math.sign(b);
+      hold = 0;
+      entry = entryOf(seen, dir);
+      sTurn = false;
+    }
+  } else {
+    if (Math.abs(b) > FJ.turnStartDeg && Math.sign(b) !== dir) {
+      // Lead reverses: the case is set again (F4: a reversal mid-entry is the dangerous one)
+      dir = Math.sign(b);
+      entry = entryOf(seen, dir);
+    }
+    hold = Math.abs(b) < FJ.turnEndDeg ? hold + STEP_SEC : 0;
+    if (hold >= FJ.turnHoldSec) {
+      // The turn exit (Fig 12.23): tight or closing fast, flow to the outside of the turn; stretched or opening, the inside.
+      const tight = seen.slant < FJ.happyFt[0] || seen.closure > FJ.sTurnClosureFtps;
+      const stretched = seen.slant > FJ.stretchedFt || seen.closure < -FJ.quickReleaseFtps;
+      side = tight ? -dir || seen.levelSide : stretched ? dir || seen.levelSide : seen.levelSide;
+      turning = false;
+      hold = 0;
+      entry = null;
+    }
+  }
+  if (!turning) {
+    // S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): aim at the other side, swap each time
+    // he gets there, until he is happy again.
+    const tooTight = seen.slant < FJ.sTurnFt || (seen.closure > FJ.sTurnClosureFtps && seen.slant < FJ.happyFt[1]);
+    if (!sTurn && tooTight) {
+      sTurn = true;
+      side = -seen.levelSide;
+    } else if (sTurn && seen.slant >= FJ.sTurnDoneFt && seen.closure < FJ.quickReleaseFtps) {
+      sTurn = false;
+      side = seen.levelSide;
+    } else if (sTurn && seen.levelSide === side && Math.abs(seen.levelLeftFt) > FJ.sweptFt * Math.cos(FJ.sweptDeg * DEG) / 2) {
+      side = -side; // across: back the other way
+    }
+  }
+  // The quick fix (F7): engaged past its thresholds, released inside its smaller ones; the height target follows it, or
+  // comes back to the stack over about 15 s.
+  const e = seen.slant - happyMid;
+  if (turning) {
+    // T29a: no quick fix in a turn (one owner for closure: the aim loop). The vertical's one job in a turn is the ruling's
+    // (Patrick 14 Oct 2026, "Drop low inside, MAX"): short of energy (slower than Lead by shortKt past lowStartKt), he drops
+    // low inside, a few hundred feet, at MAX, and climbs back to his stack on the roll-out; released once back within
+    // lowEndKt of Lead's speed.
+    quick = 0;
+    if (!low && shortKt > FJ.lowStartKt) low = true;
+    else if (low && shortKt < FJ.lowEndKt) low = false;
+  } else {
+    low = false;
+    // Only when the spacing is going the wrong way: stretched and not closing (down, to gain speed), or closing fast and not
+    // stretched (up, to bleed it); a closure the aim is already making is left to it.
+    if (!quick && e > FJ.quickFixFt && seen.closure < FJ.quickReleaseFtps) quick = -1;
+    else if (!quick && seen.closure > FJ.quickFixFtps && e < FJ.quickReleaseFt) quick = 1;
+    else if (quick && Math.abs(e) < FJ.quickReleaseFt && Math.abs(seen.closure) < FJ.quickReleaseFtps) quick = 0;
+  }
+  const target = low ? -FJ.lowFt : quick ? quick * FJ.quickFixHeightFt : FJ.stackFt;
+  const heightFt = j.heightFt + (target - j.heightFt) * Math.min(1, STEP_SEC / (quick || low ? FJ.quickSec : FJ.stackReturnSec));
+  return { turning, dir, hold, entry, side: side || seen.levelSide, sTurn, quick, low: Boolean(low), heightFt };
+}
+
+
 /** The guard at the start: off. */
 export function startFwGuard() {
   return { on: false, phase: null, vert: -1, missFt: 0, clearSec: 0, losLeast: Infinity, predFt: Infinity };
@@ -199,32 +304,45 @@ export function startFwGuard() {
 
 /**
  * The least slant range over the next horizonSec between two aircraft each holding its turn: p, v (ft, ft/s) and omega
- * (rad/s, the turn's axis times its rate) for each. Integrated in lookStepSec steps (a turn held: the velocity turned by
+ * (rad/s, the turn's axis times its rate) for each; b.thenSec, when given: b holds its turn that long, then turns as a does
+ * (its capture of a's turn). Integrated in lookStepSec steps (a turn held: the velocity turned by
  * omega x v, standard kinematics). Returns { leastFt, horizFt (the horizontal range at that moment) }.
  */
-export function leastPass(a, b, horizonSec) {
+export function leastPass(a, b, horizonSec, extra = null) {
   let [pa, va, pb, vb] = [a.p, a.v, b.p, b.v];
   let least = len3(sub3(pa, pb));
   let horiz = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+  // B5 round 3: how far b stays behind a's wing line (along a's path, + behind), the least over the look (Fable F6)
+  let behind = -dot3v(sub3(pb, pa), va) / Math.max(len3(va), 1e-9);
+  // ... and b's vertical demand as a known term (Fable F3): extra = { acc (ft/s², a vector), maxFt (how far it moves him at
+  // most, his height target) }; the height it gives is added to b's place, so the slant counts it.
+  const accLen = extra ? len3(extra.acc) : 0;
+  const accDir = accLen > 1e-9 ? scale3(extra.acc, 1 / accLen) : null;
   const dt = FG.lookStepSec;
   for (let t = dt; t <= horizonSec + 1e-9; t += dt) {
     // half-step turns keep the speed while turning (midpoint)
     const va2 = add3(va, scale3(cross3(a.omega, va), dt));
-    const vb2 = add3(vb, scale3(cross3(b.omega, vb), dt));
+    // B5 round 4: b may hold its turn thenSec and then turn as a does (the capture: matching Lead's turn, SMM 12.29 Fig 12.20)
+    const omB = b.thenSec != null && t > b.thenSec + 1e-9 ? a.omega : b.omega;
+    const vb2 = add3(vb, scale3(cross3(omB, vb), dt));
     const ka = len3(va) / Math.max(len3(va2), 1e-9);
     const kb = len3(vb) / Math.max(len3(vb2), 1e-9);
     pa = add3(pa, scale3(add3(va, scale3(va2, ka)), dt / 2));
     pb = add3(pb, scale3(add3(vb, scale3(vb2, kb)), dt / 2));
     va = scale3(va2, ka);
     vb = scale3(vb2, kb);
-    const d = len3(sub3(pa, pb));
+    const pbH = accDir ? add3(pb, scale3(accDir, Math.min(extra.maxFt, 0.5 * accLen * t * t))) : pb;
+    const d = len3(sub3(pa, pbH));
     if (d < least) {
       least = d;
-      horiz = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+      horiz = Math.hypot(pa.x - pbH.x, pa.y - pbH.y);
     }
+    behind = Math.min(behind, -dot3v(sub3(pbH, pa), va) / Math.max(len3(va), 1e-9));
   }
-  return { leastFt: least, horizFt: horiz };
+  return { leastFt: least, horizFt: horiz, behindLeastFt: behind };
 }
+
+const dot3v = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 
 /**
  * One step of the guard. g: last step's; seen: perception.js seeFw's; ownOmega: his own turn now (rad/s vector, he feels

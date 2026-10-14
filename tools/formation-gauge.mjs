@@ -54,6 +54,9 @@ const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 // and the known-bad case) or 'live' (the live wingman's fighting wing technique, spec 7e). --fw live flies the new one
 // against the baseline.
 const fwArg = args.includes('--fw') ? args[args.indexOf('--fw') + 1] : 'law';
+// --tag name: the traces are written as <scenario>.<name>.json and added to the plot page's list beside the others, so
+// two runs (today's law and the live technique, say) can be opened side by side on tools/flight-plot/.
+const tag = args.includes('--tag') ? args[args.indexOf('--tag') + 1] : null;
 if (save && nudge) throw new Error('--nudge is a known-bad case for checking the comparison: never --save it');
 
 const wings = (a) => a.attitudeDeg ?? liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
@@ -330,7 +333,19 @@ function fwStep(c, lead, two, tr, liveTrace) {
   if (job !== c.jobLast && c.jobLast !== null && job !== null) c.jobSwitches++;
   c.aimLast = aim ?? c.aimLast;
   c.jobLast = job ?? c.jobLast;
-  for (const [key, v] of [['slantFt', Math.round(pic.slant)], ['closureFtps', +pic.closure.toFixed(1)], ['aspectDeg', +pic.aspect.toFixed(1)], ['hcaDeg', +pic.hca.toFixed(1)], ['losDps', +pic.losDps.toFixed(2)], ['aim', aim], ['job', job]]) (tr[key] ??= []).push(v);
+  // Per step for the plot page's fighting wing charts (tools/flight-plot/): the picture, and the live technique's own
+  // quantities when it flies him (null under today's law): the guard's predicted pass, the aim offset from Lead's circle,
+  // the height target, the closure it wants against the closure it has, his torque.
+  const lt = liveTrace;
+  const r1 = (x) => (x === null || x === undefined ? null : +x.toFixed(1));
+  const tq = torqueOf(two);
+  for (const [key, v] of [
+    ['slantFt', Math.round(pic.slant)], ['closureFtps', +pic.closure.toFixed(1)], ['aspectDeg', +pic.aspect.toFixed(1)], ['hcaDeg', +pic.hca.toFixed(1)],
+    ['losDps', +pic.losDps.toFixed(2)], ['aim', aim], ['job', job], ['heightFt', Math.round(pic.height)],
+    ['predFt', lt?.predFt ?? null], ['offFt', lt?.offFt ?? null], ['heightTargetFt', lt?.heightTargetFt ?? null],
+    ['cWantFtps', r1(lt?.cWantFtps)], ['cActualFtps', r1(lt?.cActualFtps)], ['fwTorquePct', tq === null ? null : +tq.toFixed(1)],
+    ['fwLow', lt ? (lt.low ? 1 : 0) : null], ['sFt', lt?.sFt ?? null], ['dFt', lt?.dFt ?? null], ['pitchOwner', lt?.pitchOwner ?? null], ['lineShort', lt ? (lt.lineShort ? 1 : 0) : null], ['passFt', lt?.passFt ?? null], ['yoyoFt', lt?.yoyoFt ?? null], ['omNomDps', r1(lt?.omNomDps)], ['omPickDps', r1(lt?.omPickDps)], ['fwBrakes', lt?.brakes ?? null],
+  ]) (tr[key] ??= []).push(v);
 }
 
 function fwResult(c, lead, two) {
@@ -559,8 +574,9 @@ for (const sc of SCENARIOS) {
   const { results, trace } = runScenario(sc);
   sc.after?.();
   out[sc.name] = results;
-  writeFileSync(`${TRACES}/${sc.name}.json`, JSON.stringify(trace));
-  index.push({ name: sc.name, file: `${sc.name}.json`, presses: trace.presses });
+  const file = `${sc.name}${tag ? `.${tag}` : ''}.json`;
+  writeFileSync(`${TRACES}/${file}`, JSON.stringify(trace));
+  index.push({ name: `${sc.name}${tag ? ` (${tag})` : ''}`, file, presses: trace.presses });
   console.log(`\n## ${sc.name}`);
   results.forEach((r, i) => {
     const b = baseline?.[sc.name]?.[i];
@@ -586,7 +602,9 @@ for (const sc of SCENARIOS) {
     }
   });
 }
-writeFileSync(`${TRACES}/index.json`, JSON.stringify(index));
+// With a tag, this run's traces join the list already there (a run without one starts the list again, as before).
+const kept = tag && existsSync(`${TRACES}/index.json`) ? JSON.parse(readFileSync(`${TRACES}/index.json`, 'utf8')).filter((r) => !index.some((x) => x.file === r.file)) : [];
+writeFileSync(`${TRACES}/index.json`, JSON.stringify([...kept, ...index]));
 if (save) {
   mkdirSync('tools/formation-gauge', { recursive: true });
   const stored = baseline && only ? { ...baseline, ...out } : out;

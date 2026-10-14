@@ -368,6 +368,7 @@ export const CLOSE_WING = Object.freeze({
  */
 export const FW_SEE = Object.freeze({
   delaySec: 0.4, // he acts 0.4 s after he sees Lead's bank and nose start (Patrick 14 Oct 2026; TS-211's 0.3-0.5 s)
+  extraDelaySec: 0, // a further delay he does not know he has (his dead reckoning still carries Lead 0.4 s): the delay sweep's (Fable's loop margins), 0 in flying
   closureSec: 1.0, // closure (the range's rate) smoothed over about 1 s: the manual calls its change subtle (SMM 12.2 para 5)
   losSec: 0.5, // the line of sight's rate, Lead's drift across the windscreen, smoothed over about 0.5 s (spec 7e.7)
   gSec: 0.1, // Lead's G (his lift, so his turn circle) read as close formation reads it, over about 0.1 s (CLOSE_SEE.filterSec)
@@ -385,11 +386,54 @@ export const FW_WING = Object.freeze({
   // between his flight path and the line to his aim point; works in 3D, in whatever plane the aim is (Patrick 14 Oct 2026,
   // "So can lead and 2 follows").
   gPerDeg: 0.05, // about 0.05 G per degree, 1 G per 20° (spec 7e.7)
+  // ---- the cone in Lead's turns, rebuilt on Fable's second review (14 Oct 2026, fable-cone-turn-report-14oct.md) ----
+  // The path law's angle off the local tangent capped (Fable F7) ... OFF: with the caps the cases that start far behind or
+  // outside the circle could not close (the -12° inward cap against an offset of up to 400 ft inside): into stretched ended the
+  // turn 3,797 ft back (2,215 without), away tight 3,023 (1,276), outside the cone 3,170 (670). Kept for the thread (gauge r7-F7).
+  // Round 4, re-tried with the inward cap open when very stretched (below): still off, the lag first and the feed-forward cap
+  // now give the steer-behind, and with the caps away stretched passes but away tight and the reversal gain job switches (4,
+  // 5) and away in position kisses 585 ft (gauge r4f7 against r4ls4).
+  pathCaps: false,
+  pathOutDeg: 20, // ... +20° outward, the steer-behind (lag) cap (Fable F7, Q1's working answer, estimate) ...
+  pathInDeg: 12, // ... -12° inward, the steer-ahead (lead) cap (Fable F7, estimate)
+  // ... the inward cap open beyond 1,000 ft of arc behind Lead, eased back by 800 ft (Patrick 14 Oct 2026, rulings on Fable's
+  // questions: very stretched, outside about 1,000 ft, he may cut across Lead's turn, then reset onto a circle; 800 ft the
+  // coordinator's working number, estimate)
+  pathOpenFt: 1000,
+  pathCloseFt: 800,
+  arcLoop: true, // the turn's arc loop: d = R (1 - V2/V_L) + (wanted - actual closure) / Lead's turn rate (Fable F1)
+  arcTargetFt: 650, // s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft)
+  arcNearFt: 300, // the wanted closure at most ... (Fable F1, estimate)
+  arcNearFtps: 25, // ... 25 ft/s within 300 ft of the target arc (Fable F1, estimate) ...
+  arcFarFtps: 60, // ... and 60 ft/s beyond (Fable F1, estimate)
+  arcOffsetMaxFt: 400, // d within ±400 ft (Fable F1, estimate); R - d stays well positive (Lead's radius about 2,600 ft at 60°/2 G)
+  // The arc loop's wanted closure fed forward, its shortfall corrected at kc 0.5 (round 4, the web research's "half-gain
+  // trap", formation-control-research-14oct.md sections 2 and 5; kc a guess): without it d = d_ss + (wanted - closing)/omega
+  // settles at half the closure it asks for
+  arcFeedForward: true,
+  arcKc: 0.5,
+  arcSlewFtps: 60, // d slewed at 60 ft/s (Fable F1, F11, estimate)
+  // In a turn the speed that holds station at his offset inside Lead's circle, V_L (1 - d / R), fed forward to the power loop,
+  // its change from Lead's speed smoothly within 15 kt (round 4; the web research, P-357 section 310 and Wang et al. 2023;
+  // 15 kt the power band's, Patrick 4 Oct 19:12Z). OFF: it cost speed where he is already short
+  // (into stretched -28 kt, was -18; away in position -18, was -15; gauge r4sf) for no gain in range or aspect
+  speedFf: false,
+  speedFfKt: 15,
+  powerArcSec: 15, // power on the same arc error, about 0.067 rad/s, under the 0.07 its loop sits at (Fable F1, F6, estimate)
+  arcFrame: true, // the turn's range as (s, d) in Lead's turn-centre frame, continuous through wings level, closure from velocities (Fable F10)
+  turnFrameDeg: 5, // below 5° of Lead's bank the frame's straight-line limits are used (Fable F10, estimate)
+  deadReckon: true, // Lead carried across the 0.4 s delay round his turn before anything uses him (Fable F5)
   aimTurnSec: 0.5, // the aim line's turn read over about 0.5 s (as the line of sight)
+  // ... and fed forward within 1.5 times Lead's turn rate plus 3°/s (round 4, thread, estimates): a change of aim made the line
+  // jump, read as a turn of up to 115°/s; null: not held
+  aimTurnCap: Object.freeze({ k: 1.5, plusDps: 3 }),
   overLeadG: 1.5, // his G no more than Lead's + 1.5 (spec 7e.7, estimate) ...
   minG: 0.5, // ... and never under 0.5 G, so his lift always has a direction (estimate)
   rollDps: 60, // roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required")
   stackFt: -50, // his height against Lead: 50 ft below (Patrick 14 Oct 2026, spec 7e.7 swept)
+  followCircle: true, // in Lead's turn he follows Lead's circle offFt inside or out (SMM 12.30 para 74; thread 14 Oct 2026), not Lead's place offFt in; false flies T29a's
+  circleLookSec: 3, // ... aiming at the point on it 3 s of his flight ahead (about 1,100 ft at 200 KIAS; estimate)
+  circleLeastFt: 500, // ... never a circle tighter than 500 ft (estimate, a catch)
   // The vertical loop (spec 7e.7): square to Lead's turn plane (up and down in a level turn), PD on his height against
   // Lead's from the stack or the guard's miss: 0.005 G per foot and 0.02 G per ft/s (spec 7e.7's starting gains, damping
   // about 0.8), at most 1 G either way (estimate). Steering works in Lead's turn plane once Lead turns faster than
@@ -398,20 +442,152 @@ export const FW_WING = Object.freeze({
   vertGPerFtps: 0.02,
   vertMaxG: 1,
   turnPlaneRadps: 0.0175,
+  // ---- T29: the jobs (spec 7e.7, supervisor.js fwJob) ----
+  // Lead's turn: starts once his seen bank passes 10° for 1 s, ends under 5° for 1 s; a reversal is his bank's sign
+  // changing past 10° (spec 7e.7, Fable F4; estimates).
+  turnStartDeg: 10,
+  turnEndDeg: 5,
+  turnHoldSec: 1,
+  // The range he is happy at, slant: 600-650 ft (Patrick 14 Oct 2026); the aim loop aims at its middle, with low P inside
+  // it (a soft zone, not a dead band: Fable F15).
+  happyFt: Object.freeze([600, 650]),
+  happyGain: 0.3, // the share of P inside the happy band (estimate)
+  // The entry case (SMM 12.29 Figs 12.20-12.22): stretched past 700 ft, tight under 560 ft (Patrick 14 Oct 2026: "lead if
+  // more than 700, lag if near 500 (? numbers are a guess)"; 560 an estimate between).
+  stretchedFt: 700,
+  tightFt: 560,
+  // ---- the aim loop (outer, about 0.1 rad/s; spec 7e.7, Fable F3): a wanted closure from the range error, turned into an
+  // offset from Lead's turn circle, inside for lead, outside for lag ----
+  aimSec: 10, // wanted closure = range error / 10 s (75 ft off asks 7.5 ft/s; spec 7e.7)
+  aimMaxFtps: 25, // at most ±25 ft/s (spec 7e.7)
+  aimSlewFtps: 20, // the offset slewed at 20 ft/s (spec 7e.7)
+  aimClosureGain: 1, // the aim loop's D: the offset asks for the wanted closure plus as much again of its shortfall (closing faster than wanted eases it; estimate)
+  routeFt: 120, // the route positions, wing down and wing up, about 120 ft inside and outside Lead's circle: the comfortable amount (spec 7e.7; route 121 ft out, slots.js, TS-181) ...
+  offsetMaxFt: 250, // ... up to about 250 ft (spec 7e.7)
+  minTurnRadps: 0.03, // the offset = wanted closure / Lead's turn rate, never dividing by less than about 1.7°/s (Fable F3); the rest goes to power
+  blendSec: 1.5, // a change of job blends his aim over about 1.5 s (spec 7e.7: 1-2 s; F17); the guard's at once
+  // ---- swept (Lead wings level, straight, climbing or descending): 625 ft at 45°, 50 ft below (Patrick 14 Oct 2026) ----
+  sweptFt: 625,
+  sweptDeg: 45,
+  sweptLookSec: 8, // he steers at his place carried 8 s ahead along Lead's path, so the sideways error closes in about 8 s, gently (estimate, near the aim loop's 0.1 rad/s)
+  // S-turns across the cone when too tight with Lead level (Patrick 14 Oct 2026): under sTurnFt, or closing faster than
+  // sTurnClosureFtps inside the happy band's far edge, he aims at the cone's other side, swapping each time he gets there,
+  // until happy (estimates).
+  sTurnFt: 550,
+  sTurnClosureFtps: 15,
+  sTurnDoneFt: 600,
+  // ---- the vertical's owners (spec 7e.7, Fable F7: guard > quick fix > stack, never added) ----
+  quickFixFt: 150, // a range error over 150 ft or ...
+  quickFixFtps: 20, // ... closure over 20 ft/s moves the height target to ±150 ft (down to close, up to open: down gains speed, up loses it) ...
+  quickFixHeightFt: 150,
+  quickReleaseFt: 75, // ... held until the range error is under 75 ft and the closure under 10 ft/s (estimates, spec 7e.7)
+  quickReleaseFtps: 10,
+  quickSec: 2, // the height target moves to the quick fix's over about 2 s (estimate)
+  // Drop low inside at MAX (Patrick 14 Oct 2026, card "Drop low inside, MAX"; TS-233 addendum, spec 7e.7): in Lead's turn,
+  // short of energy, he drops a few hundred feet below Lead at MAX and climbs back to his stack on the roll-out.
+  lowFt: 300, // "a few hundred feet" (estimate)
+  lowStartKt: 5, // short of energy: more than 5 KIAS slower than Lead (estimate) ...
+  lowEndKt: 1, // ... until back within 1 KIAS of him (estimate)
+  // Lag first on a turn into him (round 4; the web research, US Navy CNATRA P-357 section 701; Patrick's "turn slightly
+  // toward Lead's tail"): once Lead's bank passes 10° toward his side, his path 20° outward of Lead's circle (Fable's
+  // steer-behind cap, Q1's working answer) for 2.5 s (the research's 2-3 s, a guess), then eased back over 1 s (estimate)
+  lagFirst: Object.freeze({ on: true, deg: 20, sec: 2.5, easeSec: 1 }),
+  // Idle and the speed brake (Patrick 14 Oct 2026, rulings on Fable's questions: his to use, smartly): idle once closing faster
+  // than 40 ft/s, the boards past 60 ft/s, more than power back answers in a few seconds (estimates), while inside the happy
+  // band or closing on the pass line and not slower than Lead; released early, under 25 and 35
+  // ft/s (estimates), for the 3.5 s spool-up from idle (live/handling.js ENGINE). null: neither used.
+  brakes: Object.freeze({ idleFtps: 40, idleOffFtps: 25, boardsFtps: 60, boardsOffFtps: 35, slowKt: 0 }),
+  // F6's action when the wing line binds (Patrick 14 Oct 2026, rulings on Fable's questions: never ahead of Lead's 3/9 line,
+  // "nose pointed BEHIND Lead, banking steeply in and down", hot turning rejoin style): he aims where Lead was guard.lagSec
+  // ago and goes down 300 ft (the miss's deepest, estimate) until 200 ft behind the wing line again (estimate). When on,
+  // the wing line no longer sets off the yo-yo (its speed trigger stays).
+  // onCircle: the point aimed at on Lead's circle, his arc target (650 ft) behind Lead, instead of where Lead was 1 s ago. OFF: it
+  // left him ahead of the wing line (aspect 107, gauge r4b2); where Lead was took him 78° across and out to 3,000 ft (r4b)
+  behind: Object.freeze({ on: true, downFt: 300, clearFt: 200, onCircle: false }),
+  // The high yo-yo inside Lead's turn (Patrick 14 Oct 2026, card "High yo-yo, then back down"; TS-233 addendum; Fable F8)
+  // and the pitch owners' order (Fable F9): pass-clear, then the climb, then the stack's family.
+  yoyo: Object.freeze({
+    on: true,
+    // the trigger: the filter's wing line out of reach (F6), or the speed that holds his radius round Lead's centre more
+    // than 10 kt under his own (Fable F8, estimate) with power already back (asking at least 5 KIAS under Lead's, or off;
+    // estimate)
+    slowKt: 10,
+    powerBackKt: 5,
+    // the size: h = (V^2 - (omega r)^2) / 2g (Fable F8; standard energy), no 400 ft cap (Patrick 14 Oct 2026: "as long as wg
+    // stays in the cone anything is permissable"): limited by the cone's height band, heightBandFt (200 ft, TS-80; null here
+    // means that band); at least 100 ft when the wing line alone sets it off (estimate)
+    maxFt: null,
+    // the speed trigger only while he closes round Lead's circle more than 20 ft/s faster than the arc loop wants (round 4,
+    // thread, estimate), and the climb over once he is opening; null: Fable's trigger and exit alone
+    excessFtps: 20,
+    minFt: 100,
+    // the exit: on Lead's circle (within 150 ft of it, estimate) with the arc error under 150 ft (Fable F8, estimate), or
+    // more than 150 ft behind his place; then down to the stack with power back, over once within 50 ft of it (estimate)
+    exitArcFt: 150,
+    onCircleFt: 150,
+    downEndFt: 50,
+    highFt: 100, // "already high": more than 100 ft above Lead, pass-clear goes above (Fable F9, Q4's working answer, estimate)
+    ownerHoldSec: 2, // 2 s between pitch owners; pass-clear takes it at once (Fable F9, estimate)
+  }),
+  // Unload, roll, pull: with his wings more than pullWithinDeg off where the lift is wanted he pulls only its share along
+  // them (estimate; fw-live.js does the same: "while he rolls he pulls only the G that keeps the height he wants").
+  pullWithinDeg: 20,
+  stackReturnSec: 15, // then the target comes back to the stack over about 15 s (spec 7e.7: 15-20 s)
+  heightBandFt: 200, // within 200 ft of Lead's height (TS-80; a reference he is held inside, not a wall: the guard may pass it)
+  // ---- power (slowest, under 0.07 rad/s; spec 7e.7): Lead's speed, plus the closure the aim can't give, PI, slow ----
+  powerSec: 15, // the integral's time constant (spec 7e.7: 15-20 s)
+  powerBandKias: 15, // within 15 KIAS of Lead (Patrick 4 Oct 19:12Z)
   // The separation guard (spec 7e.7; a geometric predictor with priority and hysteresis, F1, F16). 500 ft is slant range
   // (Patrick 14 Oct 2026; TS-208's 500 ft minimum).
   guard: Object.freeze({
+    filter: true, // thread 14 Oct 2026: the guard's miss as the least change to his turn that keeps the pass outside engageFt (fighting-wing.js), not an aim at where Lead was; false flies T29a's miss and reverse
+    filterSteps: 20, // the turns tried each way, from none to his most (then refined; estimate)
+    filterRefine: 6,
+    filterHoldSec: 1, // power off and the miss's height held a second after the filter last changed his turn (estimate)
+    passLine: true, // the filter's line: 500 ft + 1.4 s x the closure he sees, never under 600 ft (Fable F4, estimate) ...
+    passLineSec: 1.4, // ... the 0.4 s he sees late and the 1 s smoothing of closure (Fable F4)
+    sharedLift: true, // the filter searches the turn with the vertical demand as a known term and counts its height in the slant (Fable F3, second review)
+    shakerBound: true, // the filter's candidate turns stop at the stick-shaker's G at his speed (Fable F2, second review; a physical limit)
+    // The filter's second constraint (Fable F6, second review): over the look he stays at least 100 ft behind Lead's wing line,
+    // along Lead's path (Fable Q6's working answer, estimate), beside the pass line; when both can't hold, range wins (the pass
+    // line), and the wing line's being out of reach is the high yo-yo's trigger (F8).
+    wingLine: true,
+    wingLineFt: 100,
+    // the wing line "out of reach" only when no turn at all keeps him behind it; one that does but passes inside the pass line
+    // is the pass line's trouble (round 4, thread): counted as out of reach, the nose-behind ran on while he crossed behind Lead
+    lineShortAll: true,
+    // in Lead's turn the filter takes a turn on the lag side (less turn in Lead's direction: toward his tail, outside his circle)
+    // before one inside it, whatever his side last step (round 4; Patrick 14 Oct 2026, never ahead of the 3/9 line, nose
+    // behind Lead; SMM 12.29 Fig 12.22: the miss likely leaves him outside the turn circle); when no turn clears the pass
+    // line, the lag-side turn nearest his aim's that keeps the pass outside 500 ft, before the turn that passes widest
+    lagSide: true,
+    // Once engaged the filter stays engaged until his aim's own turn clears the pass line and the wing line by 50 ft (Fable F12's
+    // 50 ft margin) for 1 s (estimate); holdsPower: power off (while closing) and pass-clear's pitch held all the engagement
+    // (round 4, thread). null: engaged only while his aim's turn fails.
+    engage: Object.freeze({ marginFt: 50, releaseSec: 1, holdsPower: false }),
     minFt: 500, // never inside 500 ft slant (Patrick, TS-208; 14 Oct 2026: slant range)
     engageFt: 600, // engages once the predicted pass is under 600 ft (estimate, spec 7e.7) ...
     releaseFt: 700, // ... and releases once over 700 ft, predicted and now, held releaseSec (estimates)
     releaseSec: 3,
     lookSec: 5, // the pass predicted up to 5 s ahead (spec 7e.7: 3-5 s), every 0.25 s
     lookStepSec: 0.25,
+    // ... the filter holding Lead one step tighter to the 500 ft rule (minFt) and Lead as he is to the pass line and the wing
+    // line (round 4, thread, estimate). Off at first (gauge r4t, before the feed-forward cap); on since r4yt: at the arc
+    // target (650 ft) Lead one step tighter kept the predicted pass just under the 600 ft line, the filter on and power off
+    tighterAtMin: true,
+    // In Lead's turn the filter's candidates are his turn held over the path law's 3 s look (circleLookSec) and then Lead's
+    // turn, the capture (SMM 12.29 Fig 12.20: "reverse and promptly capture the turn circle by matching Lead's turn"; round 4,
+    // thread, estimate), not a turn held all 5.4 s: held all the look, the steer-behind toward Lead's tail read as a turn
+    // across his track and the filter turned him into Lead's turn instead
+    capture: true,
     tighter: 1.3, // ... with Lead on his present turn and one step tighter: his turn rate 1.3 times (estimate)
     lagSec: 1, // "aim at where Lead was": Lead's place 1 s ago (estimate, about 380 ft back along his path at 200 KIAS: "turning slightly toward Lead", SMM Fig 12.20; 2 s turned him 120° off Lead's heading from tight)
     aboveFt: 20, // "above only if already above": more than 20 ft above Lead when the guard engages (estimate), else the miss is below
     missFt: [50, 300], // the miss below Lead (above only if already above): enough height to make the slant 600 ft over the predicted pass's horizontal, from his 50 ft stack to 300 ft (estimates; a slow tail chase needs little, a pass across Lead's nose a lot)
     missSlantFt: 600,
+    // power off only while he is closing (round Lead's circle in a turn, else on the slant): opening, the power loop has it
+    // (round 4, thread; r4f8 held power off all the turn into him, -59 kt)
+    offClosingOnly: true,
     torquePct: 20, // "power off": 20% torque, well back but not idle, so the engine answers at once when he wants it back (estimate; TS-218, idle's spool-up lag)
     // The reversal onto Lead's circle: a definite increase in the line of sight (SMM 16.20 para 65b(2)), more than losRiseDps
     // over its least since the guard engaged, with Lead behind his 3/9 line (aspect under 90°: never across Lead's nose).
