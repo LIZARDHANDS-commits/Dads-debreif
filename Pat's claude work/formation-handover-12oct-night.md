@@ -1,5 +1,7 @@
 # Formation handover, 12 Oct 2026 night (the architecture review session)
 
+**History (14 Oct 2026):** superseded by [formation-handover-14oct.md](formation-handover-14oct.md), the short handover. Use this one only to look something up.
+
 For the next Formation session, and for this thread after compaction. Read `AGENTS.md`, then `docs/modules/turn-sim/README.md`, then Step 12 of `docs/modules/turn-sim/plan.md`, then this.
 
 ## 14 Oct 2026, night: Live the default, fighting wing designed, B5 being built
