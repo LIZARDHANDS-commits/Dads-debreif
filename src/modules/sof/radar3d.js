@@ -188,26 +188,33 @@ float pick(vec4 v, int i) { return i == 0 ? v.x : i == 1 ? v.y : i == 2 ? v.z : 
 
 void main() {
   vec3 dir = isOrthographic ? -vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]) : normalize(vWorld - cameraPosition);
+  // Where the ray enters and leaves the box, from the camera (from the camera itself when it is inside the box: then the box's far faces are drawn), or for a
+  // flat (orthographic) view from this face.
+  vec3 origin = isOrthographic ? vWorld : cameraPosition;
   vec3 inv = 1.0 / dir;
-  vec3 t0 = (uMin - vWorld) * inv;
-  vec3 t1 = (uMax - vWorld) * inv;
+  vec3 t0 = (uMin - origin) * inv;
+  vec3 t1 = (uMax - origin) * inv;
+  vec3 tNear = min(t0, t1);
   vec3 tFar = max(t0, t1);
-  float tExit = min(min(tFar.x, tFar.y), tFar.z);
-  if (tExit <= 0.0) discard;
-  vec3 span = dir * tExit / vec3(uCellFt, uCellFt, uLayerFt);
+  float tEnter = max(max(tNear.x, tNear.y), tNear.z);
+  if (!isOrthographic) tEnter = max(tEnter, 0.0);
+  float run = min(min(tFar.x, tFar.y), tFar.z) - tEnter; // feet of ray inside the box
+  if (run <= 0.0) discard;
+  vec3 start = origin + dir * tEnter;
+  vec3 span = dir * run / vec3(uCellFt, uCellFt, uLayerFt);
   int steps = int(clamp(ceil(length(span)), 4.0, float(MAX_STEPS))); // about a step a cell: the crossings are placed between steps, so no finer is needed
-  float dt = tExit / float(steps);
+  float dt = run / float(steps);
   vec2 size = uSqMax - uSqMin;
   vec2 east = vec2(uCellFt / size.x, 0.0);
   vec2 north = vec2(0.0, -uCellFt / size.y);
   vec4 acc = vec4(0.0);
-  vec3 pPrev = vWorld;
+  vec3 pPrev = start;
   int lev = 0;
   float sPrev = sliceOf(pPrev.z, lev);
   vec2 prev2 = strength(squareAt(pPrev), sPrev);
   for (int k = 1; k <= MAX_STEPS; k++) {
     if (k > steps || acc.a > 0.97) break;
-    vec3 pNow = vWorld + dir * (float(k) * dt);
+    vec3 pNow = start + dir * (float(k) * dt);
     float sNow = sliceOf(pNow.z, lev);
     vec2 now2 = strength(squareAt(pNow), sNow);
     // Each shell's strength before and after this step (the outer shells read the more smoothed strength), and which shells the step crossed: all four at once.
@@ -397,8 +404,15 @@ export function buildRadarVolume(T, { set, scale, groundFt }) {
   mesh.frustumCulled = false;
   mesh.renderOrder = 3;
   const drawn = new T.Vector2();
-  mesh.onBeforeRender = (renderer) => {
+  mesh.onBeforeRender = (renderer, scene, camera) => {
     material.uniforms.uHalfPx.value = renderer.getDrawingBufferSize(drawn).y / 2; // the contour lines' width in pixels
+    // With the camera inside the box (zoomed in low over wide weather) its near faces are behind the camera, so the far faces are drawn instead and the rays start
+    // at the camera; they are not hidden by the ground then (the box's floor is the home field's ground, under any higher terrain). Until V2.432 nothing drew there.
+    const p = camera.position;
+    const m = 2 * (camera.near ?? 0);
+    const inside = Boolean(camera.isPerspectiveCamera) && p.x > box.x0 - m && p.x < box.x1 + m && p.y > box.y0 - m && p.y < box.y1 + m && p.z > bottom - m && p.z < top + m;
+    material.side = inside ? T.BackSide : T.FrontSide;
+    material.depthTest = !inside;
   };
   own(owned, mesh);
   root.add(mesh);
