@@ -55,3 +55,11 @@ Dad's words: "I noticed on SOF, radar is shown in blocks... do these longer bloc
 - **US bases, follow-ups (8 Oct 2026):** a separate on/off switch for military training routes (busy at 450 NM); the AP/1 page cites; each base's local working areas and watched areas from Dad.
 - **Relay passes the ADS-B emitter category (8 Oct 2026):** add `category` to `relay/lib.js` `trimOne` (checked as A0–D7) and carry it in `traffic.js`, so rotorcraft (A7) are known even when their type is missing; check the helicopter type list against ICAO Doc 8643.
 - **Performance radar on virga days (14 Oct 2026):** moved onto the plan; Dad picked "Add one low height" (SOF-70, V2.436).
+- **Lightning at every base, Canada and US (Dad, 14 Oct 2026: "How can we show lighting strikes in our SOF viewer for both canada and us...come up with a plan"):** the plan offered to Dad. Checked from the session, 14 Oct 2026:
+  - NOAA's MRMS bucket (already read for the 3D radar) carries NLDN cloud-to-ground lightning density over 1, 5, 15 and 30 minutes on a 1 km grid, a new file every minute. A file is 3 to 9 KB, and our own GRIB2 reader decodes it.
+  - It reaches past the border: at 2317Z it held a strike cell at 51.07 N 111.65 W (Alberta), where ECCC's layer showed lightning from 2220Z to 2250Z.
+  - ECCC's `Lightning_2.5km_Density` is Canada only: it was empty over about 1,000 MRMS cells of West Texas storms at the same time.
+  - MRMS also has lightning probability for the next 30 and 60 minutes (its PNG is not grey, so our reader would need a small addition).
+  - GOES-East and GOES-West GLM (all lightning, cloud-to-ground and in-cloud, flash by flash, both countries) is on AWS as 20-second netCDF files of about 650 KB. That needs a new library or the relay, so Patrick's yes.
+  - Blitzortung stays a link (its terms).
+  - Not checked: the licence words for NLDN data in the MRMS bucket (the AWS registry page was not reached), and NLDN's detection over Saskatchewan on a stormy day.
