@@ -13,6 +13,7 @@
 // model itself is not scaled by it.
 
 import { disposeCt156Model } from './ct156-model.js';
+import { disposeCt102bModel } from './ct102b-model.js';
 
 /**
  * Distance from the camera to its target, in feet. The camera is orthographic, so it only
@@ -220,6 +221,7 @@ export function createStandInMesh(THREE, { color, outline = null, kind = 'generi
  */
 export function disposeAircraftMesh(mesh) {
   if (mesh.userData.ct156) return disposeCt156Model(mesh);
+  if (mesh.userData.ct102b) return disposeCt102bModel(mesh); // its file's shapes are shared by every Astra
   mesh.removeFromParent();
   const materials = new Set();
   mesh.traverse((o) => {

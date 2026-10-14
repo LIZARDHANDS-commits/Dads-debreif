@@ -18,7 +18,7 @@
 //     every type without its own. The CT-102B's is PAT_ASTRA, the Astra pattern route (data/moose-jaw.json); sim.js
 //     patternFor reads it, and never puts a CT-102B on PAT1 when PAT_ASTRA is missing (spec 4.19 item 8).
 //   - lengthFt: nose to tail, feet, for drawing at the right size; null where no source is held.
-//   - modelKind: the 3D model it is drawn with: 'ct156' (the Harvard) or 'standin' (the plain stand-in), as
+//   - modelKind: the 3D model it is drawn with: 'ct156' (the Harvard), 'ct102b' (the Astra II's) or 'standin' (the plain stand-in), as
 //     view3d.js modelKindFor draws today.
 //   - tagWord: what the behaviour tag calls its pattern lap: 'OHB' for the overhead break, 'ASTRA' for the Astra's
 //     (TR-160, a working answer not yet confirmed with Patrick).
@@ -55,7 +55,7 @@ const ct102bProfile = Object.freeze({
   perf: CT102B_PERFORMANCE,
   patternRouteId: 'PAT_ASTRA',
   lengthFt: CT102B_AIRFRAME.lengthFt, // 27.62 ft (8.42 m), the EASA type certificate sheet (sources.md P2); unchecked
-  modelKind: 'standin',
+  modelKind: 'ct102b', // its Blender model (ui-kit ct102b-model.js), the stand-in until the file is in
   tagWord: 'ASTRA',
 });
 
