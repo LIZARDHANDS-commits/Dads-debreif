@@ -27,9 +27,11 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, CT156_FILES, ct156FilesDir, loadAo, loadDataTexture, loadDelivered, onCt156LevelChange, paintBands, paintGrain } from './ct156-blender.js';
+import { aoShaded, CT156_FILES, CT156_LOOK_DEFAULTS, ct156FilesDir, getCt156DeliveredPoints, getCt156Level, getCt156LookOptions, loadAo, loadCt156Points, loadDataTexture, loadDelivered, onCt156LevelChange, paintBands, paintGrain, setCt156Level, setCt156LookOptions } from './ct156-blender.js';
 import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
+
+export { CT156_LOOK_DEFAULTS, getCt156DeliveredPoints, getCt156Level, getCt156LookOptions, loadCt156Points, onCt156LevelChange, setCt156Level, setCt156LookOptions };
 
 /** The paint setting every module offers: Paint: Harvard / Ship colours, Harvard the default. */
 export const PAINT_DEFAULT = 'harvard';
@@ -945,16 +947,18 @@ function attachExterior(kit) {
         }
       }
     }
+    const look = getCt156LookOptions();
     kit.ao = loadAo(kit.THREE, dir + EXTERIOR_AO);
     kit.skin = {
       bump: loadAo(kit.THREE, dir + EXTERIOR_BUMP),
       bumpScale: BUMP_SCALE,
       dirt: loadAo(kit.THREE, dir + EXTERIOR_DIRT),
       normal: loadDataTexture(kit.THREE, dir + EXTERIOR_NORMAL),
-      normalScale: 1.0,
+      normalScale: look.normalScale,
       mask: loadDataTexture(kit.THREE, dir + EXTERIOR_MASK),
-      sheenVar: 0.06,
-      cornerShadow: 0,
+      wearStrength: look.wearStrength,
+      sheenVar: look.sheenVar,
+      cornerShadow: look.cornerShadow,
     };
     for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
     // The prop's blade 1 and its tip, when the file has them (3d-work delivery 423e5eb on); before that the code's plates stay.
@@ -2817,6 +2821,7 @@ function buildKit(THREE) {
   kit.lampShips = new Set();
   kit.lampDelivered = false;
   if (typeof window !== 'undefined') {
+    loadCt156Points();
     const loadAll = () => {
       if (kit.disposed) return;
       kit.shaded = new WeakMap();

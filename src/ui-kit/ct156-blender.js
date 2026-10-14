@@ -13,8 +13,14 @@ export function modelsUrl(file) {
  * (the part's pieces merged, in the file's own frame: exported Z-up, so no turn), keeping position, normal and uv.
  */
 export function loadParts(file) {
-  return Promise.all([import('three/examples/jsm/loaders/GLTFLoader.js'), import('three/examples/jsm/utils/BufferGeometryUtils.js')])
-    .then(([{ GLTFLoader }, { mergeGeometries }]) => new GLTFLoader().loadAsync(modelsUrl(file)).then((gltf) => {
+  return Promise.all([
+    import('three/examples/jsm/loaders/GLTFLoader.js'),
+    import('three/examples/jsm/utils/BufferGeometryUtils.js'),
+    import('three/examples/jsm/libs/meshopt_decoder.module.js').catch(() => ({})),
+  ]).then(([{ GLTFLoader }, { mergeGeometries }, { MeshoptDecoder }]) => {
+    const loader = new GLTFLoader();
+    if (MeshoptDecoder) loader.setMeshoptDecoder(MeshoptDecoder);
+    return loader.loadAsync(modelsUrl(file)).then((gltf) => {
       gltf.scene.updateMatrixWorld(true);
       return gltf.scene.children.map((node) => {
         const byMaterial = new Map();
@@ -30,7 +36,8 @@ export function loadParts(file) {
         const meshes = [...byMaterial].map(([material, list]) => ({ geometry: list.length > 1 ? mergeGeometries(list) : list[0], material }));
         return { name: node.name, extras: node.userData ?? {}, meshes };
       });
-    }));
+    });
+  });
 }
 
 /**
@@ -40,12 +47,33 @@ export function loadParts(file) {
  */
 export const CT156_FILES = 'ct156/high/';
 
+/** Default tunable look parameters for Stage 2/3 multi-option sheets (EN3 relief, EN7 wear & sheen, EN18 corner shadow). */
+export const CT156_LOOK_DEFAULTS = Object.freeze({
+  normalScale: 1.0,
+  wearStrength: 1.0,
+  sheenVar: 0.06,
+  cornerShadow: 0,
+});
+
 let currentLevel = 'high';
+let lookOptions = { ...CT156_LOOK_DEFAULTS };
 const levelListeners = new Set();
 
 /** Returns the active CT-156 graphics level ('high' or 'performance'). */
 export function getCt156Level() {
   return currentLevel;
+}
+
+/** Returns the active tunable look parameters ({ normalScale, wearStrength, sheenVar, cornerShadow }). */
+export function getCt156LookOptions() {
+  return { ...lookOptions };
+}
+
+/** Updates one or more tunable look parameters and notifies registered kits to refresh materials. */
+export function setCt156LookOptions(patch = {}) {
+  lookOptions = { ...lookOptions, ...patch };
+  for (const fn of levelListeners) fn(currentLevel);
+  return getCt156LookOptions();
 }
 
 /** Folder prefix for the given CT-156 level ('ct156/high/' or 'ct156/performance/'). */
@@ -66,13 +94,15 @@ export function setCt156Level(level) {
   return currentLevel;
 }
 
-/** Registers a callback invoked whenever setCt156Level changes the active level. */
+/** Registers a callback invoked whenever setCt156Level or setCt156LookOptions changes. */
 export function onCt156LevelChange(fn) {
   levelListeners.add(fn);
   return () => levelListeners.delete(fn);
 }
 
 let delivery = null;
+let pointsPromise = null;
+let cachedPoints = null;
 let told = false;
 /** The delivery the files came from (public/models/ct156/delivery.json): Promise of its name, or null without one. */
 function ct156Delivery() {
@@ -82,6 +112,31 @@ function ct156Delivery() {
       .then((sheet) => sheet?.name ?? null, () => null);
   }
   return delivery;
+}
+
+/**
+ * Loads the delivered named points (`public/models/ct156/ct156-points.json`, plan Step 3b item 3.5), verified against
+ * `delivery.json`, and caches them for synchronous lookup via `getCt156DeliveredPoints()`.
+ */
+export function loadCt156Points() {
+  if (!pointsPromise) {
+    pointsPromise = Promise.all([
+      ct156Delivery(),
+      fetch(modelsUrl('ct156/ct156-points.json')).then((r) => (r.ok ? r.json() : null), () => null),
+    ]).then(([name, pts]) => {
+      if (name && pts && pts.delivery === name) {
+        cachedPoints = pts;
+        return pts;
+      }
+      return null;
+    });
+  }
+  return pointsPromise;
+}
+
+/** Returns the cached `ct156-points.json` object once `loadCt156Points()` has resolved, or null before/without it. */
+export function getCt156DeliveredPoints() {
+  return cachedPoints;
 }
 
 /**
@@ -135,11 +190,11 @@ export function loadDataTexture(THREE, file) {
  * shades only the sky's light, and the sun is most of an aircraft's light). The part drawn with it needs a uv map.
  * Optional, on the same uv map:
  * - `normal` / `normalScale` (EN3): tangent-space normal map (`normalScale.set(s, -s)` for glTF top-down UVs);
- * - `mask` (EN7): packed mask (`R=AO, G=Curvature 0.5 flat, B=Dirt`) + `sheenVar` (panel-to-panel sheen variation, default 0.06);
+ * - `mask` (EN7): packed mask (`R=AO, G=Curvature 0.5 flat, B=Dirt`) + `wearStrength` (default 1.0) + `sheenVar` (panel-to-panel sheen variation, default 0.06);
  * - `bump` / `bumpScale` and `dirt`: legacy separate bump/dirt maps when `normal`/`mask` are not supplied;
  * - `cornerShadow` (EN18): optional live screen-space corner/crevice shadow (0 = off by default).
  */
-export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null, normal = null, normalScale = 1, mask = null, sheenVar = 0.06, cornerShadow = 0 } = {}) {
+export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null, normal = null, normalScale = lookOptions.normalScale, mask = null, wearStrength = lookOptions.wearStrength, sheenVar = lookOptions.sheenVar, cornerShadow = lookOptions.cornerShadow } = {}) {
   const m = material.clone();
   m.aoMap = ao;
   if (normal) {
@@ -149,6 +204,7 @@ export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null
     m.bumpMap = bump;
     m.bumpScale = bumpScale;
   }
+  const ws = Number(wearStrength) ?? 1.0;
   const sv = Number(sheenVar) || 0;
   const cs = Number(cornerShadow) || 0;
   m.onBeforeCompile = (shader) => {
@@ -160,8 +216,8 @@ export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null
         .replace('#include <map_fragment>', `#include <map_fragment>
 #ifdef USE_AOMAP
 	vec3 ct156MaskAt = texture2D( ct156Mask, vAoMapUv ).rgb;
-	float ct156CurvAt = ct156MaskAt.g - 0.5;
-	float ct156DirtAt = ct156MaskAt.b;
+	float ct156CurvAt = ( ct156MaskAt.g - 0.5 ) * ${ws.toFixed(4)};
+	float ct156DirtAt = clamp( ct156MaskAt.b * ${ws.toFixed(4)}, 0.0, 1.0 );
 	diffuseColor.rgb *= 1.0 - 0.35 * clamp( -ct156CurvAt * 2.5, 0.0, 1.0 );
 	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 1.22 + vec3( 0.04 ), clamp( ct156CurvAt * 2.2, 0.0, 0.35 ) );
 	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.11, 0.1, 0.085 ), 0.55 * ct156DirtAt );
