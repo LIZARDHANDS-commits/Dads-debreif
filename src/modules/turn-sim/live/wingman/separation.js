@@ -98,45 +98,18 @@ export function fwGuard(g, seen, ownOmega) {
   return { ...g, missFt, clearSec, predFt };
 }
 
+const lineOk = (p) => p.behind >= FG.wingLineFt; // at least wingLineFt behind Lead's wing line over the look (Fable F6)
+
 /**
- * One step of the separation filter, after his aim's steering and with the vertical he is asking for.
- * mem: last step's wingman memory ({ filterHold, filterSide, filterEngaged, filterClearSec }); aTurn0: the turning
- * acceleration his aim asks for (ft/s², square to his path); vert: { errFt, aV, hold } (verticalFor's); sit: { seen, st,
- * job, turning (Lead turning faster than turnPlaneRadps), out (the turn plane's normal), u (his path, unit), V (his speed),
- * ownP, ownV (him now), leadNow, leadV (Lead carried across the delay) }.
- *
- * Each candidate turn is judged as his turn held over circleLookSec and then Lead's turn (the capture), against Lead as he
- * is and one step tighter, with his vertical demand counted in the slant (Fable F3). Lead as he is must clear the pass line
- * and the wing line; Lead one step tighter, the 500 ft rule itself (the one number compared with the pass line meets both).
- * The candidates stop at the stick shaker's G at his speed, a physical limit (Fable F2), with the G his lift's hold leaves.
- * Of the turns that clear, the nearest his aim's, on the side he took last step unless only the other side clears, and in
- * Lead's turn the lag side (less turn in Lead's direction: toward Lead's tail, outside his circle) before the inside
- * (Patrick 14 Oct 2026, never ahead of the 3/9 line; SMM 12.29 Fig 12.22). None clearing both: the pass line alone (his
- * aim's own turn left alone if it clears it), and the wing line out of reach (lineShort) when no turn at all keeps him
- * behind it; none clearing the pass line: in Lead's turn the lag-side turn nearest his aim's that keeps 500 ft, else the
- * turn that passes widest.
- *
- * Returns { aTurn (the turning acceleration flown), filterPull (the filter's turn needs more than Lead + 1.5 G), filterOn
- * (it changed his turn), lineShort, filterHold (power off and pass-clear's pitch held this long after), filterSide (the side
- * it took, +1 left of his aim's turn), passShort (his aim's own turn passes inside the pass line), cleared (a turn clearing
- * the lines was found), passFt (the pass his aim's own turn predicts), omNom, omPick (his aim's turn and the filter's,
- * deg/s, + left, for the trace), engaged, engageClear }.
+ * The filter's judge of a candidate turn (rad/s in the turn plane, + left): his turn held over circleLookSec and then
+ * Lead's turn (the capture, SMM 12.29 Fig 12.20), against Lead as he is and one step tighter (guard.tighter), with the
+ * vertical he is asking for counted in the slant (Fable F3). Lead as he is must clear the pass line and the wing line; Lead
+ * one step tighter, the 500 ft rule itself: the one number compared with the pass line meets both. The pass line is 500 ft
+ * plus passLineSec of the closure he sees, never under engageFt (TS-233; Fable F4). Returns { passLine, predFor(om) -> {
+ * pass, behind } }.
  */
-export function separationFilter(mem, aTurn0, { errFt, aV, hold }, sit) {
-  const { seen, st, job, turning, out, u, V, ownP, ownV, leadNow, leadV } = sit;
-  let aTurn = aTurn0;
-  let filterPull = false;
-  let filterOn = false;
-  let lineShort = false;
-  let filterHold = Math.max(0, (mem.filterHold ?? 0) - STEP_SEC);
-  let filterSide = mem.filterSide ?? 0;
-  let cleared = true;
-  let engaged = Boolean(mem.filterEngaged);
-  let engageClear = mem.filterClearSec ?? 0;
-  let omPick = null;
-  const side = unit3(cross3(out, u)); // his left in the turn plane
-  const omegaNom = dot3(aTurn, side) / V; // rad/s, + turning left
-  const omNom = omegaNom / DEG;
+function passJudge(sit, { errFt, aV }) {
+  const { seen, job, out, ownP, ownV, leadNow, leadV } = sit;
   const horizon = FG.lookSec; // Lead is carried across the delay already
   const leadAsIs = { p: leadNow, v: leadV, omega: seen.turn.omega };
   const leadTighter = { p: leadNow, v: leadV, omega: scale3(seen.turn.omega, FG.tighter) };
@@ -148,73 +121,121 @@ export function separationFilter(mem, aTurn0, { errFt, aV, hold }, sit) {
     const b = leastPass(leadTighter, me, horizon, extra);
     return { pass: Math.min(a.leastFt, b.leastFt + (passLine - FG.minFt)), behind: a.behindLeastFt };
   };
-  const lineOk = (p) => p.behind >= FG.wingLineFt;
-  const passOk = (c) => c.pass >= passLine;
-  const nom = predFor(omegaNom);
-  const passFt = nom.pass;
-  const passShort = nom.pass < passLine;
-  // engaged, with hysteresis (Fable F12)
+  return { passLine, predFor };
+}
+
+/**
+ * Engaged, with hysteresis (Fable F12; thread, round 4): engaged at once when his aim's own turn (nom) fails the pass line
+ * or the wing line, and released once it has cleared both by engage.marginFt for engage.releaseSec. Returns { failing,
+ * engaged, engageClear (how long it has cleared by the margin) }.
+ */
+function engagedNext(mem, nom, passLine) {
   const failing = nom.pass < passLine || !lineOk(nom);
+  if (failing) return { failing, engaged: true, engageClear: 0 };
+  const engageClear = mem.filterClearSec ?? 0;
+  if (!mem.filterEngaged) return { failing, engaged: false, engageClear };
   const clearBy = nom.pass >= passLine + FG.engage.marginFt && nom.behind >= FG.wingLineFt + FG.engage.marginFt;
-  if (failing) {
-    engaged = true;
-    engageClear = 0;
-  } else if (engaged) {
-    engageClear = clearBy ? engageClear + STEP_SEC : 0;
-    if (engageClear >= FG.engage.releaseSec) engaged = false;
+  const cleared = clearBy ? engageClear + STEP_SEC : 0;
+  return { failing, engaged: cleared < FG.engage.releaseSec, engageClear: cleared };
+}
+
+/**
+ * The turn the filter flies when his aim's own fails: the candidates from no turn to his most each way (filterSteps),
+ * bounded by the stick shaker's G at his speed, a physical limit (Fable F2), with the G his lift's hold leaves (F3). Of
+ * those that clear, the nearest his aim's turn (omegaNom), on the side he took last step (lastSide) unless only the other
+ * side clears, and in Lead's turn the lag side (less turn in Lead's direction: toward Lead's tail, outside his circle)
+ * before the inside (Patrick 14 Oct 2026, never ahead of the 3/9 line; SMM 12.29 Fig 12.22); refined between it and its
+ * neighbour toward his aim's turn. None clearing both: the pass line alone (range wins, Fable F6), his aim's own turn left
+ * alone ("free") if it clears it, and the wing line out of reach (lineShort) when no turn at all keeps him behind it. None
+ * clearing the pass line: in Lead's turn the lag-side turn nearest his aim's that keeps 500 ft, else the turn that passes
+ * widest. Returns { pick ({ om, sideK, free }, or null), om (the turn flown, rad/s), lineShort, cleared (a turn clearing the
+ * lines was found before the lag-side fallback) }.
+ */
+function searchTurn(sit, hold, judge, nom, omegaNom, lastSide) {
+  const { seen, st, turning, out, V } = sit;
+  const { passLine, predFor } = judge;
+  const passOk = (c) => c.pass >= passLine;
+  const gMost = Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)));
+  const gHold = len3(hold);
+  const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
+  const N = FG.filterSteps;
+  const cands = [];
+  for (let k = -N; k <= N; k++) {
+    const om = (omMax * k) / N;
+    cands.push({ om, ...predFor(om) });
   }
-  if (failing) {
-    filterOn = true;
-    const gMost = Math.min(shakerG(st.kias), Math.max(seen.leadG + W.overLeadG, availableG(st.kias)));
-    const gHold = len3(hold);
-    const omMax = (G_FTPS2 * Math.sqrt(Math.max(0, gMost * gMost - gHold * gHold))) / V;
-    const N = FG.filterSteps;
-    const cands = [];
-    for (let k = -N; k <= N; k++) {
-      const om = (omMax * k) / N;
-      cands.push({ om, ...predFor(om) });
+  const insideK = Math.sign(dot3(seen.turn.omega, out)) || 0; // the side of his aim's turn that is inside Lead's turn
+  const choose = (ok) => {
+    let best = null;
+    for (const c of cands) {
+      if (!ok(c)) continue;
+      const sideK = Math.sign(c.om - omegaNom) || 1;
+      const lagPenalty = turning && insideK && sideK === insideK ? 2 * omMax : 0;
+      const cost = Math.abs(c.om - omegaNom) + (lastSide && sideK !== lastSide ? omMax : 0) + lagPenalty;
+      if (!best || cost < best.cost) best = { ...c, cost, sideK };
     }
-    const insideK = Math.sign(dot3(seen.turn.omega, out)) || 0; // the side of his aim's turn that is inside Lead's turn
-    const choose = (ok) => {
-      let best = null;
-      for (const c of cands) {
-        if (!ok(c)) continue;
-        const sideK = Math.sign(c.om - omegaNom) || 1;
-        const lagPenalty = turning && insideK && sideK === insideK ? 2 * omMax : 0;
-        const cost = Math.abs(c.om - omegaNom) + (filterSide && sideK !== filterSide ? omMax : 0) + lagPenalty;
-        if (!best || cost < best.cost) best = { ...c, cost, sideK };
-      }
-      if (!best) return null;
-      // refined between it and its neighbour toward his aim's turn
-      let lo = best.om;
-      let hi = best.om - best.sideK * (omMax / N);
-      for (let r = 0; r < FG.filterRefine; r++) {
-        const mid = (lo + hi) / 2;
-        if (ok(predFor(mid))) lo = mid;
-        else hi = mid;
-      }
-      return { om: lo, sideK: best.sideK };
-    };
-    let pick = choose((c) => passOk(c) && lineOk(c));
-    if (!pick) {
-      lineShort = !cands.some(lineOk);
-      pick = passOk(nom) ? { om: omegaNom, sideK: 0, free: true } : choose(passOk);
+    if (!best) return null;
+    let lo = best.om;
+    let hi = best.om - best.sideK * (omMax / N);
+    for (let r = 0; r < FG.filterRefine; r++) {
+      const mid = (lo + hi) / 2;
+      if (ok(predFor(mid))) lo = mid;
+      else hi = mid;
     }
-    cleared = Boolean(pick);
-    const lagRescue =
-      !pick && turning && insideK
-        ? choose((c) => c.pass >= FG.minFt && (Math.sign(c.om - omegaNom) || 1) !== insideK)
-        : null;
-    if (lagRescue) pick = lagRescue;
-    const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
-    omPick = om / DEG;
-    if (pick?.free) filterOn = false;
-    else filterSide = pick ? pick.sideK : filterSide;
-    if (filterOn) {
-      aTurn = add3(perp3(aTurn, side), scale3(side, om * V)); // only the turn in the plane changes
-      filterHold = FG.filterHoldSec;
-      filterPull = Math.hypot(1, (om * V) / G_FTPS2) > seen.leadG + W.overLeadG;
-    } else filterSide = 0;
-  } else filterSide = 0;
-  return { aTurn, filterPull, filterOn, lineShort, filterHold, filterSide, passShort, cleared, passFt, omNom, omPick: filterOn ? omPick : null, engaged, engageClear };
+    return { om: lo, sideK: best.sideK };
+  };
+  let pick = choose((c) => passOk(c) && lineOk(c));
+  let lineShort = false;
+  if (!pick) {
+    lineShort = !cands.some(lineOk);
+    pick = passOk(nom) ? { om: omegaNom, sideK: 0, free: true } : choose(passOk);
+  }
+  const cleared = Boolean(pick);
+  const lagRescue =
+    !pick && turning && insideK
+      ? choose((c) => c.pass >= FG.minFt && (Math.sign(c.om - omegaNom) || 1) !== insideK)
+      : null;
+  if (lagRescue) pick = lagRescue;
+  const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
+  return { pick, om, lineShort, cleared };
+}
+
+/**
+ * One step of the separation filter, after his aim's steering and with the vertical he is asking for.
+ * mem: last step's wingman memory ({ filterHold, filterSide, filterEngaged, filterClearSec }); aTurn0: the turning
+ * acceleration his aim asks for (ft/s², square to his path); vert: { errFt, aV, hold } (fighting-wing.js verticalFor's);
+ * sit: { seen, st, job, turning (Lead turning faster than turnPlaneRadps), out (the turn plane's normal), u (his path,
+ * unit), V (his speed), ownP, ownV (him now), leadNow, leadV (Lead carried across the delay) }.
+ * His aim's turn is flown unless the pass it predicts fails (passJudge, engagedNext); then searchTurn's, only the turn in
+ * the plane changed. Returns { aTurn (the turning acceleration flown), filterPull (the filter's turn needs more than Lead +
+ * 1.5 G), filterOn (it changed his turn), lineShort, filterHold (power off and pass-clear's pitch held this long after),
+ * filterSide (the side it took, +1 left of his aim's turn, else 0), passShort (his aim's own turn passes inside the pass
+ * line), cleared, passFt (the pass his aim's own turn predicts), omNom, omPick (his aim's turn and the filter's, deg/s, +
+ * left, for the trace), engaged, engageClear }.
+ */
+export function separationFilter(mem, aTurn0, vert, sit) {
+  const { out, u, V } = sit;
+  const side = unit3(cross3(out, u)); // his left in the turn plane
+  const omegaNom = dot3(aTurn0, side) / V; // rad/s, + turning left
+  const judge = passJudge(sit, vert);
+  const nom = judge.predFor(omegaNom);
+  const { failing, engaged, engageClear } = engagedNext(mem, nom, judge.passLine);
+  const filterHold = Math.max(0, (mem.filterHold ?? 0) - STEP_SEC);
+  const free = { aTurn: aTurn0, filterPull: false, filterOn: false, lineShort: false, filterHold, filterSide: 0, cleared: true };
+  const keep = { passShort: nom.pass < judge.passLine, passFt: nom.pass, omNom: omegaNom / DEG, engaged, engageClear };
+  if (!failing) return { ...free, ...keep, omPick: null };
+  const lastSide = mem.filterSide ?? 0;
+  const { pick, om, lineShort, cleared } = searchTurn(sit, vert.hold, judge, nom, omegaNom, lastSide);
+  if (pick?.free) return { ...free, lineShort, cleared, ...keep, omPick: null };
+  return {
+    aTurn: add3(perp3(aTurn0, side), scale3(side, om * V)), // only the turn in the plane changes
+    filterPull: Math.hypot(1, (om * V) / G_FTPS2) > sit.seen.leadG + W.overLeadG,
+    filterOn: true,
+    lineShort,
+    filterHold: FG.filterHoldSec,
+    filterSide: pick ? pick.sideK : lastSide,
+    cleared,
+    ...keep,
+    omPick: om / DEG,
+  };
 }
