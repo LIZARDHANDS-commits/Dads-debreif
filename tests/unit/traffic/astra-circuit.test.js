@@ -25,7 +25,7 @@ const ASTRA_PATTERN_FT = 3000; // Dad, 13 Oct 2026 (TR-156)
 const CT156_PATTERN_FT = 3500; // airfield.js PATTERN_ALT_FT
 const BREAK_BANK_DEG = 60; // Patrick, 13 Oct 2026 (TR-154)
 const TURN_BANK_DEG = 30; // Patrick, 13 Oct 2026 (TR-155)
-const SAFETY_STOP_SEC = 6 * 60;
+const SAFETY_STOP_SEC = 10 * 60; // a safety stop only: with the outer pattern the lap takes about 6½ minutes (TR-164; Dad for Patrick, 14 Oct 2026)
 const RUNWAY_FT = Math.hypot(DEPARTURE_END_29L.x - THRESHOLD_29L.x, DEPARTURE_END_29L.y - THRESHOLD_29L.y);
 
 /** Along 29L from the threshold, and out from the centreline on the pattern side (left), feet. */
