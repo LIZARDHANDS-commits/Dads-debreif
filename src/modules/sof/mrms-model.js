@@ -174,8 +174,8 @@ export function checkField(meta, p, nameTime) {
   if (!gridIsMrms(meta.grid)) return "grid is not MRMS's 7000 x 3500 at 0.01°";
   if (meta.packing?.template !== 41) return 'not PNG packed (template 5.41)';
   const pr = meta.product;
-  if (meta.discipline !== MRMS_DISCIPLINE || pr?.category !== p.category || pr?.number !== p.number) return `not the ${p.words} asked for`;
-  if (pr.surfaceType !== 102 || !near(pr.surfaceValue, p.surfaceM, 1)) return `not the height asked for (${p.words})`;
+  if (meta.discipline !== MRMS_DISCIPLINE || pr?.category !== p.category || pr?.number !== p.number) return 'a different field from the one asked for';
+  if (pr.surfaceType !== 102 || !near(pr.surfaceValue, p.surfaceM, 1)) return 'a different height from the one asked for';
   if (!(meta.time instanceof Date) || !Number.isFinite(+meta.time) || (nameTime !== null && Math.abs(+meta.time - nameTime) > SKEW_MS)) return "file time doesn't match its name";
   return null;
 }

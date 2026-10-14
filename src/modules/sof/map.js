@@ -1091,6 +1091,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       ? mrmsFeed.view(t)
       : { state: 'nosource', set: null, line: { text: noSourceWords('Radar heights'), symbol: '⚠', tone: 'caution' }, notes: [], reason: 'no source for this base', sig: 'nosource' };
     lines.push({ id: 'mrms', ...mrms.line });
+    for (const note of mrms.notes ?? []) lines.push({ id: 'mrms-note', text: note, symbol: '⚠', tone: 'caution' }); // a High height missing, High dropped to Performance, cores not drawn
     if (heights && heights.checkedHere === false) lines.push({ id: 'mrms-canada', text: CANADA_WORDS, symbol: '⚠', tone: 'caution' }); // until Dad's Moose Jaw comparison (plan item 6)
     parts.push(`mrms:${mrms.sig}`);
     return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines, modelCloud, anchors, mrms };

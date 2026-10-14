@@ -92,9 +92,10 @@ export function buildRadarColumns(T, { columns, scale }) {
 }
 
 /**
- * The palette for High's volume: 256 entries, one per dBZ code (mrms-model.js dbzCode), each NOAA's colour for that dBZ and an opacity a cell that rises with the
- * echo: about 0.02 at MIN_DRAW_DBZ, 0.1 at 25, 0.3 at 45 and 0.65 at 65 dBZ (estimates for the look: light rain a faint haze, a core solid). Code 0 (no echo or no
- * coverage) and anything under MIN_DRAW_DBZ are clear.
+ * The palette for High's volume: 256 entries, one per dBZ code (mrms-model.js dbzCode), each NOAA's colour for that dBZ and an opacity a 1 km cell that rises
+ * steeply with the echo: about 0.01 at 20 dBZ, 0.05 at 30, 0.12 at 40, 0.26 at 50 and 0.6 at 65 dBZ, so light rain is a faint haze that a strong core shows
+ * through (estimates for the look; with gentler steps the green shell of a storm hid its red core). Code 0 (no echo or no coverage) and anything under
+ * MIN_DRAW_DBZ are clear.
  */
 export function volumePalette() {
   const out = new Uint8Array(256 * 4);
@@ -103,7 +104,7 @@ export function volumePalette() {
     if (dbz < MIN_DRAW_DBZ) continue;
     const [r, g, b] = dbzColour(dbz);
     const t = Math.min(1, (dbz - MIN_DRAW_DBZ) / 60);
-    out.set([r, g, b, Math.round(255 * Math.min(0.85, 0.02 + 0.63 * t ** 1.6))], code * 4);
+    out.set([r, g, b, Math.round(255 * Math.min(0.85, 0.004 + 0.6 * t ** 3))], code * 4);
   }
   return out;
 }
@@ -123,6 +124,8 @@ uniform sampler3D uVolume;
 uniform sampler2D uPalette;
 uniform vec3 uMin;
 uniform vec3 uMax;
+uniform vec2 uSqMin;
+uniform vec2 uSqMax;
 uniform float uLevelZ[LEVELS];
 uniform float uCellFt;
 uniform float uLayerFt;
@@ -144,9 +147,9 @@ void main() {
   vec3 tFar = max(t0, t1);
   float tExit = min(min(tFar.x, tFar.y), tFar.z);
   if (tExit <= 0.0) discard;
-  vec3 size = uMax - uMin;
+  vec2 size = uSqMax - uSqMin;
   vec3 span = dir * tExit / vec3(uCellFt, uCellFt, uLayerFt);
-  int steps = int(clamp(ceil(length(span) * 1.5), 8.0, float(MAX_STEPS)));
+  int steps = int(clamp(ceil(length(span) * 1.2), 4.0, float(MAX_STEPS)));
   float dt = tExit / float(steps);
   float cells = length(dir * dt / vec3(uCellFt, uCellFt, uLayerFt));
   vec4 acc = vec4(0.0);
@@ -155,7 +158,7 @@ void main() {
     vec3 p = vWorld + dir * ((float(k) + 0.5) * dt);
     float s = sliceOf(p.z);
     if (s > float(LEVELS) - 0.5) continue;
-    vec3 uvw = vec3((p.x - uMin.x) / size.x, (uMax.y - p.y) / size.y, (s + 0.5) / float(LEVELS));
+    vec3 uvw = vec3((p.x - uSqMin.x) / size.x, (uSqMax.y - p.y) / size.y, (s + 0.5) / float(LEVELS));
     float code = texture(uVolume, uvw).r * 255.0;
     vec4 c = texture2D(uPalette, vec2((code + 0.5) / 256.0, 0.5));
     float a = 1.0 - pow(1.0 - c.a, cells);
@@ -170,6 +173,35 @@ void main() {
 const MAX_STEPS = 192;
 
 /**
+ * The part of the volume that holds any echo worth drawing: { i0, i1, j0, j1, l1 } (cells, inclusive; l1 the highest height with one), with a cell of margin, or
+ * null when there is none. The box drawn is cut to it, so rays run only where there is weather (the cost of the volume is per pixel).
+ */
+export function echoBounds({ n, codes, levelsKm }) {
+  const min = Math.ceil((MIN_DRAW_DBZ + 32) * 2); // mrms-model.js dbzCode of MIN_DRAW_DBZ
+  const plane = n * n;
+  let i0 = n;
+  let i1 = -1;
+  let j0 = n;
+  let j1 = -1;
+  let l1 = -1;
+  for (let l = 0; l < levelsKm.length; l++) {
+    for (let j = 0; j < n; j++) {
+      const row = l * plane + j * n;
+      for (let i = 0; i < n; i++) {
+        if (codes[row + i] < min) continue;
+        if (i < i0) i0 = i;
+        if (i > i1) i1 = i;
+        if (j < j0) j0 = j;
+        if (j > j1) j1 = j;
+        l1 = l;
+      }
+    }
+  }
+  if (l1 < 0) return null;
+  return { i0: Math.max(0, i0 - 1), i1: Math.min(n - 1, i1 + 1), j0: Math.max(0, j0 - 1), j1: Math.min(n - 1, j1 + 1), l1: Math.min(levelsKm.length - 1, l1 + 1) };
+}
+
+/**
  * High's volume: `set` is mrms-feed.js's High set ({ n, halfFt, codes (n x n x levels, row 0 north), levelsKm }), standing from `groundFt` (the home field's ground;
  * the lowest height is drawn down to it, as rain to the ground) to half a layer over the highest height, at height scale `scale`. Returns { root, dispose }.
  */
@@ -179,6 +211,8 @@ export function buildRadarVolume(T, { set, scale, groundFt }) {
   root.name = 'mrms-volume';
   const { n, halfFt, codes, levelsKm } = set;
   const levels = levelsKm.length;
+  const bounds = echoBounds(set);
+  if (!bounds) return finish(root, owned, { bytes: 0, empty: true }); // no echo to draw: no box, no cost
   const texture = own(owned, new T.Data3DTexture(codes, n, n, levels));
   texture.format = T.RedFormat;
   texture.type = T.UnsignedByteType;
@@ -193,7 +227,9 @@ export function buildRadarVolume(T, { set, scale, groundFt }) {
   const levelZ = levelsKm.map((km) => kmToFt(km) * scale);
   const layerFt = (levelZ[levels - 1] - levelZ[levels - 2]); // the spacing between the top two heights
   const bottom = Math.min(groundFt * scale, levelZ[0]);
-  const top = levelZ[levels - 1] + layerFt / 2;
+  const cell = (2 * halfFt) / n;
+  const top = bounds.l1 >= levels - 1 ? levelZ[levels - 1] + layerFt / 2 : levelZ[bounds.l1];
+  const box = { x0: -halfFt + bounds.i0 * cell, x1: -halfFt + (bounds.i1 + 1) * cell, y0: halfFt - (bounds.j1 + 1) * cell, y1: halfFt - bounds.j0 * cell };
   const material = own(owned, new T.ShaderMaterial({
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,
@@ -201,8 +237,10 @@ export function buildRadarVolume(T, { set, scale, groundFt }) {
     uniforms: {
       uVolume: { value: texture },
       uPalette: { value: palette },
-      uMin: { value: new T.Vector3(-halfFt, -halfFt, bottom) },
-      uMax: { value: new T.Vector3(halfFt, halfFt, top) },
+      uMin: { value: new T.Vector3(box.x0, box.y0, bottom) },
+      uMax: { value: new T.Vector3(box.x1, box.y1, top) },
+      uSqMin: { value: new T.Vector2(-halfFt, -halfFt) },
+      uSqMax: { value: new T.Vector2(halfFt, halfFt) },
       uLevelZ: { value: levelZ },
       uCellFt: { value: (2 * halfFt) / n },
       uLayerFt: { value: layerFt },
@@ -211,14 +249,14 @@ export function buildRadarVolume(T, { set, scale, groundFt }) {
     depthWrite: false,
     side: T.FrontSide,
   }));
-  const geometry = own(owned, new T.BoxGeometry(2 * halfFt, 2 * halfFt, top - bottom));
-  geometry.translate(0, 0, (top + bottom) / 2);
+  const geometry = own(owned, new T.BoxGeometry(box.x1 - box.x0, box.y1 - box.y0, top - bottom));
+  geometry.translate((box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, (top + bottom) / 2);
   const mesh = new T.Mesh(geometry, material);
   mesh.frustumCulled = false;
   mesh.renderOrder = 3;
   own(owned, mesh);
   root.add(mesh);
-  return finish(root, owned, { bytes: codes.length });
+  return finish(root, owned, { bytes: codes.length, bounds });
 }
 
 /** The ground picture is this many pixels across. An estimate: enough for the 1 km cells of a 450 NM square to read as a hatched area, and for the words. */
