@@ -75,12 +75,24 @@ gear.noseDoors.forEach((door, i) => {
   hinges[`gearNoseDoor${i === 0 ? 'Left' : 'Right'}`] = { ...hingeAt(door, X), positive: 'code setGear: opens with the leg', travel: 'code (ALL-34)' };
 });
 hinges.speedBrake = { ...hingeAt(d.speedBrake.hinge, Y), positive: `code setSpeedBrake: opens ${d.speedBrake.openDeg}°`, travel: 'code' };
+// The blades' pitch axes, read with the prop turned to 0 (blade 1 out along +Y, as the master models it), and the landing
+// and taxi lamps' hinges (3d-work hinge.blade1 to blade4, hinge.gearLampLeft and Right since chunk 8b).
+const propRest = d.prop.rotation.x;
+d.prop.rotation.x = 0;
+d.propPitch.forEach((p, k) => {
+  hinges[`blade${k + 1}`] = { ...hingeAt(p, Y), positive: "code turnProp: PROP_PITCH from the master's feathered blade, the leading edge forward", travel: 'code (PROP_PITCH)' };
+});
+d.prop.rotation.x = propRest;
+gear.lampTurns.forEach((t, i) => {
+  hinges[`gearLamp${i === 0 ? 'Left' : 'Right'}`] = { ...hingeAt(t, Y), positive: 'code setGear: +90° up, 0° down', travel: 'code (ALL-34)' };
+});
 
+// (The rear panel's picture is 1024 x 561 since chunk 6's E2 made its face the front's 2.3 by 1.26 ft; it was 1024 x 489.)
 // The cockpit's pictured faces: each textured mesh drawn from a canvas, named by its picture (ct156-cockpit.js
 // createCt156Cockpit: the live instruments' and engine displays' 1024 px atlases, in that order, the front and rear panel
 // pictures, the lower panels, the consoles, each seat's panel shade, the standby compass card and the striped handles).
 const FACE_NAMES = {
-  '1024x1024': 'instruments-live', '1024x1024-2': 'engine-live', '2048x1122': 'panel-front', '1024x489': 'panel-rear',
+  '1024x1024': 'instruments-live', '1024x1024-2': 'engine-live', '2048x1122': 'panel-front', '1024x561': 'panel-rear',
   '768x576': 'panel-lower', '512x2048': 'consoles', '4x256': 'panel-shade-front', '4x256-2': 'panel-shade-rear',
   '2048x96': 'compass-card', '32x32': 'handle-stripes',
 };

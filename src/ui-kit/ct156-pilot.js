@@ -13,23 +13,27 @@
  * `env` the sky reflection's strength, 0 for none, `opacity` below 1 for see-through). Colours and shininess are
  * estimates off Patrick's photos, 12 Oct 2026: a dark gunmetal helmet with the sky on it, a clear visor with a faint
  * smoke tint, black rubber mask with grey-blue valve and cheek windows, a pale grey ribbed hose, a sage vest.
+ * Chunk 7's colours (3d-work #72, Patrick's rulings H1, H2, H6, H7, 13 Oct 2026; imported with delivery ct156-2026-10-13-17f0c75): the shell light sage grey #8e978d (was #353a41), the
+ * visor dark #101316 and nearly opaque (0.92; was clear #b4bec6 at 0.22), the flight suit brighter olive #7a8535 (was #555c43), the vest pale grey-sage #a9b1a2 (was #7c8467), the
+ * webbing pale grey-green #9ca59a (was #1f2224), and a new silver slot (#c2c5c9, metalness 0.8, roughness 0.3: an estimate off photo H06's buckles) for the harness buckles.
  */
 export const CT156_PILOT_SLOTS = Object.freeze([
-  { name: 'helmet shell', color: '#353a41', roughness: 0.28, metalness: 0.1, side: 'double', env: 0.9, opacity: 1 },
-  { name: 'visor', color: '#b4bec6', roughness: 0.05, metalness: 0.1, side: 'double', env: 1.3, opacity: 0.22 },
+  { name: 'helmet shell', color: '#8e978d', roughness: 0.28, metalness: 0.1, side: 'double', env: 0.9, opacity: 1 },
+  { name: 'visor', color: '#101316', roughness: 0.05, metalness: 0.1, side: 'double', env: 1.3, opacity: 0.92 },
   { name: 'mask', color: '#17191c', roughness: 0.55, metalness: 0, side: 'front', env: 0, opacity: 1 },
   { name: 'hose', color: '#9aa0a7', roughness: 0.55, metalness: 0, side: 'front', env: 0, opacity: 1 },
-  { name: 'flight suit', color: '#555c43', roughness: 0.85, metalness: 0, side: 'front', env: 0, opacity: 1 },
-  { name: 'vest and collar', color: '#7c8467', roughness: 0.85, metalness: 0, side: 'double', env: 0, opacity: 1 },
-  { name: 'harness webbing', color: '#1f2224', roughness: 0.8, metalness: 0, side: 'front', env: 0, opacity: 1 },
+  { name: 'flight suit', color: '#7a8535', roughness: 0.85, metalness: 0, side: 'front', env: 0, opacity: 1 },
+  { name: 'vest and collar', color: '#a9b1a2', roughness: 0.85, metalness: 0, side: 'double', env: 0, opacity: 1 },
+  { name: 'harness webbing', color: '#9ca59a', roughness: 0.8, metalness: 0, side: 'front', env: 0, opacity: 1 },
   { name: 'gloves', color: '#33322c', roughness: 0.8, metalness: 0, side: 'front', env: 0, opacity: 1 },
   { name: 'mask valve and cheek windows', color: '#8d9eab', roughness: 0.45, metalness: 0, side: 'front', env: 0, opacity: 1 },
   { name: 'black hardware', color: '#1a1c1f', roughness: 0.4, metalness: 0.3, side: 'front', env: 0.5, opacity: 1 },
   { name: 'vest panel', color: '#a6b8ba', roughness: 0.85, metalness: 0, side: 'double', env: 0, opacity: 1 },
   { name: 'skin', color: '#c59b81', roughness: 0.65, metalness: 0, side: 'front', env: 0, opacity: 1 },
+  { name: 'silver buckles', color: '#c2c5c9', roughness: 0.3, metalness: 0.8, side: 'front', env: 0.6, opacity: 1 },
 ].map((s) => Object.freeze(s)));
 
-const SLOT = Object.freeze({ helmet: 0, visor: 1, mask: 2, hose: 3, suit: 4, vest: 5, harness: 6, gloves: 7, maskGrey: 8, hardware: 9, panel: 10, skin: 11 });
+const SLOT = Object.freeze({ helmet: 0, visor: 1, mask: 2, hose: 3, suit: 4, vest: 5, harness: 6, gloves: 7, maskGrey: 8, hardware: 9, panel: 10, skin: 11, silver: 12 });
 
 /**
  * The helmet's shell, half-sizes from its centre (Patrick's photos, 12 Oct 2026, estimates): 11.4 in across (it was
@@ -38,31 +42,52 @@ const SLOT = Object.freeze({ helmet: 0, visor: 1, mask: 2, hose: 3, suit: 4, ves
  */
 const HELMET = Object.freeze({ rx: 0.0218, ry: 0.0205, rz: 0.0205 });
 /**
- * The vest's body and the shoulder yoke over the suit's shoulders: centre, half-sizes, all from the helmet's centre
- * (estimates off Patrick's photos, 12 Oct 2026: chest about 15 in wide and 11 in deep, the yoke a broad collar piece).
+ * The chest and the shoulders over it, from the helmet's centre, units (H5, 3d-work #72; sizes estimates off photo H06): the flight suit's chest a squarer block in place of the
+ * ellipsoid and the vest's egg over it (VEST and YOKE are gone: two bands lie on it instead, BANDS): 10 in deep, 16.6 in across and 20.3 in tall, centred where the code's was (16.8 in
+ * below the helmet's centre), squared across and up (power 3: |y/ry|^3 + |z/rz|^3 + (x/rx)^2 = 1). The shoulders are the code's ellipsoid, kept.
  */
-const VEST = Object.freeze({ cx: 0.001, cz: -0.059, rx: 0.02, ry: 0.0262, rz: 0.0345 });
-const YOKE = Object.freeze({ cx: -0.004, cz: -0.0348, rx: 0.014, ry: 0.029, rz: 0.0112 });
+const CHEST = Object.freeze({ cx: -0.003, cz: -0.0605, rx: 0.018, ry: 0.02988, rz: 0.03654, power: 3 });
+const SHOULDERS = Object.freeze({ cx: -0.006, cz: -0.0345, rx: 0.015, ry: 0.0375, rz: 0.0098 });
+/**
+ * The vest's two padded bands (H5; 3d-work #72): 5.0 in wide and 1.25 in thick, rounded (power 3), their middles 4.25 in either side (8.5 in apart, a 3.5 in gap with the suit and
+ * hose showing), lying on the chest from 21 in below the helmet's centre up over the shoulders and down the back to 150 degrees round from dead ahead about a line 1.5 in behind and
+ * 12 in below the centre. The harness webbing (H6): 2 in wide, 0.2 in thick, one strap each side centred 5.6 in out over the bands' outer edges, from the same low point up and over
+ * the shoulder; a silver buckle 2.5 by 3.5 in and 0.3 in thick on each strap on the upper chest (13 in below the centre) and one 2.5 by 2.0 in at the shoulder's front (the second
+ * buckle's height is an estimate). All sizes in inches / 277.8.
+ */
+const IN = 1 / 277.8;
+const BANDS = Object.freeze({ w: 5.0 * IN, t: 1.25 * IN, mid: 4.25 * IN, from: -21 * IN, endDeg: 150, pivot: Object.freeze([-1.5 * IN, -12 * IN]) });
+const WEBBING = Object.freeze({ w: 2 * IN, t: 0.2 * IN, mid: 5.6 * IN, endDeg: 115, buckle: Object.freeze({ chest: Object.freeze({ z: -13 * IN, w: 2.5 * IN, h: 3.5 * IN, t: 0.3 * IN }), shoulder: Object.freeze({ z: -7 * IN, w: 2.5 * IN, h: 2.0 * IN, t: 0.3 * IN }) }) });
 
 const rad = (d) => (d * Math.PI) / 180;
+const deg = (r) => (r * 180) / Math.PI;
 const smooth = (a, b, t) => {
   const k = Math.min(1, Math.max(0, (t - a) / (b - a)));
   return k * k * (3 - 2 * k);
 };
-/** Where the vest's (or yoke's) surface is, ahead of its middle, at sideways offset y and height z: x, or -Infinity when off it. */
-function ellFront(e, y, z) {
-  const k = 1 - (y / e.ry) ** 2 - ((z - e.cz) / e.rz) ** 2;
-  return k > 0 ? e.cx + e.rx * Math.sqrt(k) : -Infinity;
+/** How far into the squared chest (0 on its surface, below 1 inside) the point is. */
+const chestK = (x, y, z) => ((x - CHEST.cx) / CHEST.rx) ** 2 + Math.abs(y / CHEST.ry) ** CHEST.power + Math.abs((z - CHEST.cz) / CHEST.rz) ** CHEST.power;
+/** Whether the point is inside the chest or the shoulders. */
+const inBody = (x, y, z) => chestK(x, y, z) < 1 || (((x - SHOULDERS.cx) / SHOULDERS.rx) ** 2 + (y / SHOULDERS.ry) ** 2 + ((z - SHOULDERS.cz) / SHOULDERS.rz) ** 2 < 1);
+/** Where the chest's surface is, ahead of its middle, at sideways offset y and height z: x, or -Infinity when off it. */
+function chestFront(y, z) {
+  const k = 1 - Math.abs(y / CHEST.ry) ** CHEST.power - Math.abs((z - CHEST.cz) / CHEST.rz) ** CHEST.power;
+  return k > 0 ? CHEST.cx + CHEST.rx * Math.sqrt(k) : -Infinity;
 }
-/** The top of the vest and yoke at (x, y): z, or -Infinity when off them. */
-function ellTop(e, x, y) {
-  const k = 1 - ((x - e.cx) / e.rx) ** 2 - (y / e.ry) ** 2;
-  return k > 0 ? e.cz + e.rz * Math.sqrt(k) : -Infinity;
+/** Where the shoulders' surface is ahead of their middle at y, z: x, or -Infinity when off it. */
+function shouldersFront(y, z) {
+  const k = 1 - (y / SHOULDERS.ry) ** 2 - ((z - SHOULDERS.cz) / SHOULDERS.rz) ** 2;
+  return k > 0 ? SHOULDERS.cx + SHOULDERS.rx * Math.sqrt(k) : -Infinity;
+}
+/** The top of the chest and the shoulders at (x, y): z, or -Infinity when off them. */
+function bodyTopOf(x, y) {
+  const kc = 1 - ((x - CHEST.cx) / CHEST.rx) ** 2 - Math.abs(y / CHEST.ry) ** CHEST.power;
+  const ks = 1 - ((x - SHOULDERS.cx) / SHOULDERS.rx) ** 2 - (y / SHOULDERS.ry) ** 2;
+  return Math.max(kc > 0 ? CHEST.cz + CHEST.rz * kc ** (1 / CHEST.power) : -Infinity, ks > 0 ? SHOULDERS.cz + SHOULDERS.rz * Math.sqrt(ks) : -Infinity);
 }
 // (Off both, 0: inside the body, so a strap that runs off the edge just dips out of sight.)
-const chestX = (y, z) => Math.max(ellFront(VEST, y, z), ellFront(YOKE, y, z), 0);
-const bodyTop = (x, y) => Math.max(ellTop(VEST, x, y), ellTop(YOKE, x, y), -0.03);
-
+const chestX = (y, z) => Math.max(chestFront(y, z), shouldersFront(y, z), 0);
+const bodyTop = (x, y) => Math.max(bodyTopOf(x, y), -0.03);
 // ---- small shape helpers (this file's own; the model's are not imported) ----
 
 /** An ellipsoid with its poles up, centred at (cx, cy, cz). */
@@ -93,6 +118,42 @@ function patch(THREE, nu, nv, f, closed = false) {
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
+}
+
+/** The squared chest (CHEST): a surface of |y/ry|^p + |z/rz|^p + (x/rx)^2 = 1, p 3, found along each direction from its middle. */
+function chestBlock(THREE, nu = 24, nv = 16) {
+  const { cx, cz, rx, ry, rz, power: p } = CHEST;
+  return patch(THREE, nu, nv, (u, v) => {
+    const az = -Math.PI + 2 * Math.PI * u, th = Math.PI * v;
+    const d = [Math.sin(th) * Math.cos(az), Math.sin(th) * Math.sin(az), Math.cos(th)];
+    const a = (d[0] / rx) ** 2, b = Math.abs(d[1] / ry) ** p + Math.abs(d[2] / rz) ** p;
+    let t = 1 / Math.sqrt(a + b + 1e-12);
+    for (let i = 0; i < 6; i++) t -= (a * t * t + b * t ** p - 1) / (2 * a * t + p * b * t ** (p - 1) + 1e-12); // Newton on a t^2 + b t^p = 1
+    return [cx + d[0] * t, d[1] * t, cz + d[2] * t];
+  }, true);
+}
+
+/**
+ * A padded strip lying on the body (the vest's bands, the webbing): `w` wide across (y from yc - w/2 to yc + w/2), `t` thick with rounded edges, rising `lift(y)` more off the
+ * body, following it from the line (x0, z0)'s ray at `fromDeg` round to `toDeg` (0 ahead, 90 up, counted up and aft). The ray from the pivot is marched out to where it leaves the
+ * body at each y, so the strip hugs the chest and the shoulders.
+ */
+function bodyStrip(THREE, { yc, w, t, lift = () => 0, fromDeg, toDeg, pivot }) {
+  const outAt = (th, y) => {
+    const cx = Math.cos(th), cz = Math.sin(th);
+    let lo = 0.0005, hi = 0.09;
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2;
+      if (inBody(pivot[0] + cx * mid, y, pivot[1] + cz * mid)) lo = mid; else hi = mid;
+    }
+    return lo;
+  };
+  return patch(THREE, 8, 36, (u, v) => {
+    const th = rad(toDeg + (fromDeg - toDeg) * v), y = yc - w / 2 + w * u; // v runs down, so the faces look outward (as the helmet's patches)
+    const edge = (1 - Math.abs(2 * u - 1) ** 6) ** (1 / 6); // rounded edges: the strip's thickness falls to nothing at its sides
+    const r = outAt(th, y) + 0.0002 + lift(y) + t * edge;
+    return [pivot[0] + Math.cos(th) * r, y, pivot[1] + Math.sin(th) * r];
+  });
 }
 
 /** A tapered round piece from a to b, r0 at a and r1 at b. */
@@ -162,7 +223,11 @@ export function ct156PilotParts(THREE, x, z) {
     const th = rad(24) + v * (housingTheta(a) - rad(24));
     // Raised 4.5% off the shell, easing down to the shell along the cover's top and its two ends.
     return onShell(az, th, 1 + 0.045 * smooth(0, 0.14, u) * smooth(0, 0.14, 1 - u) * smooth(0, 0.3, v));
-  }), SLOT.helmet);
+  }), SLOT.hardware); // H1/H2 (3d-work #72): the visor housing dark, with a dark crown cover over the top (below)
+  add(patch(THREE, 40, 6, (u, v) => {
+    const az = -Math.PI + 2 * Math.PI * u;
+    return onShell(az, v * rad(50), 1.03 - 0.03 * smooth(0.8, 1, v)); // the crown cover, a little proud of the shell, down 50 degrees from the top (an estimate off H05 and H07)
+  }, true), SLOT.hardware);
   add(patch(THREE, 28, 1, (u, v) => {
     const az = -rad(96) + 2 * rad(96) * u, a = Math.abs(az) * (180 / Math.PI);
     const th = housingTheta(a);
@@ -210,40 +275,40 @@ export function ct156PilotParts(THREE, x, z) {
   // The hose: the black connector under the mask on the pilot's left, then the ribbed hose down the left of the chest
   // to the connector on the harness (it lies along the vest's front).
   add(limb(THREE, [0.0225, 0.005, -0.0178], [0.0224, 0.0055, -0.0252], 0.0033, 0.0033, 10), SLOT.hardware);
-  const hosePts = [[0.0224, 0.0058, -0.0252], [0.0218, 0.0092, -0.031]];
-  for (const [y, zz] of [[0.0128, -0.041], [0.017, -0.056], [0.0152, -0.07], [0.0104, -0.082], [0.0078, -0.089]]) hosePts.push([chestX(y, zz) + 0.0033, y, zz]);
+  // H8 (3d-work #72): the hose lies on the chest between the bands, 0.55 in left of the middle, to a dark connector 2.2 in across 23 in below the helmet's centre (it ran down the left side).
+  const hy = 0.55 * IN, hosePts = [[0.0224, 0.0058, -0.0252], [0.0218, 0.0052, -0.031]];
+  for (const zz of [-0.041, -0.056, -0.07, -0.0795]) hosePts.push([chestX(hy, zz) + 0.0036, hy, zz]);
   add(tube(THREE, hosePts, 0.0028, { ribs: true, rings: 48, radial: 8 }), SLOT.hose);
-  add(limb(THREE, [chestX(0.0078, -0.089) + 0.0035, 0.0078, -0.089], [chestX(0.0078, -0.094) + 0.0025, 0.0078, -0.094], 0.0032, 0.0032, 10), SLOT.hardware);
+  add(limb(THREE, [chestX(hy, -0.0795) + 0.0038, hy, -0.0795], [chestX(hy, -0.0835) + 0.003, hy, -0.0835], 0.0040, 0.0040, 10), SLOT.hardware);
 
   // Neck, in the vest's collar: a padded roll round the back and sides of the neck, open at the throat.
   add(limb(THREE, [-0.002, 0, -0.013], [-0.003, 0, -0.026], 0.0072, 0.007, 10), SLOT.suit);
   const arc = 1.6 * Math.PI;
   add(new THREE.TorusGeometry(0.0128, 0.0052, 8, 18, arc).rotateZ(Math.PI - arc / 2).scale(1, 1, 1.25).translate(-0.0025, 0, -0.0235), SLOT.vest);
 
-  // Shoulders and chest in the flight suit, the LPSV over them: its yoke over the shoulders and its body on the chest,
-  // with the pale panel on the pilot's right.
-  ell(-0.006, 0, -0.0345, 0.015, 0.0375, 0.0098, SLOT.suit, 14, 9);
-  ell(-0.003, 0, -0.0605, 0.0185, 0.029, 0.0365, SLOT.suit, 14, 9);
-  ell(YOKE.cx, 0, YOKE.cz, YOKE.rx, YOKE.ry, YOKE.rz, SLOT.vest, 14, 9);
-  ell(VEST.cx, 0, VEST.cz, VEST.rx, VEST.ry, VEST.rz, SLOT.vest, 14, 9);
-  const vestPatch = (y0, y1, z0, z1, lift, slot) => add(patch(THREE, 4, 6, (u, v) => {
-    const y = y0 + (y1 - y0) * u, zz = z0 + (z1 - z0) * v;
-    return [chestX(y, zz) + lift, y, zz];
-  }), slot);
-  vestPatch(-0.02, -0.0072, -0.044, -0.076, 0.0007, SLOT.panel);
-  vestPatch(-0.0207, -0.0197, -0.044, -0.076, 0.0011, SLOT.harness);
-  vestPatch(-0.0076, -0.0066, -0.044, -0.076, 0.0011, SLOT.harness);
-
-  // The harness: a shoulder strap each side over the vest down to the buckle, and the chest strap across.
+  // Shoulders and chest in the flight suit, the LPSV's two padded bands lying on them (H5: the vest's egg and the yoke are gone), and the harness webbing over the bands
+  // with its silver buckles (H6).
+  ell(SHOULDERS.cx, 0, SHOULDERS.cz, SHOULDERS.rx, SHOULDERS.ry, SHOULDERS.rz, SLOT.suit, 14, 9);
+  add(chestBlock(THREE), SLOT.suit);
+  const bandPivot = BANDS.pivot, bandThick = (y) => { // how far the band under y rises off the body there (the webbing lies on it)
+    for (const sd of [1, -1]) {
+      const u = (y - (sd * BANDS.mid - BANDS.w / 2)) / BANDS.w;
+      if (u >= 0 && u <= 1) return BANDS.t * (1 - Math.abs(2 * u - 1) ** 6) ** (1 / 6);
+    }
+    return 0;
+  };
+  const bandFromDeg = (yc) => deg(Math.atan2(BANDS.from - bandPivot[1], chestX(yc, BANDS.from) - bandPivot[0]));
   for (const sd of [1, -1]) {
-    const y = sd * 0.0152;
-    const pts = [-0.013, -0.006, 0.0, 0.006].map((px) => [px, y, bodyTop(px, y) + 0.0012]);
-    for (const zz of [-0.045, -0.062, -0.078, -0.092]) pts.push([chestX(y * (1 + (zz + 0.045) * 10.6), zz) + 0.0013, y * (1 + (zz + 0.045) * 10.6), zz]);
-    add(tube(THREE, pts, 0.0019, { rings: 16, radial: 6 }), SLOT.harness);
+    const yc = sd * BANDS.mid;
+    add(bodyStrip(THREE, { yc, w: BANDS.w, t: BANDS.t, fromDeg: bandFromDeg(yc), toDeg: BANDS.endDeg, pivot: bandPivot }), SLOT.vest);
+    const yw = sd * WEBBING.mid;
+    add(bodyStrip(THREE, { yc: yw, w: WEBBING.w, t: WEBBING.t, lift: (y) => bandThick(y) + 0.0004, fromDeg: bandFromDeg(yw), toDeg: WEBBING.endDeg, pivot: bandPivot }), SLOT.harness);
+    // The silver buckles on the strap, flat on the chest.
+    for (const { z, w, h, t } of Object.values(WEBBING.buckle)) {
+      const yb = yw, xb = chestX(yb, z) + bandThick(yb) + WEBBING.t + 0.0006 + t / 2;
+      add(new THREE.BoxGeometry(t, w, h).translate(xb, yb, z), SLOT.silver);
+    }
   }
-  const chest = [-0.021, -0.01, 0, 0.01, 0.021].map((y) => [chestX(y, -0.058) + 0.0013, y, -0.058]);
-  add(tube(THREE, chest, 0.0017, { rings: 12, radial: 6 }), SLOT.harness);
-  add(new THREE.BoxGeometry(0.003, 0.011, 0.0075).translate(chestX(0, -0.058) + 0.0024, 0, -0.058), SLOT.hardware);
 
   // The arms: each from a shoulder joint to the elbow and on to the glove; the right hand on the stick, the left on the
   // power lever (the hands' places are as before).
