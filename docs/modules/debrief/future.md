@@ -69,3 +69,4 @@ Checked from the session on 15 Oct 2026 with Dad's Cobra 31, 32 and 34 KMLs, on 
   - (b) **A finer inner picture on capable computers:** 4,096 px and zoom 11 behind a graphics setting, about 4 times sharper everywhere. It costs about 64 MB of graphics memory and up to 4 times the tiles.
   - (c) Both.
 - **Also seen:** the same flight's ground read 2,749 ft "from the tracks" (the raw fixes read 570 m, about 1,870 ft), so the runways were lifted 851 ft. That is the airborne-start altitude bug, fixed in LIZARDHANDS-commits/Dads-debreif#1042 (V2.434), not yet merged.
+- **Dad's pick (15 Oct 2026): (c) both**, for Patrick's yes (on the waiting list in `docs/PLAN.md`).
