@@ -148,6 +148,45 @@ export function inputsOf(w) {
 }
 
 /**
+ * Starts the close-formation controller for the 100 -> 250 ft range-phased hand-over to fighting wing (B5 T30,
+ * control-model.md §7.13): initializes bumplessly from the aircraft's current state and aims straight back along his
+ * held side toward backToFt (500 ft) and stackFt (-50 ft).
+ */
+export function startCloseHandOver(aircraft, refSt, { blockFt, key = 'echelon', side = -1, backToFt = 500, stackFt = -50 }) {
+  const w0 = startFrom(aircraft, refSt, { blockFt, key, side });
+  const outFt = side * Math.max(43, Math.abs(w0.place.left));
+  const place = { fwd: -backToFt, left: outFt, alt: stackFt };
+  return {
+    ...w0,
+    place,
+    route: { places: [{ key, side, paceFtps: 10 }], i: 0 },
+    per: aimAt(w0.per, place, side),
+  };
+}
+
+/**
+ * One step of the close-formation law on shared plant state `st` during the 100 -> 250 ft range-phased hand-over to
+ * fighting wing (B5 T30): returns { w, lift, throttle } without stepping stepLead a second time.
+ */
+export function stepCloseHandOver(w, refSt, st, paceFtps = 10) {
+  const wSync = { ...w, st };
+  const p = perceive(wSync.per, seenOf(refSt), seenOf(st));
+  const seen = p.seen;
+  const job = supervise(wSync.job, seen, true);
+  const holdPct = holdingTorque(seen, st, wSync.place, wSync.key);
+  const law = closeLaw(wSync.law, seen, job, { st, side: wSync.side, key: wSync.key, holdPct, held: wSync.hand.held, place: wSync.place, paceFtps, torqueNow: wSync.hand.torquePct });
+  const hand = shape(wSync.hand, law.want, job, seen.g);
+  const lift = liftFor(seen, st, hand.mem);
+  const throttle = throttleAtTorque(hand.mem.torquePct, st.kias, st.pm.z);
+  const per = aimAt(p.mem, wSync.place, wSync.side);
+  return {
+    w: { ...wSync, per, job, law: law.mem, hand: hand.mem, t: wSync.t + STEP_SEC, flags: hand.flags },
+    lift,
+    throttle,
+  };
+}
+
+/**
  * Writes his aircraft's fields from his state as the live laws do (fluid-wing-live.js: attitude.js poseOf3d, kinematic.js
  * applyPose), with his power and engine (power.js), so the 3D view, the judge and the card read him as today.
  */

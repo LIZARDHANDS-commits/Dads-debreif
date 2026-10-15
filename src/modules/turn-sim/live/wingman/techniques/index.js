@@ -9,8 +9,9 @@ import { FW_YOYO_TECHNIQUE } from './yo-yo.js';
 import { FW_CUT_ACROSS_TECHNIQUE } from './cut-across.js';
 import { FW_EXIT_VERTICAL_TECHNIQUE } from './exit-vertical.js';
 import { FW_STURN_TECHNIQUE } from './s-turns.js';
+import { FW_MOVING_OUT_TECHNIQUE } from './moving-out.js';
 
-/** Ordered list of registered B06 techniques in strict TS-233 priority order (T1-T7 in S3b/S5/S6/S7; T8 added at T30). */
+/** Ordered list of registered B06 techniques in strict TS-233 priority order (T1-T8, priorities 1..8). */
 export const FW_TECHNIQUES = Object.freeze([
   FW_MISS_TECHNIQUE,
   FW_BEHIND39_TECHNIQUE,
@@ -19,6 +20,7 @@ export const FW_TECHNIQUES = Object.freeze([
   FW_CUT_ACROSS_TECHNIQUE,
   FW_EXIT_VERTICAL_TECHNIQUE,
   FW_STURN_TECHNIQUE,
+  FW_MOVING_OUT_TECHNIQUE,
 ]);
 
 /** Look up a registered technique card by id. */

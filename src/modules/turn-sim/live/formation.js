@@ -30,7 +30,7 @@ import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn, fwLeadPlan, fwMoveWords } from './formation-turns.js';
 import { planFwMoveLive, FW_LIVE } from './fw-live.js';
-import { startFwWing, stepFwWingman } from './wingman/fighting-wing.js';
+import { startFwWing, stepFwWingman, settledInFwCone } from './wingman/fighting-wing.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
@@ -330,6 +330,13 @@ export function createFormation(options = {}) {
     const four = state.aircraft.length > 2;
     // B3 (spec 7c.3, TS-231): with Live, a change between the close formations is flown by the live wingman himself.
     if (!four && !midLead && !state.errors && state.closeWing === 'live' && LIVE_CLOSE.includes(from.key) && LIVE_CLOSE.includes(to)) return startLiveChange(from, to, changeOptions);
+    // B5 T30 (spec 7e §7.9.8, control-model.md §7.13): with fwWing 'live', a change from a close formation to fighting wing
+    // is flown by the range-phased (100 -> 250 ft) close-to-fighting-wing blend and T8: moving-out.
+    if (!four && !midLead && !state.errors && opts.fwWing === 'live' && LIVE_CLOSE.includes(from.key) && to === 'fw') {
+      const sCur = from.side || state.lastSide || -1;
+      const sTo = sideFor('fw', changeOptions.side ?? 'keep', sCur);
+      if (from.key === 'astern' || sTo === sCur) return startLiveFwChange(from, changeOptions);
+    }
     // A training error set (TS-62): the chooser races "from here" too, from wherever the error put #2.
     // midLead: Lead's own flying when a turn button is pressed mid-change (turnMidChange); otherwise how the press leaves him.
     const mid = midLead ? { lead: { kind: 'carry', plan: midLead } } : state.current ? midPress(state.current) : null;
@@ -448,6 +455,73 @@ export function createFormation(options = {}) {
       endSec: t,
       errorRun: null,
       liveChange: true,
+    };
+    state.judged = null;
+    state.errorOutcome = null;
+    return true;
+  }
+
+  /**
+   * A change from a close formation (echelon, route, line astern, corner) to fighting wing with fwWing 'live' (B5 T30;
+   * spec 7e §7.9.8, control-model.md §7.13): #2 flies the 100 -> 250 ft range-phased close-to-fighting-wing blend and
+   * T8: moving-out (straight back along his held side to 500 ft at 10 ft/s, then sweeping out to 625 ft at 45° and -50 ft
+   * stack, SMM 12.27 para 57). The path drawn ahead is flown ahead at the press with the same law.
+   */
+  function startLiveFwChange(from, changeOptions) {
+    const [lead, wing] = state.aircraft;
+    const sCur = from.side || state.lastSide || -1;
+    const sTo = sideFor('fw', changeOptions.side ?? 'keep', sCur);
+    const w0 = startFwWing(wing, leadPointMassOf(lead, opts.blockFt), {
+      blockFt: opts.blockFt,
+      closeHandOver: { key: from.key, side: sTo },
+    });
+    const leadSegs = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [speedSeg(lead.kias, KIAS_OUTSIDE_LAB, opts.blockFt)] : [];
+    const a = copyAircraft(lead);
+    const p = { segments: leadSegs.map((seg) => ({ ...seg })) };
+    let w = w0;
+    let t = state.tSec;
+    const every = Math.round(0.25 / STEP_SEC);
+    const pts = [[t, wing.xFt, wing.yFt, wing.altAboveFt]];
+    let done = false;
+    for (let i = 1; t - state.tSec < CHANGE_LIMIT_SEC; i++) {
+      const refSt = leadPointMassOf(a, opts.blockFt);
+      flyStep(a, p, t);
+      w = stepFwWingman(w, refSt).w;
+      t += STEP_SEC;
+      if (i % every === 0) pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+      if (planDone(a, p) && settledInFwCone(w)) {
+        done = true;
+        break;
+      }
+    }
+    if (!done) {
+      state.refusal = `No safe change from here: #2 does not settle in fighting wing inside ${Math.round(CHANGE_LIMIT_SEC / 60)} minutes.`;
+      return false;
+    }
+    pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+    state.liveWing = null;
+    state.liveTrace = null;
+    state.fwWing = w0;
+    state.fwTrace = null;
+    state.refusal = null;
+    state.plans = { [lead.id]: { segments: leadSegs }, [wing.id]: { segments: [] } };
+    state.planned = { [lead.id]: dryRunT(lead, state.plans[lead.id], state.tSec).points, [wing.id]: pts };
+    state.trailSide = null;
+    const side = (s) => (s > 0 ? ' left' : ' right');
+    const label = `${FORMATIONS.fw.label}${side(sTo)}`;
+    const fromWord = `${FORMATIONS[from.key].label}${from.key === 'astern' ? '' : side(sCur)}`;
+    state.current = {
+      key: 'change:fw',
+      change: { to: 'fw', side: sTo, from: from.key, live: true, liveHand: false, holdsPlan: false, rejoining: false, rejoinKind: 'none', flying: `${fromWord} to ${label} (moving out, live)`, maxBankDeg: null, four: false, offStandard: null, chooser: null, options: changeOptions },
+      dir: 0,
+      label,
+      note: `${fromWord} to ${label}: #2 moves straight back to 500 ft at 10 ft/s along his side, then sweeps out to 625 ft at 45° and 50 ft below Lead (SMM 12.27 para 57; B5 T8).`,
+      firstId: null,
+      shape: 'abreast',
+      startSec: state.tSec,
+      endSec: t,
+      errorRun: null,
+      fwLiveWing: true,
     };
     state.judged = null;
     state.errorOutcome = null;

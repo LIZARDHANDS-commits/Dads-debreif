@@ -613,6 +613,21 @@ export const FW_WING = Object.freeze({
     energyIntent: -0.5, // energy intent bleed: -0.5 (estimate)
     maxRunSec: 30, // longest-run timeout: 30 s (estimate)
   }),
+  // ---- T8: moving out from close formation (B06; techniques/moving-out.js, spec 7e §7.9.8, TS-233, Fable D6, §7.13) ----
+  movingOut: Object.freeze({
+    handOverStartFt: 100, // close-to-fighting-wing range-phased blend start slant range: 100 ft (Fable control-model.md §7.13; estimate)
+    handOverEndFt: 250, // close-to-fighting-wing range-phased blend full fighting-wing slant range: 250 ft (Fable control-model.md §7.13; estimate)
+    cueSlantFt: 450, // slant range cue threshold in level flight to move out from close formation: 450 ft (spec 7e §7.9.8; estimate)
+    backToFt: 500, // stage-1 straight-back target slant range along held side: 500 ft (SMM 12.27 para 57, spec 7e §7.9.8)
+    backPaceFtps: 10, // stage-1 straight-back opening pace: 10 ft/s (SMM 12.27 para 57, TS-73, spec 7e §7.9.8)
+    doneSlantFt: 550, // completion slant range inside the cone: 550 ft (spec 7e §7.9.8; estimate)
+    doneDwellSec: 2, // completion dwell time inside the cone: 2 s (Fable D6; estimate)
+    dwellSteps: 2, // cue dwell steps: 2 (Fable D6; estimate)
+    urgency: 0, // technique urgency: 0 (estimate)
+    backIntent: -0.35, // stage-1 energy intent while easing back 10 ft/s: -0.35 (estimate)
+    outIntent: 0, // stage-2 energy intent while sweeping out to 45°: 0 (estimate)
+    maxRunSec: 60, // longest-run timeout for moving out from close formation: 60 s (estimate)
+  }),
 });
 
 // ---- the rolling rejoin (from rolling-rejoin.js) -------------------------------------------------------------------

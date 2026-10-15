@@ -30,6 +30,7 @@ import { startFwJob, fwJob, startFwPicker, stepFwPicker } from './supervisor.js'
 import { startFwGuard, stepFwGuard } from './separation.js';
 import { makeFwReference, blendFwReferences } from './fw-reference.js';
 import { shapeFwLift } from './shaper.js';
+import { startCloseHandOver, stepCloseHandOver } from './wingman.js';
 
 const W = FW_WING;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
@@ -49,9 +50,9 @@ const vec = (a) => (a ? { x: a[0], y: a[1], z: a[2] } : null);
 
 /**
  * The fighting wing wingman's state from his aircraft (flight.js fields; velFtps and accFtps2 when a manoeuvre handed them
- * over) and the aircraft he flies off (refSt: stepLead's or leadStateOf's). opts: { blockFt }.
+ * over) and the aircraft he flies off (refSt: stepLead's or leadStateOf's). opts: { blockFt, closeHandOver }.
  */
-export function startFwWing(aircraft, refSt, { blockFt }) {
+export function startFwWing(aircraft, refSt, { blockFt, closeHandOver = null }) {
   const st = leadStateOf(aircraft, blockFt);
   const sight = startFwSight(seenOf(refSt), seenOf(st), {
     ownAcc: vec(aircraft.accFtps2),
@@ -60,12 +61,22 @@ export function startFwWing(aircraft, refSt, { blockFt }) {
     ...(ANALYSIS.delayMode === 'picture' ? { picture: true } : {}),
   });
   const first = seeFw(sight, seenOf(refSt), seenOf(st)).seen;
+  const closeWing = closeHandOver
+    ? startCloseHandOver(aircraft, refSt, {
+        blockFt,
+        key: closeHandOver.key,
+        side: closeHandOver.side,
+        backToFt: W.movingOut.backToFt,
+        stackFt: W.stackFt,
+      })
+    : null;
   return {
     st,
     sight,
     guard: startFwGuard(),
     job: startFwJob(first),
     picker: startFwPicker(),
+    closeWing,
     blockFt,
     t: 0,
     offFt: 0, // B07 slewed circle offset d_cmd (ft, + inside)
@@ -632,7 +643,10 @@ export function stepFwWingman(w, refSt) {
     hold1G: vert0.hold1G,
     dz: vert0.dz,
   });
-  const guard = probeActive
+  const movingOutOpening =
+    (picker.activeId === 'moving-out' && seen.closure <= 10) ||
+    (Boolean(w.closeWing) && seen.closure <= 5);
+  const guard = probeActive || movingOutOpening
     ? {
         ...guardRaw,
         on: false,
@@ -656,21 +670,32 @@ export function stepFwWingman(w, refSt) {
   const capG = Math.max(guard.capNormal, guard.cap + ref.capChangeG);
   const composed = liftWithin(guard.aTurn, guard.hold, capG, st.bodyUp, guard.vert);
   const shaped = shapeFwLift(w.shapedG ?? st.g, composed.lift, urgency, STEP_SEC, W);
-  const lift = shaped.lift;
+  let lift = shaped.lift;
 
   // Step B11 Power Law (S44 commanded G drag + S27c climb + roll-in lead + 0.3 /s speed loop + intent/bleed -> S33, S34) and B15 Plant (stepLead)
   const pw = powerFromRef(w, seen, stC, guard, ref, composed.commandedG, leadKias);
+  let closeWing = null;
+  let ask = pw.ask;
+  if (w.closeWing && seen.slant < W.movingOut.handOverEndFt) {
+    const ch = stepCloseHandOver(w.closeWing, refSt, st, W.movingOut.backPaceFtps);
+    const uHand = clamp01((seen.slant - W.movingOut.handOverStartFt) / Math.max(W.movingOut.handOverEndFt - W.movingOut.handOverStartFt, 1));
+    const wFw = uHand * uHand * uHand * (10 - 15 * uHand + 6 * uHand * uHand);
+    lift = add3(scale3(ch.lift, 1 - wFw), scale3(lift, wFw));
+    const blendedThr = clamp01((1 - wFw) * ch.throttle + wFw * pw.throttle);
+    ask = { throttle: blendedThr, ...(pw.boards && wFw > 0.5 ? { boards: true } : {}) };
+    closeWing = ch.w;
+  }
   const cmdGDrag = {
     lift,
-    g: shaped.shapedG,
+    g: len3(lift),
     commandedG: composed.commandedG,
     dragThrustFrac: pw.cmdGDragFrac,
     wantKias: pw.wantKias,
-    throttle: pw.throttle,
+    throttle: ask.throttle,
     idle: pw.idle,
     boards: pw.boards,
   };
-  const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...pw.ask });
+  const next = stepLead(st, { lift, roll: { ...ROLL, maxRateDps: W.rollDps }, ...ask });
 
   const gAsk = len3(composed.lift);
   const { arcFt, dFt } = arc;
@@ -731,6 +756,7 @@ export function stepFwWingman(w, refSt) {
       guard,
       job,
       picker,
+      closeWing,
       t: w.t + STEP_SEC,
       offFt: arcLoop.offFt,
       dropLowFt,
@@ -739,7 +765,7 @@ export function stepFwWingman(w, refSt) {
       idle: pw.idle,
       maxPower: pw.maxPower,
       boards: pw.boards,
-      shapedG: shaped.shapedG,
+      shapedG: len3(lift),
       activeRef: ref,
       lastJobName: jobName,
       lastChiOwnDeg: chiOwnDeg,
@@ -747,6 +773,7 @@ export function stepFwWingman(w, refSt) {
       lastArcErrAbs: Math.max(Math.abs(arcLoop.eRange), eTrackFt),
       preProbeERange: probeActive ? w.preProbeERange : arcLoop.eRange,
       preProbeSpeedOffsetKt: probeActive ? w.preProbeSpeedOffsetKt : arcLoop.speedOffsetKt,
+      lastSeen: seen,
       cmdGDrag,
     },
     trace: {
@@ -781,5 +808,21 @@ export function stepFwWingman(w, refSt) {
       ctl,
     },
   };
+}
+
+/** Whether #2 has settled in the fighting-wing swept place after moving out from close formation (B5 T30). */
+export function settledInFwCone(w) {
+  const s = w?.lastSeen;
+  if (!s || w.closeWing || w.picker?.activeId) return false;
+  return (
+    s.slant >= 575 &&
+    s.slant <= 700 &&
+    s.sweepDeg >= 38 &&
+    s.sweepDeg <= 52 &&
+    Math.abs(s.heightFt - W.stackFt) <= 15 &&
+    Math.abs(s.closure) <= 4 &&
+    Math.abs(w.st.bank ?? 0) <= 3 &&
+    Math.abs(w.st.kias - s.leadKias) <= 2
+  );
 }
 

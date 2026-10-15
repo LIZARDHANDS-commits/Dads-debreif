@@ -591,6 +591,19 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.…urgency | `0` | technique urgency: 0 (estimate) |
 | FW_WING.…energyIntent | `-0.5` | energy intent bleed: -0.5 (estimate) |
 | FW_WING.…maxRunSec | `30` | longest-run timeout: 30 s (estimate) |
+| FW_WING.movingOut | `Object.freeze({` | ---- T8: moving out from close formation (B06; techniques/moving-out.js, spec 7e §7.9.8, TS-233, Fable D6, §7.13) ---- |
+| FW_WING.…handOverStartFt | `100` | close-to-fighting-wing range-phased blend start slant range: 100 ft (Fable control-model.md §7.13; estimate) |
+| FW_WING.…handOverEndFt | `250` | close-to-fighting-wing range-phased blend full fighting-wing slant range: 250 ft (Fable control-model.md §7.13; estimate) |
+| FW_WING.…cueSlantFt | `450` | slant range cue threshold in level flight to move out from close formation: 450 ft (spec 7e §7.9.8; estimate) |
+| FW_WING.…backToFt | `500` | stage-1 straight-back target slant range along held side: 500 ft (SMM 12.27 para 57, spec 7e §7.9.8) |
+| FW_WING.…backPaceFtps | `10` | stage-1 straight-back opening pace: 10 ft/s (SMM 12.27 para 57, TS-73, spec 7e §7.9.8) |
+| FW_WING.…doneSlantFt | `550` | completion slant range inside the cone: 550 ft (spec 7e §7.9.8; estimate) |
+| FW_WING.…doneDwellSec | `2` | completion dwell time inside the cone: 2 s (Fable D6; estimate) |
+| FW_WING.…dwellSteps | `2` | cue dwell steps: 2 (Fable D6; estimate) |
+| FW_WING.…urgency | `0` | technique urgency: 0 (estimate) |
+| FW_WING.…backIntent | `-0.35` | stage-1 energy intent while easing back 10 ft/s: -0.35 (estimate) |
+| FW_WING.…outIntent | `0` | stage-2 energy intent while sweeping out to 45°: 0 (estimate) |
+| FW_WING.…maxRunSec | `60` | longest-run timeout for moving out from close formation: 60 s (estimate) |
 | ROLLING_REJOIN |  | The rolling rejoin's search and pursuit (moved from rolling-rejoin.js, 12.2b). Estimates unless a page or ruling is named. |
 | ROLLING_REJOIN.turnDeg | `Object.freeze([30, 60, 90, 120])` | how far his heading swings the way Lead turns over the roll (estimates) |
 | ROLLING_REJOIN.pitchDeg | `Object.freeze([20, 40, 60])` | the nose's highest and lowest (estimates; 45° is the barrel roll's, SMM 14.8 para 19) |

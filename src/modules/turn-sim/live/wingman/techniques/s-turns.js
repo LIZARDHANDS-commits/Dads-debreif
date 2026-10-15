@@ -19,7 +19,9 @@ export const FW_STURN_TECHNIQUE = Object.freeze({
   /** S24 cue assessment with slant, closure, and dwell. */
   assess(ctx, mem = {}) {
     const S = FW_WING.sTurn;
-    const inPhase = ctx.phase?.phase === 'level' || ctx.phase?.phase === 'exit';
+    const minSlantFt = ctx.phase?.phase === 'level' ? (FW_WING.movingOut?.cueSlantFt ?? 450) : 0;
+    const inCone = ctx.seen.sweepDeg <= 65 && ctx.seen.closure > -5;
+    const inPhase = (ctx.phase?.phase === 'level' || ctx.phase?.phase === 'exit') && ctx.seen.slant >= minSlantFt && inCone;
     const tooTightOrClosing = ctx.seen.slant < S.cueSlantFt ||
       (ctx.seen.closure > S.cueClosureFtps && ctx.seen.slant < FW_WING.arcTargetFt);
     const inWindow = inPhase && tooTightOrClosing;

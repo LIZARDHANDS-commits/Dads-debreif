@@ -448,6 +448,7 @@ export const LEDGER = Object.freeze({
   'FW_WING.cutAcross.': { role: 'tuning', block: 'fw.aimTurn', rec: 'keeps', why: 'B06 T5 cut-across technique constants (Spec 7e §7.9.5, D6)' },
   'FW_WING.exitVert.': { role: 'tuning', block: 'fw.pitchOwner', rec: 'keeps', why: 'B06 T6 exit-vertical technique constants (Spec 7e §7.9.6, D1, D6)' },
   'FW_WING.sTurn.': { role: 'tuning', block: 'fw.aimSwept', rec: 'keeps', why: 'B06 T7 S-turns technique constants (Spec 7e §7.9.7, D6)' },
+  'FW_WING.movingOut.': { role: 'tuning', block: 'fw.aimSwept', rec: 'keeps', why: 'B06 T8 moving out from close formation and 100->250 ft hand-over blend constants (Spec 7e §7.9.8, §7.13)' },
 });
 
 /** Numbers the recommended structure adds (not in the code yet; Spec 7e draft 4 + Fable 3a/3b). */
