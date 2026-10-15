@@ -5,7 +5,18 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026, evening): the rebuild under way; read `3d-work` `ct156/plan.md` "Resume here" first
+## Latest (15 Oct 2026): round 3 on main in both repos
+
+- **Landed.** The CT-156 Blender model through round 3 is on the app's main through #1044 (V2.441, merge commit
+  91f6001) and on `3d-work` main through #104 (b00e242), after Patrick's look ("All looks good"). #1034, #1035 and
+  #1036 closed as landed; #1040 (chunk 9 as Antigravity built it) kept open as the donor for increments 2 to 4.
+- **#1032 still open:** eight of its commits never reached the stack (seven handover and plan updates of 13 and 14 Oct,
+  and fcf5152, the delivery sheet asked for only after the model file loads). Patrick decides whether it merges.
+- **Still open:** shared plan Step 3 gear item 3, the landing and taxi lights (Patrick's look had no lights view), and
+  Step 3b items 6 to 8. #1030 (the Traffic CT-102) brings main in itself with `git merge -X renormalize origin/main`.
+- **Next:** increment 2 of `3d-work` `ct156/increments.md`, in a fresh session.
+
+## Earlier (13 Oct 2026, evening): the rebuild under way; read `3d-work` `ct156/plan.md` "Resume here" first
 
 - **How it runs:** one Opus orchestrator session talks to Patrick and verifies every agent result itself; one agent per
   lane, reused for the lane's next job (Patrick: "keep reusing the agents that are already working"): A, the master
