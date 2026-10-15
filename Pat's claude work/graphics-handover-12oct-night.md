@@ -5,7 +5,17 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (15 Oct 2026, evening): increment 4.2 and 4.4 built here, draft PR, V2.462
+## Latest (15 Oct 2026, late): 4.5B and 4.5C built on the same draft (#1051, V2.462)
+
+- Fix delivery `ct156-2026-10-15-6b02eca` imported. `ct156-cockpit.js` `attachScreens` draws a face into each of the 53
+  rectangles in `ct156-points.json` (`loadCt156Points`), glass over the openings, the striped handles from the delivery's
+  `handle-stripes` face; the old `PANEL_INSTRUMENTS` layout, `drawStaticPanel`, `drawLowerPanel` and the code body's
+  layout bezels are gone; placards lettered (`PLACARD_WORDS`). The cockpit render page takes `night`, `hud`, `engine`,
+  `hideFaces`, and `window.placement()` checks each quad against its delivered corners.
+- **Open:** the VO / VLO speeds (dashes: which source?); the gear placard's and engine label's words are estimates; the
+  delivery's `handle-stripes` puts a striped T on the rear panel, which row E1 says the rear doesn't have (the master's).
+
+## Earlier (15 Oct 2026, evening): increment 4.2 and 4.4 built here, draft PR, V2.462
 
 - **Branch `shared-3d-ct156-increment4`** (stacked on #1049), draft PR "V2.462 Shared 3D: the CT-156's baked pictures,
   glass, reflections and lights (increment 4.2 + 4.4)". Delivery `ct156-2026-10-15-117020e` (layout 3) imported.
