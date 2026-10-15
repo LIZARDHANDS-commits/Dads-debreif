@@ -29,6 +29,6 @@ than Playwright's own.
 
 - **Wait for the model files.** The first draw happens before the Blender parts attach, so it shows the code's own
   parts. The scripts wait, then draw again (`rerender`). A picture taken without that has fooled us before.
-- **Rebuild first.** Rebuild the Blender files (`tools/blender/README.md`) after any shape change and before any
-  picture you show Patrick. If the console says "out of date", the picture shows code parts, not the model file.
+- **Import first.** The model files come from a `3d-work` delivery (`npm run models:import`, `tools/blender/README.md`).
+  If the console says a file is "not from the delivery", the picture shows code parts, not the model file.
 - The renders use a plain test sun, not the app's sky, so shading differs a little from the app.
