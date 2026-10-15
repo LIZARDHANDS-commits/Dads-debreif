@@ -12,7 +12,7 @@
 // altitude in feet times the altitude-scale setting (`altToZ`); the aircraft
 // model itself is not scaled by it.
 
-import { disposeCt156Model } from './ct156-model.js';
+import { disposeCt156Model, CT156_DATUM_DEG } from './ct156-model.js';
 import { disposeCt102bModel } from './ct102b-model.js';
 
 /**
