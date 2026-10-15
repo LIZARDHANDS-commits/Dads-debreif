@@ -59,3 +59,22 @@ test('two ships level side by side read level after the altitude check, and park
     assert.ok(Math.abs(above(2) - above(1)) <= 10, `parked at ${t} s, #2 is ${(above(2) - above(1)).toFixed(1)} ft from #1 above the ground`);
   }
 });
+
+// Checks (V2.449): a ship whose log starts in the air, with one slow step there (a GPS hiccup at start-up), is not "corrected" from that
+//   one fix, and does not move the ships that taxied. Expected values from the constructed tracks: every ship truly level in the air, with
+//   no GPS error, so nothing should move; margin 10 ft as above. Shape from Dad's Cobra flight (14 Oct 2026): Lead's log began at 4,519 ft
+//   and 192 kt, its first step read slow, and the check took it for ground and moved Lead about 2,000 ft down and the others 660 ft up.
+test('a ship whose log starts in the air is left as recorded, and the ships that taxied stay where they were', () => {
+  const lead = ship(0, () => 0).filter((fx) => fx.t - 1.7e9 >= 300 && fx.t - 1.7e9 <= 900); // airborne only: starts and ends in the air
+  lead[1] = { ...lead[1], lat: lead[0].lat, lon: lead[0].lon }; // its first step reads as standing still: one "ground" fix 3,000 ft up
+  const flight = buildFlight({ 1: { name: 'lead', fixes: lead }, 2: { name: 'two', fixes: ship(60, () => 0) }, 3: { name: 'three', fixes: ship(120, () => 0) } });
+  const corrected = correctAltitudes(flight, altitudeCheck(flight, { refAt }), {});
+
+  assert.equal(corrected.tracks[1].altitude.corrected, false, 'the airborne-only ship is left as recorded');
+  for (const t of [400, 600, 800]) {
+    for (const slot of [1, 2, 3]) {
+      const moved = sampleAt(corrected.tracks[slot], 1.7e9 + t).altFt - sampleAt(flight.tracks[slot], 1.7e9 + t).altFt;
+      assert.ok(Math.abs(moved) <= 10, `#${slot} at ${t} s moved ${moved.toFixed(1)} ft`);
+    }
+  }
+});
