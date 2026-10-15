@@ -15,7 +15,7 @@ import { REFRESH_MS } from './feeds.js';
 import { fetchWords } from './mrms-feed.js';
 import { MAX_LIST_BYTES, LIST_TIMEOUT_MS, listingUrls, parseListing, fileUrl } from './mrms-model.js';
 import {
-  STRIKES_PRODUCT, KEEP_MS, FIRST_FILES, MAX_KEPT_STRIKES, MAX_STRIKE_FILE_BYTES, STRIKE_FILE_TIMEOUT_MS, strikesTarget,
+  STRIKES_PRODUCT, HOLD_MS, FIRST_FILES, MAX_KEPT_STRIKES, MAX_STRIKE_FILE_BYTES, STRIKE_FILE_TIMEOUT_MS, strikesTarget,
 } from './strikes-model.js';
 
 /** A file time this far ahead of the clock is a wrong clock or a bad reply, as mrms-model.js (5 minutes). */
@@ -63,7 +63,7 @@ export function createStrikesFeed({ fetch, timers, now = () => new Date(), decod
 
   /** Forgets what is older than the 30 minutes kept, and the oldest files past the strikes cap. */
   function prune(t) {
-    for (const map of [files, pending, refused]) for (const [key, f] of map) if (t - f.time > KEEP_MS) map.delete(key);
+    for (const map of [files, pending, refused]) for (const [key, f] of map) if (t - f.time > HOLD_MS) map.delete(key);
     let total = 0;
     for (const f of [...files.values()].sort((a, b) => b.time - a.time)) {
       total += f.strikes.length;
@@ -99,12 +99,12 @@ export function createStrikesFeed({ fetch, timers, now = () => new Date(), decod
     try {
       // The files after the last key listed (the last 30 minutes the first time).
       const listed = [];
-      for (const url of listingUrls(STRIKES_PRODUCT, t, { lookbackMs: KEEP_MS, afterKey: lastKey })) {
+      for (const url of listingUrls(STRIKES_PRODUCT, t, { lookbackMs: HOLD_MS, afterKey: lastKey })) {
         const reply = await guardedFetch(fetch, url, { timers, signal, timeoutMs: LIST_TIMEOUT_MS, maxBytes: MAX_LIST_BYTES, accept: 'application/xml' });
         listed.push(...parseListing(new TextDecoder().decode(reply.bytes), STRIKES_PRODUCT));
       }
       for (const f of listed) {
-        if (f.time - t > SKEW_MS || t - f.time > KEEP_MS) continue; // ahead of the clock, or older than what is kept
+        if (f.time - t > SKEW_MS || t - f.time > HOLD_MS) continue; // ahead of the clock, or older than what is kept
         if (lastKey === null || f.key > lastKey) lastKey = f.key; // keys of one product sort by their time (day folder, then the name's time)
         if (!files.has(f.key) && !refused.has(f.key)) pending.set(f.key, f);
       }

@@ -1111,7 +1111,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     // ECCC's lightning picture, or none at a base that has NOAA's strikes instead (no "no source" line beside NOAA's).
     const lightning = site.sources.lightning || !strikesSource() ? pic('lightning') : null;
     const satellite = pic('cloud');
-    // NOAA's strikes (SOF-71): a bolt for each strike of the last 10 minutes while their Layers switch is on (on at a US base, off at Moose Jaw), with their line.
+    // NOAA's strikes (SOF-71): a neon bolt for each strike of the last 30 minutes, dimmer the older (V2.438), while their Layers switch is on (on at a US base, off at Moose Jaw), with their line.
     let strikes = null;
     if (strikesSource()) {
       const held = strikesFeed.held();

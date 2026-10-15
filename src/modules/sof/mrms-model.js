@@ -128,7 +128,9 @@ export function listingUrls(p, now, { lookbackMs = LOOKBACK_MS, afterKey = null 
   const days = dayOf(from) === dayOf(now) ? [from] : [from, +now];
   return days.map((t) => {
     const prefix = `CONUS/${p.name}/${dayOf(t)}/`;
-    const after = t === from ? (useKey ? afterKey : keyFor(p, from)) : `${prefix}MRMS_${p.name}_${dayOf(t)}-000000.grib2.gz`;
+    // The new day's folder from its very start: listing after the folder's own name (every key in it sorts after it), not after a 000000 file name, which would
+    // leave out a file NOAA names exactly 000000 (the 0000Z lightning minute was missed that way, 15 Oct 2026).
+    const after = t === from ? (useKey ? afterKey : keyFor(p, from)) : prefix;
     return `${MRMS_BUCKET}/?list-type=2&prefix=${encodeURIComponent(prefix)}&start-after=${encodeURIComponent(after)}&max-keys=100`;
   });
 }

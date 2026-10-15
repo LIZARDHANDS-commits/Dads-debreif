@@ -27,10 +27,17 @@ export const STRIKES_PRODUCT = PRODUCTS.strikes;
 /** Strikes are kept this long, by each file's own time (spec: 30 minutes; G). */
 export const KEEP_MINUTES = 30;
 export const KEEP_MS = KEEP_MINUTES * MINUTE_MS;
+/**
+ * Files are held this much longer than KEEP_MS by the clock (and listed and read that far back), because the 30-minute windows count back from the newest file,
+ * which is 1 to 3 minutes behind the clock: without it the oldest 2 or 3 of those minutes were always gone and "Last strike within N NM" could never answer
+ * (seen 15 Oct 2026, "28 of the last 30 minutes read"). What is drawn still stops at 30 minutes by the clock (MARK_AGES). G.
+ */
+export const HOLD_MARGIN_MS = 5 * MINUTE_MS;
+export const HOLD_MS = KEEP_MS + HOLD_MARGIN_MS;
 /** The near-home check reads this many minute files, the newest back (spec: 10, ECCC's picture's window; G). */
 export const NEAR_MINUTES = 10;
 /** The first read takes up to this many files, newest first, so the near-home answer comes first (spec). */
-export const FIRST_FILES = 30;
+export const FIRST_FILES = KEEP_MINUTES + HOLD_MARGIN_MS / MINUTE_MS;
 /** Strikes are kept in a square this far from home each way (spec: the 3D view's biggest square, 900 NM across; G). */
 export const SQUARE_NM = 450;
 /**
@@ -274,9 +281,13 @@ export function strikeMarks(held, now) {
   return out.reverse();
 }
 
+/** Most 3D bolts drawn at once, newest first (three draws whatever the number; a picture, not a count). G. */
+export const MAX_STRIKE_BOLTS = 1500;
+
 /**
- * The 3D bolts' places (spec "3D": a bolt for each strike of the last 10 minutes): the strikes of the last NEAR_MINUTES minutes by the clock, as weather3d-model.js
- * `bolts` cells { x, y, u, v } in the map's local feet (`toXY(lat, lon)` gives [x, y]) inside the square `areaFt` across. Nothing when the strikes are not fresh.
+ * The 3D bolts' places (Dad, 15 Oct 2026: "bright neon line then a fade at the same rate of the time stamps"): every strike kept (the last 30 minutes), each with the 2D
+ * cross's strength for its age (`alpha`, MARK_AGES), as weather3d-model.js `bolts` cells { x, y, u, v, alpha } in the map's local feet (`toXY(lat, lon)` gives [x, y])
+ * inside the square `areaFt` across, newest first and at most MAX_STRIKE_BOLTS. Nothing when the strikes are not fresh.
  */
 export function strikeBoltCells(held, now, { toXY, areaFt }) {
   if (!strikesFresh(held, now)) return [];
@@ -284,10 +295,12 @@ export function strikeBoltCells(held, now, { toXY, areaFt }) {
   const half = areaFt / 2;
   const out = [];
   for (const s of strikesSince(held, null)) {
-    if (t - s.minute > NEAR_MINUTES * MINUTE_MS) continue;
+    if (out.length >= MAX_STRIKE_BOLTS) break;
+    const alpha = markAlpha(Math.max(0, (t - s.minute) / MINUTE_MS));
+    if (!(alpha > 0)) continue;
     const [x, y] = toXY(s.lat, s.lon);
     if (Math.abs(x) > half || Math.abs(y) > half) continue;
-    out.push({ x, y, u: x / areaFt + 0.5, v: y / areaFt + 0.5 });
+    out.push({ x, y, u: x / areaFt + 0.5, v: y / areaFt + 0.5, alpha });
   }
   return out;
 }

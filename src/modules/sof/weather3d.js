@@ -21,10 +21,21 @@ const SHAFT_GAP = 0.1; // estimate, a share of a radar cell
 const RAIN_OPACITY = 0.3; // estimate
 const RAIN_INSET = 0.3; // estimate, a share of a radar cell
 const RAIN_STREAKS = [255, 40, 0, 160, 0, 0, 220, 30, 0, 120, 0, 200, 0, 0, 90, 0];
-/** A bolt is this wide (feet), with a dark outline this wide: thin, but never under about two pixels at the start view. An estimate for the look. */
-const BOLT_FT = { fill: 4800, outline: 9000 };
-const BOLT_FILL = '#ffe800';
-const BOLT_OUTLINE = '#101010';
+/**
+ * A bolt (Dad, 15 Oct 2026, on V2.437's thick yellow posts: "maybe like bright neon line then a fade at the same rate of the time stamps"): a thin jagged line, white-hot
+ * at its core (BOLT_CORE), inside a faint yellow glow column BOLT_GLOW_FT wide (BOLT_GLOW at BOLT_GLOW_OPACITY), with a small glow on the ground BOLT_SPLASH_FT across
+ * where it struck. All of it adds light (additive blending, no depth written), so a bolt brightens what is behind it and never hides the radar. A bolt's `alpha` (0 to 1,
+ * the age steps strikes-model.js MARK_AGES gives the 2D crosses; 1 without one) dims all three. BOLT_KINKS segments, each kinked sideways up to BOLT_JITTER_FT, the
+ * same for the same place every time (no flicker on a rebuild). Estimates for the look.
+ */
+const BOLT_CORE = 0xfff7c8;
+const BOLT_GLOW = 0xffd21a;
+const BOLT_GLOW_FT = 2200;
+const BOLT_GLOW_OPACITY = 0.32;
+const BOLT_SPLASH_FT = 2600;
+const BOLT_SPLASH_OPACITY = 0.7;
+const BOLT_KINKS = 7;
+const BOLT_JITTER_FT = 1400;
 const FLOW_COLOURS = ['#a8e0ff', '#dff3ff', '#ffe9b0']; // 850, 700 and 500 hPa, low to high, a slight tint a level
 /** How bright a streak's head is (0 to 1): faint (Dad, 7 Oct: "faint short streaks"). */
 const FLOW_BRIGHTNESS = 0.4;
@@ -120,29 +131,74 @@ export function buildShafts(T, { shafts, scale }) {
   return finish(T, root, owned, { count: shafts.length, rain: rainGroup });
 }
 
-/** The lightning bolts (`bolts`): a thin yellow column from the ground to the cloud top with a dark outline behind it, as the 2D mark. Returns { root, count, dispose }. */
+/** A number 0 to 1 that is always the same for the same place and step (a small hash), so a bolt's kinks don't move when it is built again. */
+const kink = (x, y, k) => {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + k * 37.719) * 43758.5453;
+  return n - Math.floor(n);
+};
+
+/**
+ * The lightning bolts (`bolts`, each { x, y, baseFt, topFt, alpha? }): a thin neon line kinked from the cloud top down to the ground, in a faint glow column, with a glow
+ * on the ground where it struck (see BOLT_CORE). Three draws whatever the number of bolts (one line set, two instanced meshes). Returns { root, count, dispose }.
+ */
 export function buildBolts(T, { bolts, scale }) {
   const owned = [];
   const root = new T.Group();
   root.name = 'lightning-bolts';
   if (bolts.length) {
-    const geometry = own(owned, new T.BoxGeometry(1, 1, 1));
-    geometry.translate(0, 0, 0.5);
-    const m = new T.Matrix4();
-    // The outline is drawn from its inside faces only (BackSide), so the thinner yellow column in front of them is never hidden by it.
-    for (const [width, colour, order, side] of [[BOLT_FT.outline, BOLT_OUTLINE, 5, T.BackSide], [BOLT_FT.fill, BOLT_FILL, 6, T.FrontSide]]) {
-      const material = own(owned, new T.MeshBasicMaterial({ color: colour, side }));
+    const core = new T.Color(BOLT_CORE);
+    const glow = new T.Color(BOLT_GLOW);
+    const strength = (b) => (typeof b.alpha === 'number' && b.alpha >= 0 && b.alpha <= 1 ? b.alpha : 1);
+    // The core: BOLT_KINKS segments a bolt as one line set, each point's colour the core's dimmed by the bolt's age (added light: dimmer is fainter).
+    const points = new Float32Array(bolts.length * BOLT_KINKS * 6);
+    const colours = new Float32Array(bolts.length * BOLT_KINKS * 6);
+    let p = 0;
+    for (const b of bolts) {
+      const a = strength(b);
+      const z0 = b.baseFt * scale;
+      const z1 = Math.max(z0 + 1, b.topFt * scale);
+      let prev = [b.x, b.y, z1];
+      for (let k = 1; k <= BOLT_KINKS; k++) {
+        const end = k === BOLT_KINKS; // the last point is the strike itself, on the ground
+        const next = end ? [b.x, b.y, z0] : [b.x + (kink(b.x, b.y, k) * 2 - 1) * BOLT_JITTER_FT, b.y + (kink(b.y, b.x, k) * 2 - 1) * BOLT_JITTER_FT, z1 + ((z0 - z1) * k) / BOLT_KINKS];
+        for (const q of [prev, next]) {
+          points.set(q, p);
+          colours.set([core.r * a, core.g * a, core.b * a], p);
+          p += 3;
+        }
+        prev = next;
+      }
+    }
+    const lineGeometry = own(owned, new T.BufferGeometry());
+    lineGeometry.setAttribute('position', new T.BufferAttribute(points, 3));
+    lineGeometry.setAttribute('color', new T.BufferAttribute(colours, 3));
+    const lines = new T.LineSegments(lineGeometry, own(owned, new T.LineBasicMaterial({ vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false })));
+    lines.renderOrder = 7;
+    lines.frustumCulled = false;
+    root.add(lines);
+
+    // The glow column round each bolt and the glow on the ground, each an instanced mesh coloured per bolt by its age.
+    const add = (geometry, opacity, place) => {
+      const material = own(owned, new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity, blending: T.AdditiveBlending, depthWrite: false }));
       const mesh = new T.InstancedMesh(geometry, material, bolts.length);
+      const m = new T.Matrix4();
+      const c = new T.Color();
       bolts.forEach((b, n) => {
-        m.compose(new T.Vector3(b.x, b.y, b.baseFt * scale), new T.Quaternion(), new T.Vector3(width, width, Math.max(1, (b.topFt - b.baseFt) * scale)));
-        mesh.setMatrixAt(n, m);
+        mesh.setMatrixAt(n, place(b, m));
+        mesh.setColorAt(n, c.copy(glow).multiplyScalar(strength(b)));
       });
       mesh.instanceMatrix.needsUpdate = true;
-      mesh.renderOrder = order;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.renderOrder = 6;
       mesh.frustumCulled = false;
       own(owned, mesh);
       root.add(mesh);
-    }
+    };
+    const column = own(owned, new T.CylinderGeometry(0.5, 0.5, 1, 8, 1, true));
+    column.rotateX(Math.PI / 2);
+    column.translate(0, 0, 0.5);
+    add(column, BOLT_GLOW_OPACITY, (b, m) => m.compose(new T.Vector3(b.x, b.y, b.baseFt * scale), new T.Quaternion(), new T.Vector3(BOLT_GLOW_FT, BOLT_GLOW_FT, Math.max(1, (b.topFt - b.baseFt) * scale))));
+    add(own(owned, new T.CircleGeometry(0.5, 20)), BOLT_SPLASH_OPACITY, (b, m) => m.compose(new T.Vector3(b.x, b.y, b.baseFt * scale + LIFT_FT), new T.Quaternion(), new T.Vector3(BOLT_SPLASH_FT, BOLT_SPLASH_FT, 1)));
   }
   return finish(T, root, owned, { count: bolts.length });
 }

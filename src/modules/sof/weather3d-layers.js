@@ -13,7 +13,7 @@
 // columns to the measured echo tops, or High's see-through volume, drawn as nested shells since V2.432, SOF-69), cell by cell, never merged; the blocks in the model
 // cloud below (SOF-56, SOF-57's merging) are the fallback when it cannot be had, and the key says why.
 //
-// NOAA's lightning strikes (SOF-71, V2.437): a bolt for each strike of the last 10 minutes (map.js `weather3d().strikes`, from strikes-model.js), drawn as the ECCC
+// NOAA's lightning strikes (SOF-71, V2.437; neon and fading with age since V2.438): a bolt for each strike of the last 30 minutes (map.js `weather3d().strikes`, from strikes-model.js), drawn as the ECCC
 // bolts are (`bolts`, `buildBolts`), shown and hidden with the same Lightning switch. Not drawn when the strikes are not fresh (strikes-model.js decides).
 import { h } from '../../ui-kit/dom.js';
 import { drawGeoImage } from './map-draw.js';
@@ -48,7 +48,7 @@ const SHEET_FADE_MIN = 0.2;
  * - clouds (optional): the cloud slabs' own heights when the view draws slabs (Fable review, 7 Oct): { key, column(u, v), topFt } where `column` stands in for the
  *   per-level `cloudColumnAt` (cloud-field.js `slabColumnAt`), `topFt` is the highest slab top (the satellite sheet's height, or null) and `key` changes when they do.
  * - weather: { radar, lightning, satellite } each null or { id, image, bbox, stale, on }, and { fronts } as fronts.js `frontsView` (status, data, words); see map.js `weather3d`.
- *   `strikes` (SOF-71): null or { key, cells: [{ x, y, u, v }] }, NOAA's strikes of the last 10 minutes in the map's local feet (strikes-model.js `strikeBoltCells`).
+ *   `strikes` (SOF-71): null or { key, cells: [{ x, y, u, v }] }, NOAA's strikes of the last 30 minutes in the map's local feet, each with its age's strength `alpha` (strikes-model.js `strikeBoltCells`).
  * - model (model-clouds.js, or null) and `hour`: the cloud levels and winds behind the heights and the flow.
  * - items(): the H and L marks to place: [{ el, point: { x, y, z }, kind }]. summary(): what is drawn, for the key.
  */
@@ -270,7 +270,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         return buildBolts(T, { bolts: list, scale });
       });
 
-      // NOAA's lightning strikes (SOF-71): a bolt for each strike of the last 10 minutes, from the ground to the model cloud top above it, as the ECCC bolts.
+      // NOAA's lightning strikes (SOF-71): a neon bolt for each strike of the last 30 minutes, dimmer the older (V2.438), from the ground to the model cloud top above it.
       const strikes = weather.strikes ?? null;
       const strikesOn = Boolean(strikes && Array.isArray(strikes.cells) && strikes.cells.length);
       place('strikes', strikesOn ? `${strikes.key}|${modelKey}|${standing}` : 'off', () => {
@@ -278,7 +278,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
           facts.strikes = null;
           return null;
         }
-        const list = bolts(strikes.cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
+        const list = bolts(strikes.cells, { column, groundFt, max: strikes.cells.length, ...(groundAt ? { groundAt } : {}) }); // already newest first and capped (strikes-model.js MAX_STRIKE_BOLTS)
         facts.strikes = { count: list.length, strikes: strikes.cells.length };
         return buildBolts(T, { bolts: list, scale });
       });
@@ -412,11 +412,11 @@ export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-We
     out.push(`${r.line ? `${r.line}. ` : ''}Radar: a see-through block for each run of neighbouring radar cells with the same colour and cloud heights (a cell is about 5 NM; heights within ${formatFeet(SHAFT_MERGE_FT)} ft of each other, an estimate), in the radar's colour, standing in the model cloud over it, from the cloud's base to its top (the lowest model cloud there; a model estimate).${rain}${noCloud} ${merged}. Not drawn when the radar picture is stale.`);
   }
   if (summary.lightning) {
-    out.push(`Lightning: a bolt for each lit lightning cell, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). ${summary.lightning.count} drawn.`);
+    out.push(`Lightning: a thin neon bolt for each lit lightning cell, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). ${summary.lightning.count} drawn.`);
   }
   if (summary.strikes) {
     const s = summary.strikes;
-    out.push(`Lightning strikes (NOAA NLDN via MRMS): a bolt for each cloud-to-ground strike of the last 10 minutes (each 0.01° cell with a strike, its middle), from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). In-cloud lightning is not in it. ${s.count === s.strikes ? `${s.count} drawn` : `${s.count} of ${s.strikes} drawn (thinned evenly)`}.`);
+    out.push(`Lightning strikes (NOAA NLDN via MRMS): a thin neon bolt for each cloud-to-ground strike of the last 30 minutes (each 0.01° cell with a strike, its middle), brightest for 5 minutes, dimmer to 15 and dimmest to 30 as the map's crosses, with a glow on the ground where it struck, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). In-cloud lightning is not in it. ${s.count === s.strikes ? `${s.count} drawn` : `${s.count} of ${s.strikes} drawn (the newest)`}.`);
   }
   if (summary.fronts) {
     out.push(`Fronts: ${FRONTS_CREDIT}, so a front is only right to about a degree (60 NM). Line colours: cold blue with triangles, warm red with half circles, stationary alternating blue and red, occluded purple with both, trough dashed orange. The symbols stand on the side the bulletin does not give: taken from the way each kind usually moves across North America (a guess). A faint wall ${formatFeet(FRONT_WALL_FT)} ft tall stands along each (an estimate, ×${scale}). H and L are the bulletin's pressure centres in hPa.`);
