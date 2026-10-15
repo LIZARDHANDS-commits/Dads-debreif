@@ -2765,7 +2765,8 @@ function buildKit(THREE) {
     env,
     navy: gloss({ color: NAVY, roughness: 0.42, metalness: 0.15, envMapIntensity: 0.8 }),
     cheat: mat({ color: '#f1f4f8', roughness: 0.45, emissive: '#ffffff', emissiveIntensity: 0.3, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.2, envMapIntensity: 0.5 }),
+    // Self-lit 0.1 (was 0.2): with the old dirt haze gone the white clipped to pure white over 1 % of a close view (4.4 check).
+    wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.1, envMapIntensity: 0.5 }),
     finLe: mat({ color: '#c3c9cf', roughness: 0.5, side: two }),
     vent: mat({ color: '#07090b', roughness: 0.9, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     // The floors of the speed brake's slots (the file's speedBrake|1, layout 2): a vent's dark, without its offset, as
