@@ -5,7 +5,20 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (15 Oct 2026): round 3 on main in both repos
+## Latest (15 Oct 2026, night): increment 2 imported, draft #1049 (V2.460)
+
+- **Built:** `3d-work` increment 2 (draft #111 there, both audits PASS) delivered as `ct156-2026-10-15-5f132cb` and
+  imported here on branch `shared-3d-ct156-increment2`, draft #1049. The app now reads layout 2: the master's stacks,
+  coamings, floor, speed brake and well, flap and gear wells, tub and pilots take the code's shapes in place (the code
+  shapes stay only as the no-delivery fallback, so nothing draws twice); `no_picture` parts skip the shadow picture;
+  the wicks and the speed brake's slot floors are dark (slots `aileron|1`, `elevator|1`, `rudder|1`, `speedBrake|1`).
+  The importer refuses paths outside the delivery and a second picture layout.
+- **Pictures** (render kit, before and after, noise floor 0.000 %): `3d-work` `scratch/increment-2/run-b/`.
+- **Waiting on Patrick:** merging #1049 (and `3d-work` #111). Every open PR with a version label will clash on that
+  one line once it lands; #1040 (the donor) and #1032 also share the model files.
+- **Next:** increment 3 (the Graphics switch picks High or Performance).
+
+## Earlier (15 Oct 2026): round 3 on main in both repos
 
 - **Landed.** The CT-156 Blender model through round 3 is on the app's main through #1044 (V2.441, merge commit
   91f6001) and on `3d-work` main through #104 (b00e242), after Patrick's look ("All looks good"). #1034, #1035 and
