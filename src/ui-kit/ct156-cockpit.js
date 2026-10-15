@@ -3008,8 +3008,9 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     mesh.name = `ct156-cockpit-${name}`;
     mesh.userData.hash = hash; // the model file's part shows only if it was built from these same pieces
   }
-  // The Blender cockpit's parts (ALL-32), once its file is in, in place of the code's parts of the same names.
-  attachCockpitModel(THREE, group, Object.fromEntries(Object.entries(SLOT).map(([k, i]) => [k, slotMats[i]])), own, PART_MATS);
+  // The Blender cockpit's parts (ALL-32), once its file is in, in place of the code's parts of the same names. The file's
+  // `panel` slot (layout 3, 3d-work slice 4.5A: the panels' plates) takes the grey slot's PANEL_GREY.
+  attachCockpitModel(THREE, group, { ...Object.fromEntries(Object.entries(SLOT).map(([k, i]) => [k, slotMats[i]])), panel: slotMats[SLOT.grey] }, own, PART_MATS);
 
   // The yellow and black striped parts: the seat handles, the emergency gear T, the console T-handle and guard.
   const stripe = canvasTexture(32, 32);

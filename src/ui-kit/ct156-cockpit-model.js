@@ -5,7 +5,7 @@
 // file (forward-bow, canopy-rails, and the seat, pcl and stick rounded from the code's own pieces) replaces the code cockpit's mesh named ct156-cockpit-<part> once the file is in; until
 // then, or if it never loads, the code's part shows. Built in the cockpit's own feet (nose +X, left +Y, up +Z), so the
 // parts drop into the cockpit's group as they are. A picture only: no flight numbers.
-import { aoShaded, CT156_FILES, loadAo, loadDelivered } from './ct156-blender.js';
+import { aoShaded, ct156Files, loadAo, loadDelivered } from './ct156-blender.js';
 
 const FILE = 'ct156-cockpit.glb';
 
@@ -14,7 +14,7 @@ let parts = null;
 function cockpitParts(THREE) {
   if (!parts) {
     parts = loadDelivered(FILE).then((list) => list.map(({ name, extras, meshes }) => ({
-      name, ao: extras.ct156_ao ? loadAo(THREE, CT156_FILES + extras.ct156_ao) : null, meshes,
+      name, ao: extras.ct156_ao ? loadAo(THREE, ct156Files() + extras.ct156_ao) : null, meshes,
     })));
     parts.catch(() => {}); // a missing file leaves the code's parts showing
   }

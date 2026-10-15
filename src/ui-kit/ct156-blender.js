@@ -36,9 +36,38 @@ export function loadParts(file) {
 /**
  * Where the CT-156's delivered files sit (plan Step 3b item 3.4): public/models/ct156/, written only by
  * `npm run models:import` from a checked delivery of the 3d-work repo (ALL-38: Blender owns the shape). High and
- * Performance each have their own folder; the app loads High until the Graphics switch picks the level (item 8).
+ * Performance each have their own folder, picked by setCt156Level before the first CT-156 is made (a view's Graphics
+ * switch reloads the page, so the level never changes under a model already drawn); High until then.
  */
-export const CT156_FILES = 'ct156/high/';
+let level = 'high';
+/** Picks the files' level, 'high' or 'performance' (anything else is High). Returns the level now in use. */
+export function setCt156Level(next) {
+  level = next === 'performance' ? 'performance' : 'high';
+  return level;
+}
+/** The level's folder under public/models/: 'ct156/high/' or 'ct156/performance/'. */
+export const ct156Files = (at = level) => `ct156/${at === 'performance' ? 'performance' : 'high'}/`;
+
+/**
+ * The pictures the app loads beside each level's files, and the size each is drawn at (3d-work slice 4.1; the import
+ * refuses a delivery whose pictures differ, and the app keeps the plain paint if a loaded picture differs): the outside's
+ * soft shadows and panel lines (AO x lines), its tangent-space normal picture (glTF's +X +Y +Z), its mask (red AO x
+ * lines, green the mesh's curvature at 0.5 flat, blue the dirt table, data only) and its painted weathering (red exhaust
+ * soot, green oil, blue edge wear, alpha walkway scuffs), the gear's soft shadows, and the cockpit body's normal picture
+ * (the glare shield's screws and rivets). Square pictures, size in pixels.
+ */
+export const CT156_PICTURES = Object.freeze({
+  high: Object.freeze({
+    ao: { file: 'ct156-exterior-ao.jpg', size: 4096 }, normal: { file: 'ct156-exterior-normal.png', size: 4096 },
+    mask: { file: 'ct156-exterior-mask.png', size: 2048 }, weather: { file: 'ct156-exterior-weather.png', size: 2048 },
+    gearAo: { file: 'ct156-gear-ao.jpg', size: 1024 }, cockpitNormal: { file: 'ct156-cockpit-normal-body.png', size: 2048 },
+  }),
+  performance: Object.freeze({
+    ao: { file: 'ct156-exterior-ao.jpg', size: 2048 }, normal: { file: 'ct156-exterior-normal.png', size: 2048 },
+    mask: { file: 'ct156-exterior-mask.png', size: 1024 }, weather: { file: 'ct156-exterior-weather.png', size: 1024 },
+    gearAo: { file: 'ct156-gear-ao.jpg', size: 512 }, cockpitNormal: { file: 'ct156-cockpit-normal-body.png', size: 1024 },
+  }),
+});
 
 let delivery = null;
 let told = false;
@@ -59,7 +88,7 @@ function ct156Delivery() {
  * Rejects otherwise, and the code's own parts stay.
  */
 export function loadDelivered(file) {
-  return Promise.all([ct156Delivery(), loadParts(CT156_FILES + file)]).then(([name, list]) => {
+  return Promise.all([ct156Delivery(), loadParts(ct156Files() + file)]).then(([name, list]) => {
     const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
     if (!name || foreign.length) {
       console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);

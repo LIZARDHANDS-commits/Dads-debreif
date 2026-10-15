@@ -27,7 +27,7 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, CT156_FILES, loadAo, loadDelivered, paintBands, paintGrain } from './ct156-blender.js';
+import { aoShaded, ct156Files, loadAo, loadDelivered, paintBands, paintGrain } from './ct156-blender.js';
 import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
@@ -836,12 +836,6 @@ const PILOT_PARTS = Object.freeze(['helmetFront', 'helmetRear']);
 // file's shadow picture, in the code's own colours.
 const NO_PICTURE = new Set(['floor', 'speedBrakeWell', 'flapInWell', 'flapOutWell', 'tub', 'gearInboardWell', 'gearLegWell', 'gearNoseWell', ...PILOT_PARTS]);
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
-// The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
-// same script on the same uv map (Patrick, 11 Oct 2026 21:07Z: "Surface texture"); BUMP_SCALE how strongly the relief
-// shows, by eye.
-const EXTERIOR_BUMP = 'ct156-exterior-bump.jpg';
-const EXTERIOR_DIRT = 'ct156-exterior-dirt.jpg';
-const BUMP_SCALE = 3;
 
 /** The shapes the Blender outside is built from, by name (tools/blender/ct156-exterior-pieces.mjs). */
 export function ct156ExteriorPieces(THREE) {
@@ -943,8 +937,8 @@ function attachExterior(kit) {
     // The file's plate lies shut in the model's frame; the ship turns it on its hinge (addSpeedBrake), so it moves into the hinge's frame.
     const sb = speedBrakeHinge();
     kit.geo.speedBrake.translate(-sb.at[0], -sb.at[1], -sb.at[2]).rotateY(-sb.shut);
-    kit.ao = loadAo(kit.THREE, CT156_FILES + EXTERIOR_AO);
-    kit.skin = { bump: loadAo(kit.THREE, CT156_FILES + EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, CT156_FILES + EXTERIOR_DIRT) };
+    kit.ao = loadAo(kit.THREE, ct156Files() + EXTERIOR_AO);
+    kit.skin = {};
     for (const mesh of kit.exteriorMeshes) {
       if (mesh.userData.ct156Slots) mesh.material = mesh.userData.ct156Slots; // the wicks' and slots' dark colour (kit.slotExtras)
       shadeMesh(kit, mesh);
@@ -976,7 +970,7 @@ function attachGear(kit) {
       mirrorShape(kit.THREE, kit.geo[`${name}R`], kit.geo[`${name}L`]);
     }
     takeShape(kit.THREE, kit.geo.gearNoseWell, byName.get('gearNoseWell').meshes);
-    kit.gearAo = loadAo(kit.THREE, CT156_FILES + GEAR_AO);
+    kit.gearAo = loadAo(kit.THREE, ct156Files() + GEAR_AO);
     for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
     // The landing and taxi lamp (GEAR_LAMP), when the file has it (3d-work delivery 423e5eb on): every ship's lamps take
     // it and its old glow goes; before that the glow stays.
