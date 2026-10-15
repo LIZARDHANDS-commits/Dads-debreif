@@ -123,6 +123,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   landscape3d: true,
   groundRef3d: true,
   datum3d: 'tracks', // the ground the tracks recorded (DB-26); V6's lowest ship less 500 ft is 'min'
+  satDetail3d: 'standard', // "Satellite detail" with Terrain and satellite (DB-34): 'standard' or 'high'
   grid3d: true,
   sticks3d: true,
   altMarks3d: true,
