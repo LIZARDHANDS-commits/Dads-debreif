@@ -12,7 +12,7 @@
 // altitude in feet times the altitude-scale setting (`altToZ`); the aircraft
 // model itself is not scaled by it.
 
-import { disposeCt156Model } from './ct156-model.js';
+import { disposeCt156Model, CT156_DATUM_DEG } from './ct156-model.js';
 
 /**
  * Distance from the camera to its target, in feet. The camera is orthographic, so it only
@@ -400,7 +400,11 @@ const HARVARD_NAVY = '#151d31';
  * @param {{ color?: string, paint?: string, parked?: boolean }} [options]
  */
 export function createLightHarvard(THREE, { color = HARVARD_NAVY, paint = 'harvard', parked = false } = {}) {
-  const mesh = createAircraftMesh(THREE, { color: paint === 'ship' ? color : HARVARD_NAVY, outline: '#0b1620' });
+  // Drawn nose-down inside its root as the full model is (ct156-model.js CT156_DATUM_DEG), so the two swap without a jump; a parked one sits level at pitch 0 and is left as it was.
+  const body = createAircraftMesh(THREE, { color: paint === 'ship' ? color : HARVARD_NAVY, outline: '#0b1620' });
+  if (!parked) body.rotation.y = (CT156_DATUM_DEG * Math.PI) / 180;
+  const mesh = new THREE.Group();
+  mesh.add(body);
   mesh.userData.lightHarvard = true;
   if (parked) mesh.traverse((o) => { if (o.geometry?.type === 'CircleGeometry') o.visible = false; });
   else blurProp(THREE, mesh);
