@@ -72,6 +72,37 @@ Dad's asks of 12 Oct 2026, in his words: "certain pressures should trigger a lig
 - **Picks to the phone (EP-16):** a second relay mailbox; picks are untrusted.
 - **When data fails:** a fault rate or threshold with no source runs as its estimate, flagged; a pick that fails the phone's check is dropped and the console says so; picks not reaching the phone show "Picks not reaching the instructor" on the student's screen and are kept to send.
 
+## Any setup: freeze at any point of a manoeuvre (Step 5b; EP-17 to EP-19, EP-R11)
+
+Dad, 15 Oct 2026: "I should be able to make any setup...basically any point in a manuver... the instructor should have a way to move to that next end point or Enter a spin, or just continue the current attitude and power setting if the studnet does nothing then can repause as the situtaiton develops"; and on the end points: "if the student describes it wrong, we should see the outcome. or if he says it right we should see a flying outcome...it could be anything really... we should be able to input that roughy...then output a new location and aircraft parameters". Dad's answers to the six questions are in `future.md`; Patrick approved (relayed by Dad, 15 Oct 2026: "pat approved"), and Dad asked for it before Steps 6 to 8.
+
+- **A second scenario kind, "Any setup",** beside the emergencies. Nothing about the emergencies changes.
+- **The setup (on the phone or the console):**
+  - a 2D map of the Moose Jaw area (the shared satellite tiles and airfields), where a tap drops the aircraft;
+  - altitude (ft MSL), heading (°M), indicated airspeed (KIAS), power (PCL %), pitch attitude (°, + nose up) and bank (°, + right);
+  - gear and flaps up. Every value has a default (the ones that take a default are listed in EP-17).
+  - **Freeze** puts the student's cockpit at that state, paused. The student answers aloud; the tool never judges.
+- **The instructor's next move:**
+  - **Carry on:** the aircraft flies with the controls held: the same G, bank and power as at the freeze. It develops as the shared T-6 point mass says. A nose-high attitude loses speed and the nose falls through (the G is capped by what the wing gives, core `stallLimitG`; a stall is said in words). A nose-low attitude builds speed and loses height.
+  - **Steps:** the instructor enters what the student described, one row per step, and taps Fly. The aircraft flies them in order, exactly, right or wrong, then pauses at the end and shows the new position and state. A row is:
+    - Power: idle, max, or a percentage.
+    - Roll: to the nearest horizon, wings level, or to a bank angle.
+    - Pitch: to the horizon, or to an attitude.
+    - Hold: level, or a heading.
+    - Until: a speed, an altitude, a heading, a number of seconds, or "done" (the row's targets reached).
+    - A row may set any of these. Unset parts carry on as they were.
+    - **Spin** (direction, turns) and **Spin recovery** are rows of their own (EP-19).
+  - **Pause** at any moment, then any of the moves again.
+- **How the rows are flown (EP-18):** each row is a small pilot on the shared point mass, as the emergency picks are (`manoeuvres.js`), asking every step for G, bank and throttle. It never passes the T-6A's roll and G onset (core) or what the wing gives.
+  - Pitch is attitude: flight path plus the angle of attack the model gives (core `attitudeDegFromClimb`). A freeze at a set attitude starts on the flight path that gives it.
+  - "The nearest horizon" rolls toward the horizon that is nearer along the present bank, up to 90° (an estimate) while the nose is above the horizon.
+  - The published limits (the 7 G, VMO) are flagged on screen, never held.
+- **When it can't fly what was asked:**
+  - The ground ends the flight in words, as for the emergencies.
+  - Below the stall the G is what the wing gives, so a "pull" that can't happen doesn't.
+  - A row that would never end (for example "Until 300 KIAS" in a climb) stops after 60 s of flight time, said in words (an estimate).
+- **Spin (EP-19):** the shared point mass cannot spin, so a spin is a set-piece flown on numbers. The numbers are rotation, height lost a turn, the nose attitude and the airspeed in the spin, and the turns and height to recover. They come from the manuals in the project files, cited by page. None could be read when this was written (the project files were not reachable from the session), so every spin number is an estimate, shown "(estimate)" until a page or Patrick's ruling backs it.
+
 ## What the module uses (no second copies)
 
 The CT-156 cockpit and its live instruments (ui-kit, ALL-31 to ALL-33; the engine displays become live, an additive change shared with the other sims), the shared sky, terrain and airfields (ui-kit, core), the version label and settings (shell). No flight maths of its own: since plan Step 5 the aircraft flies on the shared core's point mass and T-6 numbers (EP-13), with Traffic's glide ring imported as it is.
