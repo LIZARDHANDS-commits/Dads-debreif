@@ -91,7 +91,8 @@ export function drawAttitude(ctx, cx, cy, r, pitchDeg, bankDeg) {
 /**
  * Draws the HUD at the bottom left of a canvas `size` { width, height } in CSS pixels.
  * hud: { label, pitchDeg (nose up positive), bankDeg (right wing down positive), altFt, g, kias, headingDeg, rangeFt (optional),
- * torque (optional: { pct, text, red }, or null for an aircraft with no power set) }.
+ * torque (optional: { pct, text, red }, or null for an aircraft with no power set),
+ * controller (optional: { open, lines }, closed by default beside the TQ row, T29r) }.
  * Any number left out shows as a dash.
  */
 export function drawHud(ctx, size, hud) {
@@ -148,6 +149,14 @@ export function drawHud(ctx, size, hud) {
       ctx.font = 'bold 15px ui-monospace, Consolas, monospace';
       ctx.fillText(tq.text, tx + 34, ty);
     }
+    if (hud.controller) {
+      ctx.save();
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 10px ui-monospace, Consolas, monospace';
+      ctx.fillStyle = '#7fd1ff';
+      ctx.fillText('CTL ▾', x0 + HUD.width - 8, ty);
+      ctx.restore();
+    }
     // The bar: 0 to 100% across the numbers' width, ticks at 20% steps.
     const bx = tx;
     const bw = x0 + HUD.width - 12 - bx;
@@ -165,5 +174,23 @@ export function drawHud(ctx, size, hud) {
   ctx.font = '10px system-ui, sans-serif';
   const hdg = Number.isFinite(hud.headingDeg) ? String(Math.round(((hud.headingDeg % 360) + 360) % 360) || 360).padStart(3, '0') : '—';
   ctx.fillText(`HDG ${hdg}°  P ${num(pitch)}°  B ${num(Number.isFinite(hud.bankDeg) ? Math.abs(hud.bankDeg) : NaN)}°`, tx, y0 + 102 + (ranged ? 22 : 0) + (torqued ? 26 : 0));
+
+  // T29r: the controller drop-down beside the TQ row (closed by default; opens beside the HUD when CTL ▸ is clicked or ticked).
+  if (hud.controller?.open && hud.controller.lines?.length) {
+    const lines = hud.controller.lines;
+    const cw = 304;
+    const ch = 12 + lines.length * 16;
+    const cx0 = x0 + HUD.width + 6;
+    const cy0 = size.height - HUD.margin - ch;
+    ctx.fillStyle = 'rgba(8, 14, 22, 0.78)';
+    ctx.strokeStyle = 'rgba(160, 200, 230, 0.6)';
+    ctx.fillRect(cx0, cy0, cw, ch);
+    ctx.strokeRect(cx0 + 0.5, cy0 + 0.5, cw - 1, ch - 1);
+    ctx.font = '11px ui-monospace, Consolas, monospace';
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillStyle = i === 0 ? '#7fd1ff' : '#e6f1f8';
+      ctx.fillText(lines[i], cx0 + 8, cy0 + 16 + i * 16);
+    }
+  }
   ctx.restore();
 }

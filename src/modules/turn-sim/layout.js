@@ -323,6 +323,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('tagHeading', { label: 'Heading' }),
     lc.checkbox('tagBankG', { label: 'Bank and G' }),
     lc.checkbox('tagHud', { label: 'HUD (attitude, altitude, G)' }),
+    lc.checkbox('tagCtl', { label: "HUD controller drop-down (#2's phase, technique, loops)" }),
     lc.checkbox('tagArrow', { label: 'Arrow to Lead (distance, closure)' }),
     lc.checkbox('tagElevation', { label: "Elevation lines to Lead's level (3D)" }),
   ]);

@@ -333,7 +333,37 @@ function mount(root, app) {
    * its height off the block), G, indicated airspeed and heading. Null when the HUD is off.
    */
   function hudData() {
-    return layout.get().tagHud ? instrumentsOf() : null;
+    if (!layout.get().tagHud) return null;
+    const hud = instrumentsOf();
+    // T29r: the controller drop-down, closed by default (Data tag menu tick); only for #2, who has a live controller's trace.
+    if (hud && layout.get().tagCtl && hud.label === '#2') {
+      const lines = controllerLines(state);
+      if (lines) hud.controller = { open: true, lines };
+    }
+    return hud;
+  }
+  /** The live controller's words for the HUD drop-down (T29r): fighting wing's phase, technique and loops, or close formation's job and terms. */
+  function controllerLines(s) {
+    const n = (x, d = 1) => (Number.isFinite(x) ? x.toFixed(d) : '—');
+    const c = s.fwTrace?.ctl;
+    if (c) {
+      return [
+        `#2 fighting wing · ${c.phase ?? '—'} · ${c.caseLabel ?? '—'}`,
+        `technique ${c.techActive ?? 'normal'} · path ${n(c.techWeightPath, 2)} height ${n(c.techWeightHeight, 2)}`,
+        `turn ask ${n(c.turnAskG)} flown ${n(c.turnFlownG)} granted ${n(c.turnGrantedG)} G (${c.turnWinner})`,
+        `vertical ${n(c.vertG)} G · power ${c.powerKind ?? '—'} · cap ${n(c.capG)} G${c.capBind ? ' BIND' : ''}`,
+        `guard ${c.guardOn ? 'ON' : 'off'} · filter ${c.filterOn ? 'ON' : 'off'} · urgency ${n(c.urgency, 2)}`,
+      ];
+    }
+    const t = s.liveTrace;
+    if (t) {
+      return [
+        `#2 close formation · ${t.job ?? '—'}`,
+        `asked up ${n(t.asked?.upCorrG, 2)} left ${n(t.asked?.leftCorrG, 2)} G · torque ${n(t.asked?.torquePct, 0)}%`,
+        `hold ${n(t.holdPct, 0)}% · lead ${n(t.terms?.lead, 1)}%`,
+      ];
+    }
+    return null;
   }
   /**
    * The same numbers for one aircraft (by id; the HUD's aircraft when left out), whether or not the HUD is showing: the

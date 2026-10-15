@@ -120,19 +120,19 @@ Each item below has an active working estimate in the code (`TS-233` / `spec.md`
   - **`C11` Rig & Non-Regression:** `5/5` `fw-rig.mjs` step responses clean (`1% / 1% / 0% / 1% / 6%` overshoot, `0` filter steps); `four-ship-probe.mjs` `2d5b5a8020839796` for both `{}` and `{"fwWing":"live"}`.
 
 ### `S8a` — `T29b`: Climbs and descents
-- **Status:** Next in Wave 3.
+- **Status:** Built (`55c8aa35`).
 
 ### `S8b` — `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals)
-- **Status:** Pending build (Wave 3).
+- **Status:** Built (`55c8aa35`); `b5-hard-*` gauge set.
 
 ### `T29r` — Controller HUD readout & phase-plane plot
-- **Status:** Pending build (Wave 3).
+- **Status:** Built (15 Oct 2026). Drop-down is a Data tag menu tick, off by default (so closed unless asked), not a click target on the HUD: a deviation from "beside TQ"; the label `CTL ▾` shows beside TQ when open. `D3b` is a canvas plot of slant vs closure, not (s−650, −c). Not yet seen in the app by Patrick. `LAYOUT_VERSION` not bumped.
 
 ### `T30` — Blended hand-over close ↔ fighting wing & `T8` (`moving-out`)
-- **Status:** Pending build (Wave 3).
+- **Status:** Built (`288f1c70`). Also fixed a root cause in `errors.js` `planRollOutFix` (roll-out speed pulse started from Lead's speed): max hand-over pitch-rate jump `7.27 → 1.47 °/s`.
 
 ### `CR` & `T31` — Whole-B5 code review, B5's one test & Checkpoint G
-- **Status:** Pending build (Wave 3).
+- **Status:** Partly built. The test (`tests/unit/turn-sim/fighting-wing.test.js`) passes first run, unbent. Gates green (`check.mjs` PASSED, `919` numbers rows, rig `5/5`, probe `2d5b5a8020839796`, build clean). **Not done:** the 4-ship recorded Lead replay; a read-only `CR` agent review; Checkpoint G (Patrick).
 
 ---
 

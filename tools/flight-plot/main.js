@@ -138,7 +138,58 @@ function show(trace) {
       plugins: [pressMarks(trace.presses ?? [], c.lines ?? [])],
     }, data, box));
   }
+  phasePlane(trace, names, chartsEl);
   note.textContent = `${trace.name}: ${(trace.presses ?? []).map((p) => `${p.label} at ${p.t.toFixed(1)} s`).join(' · ')}. Drag to zoom, double-click to zoom out.`;
+}
+
+/**
+ * D3b (control-model.md section 7.14): the phase plane, slant range against closure (+ closing), as a path through time so a
+ * limit cycle shows as a closed loop and a settled aircraft as a point. Guard lines at 500 and 600 ft, the 625 ft target and
+ * closure 0; the start is a ring, the end a filled dot. Only for traces with the fighting wing picture.
+ */
+function phasePlane(trace, names, parent) {
+  const who = names.find((n) => trace.aircraft[n].slantFt?.some((v) => v !== null));
+  if (!who) return;
+  const a = trace.aircraft[who];
+  const pts = a.slantFt.map((s, i) => [s, a.closureFtps?.[i]]).filter(([s, c]) => Number.isFinite(s) && Number.isFinite(c));
+  if (pts.length < 2) return;
+  const box = document.createElement('section');
+  box.className = 'chart';
+  const h = document.createElement('h2');
+  h.textContent = `Fighting wing: phase plane (x slant range ft, y closure ft/s + closing) - ${who}`;
+  const cv = document.createElement('canvas');
+  const W = Math.max(320, Math.min(520, parent.clientWidth - 16));
+  const H = 320;
+  cv.width = W;
+  cv.height = H;
+  box.append(h, cv);
+  parent.append(box);
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  const [x0, x1] = [Math.min(...xs, 450), Math.max(...xs, 1050)];
+  const [y0, y1] = [Math.min(...ys, -20), Math.max(...ys, 20)];
+  const px = (x) => 36 + ((x - x0) / (x1 - x0)) * (W - 48);
+  const py = (y) => H - 24 - ((y - y0) / (y1 - y0)) * (H - 40);
+  const ctx = cv.getContext('2d');
+  ctx.strokeStyle = '#c8a24a';
+  ctx.setLineDash([2, 6]);
+  for (const x of [500, 600, 625, 1000]) { ctx.beginPath(); ctx.moveTo(px(x), 8); ctx.lineTo(px(x), H - 24); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(36, py(0)); ctx.lineTo(W - 12, py(0)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = COLOURS[0];
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  pts.forEach(([x, y], i) => (i ? ctx.lineTo(px(x), py(y)) : ctx.moveTo(px(x), py(y))));
+  ctx.stroke();
+  ctx.fillStyle = '#8b98a5';
+  ctx.font = '11px system-ui';
+  ctx.fillText(`${Math.round(x0)}`, 30, H - 8);
+  ctx.fillText(`${Math.round(x1)} ft`, W - 52, H - 8);
+  ctx.fillText(`${Math.round(y1)}`, 2, 14);
+  ctx.fillText(`${Math.round(y0)}`, 2, H - 26);
+  ctx.beginPath(); ctx.arc(px(pts[0][0]), py(pts[0][1]), 4, 0, 7); ctx.stroke();
+  ctx.fillStyle = COLOURS[1];
+  ctx.beginPath(); ctx.arc(px(pts.at(-1)[0]), py(pts.at(-1)[1]), 4, 0, 7); ctx.fill();
 }
 
 async function loadRun(file) {

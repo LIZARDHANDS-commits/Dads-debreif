@@ -54,11 +54,12 @@ For the next Formation session (Claude or Antigravity). Read `AGENTS.md`, `docs/
 
 ## Next, in order (`docs/modules/turn-sim/plan.md`)
 
-1. **Wave 3 (`S8a → S8b → T30 → T29r → CR/T31`):**
-   - **`S8a` (`T29b` Climbs & Descents):** tilt vertical stack reference and feed-forwards with Lead's seen flight-path plane (`b5-climb`, `b5-descent`).
-   - **`S8b` (`T29d` Aggressive Lead to `4 G` / `90°/s`):** add `b5-hard-*` gauge set and tune under `3–4 G` reversals (`D14`, `D26`).
-   - **`T30` (`T8` `moving-out` & Blended Close ↔ FW Hand-Over):** range-phased `100 → 250 ft` authority blend and `techniques/moving-out.js`.
-   - **`T29r` + `CR` + `T31`:** closed HUD controller drop-down + `D3b` phase-plane plot, whole-B5 code review, B5's one test, and **Checkpoint G** with Patrick.
+1. **Wave 3 is built (15 Oct 2026; `S8a` + `S8b` `55c8aa35`, `T30` `288f1c70`, `T29r` + `T31`'s test in the next commit):**
+   - **`S8a` / `S8b`:** climbs, descents and the `b5-hard-*` gauge set.
+   - **`T30`:** `T8` `moving-out` (`techniques/moving-out.js`) and the `100 → 250 ft` close ↔ FW blend; hand-over pitch-rate jump now `< 3 °/s` (was `7.27 °/s`).
+   - **`T29r`:** Data tag menu tick "HUD controller drop-down" (off by default; `hud.js`, `index.js`, `tags.js`, `layout.js`) and the `D3b` phase-plane canvas on the dev plot page (`tools/flight-plot/main.js`).
+   - **`T31` (partial):** B5's one test `tests/unit/turn-sim/fighting-wing.test.js` (passes under `node --test`).
+2. **Still open:** the 4-ship recorded Lead replay in `tools/formation-gauge.mjs` (needs the recorded track; not built); the `CR` read-only review by an agent (only the executable gates were run: `check.mjs` PASSED, numbers `919` rows, rig `5/5`, probe `2d5b5a80…`, build clean); Patrick's flights of `T29r` and **Checkpoint G**. `LAYOUT_VERSION` was not bumped (a new default key only).
 
 ## Patrick's rulings on 14 Oct (all in `TS-233` and `TS-234` in `decisions.md`, and in `spec.md` §7e and §7a)
 

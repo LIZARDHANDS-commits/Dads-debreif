@@ -355,11 +355,12 @@ The review (thread artifacts "Formation Sim architecture" and "Formation rough s
 | **Wave 1** | **S5** | Exit vertical (`T6`) & S-turns (`T7`) plugins + tables | **built (`1e33a17c`, wired `28b61f27`)** | `fw-slice-builder` (`flash`) + Orchestrator (`pro`) | `turn-sim-numbers.mjs`, `check.mjs --tag cm`, `formation-gauge.mjs` | `D6` (T6, T7) | `15/15 B`, `53/53 S` |
 | **Wave 1** | **S7** | High yo-yo (`T4`), cut-across (`T5`) & behind-39 (`T2`) plugins + tables | **built (`1e33a17c`, wired `28b61f27`)** | `fw-slice-builder` (`flash`) + Orchestrator (`pro`) | `turn-sim-numbers.mjs`, `check.mjs --tag cm`, `formation-gauge.mjs` | `D6` (T2, T4, T5) | `15/15 B`, `53/53 S` |
 | **Wave 2** | **S6 + B04 + A2** | Abeam (`T3`), `B04` registration (`T1–T7`), legacy retirement & Audit 2 (`C10`) | **built (`28b61f27`)** | Main thread (`pro` / Argon) + `#6a` Auditor (`flash`, `b9b5857d`) | `check.mjs`, `draw.mjs`, `formation-gauge.mjs`, `C10` count, `four-ship-probe.mjs` | `D6` (T3), `D15`, `D18`, `R12`, `R14`, `C10` | `15/15 B`, `53/53 S` |
-| **Batch C** | **S8a** | `T29b`: Climbs and descents | next | Reuse `fw-slice-builder` (`pro` / Argon) | Self-verified at end of Batch C | — | `15/15 B`, `53/53 S` |
-| **Batch C** | **S8b** | `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals) | not started | Reuse `fw-slice-builder` (`pro` / Argon) | Self-verified at end of Batch C | `D14` (above 2.7 G), `D26` | `15/15 B`, `53/53 S` |
-| **Batch C** | **T30 + CR** | Blended hand-over close ↔ FW (`T8`) & dead-code removal | not started | Reuse `fw-slice-builder` (`pro` / Argon) | `check.mjs`, `draw.mjs`, `four-ship-probe.mjs`, `0080` grep | red pitch-rate test, `R1–R15` | close ↔ FW |
-| **Step D** | **T29r + SysEng** | Controller HUD readout, `D3b` phase-plane & full systems plots | not started | `fw-systems-plot-agent` (`flash` / Flash, 1 run) | `draw.mjs --check`, `check.mjs --tag cm`, `faults.mjs` | `C1–C11`, SVGs, Bode/N²/rig | screen + all plots |
-| **Step E** | **T31** | Consolidated docs, decision log, walkthrough & Checkpoint G | not started | Orchestrator (`pro` / Argon, 0 extra spawns) | Final diff check + Patrick flying Checkpoint G | `R15` | complete |
+| **Batch C** | **S8a** | `T29b`: Climbs and descents | **built (`55c8aa35`)** | Main thread | `formation-gauge.mjs`, `check.mjs` | — | `15/15 B`, `53/53 S` |
+| **Batch C** | **S8b** | `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals) | **built (`55c8aa35`)** | Main thread | `b5-hard-*` gauge set | `D14` (above 2.7 G), `D26` | `15/15 B`, `53/53 S` |
+| **Batch C** | **T30** | Blended hand-over close ↔ FW (`T8`) | **built (`288f1c70`)** | Main thread | `check.mjs`, `four-ship-probe.mjs`, gauge `echelon-to-fw` | red pitch-rate test (`7.27 → 1.47 °/s`) | close ↔ FW |
+| **Batch C** | **CR** | Whole-B5 code review | gates run, agent review not done | — | `check.mjs`, numbers, rig, probe, build | `R1–R15` | — |
+| **Step D** | **T29r** | Controller HUD tick (off by default) & `D3b` phase plane | **built** (not yet seen by Patrick; systems plots not done) | Main thread | `check.mjs --tag cm`, build | `C1–C11` | screen + plot |
+| **Step E** | **T31** | B5's test (built), 4-ship Lead replay (not built), docs & Checkpoint G | partly built | Main thread | `node --test tests/unit/turn-sim/fighting-wing.test.js` | `R15` | Checkpoint G pending |
 
         - **Fable Findings (`D1–D26`) & Control-Model Findings (`R1–R15`) Closing Map**
 
