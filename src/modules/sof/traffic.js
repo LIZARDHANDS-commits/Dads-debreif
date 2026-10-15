@@ -15,6 +15,7 @@
 import { CATALOG, DEFAULT_HOME } from '../../airfields/catalog.js';
 import { isHelicopter } from './helicopters.js';
 import { aircraftKind, KIND_WORDS } from './aircraft-kind.js';
+import { relayOrigin } from '../../wx/relay.js';
 
 const SECOND_MS = 1000;
 const MIN_YEAR = 2000;
@@ -152,20 +153,8 @@ export function readReply(raw) {
 
 // ---- The request address -------------------------------------------------------------------
 
-/** https only, or http for local development; an origin with nothing after it. Returns the origin or null. */
-export function relayOrigin(baseUrl) {
-  if (typeof baseUrl !== 'string' || !baseUrl.trim()) return null;
-  let url;
-  try {
-    url = new URL(baseUrl.trim());
-  } catch {
-    return null;
-  }
-  const local = url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
-  if (url.protocol !== 'https:' && !local) return null;
-  if (url.username || url.password || url.search || url.hash || url.pathname !== '/') return null;
-  return url.origin;
-}
+// The address check is shared (src/wx/relay.js) so the EP Tabletop uses the same one; re-exported for the SOF's other readers.
+export { relayOrigin };
 
 // Two places, and never "-0", as the relay rounds them so screens share one cached answer.
 const place = (n) => Number(String(Math.round(n * 100) / 100)) + 0;

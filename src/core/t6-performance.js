@@ -292,7 +292,7 @@ export function flyZoomT6A(kias, altFt) {
   if (!(kias >= 0 && kias <= T6A_LIMITS.vmoKias && Number.isFinite(altFt))) {
     throw new RangeError(`zoom from ${kias} KIAS at ${altFt} ft: needs 0 to ${T6A_LIMITS.vmoKias} KIAS and a finite height`);
   }
-  const engineOff = (ktas, alt, g) => -dragPerWeight(tasToIasKt(ktas, alt), alt, g);
+  const engineOff = excessFnFor(0, { engineOut: true }); // clean, prop feathered: -glideDragPerWeight('clean'), which is -dragPerWeight
   let s = pointMassState({ altFt, ktas: iasToTasKt(kias, altFt), headingRad: 0 });
   let t = 0;
   const now = () => pointMassFlight(s);

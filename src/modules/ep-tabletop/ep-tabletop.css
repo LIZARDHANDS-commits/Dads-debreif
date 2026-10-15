@@ -27,6 +27,12 @@
 }
 .ep-view-wrap { position: relative; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #2f6aa8; }
 .ep-view { position: absolute; inset: 0; }
+.ep-haze, .ep-glow { position: absolute; inset: 0; pointer-events: none; }
+/* Smoke haze: a grey, half-see-through layer; the student view's opacity (0 to 1) is set on it, 0.8 at the most so the view never goes blank (a picture choice). */
+.ep-haze { background: rgba(120, 120, 124, 0.8); transition: opacity 0.4s; }
+/* Fire glow: orange from the lower left edge, fading out toward the middle. */
+.ep-glow { background: radial-gradient(ellipse 70% 80% at 0% 100%, rgba(255, 120, 20, 0.85), rgba(255, 90, 0, 0.35) 45%, rgba(255, 90, 0, 0) 75%); transition: opacity 0.4s; }
+.ep-haze[hidden], .ep-glow[hidden] { display: none; }
 .ep-3d-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .ep-3d-canvas:active { cursor: grabbing; }
 .ep-3d-note { padding: var(--space-4); color: var(--text); }
@@ -52,6 +58,12 @@
 .ep-banner { margin: var(--space-3) 0 0; padding: 8px 10px; border-radius: var(--radius); background: var(--bg-raised); text-align: center; font-weight: 600; }
 .ep-banner.is-still { background: #5a3d06; color: #ffd27a; }
 .ep-prompts { margin: var(--space-2) 0 0; font-weight: 600; color: var(--accent); }
+.ep-flying { margin: var(--space-2) 0 0; color: var(--text-muted); }
+.ep-flying.is-down { color: var(--text); font-weight: 600; }
+.ep-pick-flying { margin: var(--space-2) 0 0; font-weight: 600; }
+.ep-pick-numbers { margin: 2px 0; }
+.ep-pick-outcome { margin: var(--space-1) 0; font-weight: 600; }
+.ep-pick-log { margin: var(--space-1) 0; padding-left: 1.4em; font-size: var(--text-sm); }
 .ep-foot { margin: 0; text-align: center; color: var(--text-faint); font-size: var(--text-sm); }
 
 .ep-btn {
@@ -106,3 +118,68 @@
   .ep-ind-row { grid-template-columns: 7rem minmax(0, 1fr) 4.5rem; }
 }
 .ep-con-section h3 .ep-sub { text-transform: none; letter-spacing: normal; color: var(--text-muted); }
+
+/* The phone link (plan Step 2): the status in the bar, the QR code over the 3D view, and the console laid out for a phone. */
+.ep-link-status { font-size: var(--text-sm); color: var(--text-muted); }
+.ep-link-status.is-ok, .ep-phone-status.is-ok { color: var(--good); }
+.ep-link-status.is-lost, .ep-phone-status.is-lost { color: var(--caution); }
+.ep-qr { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: var(--space-3); background: rgba(5, 10, 18, 0.72); overflow-y: auto; }
+.ep-qr-card {
+  max-width: 24rem; padding: var(--space-4); text-align: center;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg); box-shadow: var(--shadow);
+}
+.ep-qr-card h2 { margin: 0 0 var(--space-3); font-size: var(--text-md); }
+.ep-qr-code svg { display: block; width: min(17rem, 45vh, 100%); height: auto; margin: 0 auto var(--space-3); }
+.ep-qr-status { font-weight: 600; }
+.ep-qr-buttons { justify-content: center; }
+
+.ep-phone { height: auto; min-height: 0; max-width: 40rem; margin: 0 auto; padding: var(--space-2) 16px; }
+.ep-phone .ep-bar h1 { font-size: var(--text-md); }
+.ep-phone-status { margin: 0; padding: 8px 10px; border-radius: var(--radius); background: var(--bg-raised); font-weight: 600; }
+.ep-console-phone { position: static; width: auto; padding: 0; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.ep-console-phone .ep-btn { min-height: 44px; padding: 8px 14px; font-size: var(--text-md); }
+.ep-console-phone .ep-btn-small { min-width: 44px; padding: 8px 10px; }
+.ep-console-phone input:not([type="checkbox"]), .ep-console-phone select { min-height: 40px; font-size: 16px; }
+.ep-console-phone input[type="checkbox"] { width: 22px; height: 22px; vertical-align: middle; }
+.ep-console-phone .ep-ind-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'label reveal' 'edit edit'; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.ep-console-phone .ep-ind-label { grid-area: label; font-weight: 600; }
+.ep-console-phone .ep-edit { grid-area: edit; }
+.ep-console-phone .ep-ind-reveal { grid-area: reveal; }
+.ep-console-phone .ep-num { width: 7rem; }
+.ep-console-phone .ep-declare { grid-template-columns: 1fr; }
+.ep-console-phone .ep-applybar { bottom: 0; margin: 0 -16px; padding: var(--space-2) 16px; }
+
+/* The systems model (plan Step 3, EP-11): the Faults section, a threshold beside its light or gauge, "(estimate)" and a typed value. */
+.ep-threshold { display: block; color: var(--text-muted); font-size: 0.85em; font-weight: 400; }
+.ep-estimate { color: var(--caution); }
+.ep-typed { display: block; color: var(--caution); }
+.ep-scenario-pick { margin: var(--space-1) 0; }
+.ep-scenario-pick select { flex: 1; min-width: 0; }
+.ep-fault { padding: 6px; margin-bottom: 6px; border: 1px solid var(--border); border-radius: var(--radius); }
+.ep-fault.is-pending { background: color-mix(in srgb, var(--caution) 22%, transparent); }
+.ep-fault-name { font-weight: 600; flex: 1; }
+.ep-sev-row { font-size: var(--text-sm); }
+.ep-sev { flex: 1; min-width: 6rem; }
+.ep-sev-out { font-family: var(--font-mono); min-width: 3.5rem; text-align: right; }
+.ep-fault-effect { margin: 0; }
+
+/* Any setup (plan Step 5b, EP-17 to EP-19): the map where a tap drops the aircraft, the setup's boxes and the step builder's rows. */
+.ep-setup-map-wrap { margin-bottom: 6px; }
+.ep-setup-map { display: block; width: 100%; height: 16rem; border: 1px solid var(--border); border-radius: var(--radius); touch-action: none; cursor: crosshair; }
+.ep-setup-credit { margin: 2px 0 0; font-size: 0.75em; }
+.ep-setup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 6px; margin: 6px 0; }
+.ep-setup-field { display: flex; flex-direction: column; gap: 2px; }
+.ep-setup-rows { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; }
+.ep-setup-row { padding: 6px; border: 1px solid var(--border); border-radius: var(--radius); }
+.ep-setup-row-head { justify-content: space-between; }
+.ep-setup-part { margin-bottom: 2px; font-size: var(--text-sm); }
+.ep-setup-part > .ep-sub { width: 3.5rem; }
+.ep-setup-part select { flex: 1 1 9rem; min-width: 0; }
+.ep-console-phone .ep-setup-map { height: 70vw; max-height: 24rem; }
+.ep-console-phone .ep-setup-grid { grid-template-columns: 1fr 1fr; }
+
+/* The setup's attitude ball (attitude-ball.js): a round attitude indicator dragged to set pitch and bank. */
+.ep-att-row { align-items: center; gap: 12px; flex-wrap: wrap; }
+.ep-att-ball { border-radius: 50%; cursor: grab; flex: 0 0 auto; }
+.ep-att-ball:active { cursor: grabbing; }
+.ep-att-ball:focus-visible { outline: 2px solid #ffd400; outline-offset: 2px; }

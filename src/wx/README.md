@@ -11,6 +11,7 @@ Turns raw METAR and TAF text into plain data and answers the SOF's weather quest
 | `alternates.js` | `homeAlternateTrigger(taf, window, limits)` for a wave; `arrivalWindow(etas)` and `assessAlternate(taf, window, { minima, landingMinima, ... })` for an alternate airfield |
 | `sources.js` | `fetchReports(kind, stations, { fetch })` from MET Norway then Datamask; `startRefresh(...)` every 5 minutes; `staleness(kind, report, now)` |
 | `dates.js` | Turns day-of-month times into full UTC dates (`resolveDay`, `resolvePast`); `toDate`; `ageMinutes` for data age |
+| `relay.js` | Our own Netlify relay: `RELAY_ADDRESS` (its live address, relay/README.md) and `relayOrigin(text)`, the check every relay address passes (https, or http on localhost, nothing after the host). The SOF and the EP Tabletop both use it. |
 
 ## Where to change common things
 
