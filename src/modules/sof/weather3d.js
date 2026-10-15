@@ -35,6 +35,11 @@ const BOLT_GLOW_OPACITY = 0.32;
 const BOLT_SPLASH_FT = 2600;
 const BOLT_SPLASH_OPACITY = 0.7;
 const BOLT_KINKS = 7;
+/**
+ * How tall a bolt is drawn, feet above the ground before the height scale (Dad, 15 Oct 2026: "The lighting lines do not need to be drawn that long.... maybe like
+ * 3000ft"). Drawing only: each bolt's own base and top (ground to the model cloud top) are left as they are, because the approaches' corridor check reads them.
+ */
+export const BOLT_DRAWN_FT = 3000;
 const BOLT_JITTER_FT = 1400;
 const FLOW_COLOURS = ['#a8e0ff', '#dff3ff', '#ffe9b0']; // 850, 700 and 500 hPa, low to high, a slight tint a level
 /** How bright a streak's head is (0 to 1): faint (Dad, 7 Oct: "faint short streaks"). */
@@ -138,7 +143,7 @@ const kink = (x, y, k) => {
 };
 
 /**
- * The lightning bolts (`bolts`, each { x, y, baseFt, topFt, alpha? }): a thin neon line kinked from the cloud top down to the ground, in a faint glow column, with a glow
+ * The lightning bolts (`bolts`, each { x, y, baseFt, topFt, alpha? }): a thin neon line kinked from BOLT_DRAWN_FT above the ground (or its top, if lower) down to it, in a faint glow column, with a glow
  * on the ground where it struck (see BOLT_CORE). Three draws whatever the number of bolts (one line set, two instanced meshes). Returns { root, count, dispose }.
  */
 export function buildBolts(T, { bolts, scale }) {
@@ -156,7 +161,7 @@ export function buildBolts(T, { bolts, scale }) {
     for (const b of bolts) {
       const a = strength(b);
       const z0 = b.baseFt * scale;
-      const z1 = Math.max(z0 + 1, b.topFt * scale);
+      const z1 = Math.max(z0 + 1, (b.baseFt + Math.min(BOLT_DRAWN_FT, b.topFt - b.baseFt)) * scale);
       let prev = [b.x, b.y, z1];
       for (let k = 1; k <= BOLT_KINKS; k++) {
         const end = k === BOLT_KINKS; // the last point is the strike itself, on the ground
@@ -197,7 +202,7 @@ export function buildBolts(T, { bolts, scale }) {
     const column = own(owned, new T.CylinderGeometry(0.5, 0.5, 1, 8, 1, true));
     column.rotateX(Math.PI / 2);
     column.translate(0, 0, 0.5);
-    add(column, BOLT_GLOW_OPACITY, (b, m) => m.compose(new T.Vector3(b.x, b.y, b.baseFt * scale), new T.Quaternion(), new T.Vector3(BOLT_GLOW_FT, BOLT_GLOW_FT, Math.max(1, (b.topFt - b.baseFt) * scale))));
+    add(column, BOLT_GLOW_OPACITY, (b, m) => m.compose(new T.Vector3(b.x, b.y, b.baseFt * scale), new T.Quaternion(), new T.Vector3(BOLT_GLOW_FT, BOLT_GLOW_FT, Math.max(1, Math.min(BOLT_DRAWN_FT, b.topFt - b.baseFt) * scale))));
     add(own(owned, new T.CircleGeometry(0.5, 20)), BOLT_SPLASH_OPACITY, (b, m) => m.compose(new T.Vector3(b.x, b.y, b.baseFt * scale + LIFT_FT), new T.Quaternion(), new T.Vector3(BOLT_SPLASH_FT, BOLT_SPLASH_FT, 1)));
   }
   return finish(T, root, owned, { count: bolts.length });

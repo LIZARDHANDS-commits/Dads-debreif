@@ -24,7 +24,7 @@ import {
   CELL_PX, CELL_SUPERSAMPLE, SHAFT_MERGE_FT, SATELLITE_PX, SATELLITE_DEFAULT_FT, RADAR_DEFAULT_AGL_FT, LIGHTNING_DEFAULT_AGL_FT, FRONT_WALL_FT, FLOW_PARTICLES, FLOW_STEP_MS,
   FLOW_FT_PER_S_PER_KT, pictureCells, reduceToCells, shafts, bolts, satellitePixels, frontGeometry, createFlow,
 } from './weather3d-model.js';
-import { buildShafts, buildBolts, buildSatelliteSheet, buildFronts, buildFlow } from './weather3d.js';
+import { buildShafts, buildBolts, buildSatelliteSheet, buildFronts, buildFlow, BOLT_DRAWN_FT } from './weather3d.js';
 import { buildRadarColumns, buildRadarVolume, CONTOUR_FT } from './radar3d.js';
 import { performanceColumns, volumeColumns, northStrip, coverageMask, MIN_DRAW_DBZ, NORTH_WORDS, HIGH_SHELL_DBZ, PERFORMANCE_LOW_KM, kmToFt } from './mrms-model.js';
 import { readTotalCloud } from './cloud-field.js';
@@ -412,11 +412,11 @@ export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-We
     out.push(`${r.line ? `${r.line}. ` : ''}Radar: a see-through block for each run of neighbouring radar cells with the same colour and cloud heights (a cell is about 5 NM; heights within ${formatFeet(SHAFT_MERGE_FT)} ft of each other, an estimate), in the radar's colour, standing in the model cloud over it, from the cloud's base to its top (the lowest model cloud there; a model estimate).${rain}${noCloud} ${merged}. Not drawn when the radar picture is stale.`);
   }
   if (summary.lightning) {
-    out.push(`Lightning: a thin neon bolt for each lit lightning cell, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). ${summary.lightning.count} drawn.`);
+    out.push(`Lightning: a thin neon bolt for each lit lightning cell, drawn ${formatFeet(BOLT_DRAWN_FT)} ft up from the ground (Dad's choice; the approaches' check still counts it from the ground to the model cloud top, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft with none, an estimate). ${summary.lightning.count} drawn.`);
   }
   if (summary.strikes) {
     const s = summary.strikes;
-    out.push(`Lightning strikes (NOAA NLDN via MRMS): a thin neon bolt for each cloud-to-ground strike of the last 30 minutes (each 0.01° cell with a strike, its middle), brightest for 5 minutes, dimmer to 15 and dimmest to 30 as the map's crosses, with a glow on the ground where it struck, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). In-cloud lightning is not in it. ${s.count === s.strikes ? `${s.count} drawn` : `${s.count} of ${s.strikes} drawn (the newest)`}.`);
+    out.push(`Lightning strikes (NOAA NLDN via MRMS): a thin neon bolt for each cloud-to-ground strike of the last 30 minutes (each 0.01° cell with a strike, its middle), brightest for 5 minutes, dimmer to 15 and dimmest to 30 as the map's crosses, with a glow on the ground where it struck, drawn ${formatFeet(BOLT_DRAWN_FT)} ft up from the ground (Dad's choice). In-cloud lightning is not in it. ${s.count === s.strikes ? `${s.count} drawn` : `${s.count} of ${s.strikes} drawn (the newest)`}.`);
   }
   if (summary.fronts) {
     out.push(`Fronts: ${FRONTS_CREDIT}, so a front is only right to about a degree (60 NM). Line colours: cold blue with triangles, warm red with half circles, stationary alternating blue and red, occluded purple with both, trough dashed orange. The symbols stand on the side the bulletin does not give: taken from the way each kind usually moves across North America (a guess). A faint wall ${formatFeet(FRONT_WALL_FT)} ft tall stands along each (an estimate, ×${scale}). H and L are the bulletin's pressure centres in hPa.`);
