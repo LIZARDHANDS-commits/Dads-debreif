@@ -37,7 +37,7 @@ import { FW_BAND, FW4 } from './slots.js';
 import { IN_POSITION } from './bands.js';
 import { fwLeadPlan, fwMoveWords } from './formation-turns.js';
 import { leadStateOf, stepLead, leadThrottle } from './fluid-lead.js';
-import { powerFrom } from './power.js';
+import { powerFrom, withEngine } from './power.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3, poseOf3d } from './attitude.js';
 
 const dt = STEP_SEC;
@@ -339,8 +339,10 @@ function stepFwWing(ws, ctx) {
     x: next.pm.x, y: next.pm.y, altAbove: next.pm.z - blockFt, vel: next.vel, up: next.bodyUp,
     kias: next.kias, g: next.g, rollDps: -next.rollRate,
   });
+  // The throttle his engine gives (TS-218, stepLead): it follows what holds his speed at the engine's rate, after its lag
+  // from a settled idle; carried on with his power so the next pilot of the aircraft has it.
   const throttle = leadThrottle(next, holdKias);
-  const power = throttle < 0.005 ? powerFrom('idle', 0, next.kias, next.pm.z) : powerFrom(null, throttle, next.kias, next.pm.z);
+  const power = withEngine(throttle < 0.005 ? powerFrom('idle', 0, next.kias, next.pm.z) : powerFrom(null, throttle, next.kias, next.pm.z), next.eng);
   return {
     ws: { ...ws, st: next, stackFt, side: Math.abs(acrossNow) > 1 ? Math.sign(acrossNow) : side, place, level, turn, dCone, askBank, floorUpFt, ff, k: me.k, yWant: dWant, sWant: aOn.sWant - wantGap },
     pose,
@@ -359,7 +361,7 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
   const lp = fwLeadPlan(lead, key, dir, t0, bankDeg, blockFt);
   if (!lp.ok) return lp;
   const L = copyAircraft(lead);
-  const plan = { segments: lp.segments.map((s) => ({ ...s })), profile: lp.profile };
+  const plan = { segments: lp.segments.map((s) => ({ ...s })), profile: lp.profile, roll: lp.roll };
   const carried = ws0 && ws0.length === wings.length && ws0[0]?.tr;
   let ws = carried ? ws0 : wings.map((w, i) => wingAtPress(aircraft[i], w, blockFt));
   // Lead's track: the one flown so far when a move is being flown, else seeded behind him at the press.
@@ -399,7 +401,7 @@ export function planFwMoveLive(aircraft, key, dir, t0 = 0, { blockFt = 8000, ban
     if (doneAt === null && planDone(L, plan) && t >= profileEnd) doneAt = t;
     if (doneAt !== null && t - doneAt >= FW_LIVE.settleSec) break;
   }
-  const plans = { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })), profile: lp.profile } };
+  const plans = { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })), profile: lp.profile, roll: lp.roll } };
   wings.forEach((w, i) => { plans[w.id] = { segments: [{ kind: 'poseTrack', poses: poses[i] }] }; });
   const who = wings.length > 1 ? 'Each wingman flies Lead\'s circle 650 ft behind the one ahead (#2 behind Lead, #3 behind #2, #4 behind #3), never inside 500 ft of him' : '#2 flies Lead\'s circle 650 ft behind him, never inside 500 ft';
   return {

@@ -91,14 +91,16 @@ export function slowKtps(stage, kias, altFt, g = 1, throttle = POWER_FLOOR_THROT
 /**
  * The average rate (KIAS per second) of a smooth slow-down from `from` to `to` KIAS (flight.js's smootherstep speed ramp)
  * whose steepest point never asks more than `stage` gives at the speed it is at then, level: the slow-down a pilot holds
- * with that stage set.
+ * with that stage set. throttleAt(kias): the least throttle he sets on the way (the power floor by default; Lead's 20%
+ * torque in formation, TS-216, replay.js speedSeg).
  */
-export function slowRampKtps(from, to, altFt, stage = 'power') {
+export function slowRampKtps(from, to, altFt, stage = 'power', throttleAt = () => POWER_FLOOR_THROTTLE) {
   const d = to - from;
   let rate = Infinity;
   for (let i = 1; i < 400; i++) {
     const u = i / 400;
-    rate = Math.min(rate, slowKtps(stage, from + d * smoother(u), altFt) / smootherSlope(u));
+    const k = from + d * smoother(u);
+    rate = Math.min(rate, slowKtps(stage, k, altFt, 1, throttleAt(k)) / smootherSlope(u));
   }
   return rate;
 }

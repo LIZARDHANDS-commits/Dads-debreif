@@ -617,7 +617,7 @@ function leanHidden(eye, target, o, margin) {
 }
 
 /**
- * The lean (EYE_LEAN) that shows `target` from `eyeFt` in `seat` ({ dy left, dz up } feet; the aircraft's axes, feet):
+ * The lean (EYE_LEAN) that shows `target` (a point, or a list of points each with a weight w) from `eyeFt` in `seat` ({ dy left, dz up } feet; the aircraft's axes, feet):
  * none when he is clear; the present one (`current`) while it still shows him and he isn't clear from the seat's eye;
  * else the smallest sideways, upward or both that clears him; none if 6 in doesn't. Pure geometry.
  */
@@ -625,18 +625,33 @@ export function eyeLeanFor(eyeFt, targetFt, seat = 'front', current = null) {
   const o = leanObstructions(seat === 'rear' ? 'rear' : 'front'), L = EYE_LEAN;
   const at = (dy, dz) => ({ x: eyeFt.x, y: eyeFt.y + dy, z: eyeFt.z + dz });
   const none = { dy: 0, dz: 0 };
+  // One point, or several weighted points of Lead (view3d.js: his spinner, exhaust stacks and wingtips first, the
+  // references; Patrick 14 Oct 2026: "make sure that the 'move head' works whenever the canopy bow interferes with lead":
+  // his middle showed while the bow hid his nose and exhaust stack, so the lean never moved). hiddenW: the weight hidden.
+  const pts = Array.isArray(targetFt) ? targetFt : [{ ...targetFt, w: 1 }];
+  const hiddenW = (eye, margin) => pts.reduce((sum, q) => sum + (leanHidden(eye, q, o, margin) ? q.w ?? 1 : 0), 0);
+  const fromSeat = hiddenW(eyeFt, L.marginDeg);
   if (current && (current.dy || current.dz)) {
-    if (!leanHidden(eyeFt, targetFt, o, L.clearDeg)) return none;
-    if (!leanHidden(at(current.dy, current.dz), targetFt, o, L.marginDeg)) return current;
-  } else if (!leanHidden(eyeFt, targetFt, o, L.marginDeg)) return none;
+    if (hiddenW(eyeFt, L.clearDeg) === 0) return none;
+    if (hiddenW(at(current.dy, current.dz), L.marginDeg) === 0) return current;
+  } else if (fromSeat === 0) return none;
+  // The smallest lean that shows every point; failing that, the one that shows the most weight (the smallest of those),
+  // kept while nothing better turns up so it doesn't hunt.
+  let best = none, bestW = fromSeat;
+  if (current && (current.dy || current.dz)) {
+    const w = hiddenW(at(current.dy, current.dz), L.marginDeg);
+    if (w < bestW) { best = current; bestW = w; }
+  }
   const n = Math.round(L.maxFt / L.stepFt), r = Math.SQRT1_2;
   for (let k = 1; k <= n; k++) {
     const d = k * L.stepFt;
     for (const [dy, dz] of [[d, 0], [-d, 0], [0, d], [d * r, d * r], [-d * r, d * r]]) {
-      if (!leanHidden(at(dy, dz), targetFt, o, L.marginDeg)) return { dy, dz };
+      const w = hiddenW(at(dy, dz), L.marginDeg);
+      if (w === 0) return { dy, dz };
+      if (w < bestW) { best = { dy, dz }; bestW = w; }
     }
   }
-  return none;
+  return best;
 }
 
 /**
