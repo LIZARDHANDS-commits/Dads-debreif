@@ -80,6 +80,22 @@ export function createSetupSection({ dispatch, button, timers = null }) {
     showDrop();
     freezeBtn.click();
   }, { title: 'Put the aircraft at the pitch and bank set here, where it is now (same place, height, heading, speed and power), paused' });
+  // "Correct to" (Dad, 15 Oct 2026: "the inputs the aircraft doesnt correct to we should have a 'correct too' button, so the aircraft
+  // aims for those attitude parameters"): the aircraft flies from where it is to the Pitch, Bank and Power in the boxes (or on the ball),
+  // as one step-builder row (power, roll to that bank, pitch to that attitude, until reached), so it rolls and pulls within the T-6A's
+  // limits and the wing's, exactly as any row; then it pauses there. Checked as any row (steps.js cleanRows).
+  const correctBtn = button('Correct to', () => {
+    const f = session?.flight;
+    if (!f || f.outcome) return;
+    const num = (input, fallback) => (input.value === '' || !Number.isFinite(Number(input.value)) ? fallback : Number(input.value));
+    dispatch({ type: 'flySteps', rows: [{
+      type: 'fly',
+      power: { kind: 'pct', pct: num(power.input, Math.round((f.throttle ?? 0) * 100)) },
+      roll: { kind: 'bank', bankDeg: num(bank.input, 0) },
+      pitch: { kind: 'attitude', deg: num(pitch.input, 0) },
+      until: { kind: 'done' },
+    }] });
+  }, { title: 'Fly from where the aircraft is to the pitch, bank and power set here, within the T-6\'s roll and G, then pause' });
   const carryBtn = button('▶ Carry on', () => dispatch({ type: 'carryOn' }), { title: 'Fly on with the controls held: the same G, bank and power' });
   const pauseBtn = button('❚❚ Pause', () => dispatch({ type: 'pause' }));
 
@@ -189,9 +205,9 @@ export function createSetupSection({ dispatch, button, timers = null }) {
     map?.element ?? h('p', { class: 'ep-sub' }, 'The map needs the page\'s scheduler; the drop stays where it is.'),
     dropWords,
     h('div', { class: 'ep-setup-grid' }, alt.el, hdg.el, kias.el, power.el, pitch.el, bank.el),
-    h('div', { class: 'ep-row ep-att-row' }, ball.element, h('p', { class: 'ep-sub' }, 'Drag the ball to set pitch (up and down) and bank (left and right), or type them; double tap to level. Freeze puts the aircraft at the drop; Set attitude here puts it at this pitch and bank where it is now.')),
+    h('div', { class: 'ep-row ep-att-row' }, ball.element, h('p', { class: 'ep-sub' }, 'Drag the ball to set pitch (up and down) and bank (left and right), or type them; double tap to level. Freeze puts the aircraft at the drop; Set attitude here jumps it to this pitch and bank where it is now; Correct to flies it there.')),
     h('p', { class: 'ep-sub' }, `Gear and flaps up. Defaults: 12 NM south-west of Moose Jaw, 8,000 ft, heading out of the area, ${SETUP_DEFAULTS.kias} KIAS, ${SETUP_DEFAULTS.powerPct} % power, pitch 0°, bank 0° `, h('span', { class: 'ep-estimate' }, '(estimates)'), '.'),
-    h('div', { class: 'ep-row' }, freezeBtn, hereBtn, carryBtn, pauseBtn),
+    h('div', { class: 'ep-row' }, freezeBtn, hereBtn, correctBtn, carryBtn, pauseBtn),
     nowLine, flyingLine, stallLine, flagLine,
     h('h4', {}, 'Steps the student described'),
     rowList,
@@ -229,6 +245,7 @@ export function createSetupSection({ dispatch, button, timers = null }) {
     flagLine.textContent = fl.length ? `Flagged (a reference, not held): ${fl.join('; ')}` : '';
     carryBtn.disabled = Boolean(f.outcome);
     hereBtn.disabled = Boolean(f.outcome);
+    correctBtn.disabled = Boolean(f.outcome);
     pauseBtn.disabled = !s.running;
     renderFlyState();
     if (s.log.length !== logCount) {
