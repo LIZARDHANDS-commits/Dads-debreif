@@ -18,14 +18,14 @@ import { isGroundFix, GROUND_STEP_MAX_S } from '../../../flight-data/altitude.js
 import { FT_PER_NM } from '../../../core/units.js';
 
 /**
- * The model's fin top above its wheels, feet: the CT-156 model is scaled off Patrick's side-on photo of 156101, on which the fin top sits
- * 10.6 ft above the wheels (ct156-model.js; the published T-6A height is 10.7 ft).
+ * The model's fin-top point (the fin's mid-chord top, 4.981 ft above the origin since FU2) above its wheels, feet: the wheels stand 5.42 ft under the
+ * spinner's axis (A2: the official side view's ground line, 3d-work chunk 3), so 10.4 ft. The fin's front corner, 5.16 ft up, is 10.58 ft (10 ft 7 in) above
+ * the wheels, as the official side view. Was 10.6, from Patrick's side-on photo of 156101 (the published T-6A height is 10.7 ft).
  */
-export const FIN_TOP_ABOVE_WHEELS_FT = 10.6;
+export const FIN_TOP_ABOVE_WHEELS_FT = 10.4;
 /**
  * How far the wheels sit under the model's origin (the reference point a track's position stands for), feet: the fin top's height above
- * the origin on the model, taken from the fin top's height above the wheels. About 6.2 ft. An estimate (the model has no landing gear),
- * kept until the model has landing gear (DB-31, waiting list).
+ * the origin on the model, taken from the fin top's height above the wheels. 5.42 ft, the model's own gear (A2).
  */
 export const WHEELS_BELOW_ORIGIN_FT = FIN_TOP_ABOVE_WHEELS_FT - CT156_REFERENCE_POINTS.finTop[2] * (CT156_LENGTH_FT / CT156_UNIT_LENGTH);
 /** A step between two fixes longer than this (seconds) is a gap, not slow movement: the Debrief's 5 s hole (DB-Q6). One copy, flight-data's. */

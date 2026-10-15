@@ -8,13 +8,13 @@ const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 const F = 23.148, X = (ft) => 0.66 - ft / F;
 const ship = M.createCt156Model(THREE, { color: '#c03030', number: 104 });
-window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, pitch = 0, ground = false, sky = '#9fb8d6', ortho = 0, controls = {}, hide = [] }) => {
+window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, parked = false, pitch = 0, ground = false, sky = '#9fb8d6', ortho = 0, controls = {}, hide = [], propStopped = false }) => {
   const d = ship.userData.ct156; for (const k of Object.keys(d)) if (d[k] && d[k].isObject3D) d[k].visible = !hide.includes(k);
   renderer.setSize(w, h, false);
   const sc = new THREE.Scene(); sc.background = new THREE.Color(sky);
   sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', 1.6));
   const sun = new THREE.DirectionalLight('#ffffff', 2.0); sun.position.set(0.3, 0.6, 2); sc.add(sun, sun.target);
-  M.setGear(ship, t); M.setControls(ship, controls);
+  M.setGear(ship, t, parked); M.setControls(ship, controls); M.setPropStopped(ship, propStopped); // stopped: the blades feather over PROP_PITCH.featherS, so give it a draw after that
   ship.rotation.order = 'ZYX'; ship.rotation.set(0, -pitch * Math.PI / 180, 0);
   sc.add(ship); ship.updateMatrixWorld(true);
   if (ground) {
@@ -28,6 +28,7 @@ window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, pitch = 0, ground 
   cam.lookAt(X(at[0]), at[1] / F, at[2] / F); cam.updateMatrixWorld(true);
   window.lastView = { sc, cam }; window.THREE = THREE;
   renderer.render(sc, cam);
+  renderer.render(sc, cam); // the prop's turn and pitch are set while a picture is drawn (turnProp), so they show in the next one
   return true;
 };
 window.ready = true;
