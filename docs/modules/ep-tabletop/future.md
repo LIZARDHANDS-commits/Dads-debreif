@@ -6,3 +6,24 @@
 - **Scenario library shared between instructors** (needs storage and Patrick's yes).
 - **Formation EPs:** the emergency in a formation, with knock it off and the lead change (para 1.20.3.1), using the Formation sim's aircraft.
 - **3D cues:** smoke trail or flames outside the aircraft and oil streaks on the windscreen drawn in 3D (EP-12 keeps cues to overlays while the module is being built).
+
+## Any setup: freeze at any point of a manoeuvre (Dad, 15 Oct 2026)
+
+Dad's words: "I should be able to make any setup...QR code phone should have a 2d map where they drop the location and altitude. set nose up attitude and bank...basically any point in a manuver... Student responses should basically be to the effect of 'Id do a nose high recovery by rolling to the nearest horizon, max power, then pulling to the horizon, and rolling level' the instructor should have a way to move to that next end point or Enter a spin, or just continue the current attitude and power setting if the studnet does nothing then can repause as the situtaiton develops."
+
+What it would add (to be planned with Dad, then for Patrick's yes):
+- **Setup on the phone:** a 2D map where the instructor drops the aircraft's position, then sets altitude, pitch and bank, and any other state the plan needs (see the questions).
+- **The student answers.** How is open (question 1).
+- **The instructor's next move:**
+  - fly to the end point the student described, for example a nose-high recovery to wings level on the horizon;
+  - enter a spin;
+  - or let the aircraft carry on at its attitude and power while the situation develops;
+  - pause again at any time.
+
+Questions for Dad, then Patrick (one at a time):
+1. How the student answers: aloud to the instructor, who taps the next move; picks on the student's screen; or typed.
+2. What the setup holds beyond position, altitude, pitch and bank: heading, airspeed, power, gear and flaps?
+3. How "carry on" flies: the shared T-6 flight model, so a nose-high attitude loses speed and stalls as the T-6 would; or a simpler script.
+4. Which end points the instructor can send it to: nose-high recovery, nose-low recovery, spin entry and recovery, straight and level, and others?
+5. The spin's numbers (rotation, altitude lost a turn, recovery), from a manual page in the project files or Patrick's ruling.
+6. Where it lives: a new scenario kind in the EP Tabletop, or its own module.
