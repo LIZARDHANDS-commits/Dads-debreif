@@ -5,6 +5,7 @@
 // Browser tests for ui-kit controls.js and canvas-view.js (SPEC-ui-kit), on a
 // test page that loads them straight from src/.
 import { test, expect, expectNoA11yViolations } from './fixtures.js';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveDist } from './static-server.js';
 
@@ -343,6 +344,9 @@ test.describe('canvas view on a high-density screen', () => {
 // converter, so the page takes its baseline after one Harvard has come and gone.
 test.describe('Harvard model memory', () => {
   test('disposing the models returns the renderer to the baseline, round after round', async ({ page }) => {
+    // The page loads src/ as the dev server does, so /models/ is public/models/ as there (the delivered files).
+    await page.route(/\/models\//, (route) =>
+      route.fulfill({ path: join(ROOT, 'public', decodeURIComponent(new URL(route.request().url()).pathname)) }));
     await page.goto(`${site.url}tests/e2e/pages/ct156.html`);
     await page.waitForFunction(() => window.__ct156, null, { timeout: 30_000 });
     const { error, baseline, rounds } = await page.evaluate(() => window.__ct156);
