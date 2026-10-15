@@ -557,7 +557,7 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Who:** `#6a` `fw-structure-auditor` (**Flash / `flash`**, `b9b5857d`) + Main thread (**Argon / `pro`**).
             - **Done:** Verified in Wave 2 (`28b61f27`): `check.mjs --tag cm` `PASSED` (`15/15` blocks, `53/53` signals, `7/7` pure `B06` techniques `T1–T7`, `906 rows` in `numbers.md` with `0` missing sources, `1` delay, `1` predictor, `1` throttle owner with `0` integrators, `1` control switch `S34`, `5/5` rig cases clean, `2d5b5a8020839796` 4-ship probe); audit report filed in `b5-assumptions-decisions-log.md`.
 
-          - **`S8a` `T29b`: Climbs and descents · `not started`**
+          - **`S8a` `T29b`: Climbs and descents · built (`55c8aa35`)**
             - **Goal:** Follow Lead smoothly through fighting-wing climbs and descents in Lead's tilted flight-path plane, measuring the 50 ft low stack from Lead's current altitude and keeping G within `Lead G + 1.5 G`.
             - **Before:** `S7` and `A2`. **After:** Hands 3D flight-path plane support to `S8b`.
             - **Builds:** Reference path and vertical stack reference tilted with Lead's seen pitch/flight-path plane in `perception.js` and `fighting-wing.js` (`B02`, `B05`, `B10`) so climbs and descents feed into `S27c` (`h_T, ḣ_T`) and `B11` climb feed-forward without fighting the level hold.
@@ -569,7 +569,7 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Who:** Writer agent, Opus high, own worktree; files `perception.js`, `fighting-wing.js`, `wing-moves.js`; size **S**; budget ~1.5 h.
             - **Done:** Flown by Patrick on fighting-wing Climb and Descend and ratified.
 
-          - **`S8b` `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals) · `not started`**
+          - **`S8b` `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals) · built (`55c8aa35`)**
             - **Goal:** Hold fighting wing behind a hard-manoeuvring Lead (turns up to 4 G, roll-ins at 90°/s, back-to-back reversals), never busting 500 ft (beyond a brief kiss while correcting firmly) or crossing ahead of the 3/9 line, while accounting honestly for physical 3–4 G energy bleed (`D14`, `D26`).
             - **Before:** `S8a`. **After:** Completes all in-cone fighting-wing manoeuvring; hands off to `T30` and `T31`.
             - **Builds:** Second gauge set `b5-hard-*` in `tools/formation-gauge.mjs` (Lead at `3–4 G`, `90°/s` roll-ins `TS-222`, back-to-back reversals, into and away from in-position, stretched, and tight); any tuning or reversal-sequencing adjustments needed across `B03–B14` (keeping `CA7` predictive planner in reserve only if the chosen structure fails on back-to-back 4 G reversals).
@@ -581,7 +581,7 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Who:** Writer agent, Opus high, own worktree; files `tools/formation-gauge.mjs`, `fighting-wing.js`, `separation.js`, `techniques/*.js`, `wing-moves.js`; size **M**; budget ~2.5 h.
             - **Done:** Flown by Patrick with aggressive Lead settings and ratified.
 
-          - **`T29r` The controller HUD readout · `not started`**
+          - **`T29r` The controller HUD readout · `built; not yet seen by Patrick`**
             - **Goal:** Add a closed-by-default drop-down on the HUD beside the `TQ` row showing `#2`'s current phase, active technique and blend weight, and each loop's live demand and shares in close formation and fighting wing, plus the phase-plane view (`D3b`) on the dev plot page.
             - **Before:** Can run any time after `S3b` fixes the technique names (screen and plot files only). **After:** Ready for Patrick's flights of `S4–S8b` and Checkpoint G.
             - **Builds:** Closed HUD controller drop-down (`src/ui-kit/hud.js`, `src/modules/turn-sim/`); turn-centre phase-plane plot (`s` vs `d` with `600/500 ft` guard lines, `D3b`) in `tools/flight-plot/`.
@@ -591,7 +591,7 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Who:** Thread or UI agent; files `src/ui-kit/hud.js`, `src/modules/turn-sim/index.js`, `tools/flight-plot/`; size **S**; budget ~1 h.
             - **Done:** Seen in app and verified flying-identical.
 
-          - **`T30` Blended hand-over between close formation and fighting wing · `not started`**
+          - **`T30` Blended hand-over between close formation and fighting wing · built (`288f1c70`)**
             - **Goal:** Blend authority smoothly by range between close formation (`< 100 ft`) and fighting wing (`> 250 ft`), build Technique 8 (`moving-out` from close formation: straight back to 500 ft at 10 ft/s then out to the swept place), and eliminate the pitch-rate and roll flicks at formation hand-overs.
             - **Before:** `S8b`. **After:** Hands off to `CR` and `T31`.
             - **Builds:** Range-phased authority blend (`100 → 250 ft`, both controllers initialized bumplessly from `#2`'s bank, G, and throttle); `techniques/moving-out.js` (`B06` T8: straight back to `500 ft` at `~10 ft/s` with close-formation guard active, then out sideways to `625 ft / 45°` on his held side per `SMM 16.32 para 92, 16.38 para 105`); fixes `T1, T4, T6, T10` roll flicks and the red test (`#2`'s pitch-rate jump at a hand-over: low, fix, delayed 45).
@@ -603,14 +603,14 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Who:** Writer agent, Opus high, own worktree; files `wingman.js`, `techniques/moving-out.js` (new), `supervisor.js`, `wing-moves.js`, `tools/control-map/signals.mjs`; size **M**; budget ~2 h.
             - **Done:** Flown by Patrick (echelon ↔ fighting wing transitions) and ratified.
 
-          - **`CR` Code review of the whole B5 change · `not started`**
+          - **`CR` Code review of the whole B5 change · `gates run, agent review not done`**
             - **Goal:** Read-only audit of the complete B5 diff against `AGENTS.md`, `spec.md` §7a/§7e, `TS-233`, `TS-234`, `control-model.md`, and `numbers.md` before Checkpoint G.
             - **Before:** `T30`. **After:** `T31` and Checkpoint G.
             - **Checks:** File headers (`AGENTS.md:43`), no dead code or orphaned numbers, `check.mjs` and `draw.mjs --check` clean, all `D1–D26` and `R1–R15` findings verified closed, all default and close-formation traces unchanged.
             - **Who:** Read-only review agent, Opus high; budget ~1 h.
             - **Done:** Review findings resolved before `T31`.
 
-          - **`T31` B5's one test, docs & Checkpoint G · `not started`**
+          - **`T31` B5's one test, docs & Checkpoint G · `test built; 4-ship Lead replay and Checkpoint G open`**
             - **Goal:** Add B5's single end-picture unit test, complete all B5 documentation and decision ratifications, and run **Checkpoint G** with Patrick flying Fighting Wing Live (and deciding whether `Live` becomes the default over `Old`).
             - **Before:** `CR`. **After:** B5 complete; next rung is `B4` (rejoins `TRJ` and `SARJ` from fighting wing modeled under `TS-234`).
             - **Builds:** One test in `tests/unit/turn-sim/` (2-ship level turn into `#2` from in-position with `Live`: never inside `500 ft` slant with the reason beside it, in the cone at the end); Lead replay comparison against the recorded 2 Jun 2026 four-ship track (`plan.md:356`); final updates to `spec.md` §7e status, `decisions.md` (`TS-233` built & flown), `numbers.md`, `README.md`, waiting list, and handover.
