@@ -3,12 +3,15 @@
 <body><canvas id="c" width="1200" height="800"></canvas>
 <script type="module">
 import * as THREE from 'three';
-import { createCt156Model, setCockpitView } from '/src/ui-kit/ct156-model.js';
+import { createCt156Model, setCockpitView, setGear } from '/src/ui-kit/ct156-model.js';
+import { setCt156Level } from '/src/ui-kit/ct156-blender.js';
 import { createCt156Cockpit, EYES_FT } from '/src/ui-kit/ct156-cockpit.js';
 const SH = new URLSearchParams(location.search).get('sh') === '1' ? await import('/src/ui-kit/aircraft-shadows.js') : null;
 const F = 23.148;
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
-window.shot = ({ sb, yaw = 0, pitch = -25, fov = 55, dz = 0, dy = 0, ground = false, from = null, at = null, noGlass = false, seat = 'front', w = 1200, hgt = 800 }) => {
+// ?level=performance draws the Performance files. envRot: the reflections turned (degrees about the vertical); gearDown: the gear down (its lamps lit).
+setCt156Level(new URLSearchParams(location.search).get('level'));
+window.shot = ({ sb, yaw = 0, pitch = -25, fov = 55, dz = 0, dy = 0, ground = false, from = null, at = null, noGlass = false, seat = 'front', w = 1200, hgt = 800, envRot = 0, gearDown = false }) => {
   const sc = new THREE.Scene(); sc.background = new THREE.Color('#9fb8d6');
   sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', 1.0));
   const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(0.5, 0.9, 1.4); sc.add(sun, sun.target);
@@ -24,6 +27,8 @@ window.shot = ({ sb, yaw = 0, pitch = -25, fov = 55, dz = 0, dy = 0, ground = fa
   cam.lookAt(e.x / F + Math.cos(p) * Math.cos(y), (e.y + dy) / F + Math.cos(p) * Math.sin(y), (e.z + dz) / F + Math.sin(p));
   if (from) { cam.position.set(from[0] / F, from[1] / F, from[2] / F); cam.lookAt(at[0] / F, at[1] / F, at[2] / F); }
   if (noGlass) ship.userData.ct156.canopy.visible = false;
+  if (gearDown) setGear(ship, 1);
+  ship.traverse((o) => { for (const m of [o.material ?? []].flat()) m.envMapRotation?.set(0, 0, envRot * Math.PI / 180); });
   cam.updateMatrixWorld(true);
   window.last = { sc, cam, ship, pit };
   renderer.render(sc, cam); return true;

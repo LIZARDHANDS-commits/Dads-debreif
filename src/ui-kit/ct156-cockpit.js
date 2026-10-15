@@ -2179,6 +2179,15 @@ function ventParts(THREE, x, y, z, put, SLOT) {
   for (let k = 0; k < 4; k++) put(turn(box(THREE, -0.05, -0.04, -0.11, 0.11, -0.055 + k * 0.037, -0.045 + k * 0.037)), SLOT.black);
 }
 
+/** A one-pixel sky picture marked for the look (ct156-look.js swaps any envMap so marked for its own sky). */
+function skyStandIn(THREE) {
+  const t = new THREE.DataTexture(new Uint8Array([159, 184, 214, 255]), 1, 1);
+  t.mapping = THREE.EquirectangularReflectionMapping;
+  t.userData.ct156Env = true;
+  t.needsUpdate = true;
+  return t;
+}
+
 /** The interior's paint grain (paintGrain's sizes, feet): estimates, judged on renders beside Patrick's reference picture. */
 export const INTERIOR_GRAIN = Object.freeze({ grain: 0.012, bump: 0.0012, speckle: 0.08, mottle: 0.12, mottleSize: 0.4, wear: 0.18, wearSize: 0.05, shine: 0.15 });
 
@@ -2796,8 +2805,10 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   // rails are mid grey). The bow band the walls' grey (G15).
   const slotMats = [
     solid(PANEL_GREY, { roughness: 0.85 }), solid('#1d2023', { roughness: 0.75 }), solid('#1d2024', { roughness: 0.6 }), solid('#b3202a', { roughness: 0.5 }),
-    // The mirrors chrome (Patrick, 12 Oct 2026, "Construction only", from his reference picture; were blue-grey).
-    solid('#e4e8ec', { roughness: 0.12, metalness: 0.85, emissive: '#8f969d' }), solid('#c9ced4', { roughness: 0.5 }),
+    // The mirrors chrome (Patrick, 12 Oct 2026, "Construction only", from his reference picture; were blue-grey), their
+    // faces reflecting the sky (3d-work handover 4.4: the environment, not a second camera): a stand-in sky that the look
+    // (ct156-look.js) swaps for its own before the first draw; the self-lit grey lowered so the reflection shows.
+    solid('#e4e8ec', { roughness: 0.05, metalness: 1, emissive: '#3a3e42', envMap: skyStandIn(THREE), envMapIntensity: 1 }), solid('#c9ced4', { roughness: 0.5 }),
     lamp('#3a1414'), lamp('#3a2c0e'), lamp('#10301a'),
     // The forward bow and the arch, the cockpit's own grey (Patrick, 12 Oct 2026, "color of the bow should match our
     // interior too right", a little self-lit as the panel reads; was '#d3d6d9' self-lit '#7a7d80', white to light grey, TS-156),

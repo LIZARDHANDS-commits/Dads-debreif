@@ -197,7 +197,9 @@ onCt156Look((look) => {
  * The painted weathering (3d-work slice 4.1, scratch/increment-4/app-handover.md; the reference is 3d-work
  * ct156/build/bake4/s5_render.py look_material): each channel shown as smoothstep(t, t + 0.5, v) x (0.45 + 0.55 k),
  * t = 0.75 (1 - k), k the strength (0 none); the paint mixed toward worn paint, scuffs, oil and soot in that order
- * (linear colours), and the roughness raised by soot, scuffs and wear and lowered by oil. The strength changes how far
+ * (linear colours; the worn paint and scuffs only ever lighten, as the spec has them, "faint lighter wear": on the navy
+ * that is the formula exactly, and the white leading edges, lighter already, are left clean rather than greyed), and
+ * the roughness raised by soot, scuffs and wear and lowered by oil. The strength changes how far
  * and how dark, never the colours. Above k 1 (the slider runs to 1.5) t stays 0, so clean paint stays clean and only
  * the marks' darkness grows, held at the colour itself (a judgement, logged for Patrick: the formula alone would wash
  * the whole aircraft past heavy).
@@ -215,8 +217,8 @@ const WEATHER_GLSL = `
 	float ct156FScuff = min( smoothstep( ct156T, ct156T + 0.5, ct156W.a ) * ct156A, 1.0 );
 	float ct156FOil = min( smoothstep( ct156T, ct156T + 0.5, ct156W.g ) * ct156A, 1.0 );
 	float ct156FSoot = min( smoothstep( ct156T, ct156T + 0.5, ct156W.r ) * ct156A, 1.0 );
-	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.030, 0.034, 0.048 ), ct156FWear );
-	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.024, 0.026, 0.034 ), ct156FScuff );
+	diffuseColor.rgb = mix( diffuseColor.rgb, max( diffuseColor.rgb, vec3( 0.030, 0.034, 0.048 ) ), ct156FWear );
+	diffuseColor.rgb = mix( diffuseColor.rgb, max( diffuseColor.rgb, vec3( 0.024, 0.026, 0.034 ) ), ct156FScuff );
 	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.011, 0.010, 0.010 ), ct156FOil );
 	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.010, 0.009, 0.009 ), ct156FSoot );`;
 
@@ -252,7 +254,7 @@ uniform float ct156Wear;${sheen ? '\nuniform sampler2D ct156Sheen;' : ''}`)
         .replace('#include <map_fragment>', `#include <map_fragment>
 #ifdef USE_AOMAP
 	float ct156Curv = texture2D( ct156Mask, vAoMapUv ).g;
-	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.09, 0.10, 0.13 ), clamp( ( ct156Curv - 0.5 ) * 2.0 * ct156Wear, 0.0, 1.0 ) );
+	diffuseColor.rgb = mix( diffuseColor.rgb, max( diffuseColor.rgb, vec3( 0.09, 0.10, 0.13 ) ), clamp( ( ct156Curv - 0.5 ) * 2.0 * ct156Wear, 0.0, 1.0 ) );
 	diffuseColor.rgb *= 1.0 - 0.6 * clamp( ( 0.5 - ct156Curv ) * 2.0 * ct156Wear, 0.0, 1.0 );${WEATHER_GLSL}
 #endif`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -291,7 +293,7 @@ export function ct156CloneMaterial(material) {
  * its neighbourhood's (a 9 px box), every patch of skin they enclose is one panel and gets its own value (0 to 1, from
  * its first pixel's place), and the lines themselves 0.5 (none). So the variation changes only on a panel line (or at a
  * layout island's edge), never in a grid. Read once a page on the CPU from the mask's pixels: a picture of one byte per
- * pixel at the mask's size. Returns { texture, panels, ms }.
+ * pixel at the mask's size. Returns { texture, panels, samples (five panel-to-panel crossings), ms }.
  */
 export function ct156PanelSheen(THREE, mask) {
   const t0 = performance.now();
@@ -351,13 +353,27 @@ export function ct156PanelSheen(THREE, mask) {
       }
     }
   }
+  // Five places where one panel's sheen meets another's along a row, for the checks: where on the layout, how many line
+  // pixels part them, and the mask's red there against its neighbourhood (under 0.88: a panel line).
+  const samples = [];
+  for (let k = 0; k < 5; k++) {
+    for (let i = Math.floor(((k + 0.5) * n) / 5); i < n - 8 && samples.length === k; i++) {
+      if (out[i] === 128 || out[i + 1] !== 128) continue;
+      let j = i + 1;
+      while (j < i + 8 && out[j] === 128) j++;
+      if (out[j] === 128 || out[j] === out[i] || Math.floor(j / w) !== Math.floor(i / w)) continue;
+      const y = Math.floor(i / w), x = i % w, x0 = Math.max(0, x - R), x1 = Math.min(w, x + R + 2), y0 = Math.max(0, y - R), y1 = Math.min(H, y + R + 1);
+      const mean = (S[y1 * (w + 1) + x1] - S[y0 * (w + 1) + x1] - S[y1 * (w + 1) + x0] + S[y0 * (w + 1) + x0]) / ((y1 - y0) * (x1 - x0));
+      samples.push({ u: +(x / w).toFixed(4), v: +(y / H).toFixed(4), linePx: j - i - 1, lineRatio: +(r[i + 1] / mean).toFixed(2) });
+    }
+  }
   const texture = new THREE.DataTexture(out, w, H, THREE.RedFormat, THREE.UnsignedByteType);
   texture.flipY = false;
   texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.generateMipmaps = true;
   texture.needsUpdate = true;
-  return { texture, panels, ms: Math.round(performance.now() - t0) };
+  return { texture, panels, samples, ms: Math.round(performance.now() - t0) };
 }
 
 /**

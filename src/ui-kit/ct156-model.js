@@ -974,7 +974,7 @@ function attachExterior(kit) {
       if (kit.disposed) return;
       const sheen = ct156PanelSheen(kit.THREE, p.mask);
       kit.own.push(sheen.texture);
-      kit.sheenInfo = { panels: sheen.panels, ms: sheen.ms };
+      kit.sheenInfo = { panels: sheen.panels, ms: sheen.ms, samples: sheen.samples };
       kit.skin = { normal: p.normal, mask: p.mask, weather: p.weather, sheen: sheen.texture };
       kit.ao = p.ao;
       for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
@@ -1046,6 +1046,27 @@ function showLamps(lamps) {
     setPlain(mesh, lit ? [mats.gearLamp[0], mats.lamp, mats.lamp] : mats.gearLamp);
     if (kit.lampDelivered && kit.gearAo) shadeMesh(kit, mesh, true);
   }
+}
+
+/**
+ * The canopy's tinted glass seen from outside (next-steps 5b, Patrick 15 Oct 2026; 3d-work handover 4.4): the sky's
+ * reflection as before (envMap), and toward the glass's edges, where it is seen at a glancing angle, more of the tint and
+ * less of what is behind (a Fresnel-like rise, (1 - |n.v|)^3, to GLASS_EDGE's opacity, the light dimmed by up to
+ * GLASS_EDGE_DIM), so the hood reads as curved glass and its edges darker than its middle. Numbers estimates, judged on
+ * renders. Returns the material.
+ */
+const GLASS_EDGE = 0.85, GLASS_EDGE_DIM = 0.85;
+function canopyGlass(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
+		float ct156Glance = pow( 1.0 - abs( dot( normal, normalize( vViewPosition ) ) ), 3.0 );
+		diffuseColor.a = mix( diffuseColor.a, ${GLASS_EDGE.toFixed(3)}, ct156Glance );
+		outgoingLight *= 1.0 - ${GLASS_EDGE_DIM.toFixed(3)} * ct156Glance;
+	}
+	#include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => 'ct156-canopy-glass';
+  return material;
 }
 
 const kits = new WeakMap(); // THREE namespace -> kit
@@ -2769,7 +2790,7 @@ function buildKit(THREE) {
     // The stacks' sooty insides: a dull brown-black, grained and blotchy, not a smooth shiny black (Patrick, 12 Oct 2026,
     // pinned on a stack's open end: "give the whole interior a texture, its not quite right"; was the blades' black).
     soot: paintGrain(mat({ color: '#2b251d', roughness: 0.95 }), { unit: 1 / FT, grain: 0.02, bump: 0.0015, speckle: 0.15, mottle: 0.2, mottleSize: 0.12, wear: 0, shine: 0.05 }),
-    glass: mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two }),
+    glass: canopyGlass(mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two })),
     // The canopy seen from inside (setCockpitView): a faint clear tint, no reflections, so the sky shows through it.
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
