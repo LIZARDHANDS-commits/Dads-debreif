@@ -40,9 +40,19 @@ function buildMissPlan(ctx, prevPlan = null) {
   const dOmegaMag = dqFt > 0 ? clamp((2 * dqFt) / (Math.max(V, 100) * Math.max(tPass, 2) ** 2), 0, M.maxTurnMixRadps) : 0;
   const deltaOmegaRadps = -turnDir * dOmegaMag;
 
-  // Picture-based energy intent at planning (3b §7): -0.5 bleed if closing > 20 ft/s or predicted arc < 600 ft; +0.5 gain if > 750 ft
+  // Picture-based energy intent at planning (3b §7): -0.5 bleed if closing > 20 ft/s or predicted arc < 600 ft; +0.5 gain if > 750 ft.
+  // In steep (> 2.2 G / > 62° bank) turns where induced drag already bleeds airspeed, only bleed on high closure (> 50 ft/s).
   const predArcFt = (ctx.arc?.arcFt ?? seen.slant) - seen.closure * Math.min(tPass, 4);
-  const energyIntent = seen.closure > 20 || predArcFt < 600 ? -0.5 : predArcFt > 750 ? 0.5 : 0;
+  const steepTurn = (seen.leadG ?? 1) > 2.2 || Math.abs(seen.leadBankDeg ?? 0) > 62;
+  const energyIntent = steepTurn
+    ? seen.closure > 50
+      ? -0.5
+      : 0
+    : seen.closure > 20 || predArcFt < 600
+      ? -0.5
+      : predArcFt > 750
+        ? 0.5
+        : 0;
 
   return {
     plannedPassFt: p,
@@ -52,6 +62,7 @@ function buildMissPlan(ctx, prevPlan = null) {
     depthFt,
     heightTargetFt,
     avFtps2,
+    dqFt,
     deltaOmegaRadps,
     turnDir,
     energyIntent,
@@ -91,7 +102,10 @@ export const FW_MISS_TECHNIQUE = Object.freeze({
     const hErr = nextState.heightTargetFt - ctx.seen.heightFt;
     const nearBottom = Math.abs(hErr) < 35 || Math.sign(hErr) !== nextState.vertSign;
     const passedBottom = nextState.passedBottom || nearBottom || ctx.seen.closure <= 0;
-    const clearNow = p > M.donePassFt && ctx.seen.closure <= M.cueClosureFtps && passedBottom;
+    const clearNow =
+      p > M.donePassFt &&
+      (ctx.seen.closure <= M.cueClosureFtps || (p > M.clearSlantFt && ctx.seen.slant > M.clearSlantFt)) &&
+      passedBottom;
     const doneHoldSec = clearNow ? nextState.doneHoldSec + STEP_SEC : 0;
     const done = doneHoldSec >= M.doneDwellSec;
 
@@ -99,9 +113,10 @@ export const FW_MISS_TECHNIQUE = Object.freeze({
     const rateMag = Math.min(M.maxRateFtps, Math.sqrt(2 * nextState.avFtps2 * Math.abs(hErr)) * 0.65);
     const heightRateTargetFtps = Math.abs(hErr) > 5 ? Math.sign(hErr) * rateMag : 0;
 
-    // Outward course bias toward Lead's tail while passing clear, plus least turn mix Δω (D4)
+    // Outward course bias toward Lead's tail only when vertical drop alone leaves a horizontal residual dqFt (D4)
     const normalRef = ctx.normalRef;
-    const lagBiasDeg = -nextState.turnDir * FW_WING.chiMaxOutDeg * clamp01((M.donePassFt - p) / 150);
+    const horizNeedShare = clamp01((nextState.dqFt ?? 0) / 120);
+    const lagBiasDeg = -nextState.turnDir * FW_WING.chiMaxOutDeg * horizNeedShare * clamp01((M.donePassFt - p) / 150);
     const ref = makeFwReference({
       ...normalRef,
       pathKind: 'circle',

@@ -399,9 +399,13 @@ export function seeFw(mem, ref, own) {
   // Lead's G (S05b, D22): lift's share along his body up from how his velocity turned over the step before the seen moment.
   const acc = scale3(sub3(s0.ref.v, s1.ref.v), 1 / STEP_SEC);
   const gRaw = dot3(add3(acc, scale3(Z, G_FTPS2)), f0Ref.up) / G_FTPS2;
+  const kias0 = tasToIasKt(len3(s0.ref.v) / KT_TO_FTPS, s0.ref.p.z);
+  const kias1 = tasToIasKt(len3(s1.ref.v) / KT_TO_FTPS, s1.ref.p.z);
+  const accelRaw = (kias0 - kias1) / STEP_SEC;
   const f0 = mem.filt;
   const roll = ease(f0.roll ?? 0, rollRaw, FW_SEE.rollSec);
   const g = ease(f0.g, gRaw, FW_SEE.gSec);
+  const accel = ease(f0.accel ?? 0, accelRaw, FW_SEE.gSec);
   // Bank carry-on across 0.4 s (D3, S03), capped at ±max(|b0|, bankCarryMaxDeg) so steeply banked turns do not clip downward.
   const bCap = Math.max(Math.abs(b0), FW_SEE.bankCarryMaxDeg);
   const leadBankDeg = mem.picture ? b0 : Math.max(-bCap, Math.min(bCap, b0 + roll * FW_SEE.delaySec));
@@ -412,13 +416,14 @@ export function seeFw(mem, ref, own) {
   const closure = dot3(sub3(ownUsed.v, lead.v), raw.los);
   const losRateRaw = scale3(cross3(f0.los, sub3(raw.los, f0.los)), 1 / STEP_SEC);
   const losRate = ease3(f0.losRate, losRateRaw, FW_SEE.losSec);
-  const filt = { roll, losRate, g, los: raw.los };
+  const filt = { roll, losRate, g, accel, los: raw.los };
   const next = { buf, filt, ...(mem.late ? { late: mem.late } : {}), ...(mem.picture ? { picture: true } : {}) };
   const seen = {
     ...raw,
     leadBankDeg,
     leadRollDps: roll,
     leadKias: tasToIasKt(len3(lead.v) / KT_TO_FTPS, lead.p.z),
+    leadAccelKtps: accel,
     closure,
     losRate,
     losDps: len3(losRate) / DEG,

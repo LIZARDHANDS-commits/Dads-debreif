@@ -176,7 +176,7 @@ const B3 = [
  * right, so a turn right (dir -1) is into him. Each turn is held 30 s, then Wings level and 30 s more. The fighting wing
  * measures (fwTally) are kept for every press.
  */
-function b5(name, at, presses, first = 'fw') {
+function b5(name, at, presses, first = 'fw', extraOpts = {}) {
   const setup = (f) => {
     f.change(first);
     settle(f);
@@ -203,10 +203,11 @@ function b5(name, at, presses, first = 'fw') {
       two.yFt = L.yFt + dy * k;
     }
   };
-  return { name: `b5-${name}`, b5: true, options: { fwWing: fwArg }, setup, presses };
+  return { name: `b5-${name}`, b5: true, options: { fwWing: fwArg, ...extraOpts }, setup, presses };
 }
 const wingsLevel = { label: 'Wings level, 30 s', press: (f) => f.pressFw('wingsLevel'), sec: 30 };
 const turnFw = (dir, label, sec = 30) => ({ label, press: (f) => f.pressFw('levelTurn', dir), sec });
+const b5Hard = (name, at, presses, fluidBank = 'steep') => b5(`hard-${name}`, at, presses, 'fw', { fluidBank });
 const B5 = [
   b5('into-in-position', null, [turnFw(-1, 'Level turn into #2, in position, 30 s'), wingsLevel]),
   b5('away-in-position', null, [turnFw(1, 'Level turn away from #2, in position, 30 s'), wingsLevel]),
@@ -232,6 +233,21 @@ const B5 = [
   b5('level-tight', 520, [{ label: 'Wings level from tight (520 ft), 30 s', press: (f) => f.pressFw('wingsLevel'), sec: 30 }]),
   b5('outside-cone', 1300, [turnFw(-1, 'Level turn into #2 from outside the cone (1,300 ft), 30 s'), wingsLevel]),
   b5('echelon-to-fw', null, [{ label: 'Echelon to fighting wing', press: (f) => f.change('fw'), sec: 'done' }], 'echelon'),
+  // S8b (T29d): Aggressive Lead (to 4 G, 90°/s roll-ins TS-222, back-to-back reversals, into/away from in-position, stretched, tight).
+  b5Hard('into-in-position', null, [turnFw(-1, 'Steep 3 G turn into #2, in position, 20 s', 20), wingsLevel]),
+  b5Hard('away-in-position', null, [turnFw(1, 'Steep 3 G turn away from #2, in position, 20 s', 20), wingsLevel]),
+  b5Hard('into-stretched', 950, [turnFw(-1, 'Steep 3 G turn into #2, stretched (950 ft), 20 s', 20), wingsLevel]),
+  b5Hard('away-stretched', 950, [turnFw(1, 'Steep 3 G turn away from #2, stretched (950 ft), 20 s', 20), wingsLevel]),
+  b5Hard('into-tight', 520, [turnFw(-1, 'Steep 3 G turn into #2, tight (520 ft), 20 s', 20), wingsLevel]),
+  b5Hard('away-tight', 520, [turnFw(1, 'Steep 3 G turn away from #2, tight (520 ft), 20 s', 20), wingsLevel]),
+  b5Hard('reversals', null, [
+    turnFw(1, 'Steep 3 G turn away from #2, 12 s', 12),
+    { label: 'Hard reversal into #2, 15 s', press: (f) => f.pressFw('reversal'), sec: 15 },
+    { label: 'Hard reversal away from #2, 15 s', press: (f) => f.pressFw('reversal'), sec: 15 },
+    wingsLevel,
+  ]),
+  b5Hard('4g-into', null, [turnFw(-1, 'Hard 4 G (75.5°) turn into #2, 15 s', 15), wingsLevel], 75.5),
+  b5Hard('4g-away', null, [turnFw(1, 'Hard 4 G (75.5°) turn away from #2, 15 s', 15), wingsLevel], 75.5),
 ];
 
 /**

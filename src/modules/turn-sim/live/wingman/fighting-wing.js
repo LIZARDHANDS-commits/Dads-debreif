@@ -80,20 +80,23 @@ export function startFwWing(aircraft, refSt, { blockFt }) {
   };
 }
 
-/** Lead's wing line and path, level: { nose (his path, unit), left (level, unit) }; the cone's frame. */
+/** Lead's wing line and path, level: { nose (his horizontal path, unit), left (level, unit) }; the cone's frame. */
 function coneFrame(v) {
-  const nose = unit3(v);
+  const horiz = { x: v.x, y: v.y, z: 0 };
+  const nose = len3(horiz) > 1e-6 ? unit3(horiz) : unit3(v);
   const left = unit3(cross3(Z, nose));
   return { nose, left };
 }
 
 /**
- * The plane he steers in: Lead's turn plane once Lead turns faster than turnPlaneRadps (his lift plane: Spec 7e §7.7), else
- * level. Returns { omegaL (Lead's seen turn, rad/s vector), turning, out (the plane's normal, upward) }.
+ * The plane he steers in: Lead's turn plane once Lead is banked (>= turnFrameDeg) and turning faster than turnPlaneRadps
+ * (his lift plane: Spec 7e §7.7), else level (so wings-level pitch changes in climbs/descents never tilt the turn plane sideways, S8a).
+ * Returns { omegaL (Lead's seen horizontal/banked turn, rad/s vector), turning, out (the plane's normal, upward) }.
  */
 function turnPlaneOf(seen) {
-  const omegaL = seen.turn.omega;
-  const turning = len3(omegaL) > W.turnPlaneRadps;
+  const banked = Math.abs(seen.leadBankDeg) >= W.turnFrameDeg;
+  const omegaL = banked ? seen.turn.omega : { x: 0, y: 0, z: 0 };
+  const turning = banked && Math.abs(dot3(omegaL, Z)) > W.turnPlaneRadps;
   const out = turning ? scale3(unit3(omegaL), Math.sign(dot3(omegaL, Z)) || 1) : Z;
   return { omegaL, turning, out };
 }
@@ -108,7 +111,7 @@ function leadNowOf(seen, st, picture = false) {
  * Curvilinear range in Lead's turn (S18, S19, S20; Spec 7e §7.5): s = R atan2(-x, R - y) the arc behind Lead round his
  * circle, d = R - sqrt((R - y)^2 + x^2) the offset inside it (+ toward centre), and closing from velocities. When Lead's
  * turn radius exceeds maxCircleRadiusFt (20,000 ft) or bank < turnFrameDeg, falls back smoothly to straight-line limits
- * (-x, y, dot(ownV, nL) - V_L) so (s, d, closing) are continuous through wings level (D17, D21).
+ * (-x, y, dot(ownV - leadV, cone.nose)) in Lead's horizontal heading frame so climbs/descents do not couple stack height into range (S8a, D17, D21).
  */
 function arcRange(seen, job, now, cone) {
   const { leadNow, leadV, ownP, ownV } = now;
@@ -117,9 +120,9 @@ function arcRange(seen, job, now, cone) {
   const onCircle = Boolean(seen.turn.centre) && Number.isFinite(R) && R <= W.maxCircleRadiusFt && Math.abs(seen.leadBankDeg) >= W.turnFrameDeg;
   const inward = onCircle ? unit3(seen.turn.aPerp) : scale3(cone.left, job.dir || seen.levelSide || -1);
   const rel = sub3(ownP, leadNow);
-  const x = dot3(rel, nL);
+  const x = dot3(rel, onCircle ? nL : cone.nose);
   const y = dot3(rel, inward);
-  const linClosing = dot3(ownV, nL) - len3(leadV);
+  const linClosing = dot3(sub3(ownV, leadV), cone.nose);
   if (!onCircle) {
     return {
       onCircle: false,
@@ -446,9 +449,17 @@ export function liftWithin(aTurn, hold, cap, bodyUp, vert = null) {
       capGaveWay = 'climb';
     } else {
       const holdRem = vertG > 0 ? hold1G : hold;
-      if (len3(turn) <= gLim + 1e-9) {
-        lift = add3(turn, scaleToCap(turn, holdRem, gLim).vec);
+      const deepBelow = (vert?.errFt ?? 0) > 80;
+      const minHoldShare = deepBelow ? 1.0 : 0.8;
+      const holdFloor = scale3(holdRem, minHoldShare);
+      const holdFlex = scale3(holdRem, 1 - minHoldShare);
+      const fixedTurnPlusFloor = add3(turn, holdFloor);
+      if (len3(fixedTurnPlusFloor) <= gLim + 1e-9) {
+        lift = add3(fixedTurnPlusFloor, scaleToCap(fixedTurnPlusFloor, holdFlex, gLim).vec);
         capGaveWay = 'hold';
+      } else if (len3(holdFloor) < gLim) {
+        lift = add3(holdFloor, scaleToCap(holdFloor, turn, gLim).vec);
+        capGaveWay = 'turn';
       } else {
         lift = len3(turn) > 1e-9 ? scale3(unit3(turn), gLim) : { x: 0, y: 0, z: 0 };
         capGaveWay = 'turn';
@@ -487,10 +498,12 @@ function powerFromRef(w, seen, st, guard, ref, commandedG, leadKias) {
   // Effective energy intent: min(reference intent S27d, -guard bleed request S39) in [-1, +1]
   const effectiveIntent = clamp(Math.min(ref.energyIntent ?? 0, -(guard.bleedReq ?? 0)), -1, 1);
 
-  // Speed brake switch S34 (D8, D25): uses un-smoothed velocity-projected slant closure S14 (seen.closure)
+  // Speed brake switch S34 (D8, D25): uses un-smoothed velocity-projected slant closure S14 (seen.closure);
+  // suppressed when high G (> 2.2 G or > 62° bank) is already bleeding energy via induced drag (S8b, D14).
   const slantClosing = seen.closure;
   const fastEnough = st.kias >= leadKias - 5;
-  const triggerCond = fastEnough && slantClosing > BI.boardsFtps && effectiveIntent <= BI.bleedOnIntent;
+  const highGBleed = commandedG > 2.2 || (seen.leadG ?? 1) > 2.2 || Math.abs(seen.leadBankDeg ?? 0) > 62;
+  const triggerCond = fastEnough && !highGBleed && slantClosing > BI.boardsFtps && effectiveIntent <= BI.bleedOnIntent;
   const boardsOnSec = triggerCond ? (w.boardsOnSec ?? 0) + STEP_SEC : 0;
   let boards = Boolean(w.boards);
   let boardsHoldSec = w.boardsHoldSec ?? 0;
@@ -501,7 +514,7 @@ function powerFromRef(w, seen, st, guard, ref, commandedG, leadKias) {
     }
   } else {
     boardsHoldSec += STEP_SEC;
-    const retractCond = slantClosing < BI.boardsOffFtps || effectiveIntent > BI.bleedOffIntent || !fastEnough;
+    const retractCond = slantClosing < BI.boardsOffFtps || effectiveIntent > BI.bleedOffIntent || !fastEnough || highGBleed;
     if (boardsHoldSec >= BI.boardsHoldSec - 1e-9 && retractCond) {
       boards = false;
       boardsHoldSec = 0;
@@ -516,7 +529,7 @@ function powerFromRef(w, seen, st, guard, ref, commandedG, leadKias) {
   const ownClimbFtps = st.vel.z;
   const plannedClimbFtps = leadClimbFtps + (ref.heightRateTargetFtps ?? 0);
   const climbFfFtps = 0.5 * ownClimbFtps + 0.5 * plannedClimbFtps;
-  const ffThrottle = throttleFor(0, kias, altFt, commandedG, climbFfFtps, boards ? 'boards' : null);
+  const ffThrottle = throttleFor(seen.leadAccelKtps ?? 0, kias, altFt, commandedG, climbFfFtps, boards ? 'boards' : null);
   const cmdGDragFrac = ffThrottle; // S44
 
   // Roll-in power lead from Lead's seen roll rate S04 and extrapolated bank S03 (Spec 7e §7.8, Fable 3b §1)
