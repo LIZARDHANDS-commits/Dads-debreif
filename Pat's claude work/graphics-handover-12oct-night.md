@@ -5,7 +5,22 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (15 Oct 2026, afternoon): increments 3.1, 4.1 and 4.5A built in `3d-work`, not yet imported here
+## Latest (15 Oct 2026, evening): increment 4.2 and 4.4 built here, draft PR, V2.462
+
+- **Branch `shared-3d-ct156-increment4`** (stacked on #1049), draft PR "V2.462 Shared 3D: the CT-156's baked pictures,
+  glass, reflections and lights (increment 4.2 + 4.4)". Delivery `ct156-2026-10-15-117020e` (layout 3) imported.
+- **What changed:** relief, mask and painted weathering drawn with MikkTSpace tangents (`ct156-blender.js` `loadParts`
+  `tangents`, `aoShaded`), pictures loaded per level at checked sizes and switched in only when all are in
+  (`shadeWhenLoaded`, the one test); panel sheen per real panel (`ct156PanelSheen`); the look sliders
+  (`ct156-look-settings.js`, a "Look (3D)" menu beside Graphics in Formation and Traffic); canopy glass edges, mirror
+  and paint reflections, nav and tail lenses (`ct156-model.js`, `ct156-cockpit.js`). The render pages take `?level=`,
+  `look`, `envRot`, `env`, `hideGlass`, `dusk`, `sun`, `gearDown`.
+- **Not done:** 4.5B/C (part 2 of the same run, next); the mirror brackets' colour (W2: the bracket is in the
+  master's `grey` slot, a 3d-work change); the lamps can't be seen lit from a seat (under the wing); item 8 (the
+  Graphics switch picking the files) waits, as Patrick moved it after increment 4. Run notes and pictures:
+  `3d-work/scratch/increment-4/app-run/`.
+
+## Earlier (15 Oct 2026, afternoon): increments 3.1, 4.1 and 4.5A built in `3d-work`, not yet imported here
 
 - **Built in `3d-work`, each a draft PR stacked on the one before (#111, then #112, #113, #115), nothing merged:**
   3.1 the hand-cut Performance outside (#112; the weld fix keeps every part's triangles, delivery
