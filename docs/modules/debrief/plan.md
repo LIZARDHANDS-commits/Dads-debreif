@@ -64,8 +64,8 @@ Dad: "add 3D from the cockpit to the KML viewer ... if there is a GPS gap, for t
 The plan, Dad's picks and the math: [drop-plan.md](drop-plan.md). Built after the C-130J model (shared plan Step 3e).
 
 - [ ] 1. The numbers: AFMAN 11-231 and the BDU-33's published data read into the plan's table with pages; estimates marked.
-- [ ] 2. Spec, requirements and decisions (DB-36 onward) with a screen picture, approved before code.
-- [ ] 3. Core `drop.js` (the fall and the CARP) with one light test.
+- [ ] 2. Spec, requirements and decisions (DB-36 onward) with a screen picture, approved before code. **Spec section, DB-36 and DB-R29 written (15 Oct 2026) from the approved plan ("pat yes all this"); the screen picture still to send.**
+- [x] 3. Core `drop.js` (the fall and the CARP) with one light test. **Built 15 Oct 2026 (`src/core/drop.js`, `tests/unit/core/drop.test.js`); not yet used on screen.**
 - [ ] 4. The Drop box in Tools, the drawing in 2D and 3D, saved with the debrief.
 - [ ] 5. Sign-off checklist run on a real flight with a known drop.
 

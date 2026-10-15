@@ -40,8 +40,8 @@ First pass, 15 Oct 2026, read through web-search summaries only: the USAF public
 | G-12 load | 501 to 2,200 lb on one canopy (3,500 lb on two) | Mills Manufacturing G-12 page | unchecked |
 | G-12 rate of descent | **not found yet**; working estimate 28 ft/s (the newer low-cost cargo chutes are said to be "less than 28 ft/s", Joint Base Charleston article, which is not a G-12 figure) | estimate | **open: AFMAN 11-231 or the G-12 manual** |
 | Typical release | 140 KIAS for the G-12 (Safran/Airlift data sheet); lowest drop height 475 to 550 ft AGL (CKSA product page) | flags only, never walls | unchecked |
-| A-22 preset weight | about 1,000 lb (inside the G-12's 501 to 2,200 lb) | estimate | estimate |
-| CDS drift factor | K = 1.5 in the drift rule D = K·A·U (D in yards, A in hundreds of feet, U wind in knots), on the 1997 AF IMT 4013 worksheet (K = 3.0 personnel); a cross-check on the computed drift, not used for it | AF IMT 4013 (1997), through a search summary | unchecked, old form |
+| A-22 preset weight | 2,200 lb, the G-12's rated top load, so the preset settles at the working 28 ft/s (a 1,000 lb bag on the same canopy settles near 19 ft/s) | estimate | estimate |
+| CDS drift factor | K = 1.5 in the drift rule D = K·A·U (D in yards, A in hundreds of feet, U wind in knots), on the 1997 AF IMT 4013 worksheet (K = 3.0 personnel); a cross-check on the computed drift, not used for it. **The sources disagree:** K = 1.5 means a mean descent of about 37.5 ft/s (D = U × 1.688 × 100A ÷ rate ft, so K = 56.3 ÷ rate in ft/s), faster than the working 28 ft/s; for Patrick or Dad to settle with AFMAN 11-231 | AF IMT 4013 (1997), through a search summary | unchecked, old form; **disagrees** |
 | Open delay, time to open | estimate (about 2 s and 2 s) until AFMAN 11-231's ballistic data is read | estimate | estimate |
 
 **Asked of Dad (15 Oct 2026):** a copy of AFMAN 11-231 (public; it opens in a normal browser) into the project files, so its pages can be read and cited; and the G-12's rate of descent if he knows it from practice.
