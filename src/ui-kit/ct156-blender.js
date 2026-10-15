@@ -33,12 +33,53 @@ export function loadParts(file) {
     }));
 }
 
+/**
+ * Where the CT-156's delivered files sit (plan Step 3b item 3.4): public/models/ct156/, written only by
+ * `npm run models:import` from a checked delivery of the 3d-work repo (ALL-38: Blender owns the shape). High and
+ * Performance each have their own folder; the app loads High until the Graphics switch picks the level (item 8).
+ */
+export const CT156_FILES = 'ct156/high/';
+
+let delivery = null;
+let told = false;
+/** The delivery the files came from (public/models/ct156/delivery.json): Promise of its name, or null without one. */
+function ct156Delivery() {
+  if (!delivery) {
+    delivery = fetch(modelsUrl('ct156/delivery.json'))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((sheet) => sheet?.name ?? null, () => null);
+  }
+  return delivery;
+}
+
+/**
+ * A delivered file's parts (loadParts), used only when every part carries the name of the delivery the import wrote
+ * beside them, so a mixed or half-copied set never shows. This replaced the code's fingerprints (plan 3.4, Patrick
+ * 13 Oct 2026): the file is now the shape's one source and differs from the code's shape on purpose once a fix is made.
+ * Rejects otherwise, and the code's own parts stay.
+ */
+export function loadDelivered(file) {
+  return Promise.all([ct156Delivery(), loadParts(CT156_FILES + file)]).then(([name, list]) => {
+    const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
+    if (!name || foreign.length) {
+      console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);
+      throw new Error('not delivered');
+    }
+    if (!told) {
+      told = true;
+      console.info(`CT-156 models: delivery ${name}`);
+    }
+    return list;
+  });
+}
+
 /** A baked soft-shadow picture beside the files, laid on its part's own UV map; loaded once a page. */
 const aoTextures = new Map();
 export function loadAo(THREE, file) {
   if (!aoTextures.has(file)) {
     const t = new THREE.TextureLoader().load(modelsUrl(file));
     t.flipY = false; // as glTF's own pictures: its UV maps run top down
+    t.anisotropy = 16; // sharp at a shallow angle (panel lines, rivets, soft shadows along the wing); three.js holds it to what the card allows
     aoTextures.set(file, t);
   }
   return aoTextures.get(file);
@@ -81,7 +122,32 @@ export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null
     shader.fragmentShader = fs;
   };
   m.customProgramCacheKey = () => `ct156-ao-direct${dirt ? '-dirt' : ''}`;
+  if (m.userData.ct156Bands) paintBands(m, m.userData.ct156Bands); // painted bands (the prop's tips) stay
   return m.userData.ct156Grain ? paintGrain(m, m.userData.ct156Grain) : m; // a painted surface keeps its grain
+}
+
+/**
+ * Paints bands across a part by the shader, by how far along one of the geometry's own axes each point is, so the
+ * bands need no picture and keep a sharp edge between the faces' corners (the prop's red, white and red tips along the
+ * blade's span: ct156-model.js PROP_TIP_BANDS). `bands`: [[from, to, [r, g, b]], ...] in the geometry's own units, the
+ * colour linear (THREE.Color's r, g, b); `axis` 'x', 'y' or 'z'. Keeps whatever the material's shader already does,
+ * and survives aoShaded's copy (it is kept in userData). Returns the material.
+ */
+export function paintBands(material, { axis = 'y', bands = [] } = {}) {
+  material.userData.ct156Bands = { axis, bands };
+  const before = material.onBeforeCompile, key = material.customProgramCacheKey;
+  const f = (v) => Number(v).toFixed(6);
+  const paint = bands.map(([a, b, [r, g, bl]]) => `\tif ( vCt156Along >= ${f(a)} && vCt156Along < ${f(b)} ) diffuseColor.rgb = vec3( ${f(r)}, ${f(g)}, ${f(bl)} );`).join('\n');
+  material.onBeforeCompile = (shader, renderer) => {
+    before?.call(material, shader, renderer);
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float vCt156Along;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n\tvCt156Along = position.${axis};`);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vCt156Along;')
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${paint}`);
+  };
+  material.customProgramCacheKey = () => `${key?.call(material) ?? ''}-ct156-bands-${axis}-${bands.flat(2).map(f).join('-')}`;
+  material.needsUpdate = true;
+  return material;
 }
 
 /**
