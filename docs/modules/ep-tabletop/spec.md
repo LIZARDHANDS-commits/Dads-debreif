@@ -93,6 +93,7 @@ Dad, 15 Oct 2026: "I should be able to make any setup...basically any point in a
     - A row may set any of these. Unset parts carry on as they were.
     - **Spin** (direction, turns) and **Spin recovery** are rows of their own (EP-19).
   - **Pause** at any moment, then any of the moves again.
+  - **Set attitude here** (Dad, 15 Oct 2026: "i also wanna be able to set aircraft pitch and bank as the instructor"; he picked both of these): at any moment, a new freeze where the aircraft is now, at the same position, altitude, heading, airspeed and power, at the pitch and bank set in the boxes or on the attitude ball. **The attitude ball** is a small attitude indicator beside the boxes. Dragging it up or down sets pitch and left or right sets bank (arrow keys too; a double tap levels it). It only writes the Pitch and Bank boxes. Built in V2.460, within the approved Step 5b.
 - **How the rows are flown (EP-18):** each row is a small pilot on the shared point mass, as the emergency picks are (`manoeuvres.js`), asking every step for G, bank and throttle. It never passes the T-6A's roll and G onset (core) or what the wing gives.
   - Pitch is attitude: flight path plus the angle of attack the model gives (core `attitudeDegFromClimb`). A freeze at a set attitude starts on the flight path that gives it.
   - "The nearest horizon" rolls toward the horizon that is nearer along the present bank, up to 90° (an estimate) while the nose is above the horizon.

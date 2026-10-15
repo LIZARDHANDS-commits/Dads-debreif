@@ -12,6 +12,7 @@ import { isSetup } from './scenario.js';
 import { stateWords, manoeuvreWords, flagsOf, flightNow, MAG_VARIATION_DEG_E, SETUP_FLOOR_KTAS } from './flight.js';
 import { SETUP_DEFAULTS, SETUP_RANGES, ROW_RANGES, MAX_ROWS, STEP_PILOT, SPIN } from './steps.js';
 import { createSetupMap } from './setup-map.js';
+import { createAttitudeBall } from './attitude-ball.js';
 
 /** The track kept on the map since the freeze: a point every 300 ft flown, at most 2,000 (picture choices). */
 const TRAIL_STEP_FT = 300;
@@ -35,8 +36,14 @@ export function createSetupSection({ dispatch, button, timers = null }) {
   const hdg = numberBox('Heading', '°M', [0, 359], awayDegM(drop.x, drop.y), 5, () => { headingTyped = true; showDrop(); });
   const kias = numberBox('Airspeed', 'KIAS', SETUP_RANGES.kias, SETUP_DEFAULTS.kias, 5);
   const power = numberBox('Power', '%', SETUP_RANGES.powerPct, SETUP_DEFAULTS.powerPct, 5);
-  const pitch = numberBox('Pitch (+ nose up)', '°', SETUP_RANGES.pitchDeg, SETUP_DEFAULTS.pitchDeg, 5);
-  const bank = numberBox('Bank (+ right)', '°', SETUP_RANGES.bankDeg, SETUP_DEFAULTS.bankDeg, 5);
+  const pitch = numberBox('Pitch (+ nose up)', '°', SETUP_RANGES.pitchDeg, SETUP_DEFAULTS.pitchDeg, 5, () => ball.set({ pitchDeg: pitch.input.value, bankDeg: bank.input.value }));
+  const bank = numberBox('Bank (+ right)', '°', SETUP_RANGES.bankDeg, SETUP_DEFAULTS.bankDeg, 5, () => ball.set({ pitchDeg: pitch.input.value, bankDeg: bank.input.value }));
+  // The attitude ball (Dad, 15 Oct 2026: "i also wanna be able to set aircraft pitch and bank as the instructor"): dragging it writes the
+  // Pitch and Bank boxes; typing in them moves it.
+  const ball = createAttitudeBall({ pitchRange: SETUP_RANGES.pitchDeg, bankRange: SETUP_RANGES.bankDeg, onChange: ({ pitchDeg, bankDeg }) => {
+    pitch.input.value = String(pitchDeg);
+    bank.input.value = String(bankDeg);
+  } });
   const dropWords = h('p', { class: 'ep-sub' });
 
   const map = timers ? createSetupMap({ timers, onDrop: (p) => {
@@ -56,6 +63,23 @@ export function createSetupSection({ dispatch, button, timers = null }) {
     x: drop.x, y: drop.y, altFt: alt.input.value, headingDegM: headingTyped ? hdg.input.value : null, kias: kias.input.value,
     powerPct: power.input.value, pitchDeg: pitch.input.value, bankDeg: bank.input.value,
   } }), { class: 'ep-btn ep-btn-main', title: 'Put the student\'s cockpit at this state, paused' });
+  // "Set attitude here" (Dad, 15 Oct 2026, the mid-flight set): a new freeze where the aircraft is now (position, altitude, heading,
+  // airspeed and power as they are), at the Pitch and Bank in the boxes or on the ball. The other boxes take the present values, so what is
+  // shown is what was sent; it goes as a freeze, checked the same way (steps.js cleanSetup).
+  const hereBtn = button('Set attitude here', () => {
+    const f = session?.flight;
+    if (!f || f.outcome) return;
+    const n = flightNow(f);
+    drop.x = n.x;
+    drop.y = n.y;
+    headingTyped = true;
+    alt.input.value = String(Math.round(n.altFt / 10) * 10);
+    hdg.input.value = String(Math.round(n.headingDegM) % 360);
+    kias.input.value = String(Math.round(Math.max(SETUP_RANGES.kias[0], n.kias)));
+    power.input.value = String(Math.round((f.throttle ?? 0) * 100));
+    showDrop();
+    freezeBtn.click();
+  }, { title: 'Put the aircraft at the pitch and bank set here, where it is now (same place, height, heading, speed and power), paused' });
   const carryBtn = button('▶ Carry on', () => dispatch({ type: 'carryOn' }), { title: 'Fly on with the controls held: the same G, bank and power' });
   const pauseBtn = button('❚❚ Pause', () => dispatch({ type: 'pause' }));
 
@@ -165,8 +189,9 @@ export function createSetupSection({ dispatch, button, timers = null }) {
     map?.element ?? h('p', { class: 'ep-sub' }, 'The map needs the page\'s scheduler; the drop stays where it is.'),
     dropWords,
     h('div', { class: 'ep-setup-grid' }, alt.el, hdg.el, kias.el, power.el, pitch.el, bank.el),
+    h('div', { class: 'ep-row ep-att-row' }, ball.element, h('p', { class: 'ep-sub' }, 'Drag the ball to set pitch (up and down) and bank (left and right), or type them; double tap to level. Freeze puts the aircraft at the drop; Set attitude here puts it at this pitch and bank where it is now.')),
     h('p', { class: 'ep-sub' }, `Gear and flaps up. Defaults: 12 NM south-west of Moose Jaw, 8,000 ft, heading out of the area, ${SETUP_DEFAULTS.kias} KIAS, ${SETUP_DEFAULTS.powerPct} % power, pitch 0°, bank 0° `, h('span', { class: 'ep-estimate' }, '(estimates)'), '.'),
-    h('div', { class: 'ep-row' }, freezeBtn, carryBtn, pauseBtn),
+    h('div', { class: 'ep-row' }, freezeBtn, hereBtn, carryBtn, pauseBtn),
     nowLine, flyingLine, stallLine, flagLine,
     h('h4', {}, 'Steps the student described'),
     rowList,
@@ -203,6 +228,7 @@ export function createSetupSection({ dispatch, button, timers = null }) {
     flagLine.hidden = !fl.length;
     flagLine.textContent = fl.length ? `Flagged (a reference, not held): ${fl.join('; ')}` : '';
     carryBtn.disabled = Boolean(f.outcome);
+    hereBtn.disabled = Boolean(f.outcome);
     pauseBtn.disabled = !s.running;
     renderFlyState();
     if (s.log.length !== logCount) {
@@ -227,5 +253,6 @@ export function createSetupSection({ dispatch, button, timers = null }) {
 
   renderRows();
   showDrop();
+  ball.set({ pitchDeg: SETUP_DEFAULTS.pitchDeg, bankDeg: SETUP_DEFAULTS.bankDeg });
   return { element, update };
 }

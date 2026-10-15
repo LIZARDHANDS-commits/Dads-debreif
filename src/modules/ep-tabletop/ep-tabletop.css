@@ -177,3 +177,9 @@
 .ep-setup-part select { flex: 1 1 9rem; min-width: 0; }
 .ep-console-phone .ep-setup-map { height: 70vw; max-height: 24rem; }
 .ep-console-phone .ep-setup-grid { grid-template-columns: 1fr 1fr; }
+
+/* The setup's attitude ball (attitude-ball.js): a round attitude indicator dragged to set pitch and bank. */
+.ep-att-row { align-items: center; gap: 12px; flex-wrap: wrap; }
+.ep-att-ball { border-radius: 50%; cursor: grab; flex: 0 0 auto; }
+.ep-att-ball:active { cursor: grabbing; }
+.ep-att-ball:focus-visible { outline: 2px solid #ffd400; outline-offset: 2px; }
