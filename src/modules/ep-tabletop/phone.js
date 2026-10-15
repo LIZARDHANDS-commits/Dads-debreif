@@ -23,7 +23,7 @@ export function mountPhone(root, app, ids, { relay, version, addStylesheet }) {
   let session = startSession(SCENARIOS[0]);
   const link = createLink({ role: 'phone', ...ids, relay, timers: app.scheduler, current: () => studentView(session) });
   const status = h('p', { class: 'ep-phone-status', role: 'status' });
-  const consoleUi = createConsole({ dispatch, mode: 'phone', scenarios: SCENARIOS, onScenario });
+  const consoleUi = createConsole({ dispatch, mode: 'phone', scenarios: SCENARIOS, onScenario, timers: app.scheduler });
 
   root.append(h('section', { class: 'ep ep-phone' },
     h('header', { class: 'ep-bar' }, h('h1', {}, 'EP Tabletop · Instructor'), h('span', { class: 'ep-version' }, version)),

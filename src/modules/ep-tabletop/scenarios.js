@@ -3,7 +3,9 @@
 // (`fault`, systems.js) as well as indications (`set`). Each number names its source: the open-source baseline (ALL-30,
 // docs/references/open-source-performance-baseline.md) or "estimate" until a source backs it. The instructor can type any value.
 // Since plan Step 5 the aircraft flies from the start (flight.js): `wind` is the weather line's wind as the flight reads it (degrees true,
-// as a METAR gives it; an example, not a forecast), and `manoeuvre` is what it is flying when the scenario starts.
+// as a METAR gives it; an example, not a forecast), and `manoeuvre` is what it is flying when the scenario starts. Plan Step 5b adds the
+// second kind, "Any setup" (ANY_SETUP, `kind: 'setup'`).
+import { SETUP_DEFAULTS } from './steps.js';
 
 /**
  * A healthy PT6A-68 in cruise in the area, the panel before anything goes wrong.
@@ -163,5 +165,40 @@ export const OIL_PRESSURE_DEPARTURE = Object.freeze({
   ]),
 });
 
-export const SCENARIOS = Object.freeze([ENGINE_ROUGHNESS, OIL_PRESSURE_DEPARTURE]);
+/**
+ * "Any setup" (plan Step 5b; EP-17 to EP-19, EP-R11; Dad, 15 Oct 2026): the second scenario kind, beside the emergencies. No developments
+ * and no causes: the instructor drops the aircraft on the map, sets its state and freezes it there (steps.js SETUP_DEFAULTS until then),
+ * then lets it carry on, flies the student's steps, or spins it (console-setup.js). The engine and the lights start healthy, as the area
+ * example's (CRUISE_ENGINE, estimates). Calm wind (an example; the setup has no wind of its own).
+ */
+export const ANY_SETUP = Object.freeze({
+  id: 'any-setup',
+  kind: 'setup',
+  title: 'Any setup',
+  start: Object.freeze({
+    phase: 'Frozen at a point in a manoeuvre',
+    fuelLb: 900, // as the area example (estimates)
+    weather: 'Clear, visibility 15 SM, wind calm (an example, not a forecast)',
+    wind: Object.freeze({ fromDegT: 0, kt: 0 }),
+    setup: SETUP_DEFAULTS,
+    shown: Object.freeze({
+      ...CRUISE_ENGINE,
+      'light.MASTER WARN': false,
+      'light.MASTER CAUTION': false,
+      'light.FIRE': false,
+      'light.CHIP': false,
+      'light.OIL PX': false,
+      'cue.smoke': 'none',
+      'cue.flames': 'none',
+      'cue.oilWindscreen': 'none',
+      'cue.roughness': 'none',
+      'cue.noises': 'normal engine noise',
+      'config.gear': 'up, three lights out',
+      'config.flaps': 'up',
+    }),
+  }),
+  developments: Object.freeze([]),
+});
+
+export const SCENARIOS = Object.freeze([ENGINE_ROUGHNESS, OIL_PRESSURE_DEPARTURE, ANY_SETUP]);
 export const scenarioById = (id) => SCENARIOS.find((sc) => sc.id === id) ?? null;

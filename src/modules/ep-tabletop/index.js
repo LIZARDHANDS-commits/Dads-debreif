@@ -9,10 +9,12 @@ import { RELAY_ADDRESS } from '../../wx/relay.js';
 import { readConsoleHash } from './link.js';
 import { mountScreen } from './screen.js';
 import { mountPhone } from './phone.js';
+import { TRAFFIC_VERSION } from '../traffic/version.js';
 
 const STYLESHEET = new URL('./ep-tabletop.css', import.meta.url).href;
-/** The one version number of the whole tool (rule book, Git and names), shown in the bar. */
-const VERSION = 'V2.448';
+/** The one version number of the whole tool (rule book, Git and names), shown in the bar: read from its one home (traffic/version.js,
+ * as the header and the home screen read it) since V2.459, so it can't fall behind. */
+const VERSION = TRAFFIC_VERSION;
 /**
  * The module's own settings: `relay`, the relay the phone link goes through, starting at the shared address (src/wx/relay.js). No box
  * on screen yet; a local stand-in relay for testing is set in the browser's storage (ooda:v1:ep-tabletop:settings).

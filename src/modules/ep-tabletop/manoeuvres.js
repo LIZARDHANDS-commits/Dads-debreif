@@ -78,8 +78,9 @@ function speedPathRad(now, kias, throttle) {
   return steadyPathRad(now, throttle) + correction * DEG;
 }
 
-/** The flight path that brings the aircraft to `altFt` over heightTauS, the climb or sink rate capped at `capFpm`. */
-function heightPathRad(now, altFt, capFpm = Infinity) {
+/** The flight path that brings the aircraft to `altFt` over heightTauS, the climb or sink rate capped at `capFpm`. Also the step builder's
+ * "Hold level" (steps.js). */
+export function heightPathRad(now, altFt, capFpm = Infinity) {
   const fps = clamp((altFt - now.altFt) / PILOT.heightTauS, -capFpm / 60, capFpm / 60);
   return asinClamped(fps / Math.max(now.vFtps, 1));
 }
@@ -103,8 +104,9 @@ export const glideKiasFor = (gear) => (gear === 'down' ? PFL.glideGearKias : PFL
 
 // ---- Lateral pilots: each asks for a bank (degrees, right positive) ----------------------------------------------------------
 
-/** Bank toward a true heading by the shorter way, rolled out smoothly as the heading comes up. */
-const bankToward = (now, headingDegT, maxBank = PILOT.turnBankDeg) => clamp(PILOT.bankPerHeadingDeg * wrapDeg180(headingDegT - now.headingDegT), -maxBank, maxBank);
+/** Bank toward a true heading by the shorter way, rolled out smoothly as the heading comes up. Also the step builder's "Hold a heading"
+ * (steps.js). */
+export const bankToward = (now, headingDegT, maxBank = PILOT.turnBankDeg) => clamp(PILOT.bankPerHeadingDeg * wrapDeg180(headingDegT - now.headingDegT), -maxBank, maxBank);
 
 const fieldOf = (now, icao) => now.fields.find((f) => f.icao === icao) ?? null;
 

@@ -98,7 +98,7 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
     instructorBtn.setAttribute('aria-pressed', String(open));
     if (!open) instructorBtn.focus();
   };
-  const consoleUi = createConsole({ dispatch, onClose: () => showConsole(false), scenarios: SCENARIOS, onScenario });
+  const consoleUi = createConsole({ dispatch, onClose: () => showConsole(false), scenarios: SCENARIOS, onScenario, timers: app.scheduler });
   consoleUi.element.id = 'ep-console';
   app.listen(instructorBtn, 'click', () => showConsole(consoleUi.element.hidden));
 
@@ -145,7 +145,7 @@ export function mountScreen(root, app, { relay, version, addStylesheet }) {
     prompts.hidden = !on.length;
     // What the aircraft is flying (the student's own picks, Step 6; the instructor's for them until then), and the outcome in words once down.
     const fl = v.flight;
-    flying.hidden = !fl || (!fl.outcome && !v.started);
+    flying.hidden = !fl || (!fl.outcome && (!v.started || !fl.manoeuvre)); // Any setup sends no manoeuvre words (student-view.js)
     flying.textContent = fl ? (fl.outcome ? fl.outcome.words : `Flying: ${fl.manoeuvre}`) : '';
     flying.className = `ep-flying${fl?.outcome ? ' is-down' : ''}`;
     clear(revealedList);
