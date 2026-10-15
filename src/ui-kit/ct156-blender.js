@@ -98,6 +98,18 @@ function ct156Delivery() {
 }
 
 /**
+ * The delivery's named points (public/models/ct156/ct156-points.json: eyes, reference points, hinges, the pictured faces
+ * and, since layout 3, the panels' screen rectangles), loaded once a page: Promise of the object, or null when it is
+ * missing or from another delivery than delivery.json names (so a half-copied set never places anything).
+ */
+let points = null;
+export function loadCt156Points() {
+  points ??= Promise.all([ct156Delivery(), fetch(modelsUrl('ct156/ct156-points.json')).then((r) => (r.ok ? r.json() : null))])
+    .then(([name, p]) => (name && p?.delivery === name ? p : null), () => null);
+  return points;
+}
+
+/**
  * A delivered file's parts (loadParts), used only when every part carries the name of the delivery the import wrote
  * beside them, so a mixed or half-copied set never shows. This replaced the code's fingerprints (plan 3.4, Patrick
  * 13 Oct 2026): the file is now the shape's one source and differs from the code's shape on purpose once a fix is made.

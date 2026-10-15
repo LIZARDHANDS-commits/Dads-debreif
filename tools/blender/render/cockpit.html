@@ -11,14 +11,24 @@ const F = 23.148;
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
 // ?level=performance draws the Performance files. envRot: the reflections turned (degrees about the vertical); gearDown: the gear down (its lamps lit).
 setCt156Level(new URLSearchParams(location.search).get('level'));
-window.shot = ({ sb, yaw = 0, pitch = -25, fov = 55, dz = 0, dy = 0, ground = false, from = null, at = null, noGlass = false, seat = 'front', w = 1200, hgt = 800, envRot = 0, gearDown = false }) => {
-  const sc = new THREE.Scene(); sc.background = new THREE.Color('#9fb8d6');
-  sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', 1.0));
-  const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(0.5, 0.9, 1.4); sc.add(sun, sun.target);
-  const ship = createCt156Model(THREE, { color: '#c03030', number: 1 }); sc.add(ship);
-  const pit = createCt156Cockpit(THREE, { doc: document, seat });
-  ship.add(pit.group); setCockpitView(ship, { seat }); renderer.setSize(w, hgt, false);
-  pit.update({ pitchDeg: 0, bankDeg: 0, altFt: 5000, g: 1, kias: 200, headingDeg: 90, speedBrake: sb });
+// night: the scene's lights near dark (the self-lit faces glow); hud: the panel's numbers (a Debrief-like state); engine:
+// liveEngine with these engine numbers; hideFaces: the delivered faces hidden (the master's plates alone).
+let pits = new Map(); // one cockpit per seat and engine option, kept between shots so its faces stay attached
+window.shot = ({ sb, yaw = 0, pitch = -25, fov = 55, dz = 0, dy = 0, ground = false, from = null, at = null, noGlass = false, seat = 'front', w = 1200, hgt = 800, envRot = 0, gearDown = false, night = false, hud = null, engine = null, hideFaces = false }) => {
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(night ? '#0a0e18' : '#9fb8d6');
+  sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', night ? 0.04 : 1.0));
+  const sun = new THREE.DirectionalLight('#ffffff', night ? 0.05 : 2.2); sun.position.set(0.5, 0.9, 1.4); sc.add(sun, sun.target);
+  const key = `${seat}|${Boolean(engine)}`;
+  if (!pits.has(key)) {
+    const ship = createCt156Model(THREE, { color: '#c03030', number: 1 });
+    const pit = createCt156Cockpit(THREE, { doc: document, seat, liveEngine: Boolean(engine) });
+    ship.add(pit.group); setCockpitView(ship, { seat });
+    pits.set(key, { ship, pit });
+  }
+  const { ship, pit } = pits.get(key);
+  sc.add(ship); renderer.setSize(w, hgt, false);
+  pit.group.traverse((o) => { if (/^ct156-cockpit-screens-/.test(o.name)) o.visible = !hideFaces; });
+  pit.update({ pitchDeg: 0, bankDeg: 0, altFt: 5000, g: 1, kias: 200, headingDeg: 90, speedBrake: sb, ...(hud ?? {}), ...(engine ? { engine } : {}) }, performance.now() + 1e6);
   ship.updateMatrixWorld(true);
   if (SH) SH.createAircraftShadows(THREE, renderer, sun).follow(ship);
   const e = EYES_FT[seat], cam = new THREE.PerspectiveCamera(fov, w / hgt, 0.0005, 100);
@@ -46,6 +56,30 @@ window.pick = (px, py) => {
     return { geo: names.get(h.object.geometry) ?? '?', inPit: pit ? chain.includes(pit.group.name || '__') : false , chain: chain.slice(0, 4).join('<'), mat: m?.name || m?.color?.getHexString(), d: h.distance.toFixed(4), p: [h.point.x, h.point.y, h.point.z].map((v) => (v * 23.148).toFixed(2)) };
   });
 };
+// The delivered faces placed (attachScreens): how many, and five rectangles' corners against the delivery's (feet).
+window.info = () => {
+  const { pit } = [...pits.values()].at(-1) ?? {};
+  const s = pit?.group.userData.screens;
+  if (!s) return { screens: 0 };
+  const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const meshes = {}; pit.group.traverse((o) => { if (/^ct156-cockpit-screens-/.test(o.name)) meshes[o.name] = o.geometry.attributes.position.count / 4; });
+  return { screens: s.count, meshes, calls: renderer.info.render.calls };
+};
+window.placement = () => import('/src/ui-kit/ct156-blender.js').then(({ loadCt156Points }) => loadCt156Points()).then((pts) => {
+  const { pit } = [...pits.values()].at(-1);
+  const s = pit.group.userData.screens, out = [];
+  let worst = 0;
+  for (const [name, { mesh, quad }] of Object.entries(s.placed)) {
+    const pos = pit.group.getObjectByName(mesh).geometry.attributes.position; // the drawn quad's own four corners
+    const corners = [0, 1, 2, 3].map((k) => [pos.getX(quad * 4 + k), pos.getY(quad * 4 + k), pos.getZ(quad * 4 + k)]);
+    const want = ['tl', 'tr', 'br', 'bl'].map((k) => pts.screens[name][k]);
+    const err = Math.max(...corners.map((c, i) => Math.hypot(...c.map((v, j) => v - want[i][j]))));
+    worst = Math.max(worst, err);
+    if (['front.eadi', 'front.ehsi', 'front.gps', 'rear.voPlacard', 'front.tas'].includes(name)) out.push({ name, corners: corners.map((c) => c.map((v) => +v.toFixed(4))), err });
+  }
+  // the quads' own vertices, as drawn: each mesh's positions in the order placed
+  return { worst, five: out, count: Object.keys(s.placed).length };
+});
 window.rerender = () => { const { sc, cam } = window.last; renderer.render(sc, cam); return true; };
 window.ready = true;
 </script></body></html>
