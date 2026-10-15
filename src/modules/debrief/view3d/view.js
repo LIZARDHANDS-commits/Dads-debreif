@@ -12,7 +12,9 @@
 // ridden ship (ui-kit ct156-cockpit.js), the picture at true scale with
 // altitude ×1 and the ground at the home field; its labels are placed through
 // that camera. Filled GPS gaps (DB-20) are a translucent ribbon with a dashed
-// centre line, the ship in one a ghosted model labelled "est.".
+// centre line, the ship in one a ghosted model labelled "est.". With 3D settings'
+// Aircraft "T-38A Talon" (DB-33) the ridden ship is the T-38A and the eye sits in
+// its own rough cockpit (ui-kit t38a-model.js), whose instruments don't move yet.
 //
 // Airspace and airfields round the flight (DB-24) are the SOF's own drawing, shared in ui-kit (airspace3d.js,
 // airfield3d.js): built once at true height for the flight's area and kept in the scene, stretched up by the
@@ -27,6 +29,7 @@ import {
   loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh, webglSupported, worldToScreen,
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
+import { createT38aModel, createT38aCockpitMount, t38aEyeWorld } from '../../../ui-kit/t38a-model.js';
 import { createCockpitMount, aimCockpitCamera, PANEL_REDRAW_MS } from '../../../ui-kit/ct156-cockpit.js';
 import { createAircraftShadows } from '../../../ui-kit/aircraft-shadows.js';
 import { buildAirspace } from '../../../ui-kit/airspace3d.js';
@@ -126,6 +129,7 @@ export function createView3d(canvas, {
         gl = createPicture(module, glCanvas);
         THREE = module;
         gl.terrain = createTerrainLayer({ THREE, scene: gl.scene, timers, doc: gl.doc, redraw: () => surface.requestDraw() });
+        gl.redraw = () => surface.requestDraw(); // a T-38A's file arriving after its ship was first drawn (t38a-model.js onReady)
       } catch {
         onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
         return;
@@ -222,7 +226,8 @@ export function createView3d(canvas, {
         if (Number.isFinite(c.x)) labelShip(ctx, c, s, on);
       }
       if (ball?.points) drawTennis3d(ctx, P, ball);
-      drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, chase: cockpit.chase, gap: riding.gap, windKnown: Boolean(cockpit.windKey) }, COCKPIT_CAPTION);
+      const note = !cockpit.chase && on.model3d === 't38a' ? COCKPIT_CAPTION.t38a : null; // its gauges are pictures (DB-33)
+      drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, chase: cockpit.chase, gap: riding.gap, windKnown: Boolean(cockpit.windKey), note }, COCKPIT_CAPTION);
       return;
     }
     const P = (p) => projectPoint(p, ctr, camera, size);
@@ -277,9 +282,10 @@ function createPicture(THREE, glCanvas) {
   // size: what the renderer was last told, so it is told again only when it changes.
   // ghosts: the see-through models of ships in a filled gap, with their own materials (DB-20).
   // cockpit: the CT-156 cockpit, moved into the ridden ship (ui-kit createCockpitMount), made when first wanted.
+  // t38aCockpit: the T-38A's (ui-kit createT38aCockpitMount), the same way, when Aircraft is "T-38A Talon" (DB-33).
   return {
     renderer, shadows, scene, camera, persp, world, ships: new Map(), ghosts: new Map(), sky: null, skyFog: null, materials: new Map(), size: null,
-    cockpit: null, cockpitSky: new THREE.Color(COCKPIT_SKY), doc: glCanvas.ownerDocument ?? globalThis.document,
+    cockpit: null, t38aCockpit: null, cockpitSky: new THREE.Color(COCKPIT_SKY), doc: glCanvas.ownerDocument ?? globalThis.document,
   };
 }
 
@@ -306,8 +312,10 @@ function clearGroup(group) {
   }
 }
 
-// A ship's model made see-through for a filled gap: its own copies of the materials, so other ships keep theirs.
+// A ship's model made see-through for a filled gap: its own copies of the materials, so other ships keep theirs. A T-38A
+// (Aircraft "T-38A Talon", shared plan Step 3d item 6) ghosts its own copies when its file is in (ui-kit t38a-model.js).
 function ghostModel(THREE, options) {
+  if (options.t38a) return { mesh: createT38aModel(THREE, { lengthFt: options.lengthFt, ghost: GHOST_OPACITY, onReady: options.onReady }), copies: [] };
   const mesh = createCt156Model(THREE, options);
   const copies = [];
   mesh.traverse((o) => {
@@ -374,6 +382,8 @@ function disposePicture(gl) {
   clearGroup(gl.world);
   gl.cockpit?.dispose();
   gl.cockpit = null;
+  gl.t38aCockpit?.dispose();
+  gl.t38aCockpit = null;
   for (const { mesh } of gl.ships.values()) disposeAircraftMesh(mesh);
   gl.ships.clear();
   for (const ghost of gl.ghosts.values()) disposeGhost(ghost);
@@ -420,6 +430,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   const modelled = new Set();
   if (!flight) {
     gl.cockpit?.mount(null);
+    gl.t38aCockpit?.mount(null);
     for (const { mesh } of gl.ships.values()) mesh.visible = false;
     for (const { mesh } of gl.ghosts.values()) mesh.visible = false;
     renderer.render(scene, gl.camera);
@@ -555,24 +566,32 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   // Fight do, so the shared seat helpers (eye, cockpit) land in the seat; otherwise the plane size setting, as before.
   const lengthFt = cockpit ? CT156_UNIT_LENGTH : on.planeSize3d * CT156_UNIT_LENGTH;
   const rootScale = cockpit ? CT156_LENGTH_FT / CT156_UNIT_LENGTH : 1;
-  const key = `${paint}|${lengthFt}|${rootScale}`;
+  // Aircraft "T-38A Talon" (Dad, 14 Oct 2026; shared plan Step 3d item 6) draws each ship as the T-38A at its own length
+  // against the CT-156's, in the overview, in Chase and in the Cockpit camera, which rides in the T-38A's own rough
+  // cockpit (plan Step 3d item 7; DB-33). The Harvard's Cockpit camera is unchanged (DB-21).
+  const t38a = on.model3d === 't38a';
+  const key = `${t38a ? 't38a' : paint}|${lengthFt}|${rootScale}`;
   const ghosted = new Set();
   let ridden = null;
   for (const s of ships) {
     const ghost = s.estimated && !s.ridden;
-    if ((!cockpit && on.model3d !== 't6') || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
+    if ((!cockpit && on.model3d !== 't6' && on.model3d !== 't38a') || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
     const store = ghost ? gl.ghosts : gl.ships;
     let entry = store.get(s.slot);
     if (entry && entry.key !== key) {
       if (gl.cockpit?.root === entry.mesh) gl.cockpit.mount(null);
+      if (gl.t38aCockpit?.root === entry.mesh) gl.t38aCockpit.mount(null);
       if (ghost) disposeGhost(entry);
       else disposeAircraftMesh(entry.mesh);
       store.delete(s.slot);
       entry = null;
     }
     if (!entry) {
-      const options = { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt };
-      entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: createCt156Model(THREE, options) };
+      const options = { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt, t38a, onReady: () => gl.redraw?.() };
+      const solid = () => (t38a
+        ? createT38aModel(THREE, { lengthFt, fallback: () => createCt156Model(THREE, options), onReady: options.onReady }) // the CT-156 until the file is in
+        : createCt156Model(THREE, options));
+      entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: solid() };
       entry.mesh.rotation.order = attitudeEuler(s).order;
       entry.mesh.scale.setScalar(rootScale);
       scene.add(entry.mesh);
@@ -594,10 +613,22 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
 
   if (cockpit && ridden && cockpit.chase) {
     gl.cockpit?.mount(null); // seen from outside: the cockpit is not opened
+    gl.t38aCockpit?.mount(null);
     aimChaseCamera(THREE, gl.persp, ridden, {
       hdg: cockpit.hdg, yawDeg: cockpit.head.yawDeg, pitchDeg: cockpit.head.pitchDeg, target: cockpit.target ?? null, width: size.width, height: size.height,
     });
+  } else if (cockpit && ridden && t38a) {
+    // The T-38A (DB-33): its own cockpit in the ridden ship, the eye at its seat's eye point. The aim, lens and head turn
+    // are the shared seat helper's; only the eye moves to the T-38A's. No live panel: its gauges are pictures for now.
+    gl.cockpit?.mount(null);
+    gl.t38aCockpit ??= createT38aCockpitMount(THREE, { onReady: () => gl.redraw?.() });
+    gl.t38aCockpit.mount(ridden);
+    const head = cockpit.target ? headToward(THREE, ridden, cockpit.target) : cockpit.head;
+    aimCockpitCamera(THREE, gl.persp, ridden, { seat: cockpit.seat, yawDeg: head.yawDeg, pitchDeg: head.pitchDeg, width: size.width, height: size.height });
+    gl.persp.position.copy(t38aEyeWorld(THREE, ridden, cockpit.seat)); // the direction doesn't depend on the eye, so it stands
+    gl.persp.updateMatrixWorld(true);
   } else if (cockpit && ridden) {
+    gl.t38aCockpit?.mount(null);
     gl.cockpit ??= createCockpitMount(THREE, { doc: gl.doc });
     gl.cockpit.mount(ridden, cockpit.seat);
     // Padlock turns the head to the locked ship; boresight keeps it straight ahead (cockpit.head is zero then).
@@ -608,7 +639,10 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     const key = JSON.stringify(cockpit.panel);
     if (gl.cockpit.update(cockpit.panel)) gl.shownPanel = key;
     else if (key !== gl.shownPanel) cockpit.again = PANEL_REDRAW_MS + 20;
-  } else gl.cockpit?.mount(null);
+  } else {
+    gl.cockpit?.mount(null);
+    gl.t38aCockpit?.mount(null);
+  }
 
   renderer.render(scene, view);
   return modelled;

@@ -312,7 +312,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     { value: 'high', label: 'High (sharper, more graphics memory)' },
   ] });
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
-    controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
+    controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 't38a', label: 'T-38A Talon' }, { value: 'flat', label: 'Flat marker' }] }),
     controls.select('paint3d', { label: 'Paint', options: PAINT_OPTIONS.map((o) => ({ value: o.value, label: o.label })) }),
     outside(controls.slider('yaw3d', { label: 'Turn', min: YAW[0], max: YAW[1], format: (v) => `${v}°` })),
     outside(controls.slider('pitch3d', { label: 'Look down', min: PITCH[0], max: PITCH[1], format: (v) => `${v}°` })),

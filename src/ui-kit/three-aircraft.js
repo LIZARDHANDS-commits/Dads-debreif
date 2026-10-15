@@ -13,6 +13,8 @@
 // model itself is not scaled by it.
 
 import { disposeCt156Model, CT156_DATUM_DEG } from './ct156-model.js';
+import { disposeT38aModel } from './t38a-model.js';
+
 import { disposeCt102bModel } from './ct102b-model.js';
 
 /**
@@ -221,6 +223,8 @@ export function createStandInMesh(THREE, { color, outline = null, kind = 'generi
  */
 export function disposeAircraftMesh(mesh) {
   if (mesh.userData.ct156) return disposeCt156Model(mesh);
+  if (mesh.userData.t38a) return disposeT38aModel(mesh); // its file's shapes are shared by every T-38
+
   if (mesh.userData.ct102b) return disposeCt102bModel(mesh); // its file's shapes are shared by every Astra
   mesh.removeFromParent();
   const materials = new Set();
