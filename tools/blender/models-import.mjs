@@ -6,8 +6,9 @@
 //   npm run models:import -- <delivery folder> --check    check only
 //
 // The delivery folder is made in 3d-work by `node ct156/build/deliver.mjs` (its sheet.md says what was checked).
-// Re-checked here: the sheet's own results, every file's size and SHA-256 fingerprint, no extra files, each model
-// file's parts as the app reads them (the parts the app expects, normals and picture corners, no transform left on a
+// Re-checked here: the sheet's own results, every file's size and SHA-256 fingerprint, no extra files and no path
+// outside the folder, each model file's parts as the app reads them (the parts the app expects, normals and one set of
+// picture corners, no transform left on a
 // node, the delivery's name on every part, triangles as the sheet says), the pictures' sizes, the named points; and
 // the Khronos glTF validator again if this computer has it (set GLTF_VALIDATOR to its path, or have gltf_validator
 // on the path); without it the sheet's validator result stands.
@@ -16,21 +17,25 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEST = join(ROOT, 'public', 'models', 'ct156');
 // The sheet layout this app reads (3d-work ct156/build/app_layout.json "layout"); raised there when the app must change.
-const LAYOUT = 1;
+// Layout 2 (3d-work increment 2, 15 Oct 2026): the 18 parts the app drew from its own code come in the files, and the
+// pilots have a file of their own.
+const LAYOUT = 2;
 // The parts the app takes from each file: src/ui-kit/ct156-model.js EXTERIOR_PARTS and GEAR_PARTS with the prop's
 // blade and tip (PROP_PARTS) and the gear lamp (since 3d-work delivery 423e5eb; the root cuffs F29 were withdrawn in
-// 7bd9b52), and the cockpit's parts (ct156-cockpit-model.js takes every part the file has; these are the ones it
-// has today).
+// 7bd9b52), layout 2's parts (LAYOUT2_EXTERIOR, GEAR_WELLS, PILOT_PARTS), and the cockpit's parts
+// (ct156-cockpit-model.js takes every part the file has; these are the ones it has today).
 const PARTS = {
-  'ct156-exterior.glb': ['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut', 'blade', 'bladeTip'],
-  'ct156-gear.glb': ['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor', 'gearLamp'],
+  'ct156-exterior.glb': ['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut', 'blade', 'bladeTip',
+    'stubs', 'coamings', 'floor', 'speedBrake', 'speedBrakeWell', 'flapInWell', 'flapOutWell', 'tub'],
+  'ct156-gear.glb': ['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor', 'gearLamp', 'gearInboardWell', 'gearLegWell', 'gearNoseWell'],
   'ct156-cockpit.glb': ['body', 'canopy-rails', 'forward-bow', 'pcl', 'seat', 'shade', 'stick'],
+  'ct156-pilots.glb': ['helmetFront', 'helmetRear'],
 };
 // The pictures the app loads by name beside the High files (the cockpit's are named by each part, ct156_ao).
 const HIGH_PICTURES = ['ct156-exterior-ao.jpg', 'ct156-exterior-bump.jpg', 'ct156-exterior-dirt.jpg', 'ct156-gear-ao.jpg'];
@@ -62,6 +67,11 @@ for (const [group, rows] of Object.entries(sheet.checks ?? {})) {
 }
 
 // ---------- every file as the sheet checked it, and nothing else ----------
+// A path on the sheet stays inside the delivery folder: no '..' and nothing absolute, or it would read and write
+// outside the folders (3d-work audit of 14 Oct 2026, auditor C item 9).
+for (const p of [...sheet.files.map((f) => f.path), ...(sheet.pictures ?? []).map((pic) => pic.file), ...(sheet.glb ?? []).map((g) => g.file)]) {
+  if (typeof p !== 'string' || !p || isAbsolute(p) || /^[a-zA-Z]:/.test(p) || p.split(/[\\/]/).includes('..')) refuse(`the sheet names a file outside the delivery folder: ${p}`);
+}
 const listed = new Map(sheet.files.map((f) => [f.path, f]));
 for (const [path, f] of listed) {
   const p = join(SRC, path);
@@ -115,6 +125,9 @@ for (const level of ['high', 'performance']) {
         if (n.mesh !== undefined) {
           for (const pr of json.meshes[n.mesh].primitives) {
             if (pr.attributes.NORMAL === undefined || pr.attributes.TEXCOORD_0 === undefined) refuse(`${rel}: ${top.name} has a piece without normals or picture corners.`);
+            // The app reads one picture layout, TEXCOORD_0 (ct156-blender.js loadParts); a second one means the baked
+            // pictures may sit on the layout the app drops (3d-work audit of 14 Oct 2026, auditor C item 1).
+            if (pr.attributes.TEXCOORD_1 !== undefined) refuse(`${rel}: ${top.name} has more than one picture layout; the app reads only the first.`);
             tris += (pr.indices !== undefined ? json.accessors[pr.indices].count : json.accessors[pr.attributes.POSITION].count) / 3;
           }
         }
@@ -208,13 +221,18 @@ if (CHECK_ONLY) {
 // ---------- copy, all or nothing ----------
 const STAGE = `${DEST}.importing`;
 rmSync(STAGE, { recursive: true, force: true });
-mkdirSync(STAGE, { recursive: true });
-for (const f of sheet.files) {
-  mkdirSync(dirname(join(STAGE, f.path)), { recursive: true });
-  cpSync(join(SRC, f.path), join(STAGE, f.path));
+try {
+  mkdirSync(STAGE, { recursive: true });
+  for (const f of sheet.files) {
+    mkdirSync(dirname(join(STAGE, f.path)), { recursive: true });
+    cpSync(join(SRC, f.path), join(STAGE, f.path));
+  }
+  const { problems, notes, ...kept } = sheet;
+  writeFileSync(join(STAGE, 'delivery.json'), `${JSON.stringify({ ...kept, notes, imported: new Date().toISOString() }, null, 1)}\n`);
+} catch (e) {
+  rmSync(STAGE, { recursive: true, force: true }); // no half-copied folder left beside the delivery
+  refuse(`the files could not be copied (${e.code ?? e.message}).`);
 }
-const { problems, notes, ...kept } = sheet;
-writeFileSync(join(STAGE, 'delivery.json'), `${JSON.stringify({ ...kept, notes, imported: new Date().toISOString() }, null, 1)}\n`);
 // Swap the folders so a failure leaves the old delivery in place: on Windows a running dev server can hold the folder
 // and refuse the rename (seen 13 Oct 2026), so stop it and import again.
 const OLD = `${DEST}.previous`;

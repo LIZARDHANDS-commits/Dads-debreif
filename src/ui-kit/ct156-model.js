@@ -813,9 +813,8 @@ export function ct156PiecesHash(pieces) {
 // master by its delivery command and taken in by `npm run models:import` (plan Step 3b item 3.4), smooth-shaded, with
 // the soft shadows and panel lines baked into one picture (ct156-exterior-ao.jpg) on its own UV map. Once it is in,
 // each of these kit shapes takes the file's in place, so every ship (and every ship made later) draws it; the decals,
-// cheat line, glass, lights, pilots and prop stay the code's, and so do the exhaust stacks since 12 Oct 2026 (Blender's
-// shading put grey spikes round their lips; Patrick, 12 Oct 2026, "exhaust doesnt look right here"). Only all of it or
-// none: if the file is missing, not from the imported delivery, or lacks a part, every ship stays as the code draws it.
+// cheat line, glass, lights and prop's blur disc stay the code's. Only all of it or none: if the file is missing, not
+// from the imported delivery, or lacks a part, every ship stays as the code draws it.
 // The code's shapes here are that fallback (ALL-38 (5)); since 3.4 the file's shape may differ from them on purpose.
 const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon', 'aileron', 'elevator', 'rudder', 'flapIn', 'flapOut']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
@@ -823,6 +822,19 @@ const EXTERIOR_FILE = 'ct156-exterior.glb';
 // only when the file has them, so an older delivery leaves the code's blades. Not in EXTERIOR_PARTS: the export scripts in
 // tools/blender/ never had them.
 const PROP_PARTS = Object.freeze(['blade', 'bladeTip']);
+// Layout 2 (3d-work increment 2, 15 Oct 2026; its build/app_layout.json "layout_2"): the parts the code drew itself come
+// from the master too, each taking the code's shape of the same name in place, so nothing draws twice: the exhaust stacks
+// (code since 12 Oct 2026, when Blender's shading put grey spikes round their lips), the outside coamings and floor disc,
+// the speed brake and its well, the flap wells and the tub; the gear's wells (GEAR_WELLS) and the pilots (PILOT_PARTS,
+// a file of their own). The fin's static wicks (FIN_WICKS) now come in the rudder, the ailerons' and elevator's in theirs,
+// all dark in slot 1 (as the antennas' slot 2), and the speed brake's slots' floors in its slot 1 (kit.slotExtras).
+const LAYOUT2_EXTERIOR = Object.freeze(['stubs', 'coamings', 'floor', 'speedBrake', 'speedBrakeWell', 'flapInWell', 'flapOutWell', 'tub']);
+const PILOTS_FILE = 'ct156-pilots.glb';
+const PILOT_PARTS = Object.freeze(['helmetFront', 'helmetRear']);
+// Parts the delivery doesn't bake (app_layout.json's no_picture: cavities and parts hidden in the hull, whose soft
+// shadows would be black, and the pilots, coloured by slot): their picture layout is flat, so they are drawn without the
+// file's shadow picture, in the code's own colours.
+const NO_PICTURE = new Set(['floor', 'speedBrakeWell', 'flapInWell', 'flapOutWell', 'tub', 'gearInboardWell', 'gearLegWell', 'gearNoseWell', ...PILOT_PARTS]);
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
 // The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
 // same script on the same uv map (Patrick, 11 Oct 2026 21:07Z: "Surface texture"); BUMP_SCALE how strongly the relief
@@ -896,20 +908,47 @@ function takeShape(THREE, into, meshes) {
   into.computeBoundingSphere();
 }
 
+/** A left-side shape mirrored across y = 0 into `into` (a right-side gear well, app_layout.json code_mirrors): y and the normals' y flipped, each triangle's winding reversed. */
+function mirrorShape(THREE, into, from) {
+  into.dispose();
+  into.setIndex(null);
+  into.clearGroups();
+  for (const key of Object.keys(into.attributes)) into.deleteAttribute(key);
+  for (const gr of from.groups) into.addGroup(gr.start, gr.count, gr.materialIndex);
+  for (const [key, n] of [['position', 3], ['normal', 3], ['uv', 2]]) {
+    const src = from.attributes[key].array, out = new Float32Array(src.length);
+    for (let t = 0; t < src.length; t += 3 * n) {
+      for (let v = 0; v < 3; v++) {
+        const sv = v === 0 ? 0 : 3 - v; // corners 1 and 2 swap
+        for (let c = 0; c < n; c++) out[t + v * n + c] = (n === 3 && c === 1 ? -1 : 1) * src[t + sv * n + c];
+      }
+    }
+    into.setAttribute(key, new THREE.BufferAttribute(out, n));
+  }
+  into.computeBoundingBox();
+  into.computeBoundingSphere();
+}
+
 function attachExterior(kit) {
   loadDelivered(EXTERIOR_FILE).then((list) => {
     if (kit.disposed) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
-    const missing = EXTERIOR_PARTS.filter((name) => !usable(byName.get(name)));
+    const missing = [...EXTERIOR_PARTS, ...LAYOUT2_EXTERIOR].filter((name) => !usable(byName.get(name)));
     if (missing.length) {
       console.warn(`${EXTERIOR_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code model shows`);
       return;
     }
-    for (const name of EXTERIOR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
+    for (const name of [...EXTERIOR_PARTS, ...LAYOUT2_EXTERIOR]) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
+    // The file's plate lies shut in the model's frame; the ship turns it on its hinge (addSpeedBrake), so it moves into the hinge's frame.
+    const sb = speedBrakeHinge();
+    kit.geo.speedBrake.translate(-sb.at[0], -sb.at[1], -sb.at[2]).rotateY(-sb.shut);
     kit.ao = loadAo(kit.THREE, CT156_FILES + EXTERIOR_AO);
     kit.skin = { bump: loadAo(kit.THREE, CT156_FILES + EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, CT156_FILES + EXTERIOR_DIRT) };
-    for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
+    for (const mesh of kit.exteriorMeshes) {
+      if (mesh.userData.ct156Slots) mesh.material = mesh.userData.ct156Slots; // the wicks' and slots' dark colour (kit.slotExtras)
+      shadeMesh(kit, mesh);
+    }
     // The prop's blade 1 and its tip, when the file has them (3d-work delivery 423e5eb on); before that the code's plates stay.
     if (PROP_PARTS.every((name) => usable(byName.get(name)))) {
       for (const name of PROP_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
@@ -925,12 +964,18 @@ function attachGear(kit) {
     if (kit.disposed) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
-    const missing = GEAR_PARTS.filter((name) => !usable(byName.get(name)));
+    const missing = [...GEAR_PARTS, ...GEAR_WELLS].filter((name) => !usable(byName.get(name)));
     if (missing.length) {
       console.warn(`${GEAR_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code's gear shows`);
       return;
     }
     for (const name of GEAR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
+    // The wells, in the model's frame (layout 2, no_picture): the left side's from the file, the right's its mirror.
+    for (const name of ['gearLegWell', 'gearInboardWell']) {
+      takeShape(kit.THREE, kit.geo[`${name}L`], byName.get(name).meshes);
+      mirrorShape(kit.THREE, kit.geo[`${name}R`], kit.geo[`${name}L`]);
+    }
+    takeShape(kit.THREE, kit.geo.gearNoseWell, byName.get('gearNoseWell').meshes);
     kit.gearAo = loadAo(kit.THREE, CT156_FILES + GEAR_AO);
     for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
     // The landing and taxi lamp (GEAR_LAMP), when the file has it (3d-work delivery 423e5eb on): every ship's lamps take
@@ -940,6 +985,21 @@ function attachGear(kit) {
       kit.lampDelivered = true;
       for (const lamps of kit.lampShips) showLamps(lamps);
     }
+  }, () => {});
+}
+
+/** The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture (NO_PICTURE). */
+function attachPilots(kit) {
+  loadDelivered(PILOTS_FILE).then((list) => {
+    if (kit.disposed) return;
+    const byName = new Map(list.map((p) => [p.name, p]));
+    const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
+    const missing = PILOT_PARTS.filter((name) => !usable(byName.get(name)));
+    if (missing.length) {
+      console.warn(`${PILOTS_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code's pilots show`);
+      return;
+    }
+    for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
   }, () => {});
 }
 
@@ -1185,6 +1245,15 @@ function tieDownGeometry(THREE, side) {
   for (let i = 0; i < p.count; i++) p.setXYZ(i, ...wingBend([p.getX(i), p.getY(i), p.getZ(i)]));
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * The speed brake's hinge (SPEED_BRAKE), model units: at its front edge just under the belly, and the turn that lays the
+ * shut plate along the belly, which rises aft under it.
+ */
+function speedBrakeHinge() {
+  const { x0, length } = SPEED_BRAKE;
+  return { at: [x0, 0, bellyAt(x0) - 0.0006], shut: Math.atan2(bellyAt(x0 - length) - bellyAt(x0), length) };
 }
 
 /**
@@ -1536,6 +1605,8 @@ function surfaceLayout() {
 
 /** The gear's parts drawn from the Blender file (ALL-34): the left side's, each in its hinge's frame. */
 const GEAR_PARTS = Object.freeze(['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor']);
+/** The gear's wells from the same file (layout 2), in the model's frame: the left side's two and the nose bay's. */
+const GEAR_WELLS = Object.freeze(['gearInboardWell', 'gearLegWell', 'gearNoseWell']);
 const GEAR_FILE = 'ct156-gear.glb';
 const GEAR_AO = 'ct156-gear-ao.jpg';
 
@@ -2647,6 +2718,9 @@ function buildKit(THREE) {
     wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.2, envMapIntensity: 0.5 }),
     finLe: mat({ color: '#c3c9cf', roughness: 0.5, side: two }),
     vent: mat({ color: '#07090b', roughness: 0.9, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    // The floors of the speed brake's slots (the file's speedBrake|1, layout 2): a vent's dark, without its offset, as
+    // they sit recessed in the plate.
+    slotFloor: mat({ color: '#07090b', roughness: 0.9, side: two }),
     // The antennas (geo.antenna's slots): light grey (lighter, as the paddles on Patrick's 156102 photo; was #a8aaa4),
     // white, and dark for the painted TAS blades and the tie-down rings.
     antenna: [mat({ color: '#c4c5bf', roughness: 0.5, side: two }), mat({ color: '#f1f3f5', roughness: 0.45, side: two }), mat({ color: '#15181d', roughness: 0.45, metalness: 0.3, side: two })],
@@ -2728,7 +2802,11 @@ function buildKit(THREE) {
   // Each outside part's fingerprint of the code's own shape, before the file's shape takes its place: read by the
   // export scripts in tools/blender/ (ct156ExteriorPieces); since plan 3.4 the app no longer compares it with the file.
   kit.hashes = Object.fromEntries(EXTERIOR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
-  kit.exteriorGeos = new Set(EXTERIOR_PARTS.map((name) => geo[name]));
+  kit.exteriorGeos = new Set([...EXTERIOR_PARTS, ...LAYOUT2_EXTERIOR].filter((name) => !NO_PICTURE.has(name)).map((name) => geo[name]));
+  // The files' slot 1 on parts the code draws in one colour (layout 2): the static wicks on the ailerons, elevator and
+  // rudder, dark as the antennas' slot 2 (the fin's wicks were there), and the floors of the speed brake's slots. A ship's
+  // mesh of one of these takes [its colour, this] once the outside's file is in (add, attachExterior).
+  kit.slotExtras = new Map([[geo.aileron, mats.antenna[2]], [geo.elevator, mats.antenna[2]], [geo.rudder, mats.antenna[2]], [geo.speedBrake, mats.slotFloor]]);
   kit.exteriorMeshes = new Set();
   kit.shaded = new WeakMap();
   kit.ao = null;
@@ -2749,6 +2827,7 @@ function buildKit(THREE) {
   if (typeof window !== 'undefined') {
     attachExterior(kit);
     attachGear(kit);
+    attachPilots(kit);
   }
   return kit;
 }
@@ -2895,10 +2974,15 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     // and the prop's disc don't; everything takes them.
     m.castShadow = ![material].flat().some((mat) => mat?.transparent);
     m.receiveShadow = true;
+    const extra = kit.slotExtras.get(geometry);
+    if (extra) m.userData.ct156Slots = [material, extra];
     if (kit.exteriorGeos.has(geometry)) { // a Blender part (ALL-33): shaded by the file's picture once it is in
       m.userData.ct156Mine = mine;
       kit.exteriorMeshes.add(m);
-      if (kit.ao) shadeMesh(kit, m);
+      if (kit.ao) {
+        if (extra) m.material = m.userData.ct156Slots;
+        shadeMesh(kit, m);
+      }
     } else if (kit.gearGeos.has(geometry)) { // the gear's Blender part (ALL-34), shaded by its own picture
       m.userData.ct156Mine = mine;
       kit.gearMeshes.add(m);
@@ -2996,10 +3080,10 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
-    const { x0, length, openDeg } = SPEED_BRAKE;
+    const { openDeg } = SPEED_BRAKE;
+    const { at, shut } = speedBrakeHinge();
     const hinge = new THREE.Group();
-    hinge.position.set(x0, 0, bellyAt(x0) - 0.0006);
-    const shut = Math.atan2(bellyAt(x0 - length) - bellyAt(x0), length); // the belly rises aft under it
+    hinge.position.set(...at);
     hinge.rotation.y = shut;
     add(geo.speedBrake, paintMat, hinge);
     detail.add(hinge);
