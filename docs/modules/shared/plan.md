@@ -110,14 +110,14 @@ The Astra's process applied to the T-38: [t38a-plan.md](t38a-plan.md). Dad's thr
 
 ## Step 3e. C-130J Super Hercules model in Blender (Dad's ask; Patrick approved 15 Oct 2026, relayed by Dad)
 
-The T-38A's process applied to the C-130J: [c130j-plan.md](c130j-plan.md). Dad's thread builds it in its own files (`tools/blender/c130j/`). Dad's pick: first used in the Debrief (KML viewer), as another Aircraft choice. Working answers until Dad picks: the stretched C-130J-30, USAF grey with the Ramstein "RS" tail.
+The T-38A's process applied to the C-130J: [c130j-plan.md](c130j-plan.md). Dad's thread builds it in its own files (`tools/blender/c130j/`). Dad's picks: first used in the Debrief (KML viewer), as another Aircraft choice; the stretched C-130J-30, in USAF grey with the Ramstein "RS" tail (15 Oct 2026, card answers).
 
-- [ ] 1. Sources table: the public numbers, then sizes measured off Dad's three-views (C1, C3).
-- [ ] 2. First outside in Blender, built by script in real feet, with its size checks.
-- [ ] 3. Renders and a fix list (Patrick and Dad).
+- [x] 1. Sources table: the public numbers, then sizes measured off Dad's three-views (C1, C3). **First pass, not yet seen by Patrick or Dad** (15 Oct 2026, [`tools/blender/c130j/sources.md`](../../../tools/blender/c130j/sources.md)): length, span and height from the RCAF CC-130J fact sheet, the tailplane span from Dad's dimension drawing (C3), the plugs (100 in ahead of the wing, 80 in behind), wing area and prop diameter from secondary pages (all read through search summaries). C1, the clearest outline, draws the short C-130J, so the shape is measured off it and the two plugs put in; C3, a -30, confirms where they go. Where the sources disagree (the height, the wing's dihedral against the brief's droop, the fin) both are written down.
+- [x] 2. First outside in Blender, built by script in real feet, with its size checks. **First pass, not yet seen by Patrick or Dad** (15 Oct 2026, [`tools/blender/c130j/build_c130j.py`](../../../tools/blender/c130j/build_c130j.py), Blender 5.2): length, span, height and the tailplane span on the published figures; wing area 1,742 ft² against 1,745 ft²; named points and hinges. The master `.blend` stays out of the repo.
+- [ ] 3. Renders and a fix list (Patrick and Dad). **Renders and overlays made, first pass, not yet seen by Patrick or Dad** (15 Oct 2026; plain and painted, kept out of the repo): the short outline on C1 and the -30 on C3 fit within about a line's width in side and plan; what still differs is the first fix list in `sources.md`. The fix list from Patrick and Dad looking at the renders is still to come.
 - [ ] 4. Refine.
-- [ ] 5. Paint.
-- [ ] 6. First delivery: High and light files, `src/ui-kit/c130j-model.js`, and "C-130J Hercules" in the Debrief's Aircraft select (a DB- decision first).
+- [x] 5. Paint. **First pass, not yet seen by Patrick or Dad** (15 Oct 2026): USAF grey, black "RS", a stand-in flag, "U.S. AIR FORCE", the low-visibility star-and-bar on the aft fuselage and wings, "USAF" under the left wing and over the right, black on the fin's and tailplane's leading edges and beside each nacelle, dark props (rows D1 to D12 in `sources.md`). Simple stand-ins for the insignia and Blender's built-in face; nothing copied.
+- [x] 6. First delivery: High and light files, `src/ui-kit/c130j-model.js`, and "C-130J Hercules" in the Debrief's Aircraft select (a DB- decision first). **First pass, not yet seen by Patrick or Dad (15 Oct 2026, V2.462):** exported by `tools/blender/c130j/export_c130j.py` into `public/models/c130j-exterior.glb` (High, about 1.35 MB, 57,600 triangles) and `c130j-exterior-lite.glb` (about 0.57 MB, 21,400 triangles, not used yet); the Debrief's Aircraft choice "C-130J Hercules" (DB-35) draws every ship as the C-130J in the overview and Chase, the Cockpit camera riding the CT-156.
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 

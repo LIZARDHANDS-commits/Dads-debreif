@@ -1,5 +1,7 @@
 # C-130J Super Hercules model: plan (approved)
 
+> **Progress:** items 1 and 2 done and item 3's renders made, with a first paint pass (item 5) and the first delivery (item 6, V2.462), 15 Oct 2026, not yet seen by Patrick or Dad: [`tools/blender/c130j/`](../../../tools/blender/c130j/README.md); see `plan.md` Step 3e.
+>
 > **Status:** approved: Patrick said yes (relayed by Dad, 15 Oct 2026: "pat  yes"). Dad asked on 15 Oct 2026: "lets do a model for KML viewer for the C-130J", with four reference pictures. It would be Step 3e of `plan.md`, built the way the T-38A is (Step 3d, `t38a-plan.md`), which follows the Astra's (Step 3c) and the CT-156's process (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38).
 
 ## What it would be
@@ -39,7 +41,7 @@ Only measured numbers go into the sources table (as R-rows, like the T-38A's), n
 
 Each step is one pull request in this repo by Dad's thread (one writer: `tools/blender/c130j/`, `public/models/c130j-*`, `src/ui-kit/c130j-model.js`), under Patrick's yes on this plan.
 
-0. **Patrick's yes** (given 15 Oct 2026, relayed by Dad), **and the answers below** (working answers until Dad picks).
+0. **Patrick's yes** (given 15 Oct 2026, relayed by Dad), **and the answers below** (Dad picked questions 1 and 2 on 15 Oct 2026).
 1. **Sources table:** the public numbers above, then sizes measured off C1 and C3, each view scaled on its own to the public length, span and height; estimates marked.
 2. **First outside in Blender,** built by script in real feet: the fuselage with its upswept tail and the cargo ramp, the high straight wing with its taper, the four nacelles and six-blade props, the fin and the tailplane, the sponsons with the main gear, the nose gear, the flight deck windows, named points (datum, the flight deck eye points) and hinges (ailerons, flaps, elevators, rudder, ramp and door, gear). Size checks on length, span and height.
 3. **Renders and a fix list:** both quarters, below, square-on side, front and top over a 1 ft grid, in plain colours; overlays on C1 and C3; Patrick and Dad say what is wrong, each item a numbered row.
@@ -55,14 +57,14 @@ Each step is one pull request in this repo by Dad's thread (one writer: `tools/b
    - (c) one model with both lengths, the stretch a plug;
    - (d) Dad's or Patrick's idea.
 
-   Working answer: (a), until Dad picks.
+   **Dad's pick: (a), the C-130J-30** (15 Oct 2026, card answer).
 2. **Paint:**
    - (a) USAF grey with the Ramstein "RS" tail (C2);
    - (b) the AFRC 815th Airlift Squadron "Flying Jennies" scheme (C4);
    - (c) RCAF CC-130J grey;
    - (d) Dad's or Patrick's idea.
 
-   Working answer: (a), until Dad picks.
+   **Dad's pick: (a), USAF grey with the Ramstein "RS" tail** (15 Oct 2026, card answer).
 3. **Who builds it:** Dad's thread, in its own files, never editing a CT-156, Astra or T-38A file except the Debrief's Aircraft select and the shared aircraft-mesh dispose line, as the T-38A did. Working answer.
 
 ## When data fails
