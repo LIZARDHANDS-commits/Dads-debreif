@@ -1,7 +1,7 @@
 {
  "units": "ft",
  "frame": "nose +X, left +Y, up +Z from the spinner's axis, origin at the model's origin",
- "delivery": "ct156-2026-10-14-ed1dcfd",
+ "delivery": "ct156-2026-10-15-caa4be2",
  "eyes": {
   "front": [
    3.0088,
