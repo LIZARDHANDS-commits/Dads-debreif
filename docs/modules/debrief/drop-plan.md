@@ -29,15 +29,22 @@ Search first: core has the atmosphere (density with height, `src/core/atmosphere
 
 ## The numbers (sources to be checked; estimates until then)
 
-| Number | Working value | Source |
-|---|---|---|
-| BDU-33 weight | about 25 lb | public (USAF and US Navy practice bomb pages); to check |
-| BDU-33 Cd·A | estimate from its size (about 4 in diameter) and a low-drag bomb's Cd; to check against a published ballistic table | estimate |
-| A-22 bag rigged weight | up to 2,200 lb (rigged); preset about 1,000 lb | AFMAN 11-231 (Computed Air Release Point Procedures, public on e-Publishing) and the A-22 rigging manual; to check |
-| G-12 rate of descent | about 28 ft/s (a published figure; varies by source and weight) | AFMAN 11-231 ballistic data; to check |
-| Open delay and time to open | estimates until AFMAN 11-231's ballistic data is read | estimate |
+First pass, 15 Oct 2026, read through web-search summaries only: the USAF publications site (e-Publishing) and the Army field-manual mirrors refuse this cloud session, so no page has been opened yet. Nothing here goes into code until a page backs it or Patrick rules.
 
-Every number lands in this table with its page before it is used in code; AFMAN 11-231 is a public USAF publication, so its page is cited, never copied.
+| Number | Working value | Source | State |
+|---|---|---|---|
+| BDU-33 weight | 25 lb nominal (about 24.6 lb measured) | public practice-bomb records (valka.cz database; seller listings) | unchecked |
+| BDU-33 size | about 4 in body diameter, about 23 in long | valka.cz (582 mm, 101.6 mm); seller listings say about 25 in | unchecked; sources differ |
+| BDU-33 drag | built to match the Mk 82 low-drag bomb's range only inside set release envelopes (US patent 4,112,843, 1977); no published drag coefficient found | Cd·A an estimate from its size and a finned low-drag body until a ballistic table is found | estimate |
+| G-12 canopy | 64 ft flat circular (G-12E; the Marine Corps sheet says 65 ft) | Mills Manufacturing G-12 page; USMC G-11/G-12 sheet | unchecked |
+| G-12 load | 501 to 2,200 lb on one canopy (3,500 lb on two) | Mills Manufacturing G-12 page | unchecked |
+| G-12 rate of descent | **not found yet**; working estimate 28 ft/s (the newer low-cost cargo chutes are said to be "less than 28 ft/s", Joint Base Charleston article, which is not a G-12 figure) | estimate | **open: AFMAN 11-231 or the G-12 manual** |
+| Typical release | 140 KIAS for the G-12 (Safran/Airlift data sheet); lowest drop height 475 to 550 ft AGL (CKSA product page) | flags only, never walls | unchecked |
+| A-22 preset weight | about 1,000 lb (inside the G-12's 501 to 2,200 lb) | estimate | estimate |
+| CDS drift factor | K = 1.5 in the drift rule D = K·A·U (D in yards, A in hundreds of feet, U wind in knots), on the 1997 AF IMT 4013 worksheet (K = 3.0 personnel); a cross-check on the computed drift, not used for it | AF IMT 4013 (1997), through a search summary | unchecked, old form |
+| Open delay, time to open | estimate (about 2 s and 2 s) until AFMAN 11-231's ballistic data is read | estimate | estimate |
+
+**Asked of Dad (15 Oct 2026):** a copy of AFMAN 11-231 (public; it opens in a normal browser) into the project files, so its pages can be read and cited; and the G-12's rate of descent if he knows it from practice.
 
 ## On screen (simple screens: off until opened)
 
