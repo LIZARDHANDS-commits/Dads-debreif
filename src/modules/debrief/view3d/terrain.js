@@ -45,6 +45,23 @@ export const CANVAS_PX = Object.freeze({ outer: 1024, inner: 2048 });
  */
 export const FIELD_PATCH_NM = 5;
 export const FIELD_PATCH = Object.freeze({ px: 2048, maxTiles: 49, minZoom: 10, maxZoom: 16 });
+/**
+ * The follow patch (DB-34; Dad, 15 Oct 2026, "The kml viewer struggles to display the satellite ground terrain"; Patrick approved): a sharp picture about FOLLOW_PATCH_NM
+ * square round what the camera follows, 2,048 px (about 18 ft a pixel), at the finest zoom with 64 tiles or fewer (the shared tile layer draws at most 64 a picture; about zoom 14
+ * at 50 N). It moves, snapped to the inner mesh's cells, when that point is more than FOLLOW_MOVE_SHARE of its width from its middle, at most every FOLLOW_MIN_MS. Estimates.
+ */
+export const FOLLOW_PATCH_NM = 6;
+export const FOLLOW_PATCH = Object.freeze({ px: 2048, maxTiles: 64, minZoom: 10, maxZoom: 15 });
+export const FOLLOW_MOVE_SHARE = 0.25;
+export const FOLLOW_MIN_MS = 3000;
+/**
+ * "Satellite detail" (DB-34): Standard is DB-27's inner picture; High draws it at 4,096 px and the finest zoom with 64 tiles or fewer (about zoom 11 on a 78 NM flight, twice as
+ * sharp each way), at about 48 MB more graphics memory. Estimates.
+ */
+export const SAT_DETAIL_VALUES = Object.freeze(['standard', 'high']);
+export const SAT_DETAIL_HIGH = Object.freeze({ px: 4096, inner: Object.freeze({ maxTiles: 64, minZoom: 7, maxZoom: 14 }) });
+/** The setting's value as one of SAT_DETAIL_VALUES; anything else is 'standard'. */
+export const satDetail = (v) => (v === 'high' ? 'high' : 'standard');
 /** Under a drawn runway the terrain lies this far below it (feet), so the runway's paint is always on top (an estimate; the runway itself is 0.5 ft over its level, DB-26). */
 export const RUNWAY_BED_FT = 1;
 
@@ -56,7 +73,8 @@ const nmWords = (ft) => `${Math.round(ft / FT_PER_NM)} NM`;
  * The area round a flight: { key, centre: { x, y } (map feet), lat, lon, plan, imagery, counts } or null with no flight. `plan` is the shared terrain3d/draped-ground plan
  * (squares centred on `centre`), `imagery` the satellite canvases and their finest zooms, `counts` how many terrain and satellite tiles each tier asks for (at most).
  */
-export function terrainArea(flight) {
+export function terrainArea(flight, { detail = 'standard' } = {}) {
+  const high = satDetail(detail) === 'high';
   const b = flightBounds(flight);
   if (!b || !flight?.ref) return null;
   const centre = { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
@@ -76,10 +94,11 @@ export function terrainArea(flight) {
   const tOuter = zoomForTiles(outerBox, TILE_CAPS.terrain.outer);
   const tInner = zoomForTiles(innerBox, TILE_CAPS.terrain.inner);
   const iOuter = zoomForTiles(outerBox, TILE_CAPS.imagery.outer);
-  const iInner = zoomForTiles(innerBox, TILE_CAPS.imagery.inner);
+  const iInner = zoomForTiles(innerBox, high ? SAT_DETAIL_HIGH.inner : TILE_CAPS.imagery.inner);
   const { lat, lon } = toLatLon(0, 0);
   return {
-    key: `${lat.toFixed(5)},${lon.toFixed(5)},${Math.round(innerFt)}`,
+    key: `${lat.toFixed(5)},${lon.toFixed(5)},${Math.round(innerFt)},${high ? 'high' : 'standard'}`,
+    detail: high ? 'high' : 'standard',
     centre,
     lat,
     lon,
@@ -89,7 +108,7 @@ export function terrainArea(flight) {
       inner: { sizeFt: innerFt, cells: INNER_CELLS, zoom: tInner.zoom },
       hole: holeFor({ outerSizeFt: outerFt, outerCells, innerSizeFt: innerFt }),
     },
-    imagery: { outer: { px: CANVAS_PX.outer, maxZoom: iOuter.zoom }, inner: { px: CANVAS_PX.inner, maxZoom: iInner.zoom } },
+    imagery: { outer: { px: CANVAS_PX.outer, maxZoom: iOuter.zoom }, inner: { px: high ? SAT_DETAIL_HIGH.px : CANVAS_PX.inner, maxZoom: iInner.zoom } },
     counts: {
       terrain: tOuter.tiles.length + tInner.tiles.length,
       imagery: iOuter.tiles.length + iInner.tiles.length,
@@ -102,10 +121,36 @@ export function terrainArea(flight) {
  * flight's start when the tracks gave no ground; kept inside the inner square. { i0, j0, cells, sizeFt, centre: { x, y } (feet from the area's centre), imagery: { px, maxZoom } }.
  */
 export function fieldPatch(area, ground, firstFix = null) {
+  const at = isNum(ground?.x) && isNum(ground?.y) ? ground : firstFix && isNum(firstFix.x) && isNum(firstFix.y) ? firstFix : area.centre;
+  return patchAt(area, at, FIELD_PATCH_NM, FIELD_PATCH);
+}
+
+/** The follow patch's spec (DB-34) round `at` (map feet, { x, y }): as fieldPatch's, FOLLOW_PATCH_NM square with FOLLOW_PATCH's caps. Null without a place. */
+export function followPatch(area, at) {
+  return at && isNum(at.x) && isNum(at.y) ? patchAt(area, at, FOLLOW_PATCH_NM, FOLLOW_PATCH) : null;
+}
+
+/**
+ * Should the follow patch move (DB-34)? `spec` is the patch now (followPatch's, or null), `at` the point followed (map feet), `sinceMs` how long since it last moved. True when
+ * there is none yet, or `at` is more than FOLLOW_MOVE_SHARE of its width from its middle and FOLLOW_MIN_MS have passed (a patch against the inner square's edge whose snapped
+ * place would not change does not move).
+ */
+export function followNeedsMove(area, spec, at, sinceMs) {
+  if (!at || !isNum(at.x) || !isNum(at.y)) return false;
+  if (!spec) return true;
+  if (!(sinceMs >= FOLLOW_MIN_MS)) return false;
+  const dx = at.x - area.centre.x - spec.centre.x;
+  const dy = at.y - area.centre.y - spec.centre.y;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) <= FOLLOW_MOVE_SHARE * spec.sizeFt) return false;
+  const next = followPatch(area, at);
+  return next.i0 !== spec.i0 || next.j0 !== spec.j0;
+}
+
+/** A patch's spec: about `sizeNm` square of the inner mesh's cells round `at` (map feet), kept inside the inner square, with its picture's size and finest zoom from `caps`. */
+function patchAt(area, at, sizeNm, caps) {
   const { inner } = area.plan;
   const cellFt = inner.sizeFt / inner.cells;
-  const cells = Math.min(inner.cells, Math.max(2, Math.round((FIELD_PATCH_NM * FT_PER_NM) / cellFt)));
-  const at = isNum(ground?.x) && isNum(ground?.y) ? ground : firstFix && isNum(firstFix.x) && isNum(firstFix.y) ? firstFix : area.centre;
+  const cells = Math.min(inner.cells, Math.max(2, Math.round((sizeNm * FT_PER_NM) / cellFt)));
   const clampI = (v) => Math.max(0, Math.min(inner.cells - cells, v));
   const i0 = clampI(Math.round((at.x - area.centre.x + inner.sizeFt / 2) / cellFt - cells / 2));
   const j0 = clampI(Math.round((at.y - area.centre.y + inner.sizeFt / 2) / cellFt - cells / 2));
@@ -115,8 +160,8 @@ export function fieldPatch(area, ground, firstFix = null) {
   const h = sizeFt / 2;
   const p = [[-h, -h], [-h, h], [h, -h], [h, h]].map(([x, y]) => toLatLon(centre.x + x, centre.y + y));
   const box = { north: Math.max(...p.map((q) => q.lat)), south: Math.min(...p.map((q) => q.lat)), west: Math.min(...p.map((q) => q.lon)), east: Math.max(...p.map((q) => q.lon)) };
-  const pick = zoomForTiles(box, FIELD_PATCH);
-  return { i0, j0, cells, sizeFt, centre, imagery: { px: FIELD_PATCH.px, maxZoom: pick.zoom }, tiles: pick.tiles.length };
+  const pick = zoomForTiles(box, caps);
+  return { i0, j0, cells, sizeFt, centre, imagery: { px: caps.px, maxZoom: pick.zoom }, tiles: pick.tiles.length };
 }
 
 /** The projection the shared ground code is handed: lat/lon to feet from the area's centre and back (the flight's own map feet, moved to the centre). */
@@ -216,7 +261,7 @@ export function drawnHeightFt(grids, area, x, y) {
  * What 3D settings says about the terrain: `tiles` and `imagery` are the shared loaders' states ({ wanted, ready, failed, pending } and { outer, inner } of { wanted, ready,
  * failed }), `shift` terrainShift's, `groundFt` the tracks' ground, `ms` how long the build took once settled (null while loading).
  */
-export function terrainStatusWords({ area, tiles, imagery, shift, groundFt, ms = null, patch = null }) {
+export function terrainStatusWords({ area, tiles, imagery, shift, groundFt, ms = null, patch = null, follow = null }) {
   if (!area) return '';
   const parts = [];
   const flat = `flat at the tracks' ground, ${ftWords(groundFt)}`;
@@ -224,9 +269,11 @@ export function terrainStatusWords({ area, tiles, imagery, shift, groundFt, ms =
   else if (tiles.pending > 0 || !tiles.wanted) parts.push(`Terrain loading: ${tiles.ready} of ${tiles.wanted || area.counts.terrain} elevation tiles so far; the rest is ${flat} until it arrives.`);
   else {
     const { outer, inner } = area.plan;
-    const sat = imagery ? imagery.outer.ready + imagery.inner.ready + (imagery.patch?.ready ?? 0) : 0;
+    const sat = imagery ? imagery.outer.ready + imagery.inner.ready + (imagery.patch?.ready ?? 0) + (imagery.follow?.ready ?? 0) : 0;
     const patchWords = patch ? `, and a sharper satellite picture over ${nmWords(patch.sizeFt)} round the field (zoom ${patch.imagery.maxZoom})` : '';
-    parts.push(`Terrain: ${tiles.ready} elevation tiles, zoom ${outer.zoom} over ${nmWords(outer.sizeFt)} square and zoom ${inner.zoom} over the flight's ${nmWords(inner.sizeFt)}${patchWords}; ${sat} satellite tiles${ms !== null ? `; built in ${(ms / 1000).toFixed(1)} s` : ''}.`);
+    const followWords = follow ? `, and a sharp picture over ${nmWords(follow.sizeFt)} round the aircraft followed (zoom ${follow.imagery.maxZoom})` : '';
+    const detailWords = area.detail === 'high' ? ` Satellite detail: High (zoom ${area.imagery.inner.maxZoom} on ${area.imagery.inner.px.toLocaleString('en-US')} px over the flight).` : '';
+    parts.push(`Terrain: ${tiles.ready} elevation tiles, zoom ${outer.zoom} over ${nmWords(outer.sizeFt)} square and zoom ${inner.zoom} over the flight's ${nmWords(inner.sizeFt)}${patchWords}${followWords}; ${sat} satellite tiles${ms !== null ? `; built in ${(ms / 1000).toFixed(1)} s` : ''}.${detailWords}`);
     if (tiles.failed > 0 || tiles.capped) parts.push(`${tiles.failed} tiles didn't load${tiles.capped ? ' (some were over the tile cap)' : ''}: those parts are ${flat}.`);
   }
   if (shift?.tileFt !== null && shift?.tileFt !== undefined) {
@@ -235,7 +282,7 @@ export function terrainStatusWords({ area, tiles, imagery, shift, groundFt, ms =
   } else if (tiles.ready > 0) parts.push('Terrain not shifted: the tracks gave no ground to match it to.');
   const lost = (s) => s.wanted > 0 && s.failed === s.wanted;
   if (imagery) {
-    const all = [imagery.outer, imagery.inner, ...(imagery.patch ? [imagery.patch] : [])];
+    const all = [imagery.outer, imagery.inner, ...(imagery.patch ? [imagery.patch] : []), ...(imagery.follow ? [imagery.follow] : [])];
     const sum = (k) => all.reduce((n, s) => n + s[k], 0);
     if (lost(imagery.outer) && all.every((s) => lost(s) || !s.wanted)) parts.push('Satellite picture unavailable (its tiles didn\'t load): plain ground shown.');
     else if (sum('ready') + sum('failed') < sum('wanted')) parts.push(`Satellite loading: ${sum('ready')} of ${sum('wanted')} tiles.`);

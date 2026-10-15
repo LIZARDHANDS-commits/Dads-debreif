@@ -30,6 +30,7 @@ import { createFlightSpace, toXYFor } from './airspace.js';
 import { groundLevel } from './view3d/ground.js';
 import { AIRPORTS } from '../../airfields/airports-data.js';
 import { CAMERA_ALLOWED } from './view3d/camera-modes.js';
+import { SAT_DETAIL_VALUES } from './view3d/terrain.js';
 import { tennisAt } from './tennis.js';
 import { createTennisPanel } from './tennis-panel.js';
 import { FIELD_ELEVATION_FT } from './data/cymj.js';
@@ -65,7 +66,7 @@ function mount(root, app) {
   const layout = createSettings(app.storage, LAYOUT_DEFAULTS, {
     allowed: {
       view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS), wxWindModel: Object.keys(WIND_MODELS),
-      ...CAMERA_ALLOWED,
+      ...CAMERA_ALLOWED, satDetail3d: [...SAT_DETAIL_VALUES],
     },
   });
   const controls = createControls(layout);
