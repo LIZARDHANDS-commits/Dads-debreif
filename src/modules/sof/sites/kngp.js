@@ -1,5 +1,5 @@
 // The NAS Corpus Christi site profile (plan Step 2c, part B): the SOF's own data for KNGP. The parts every US base shares, and their sources, are in us-base.js.
-// No weather standards yet (Limits not set), NOAA MRMS radar and NASA GOES-East satellite (part C), no lightning picture, the WPC fronts, and (part E) FAA airspace, FAA NOTAMs (keyed) and aviationweather.gov SIGMETs, G-AIRMETs and PIREPs.
+// No weather standards yet (Limits not set), NOAA MRMS radar and NASA GOES-East satellite (part C), NOAA NLDN lightning strikes (SOF-71), the WPC fronts, and (part E) FAA airspace, FAA NOTAMs (keyed) and aviationweather.gov SIGMETs, G-AIRMETs and PIREPs.
 import { AIRSPACE_LOADERS } from '../../../airfields/airspace/areas.js';
 import { usBase, towns } from './us-base.js';
 

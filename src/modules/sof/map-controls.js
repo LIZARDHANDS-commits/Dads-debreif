@@ -169,6 +169,10 @@ export function createMapControls(handlers) {
     if (items.lightning) {
       parts.push(h('div', { class: 'sof-legend-item sof-legend-row' }, h('span', { class: 'sof-legend-lightning', 'aria-hidden': 'true' }), h('p', {}, items.lightning)));
     }
+    if (items.strikes) {
+      // NOAA's strikes (SOF-71): the same yellow and dark outline as a cross, as map-draw.js `drawStrikes` paints it.
+      parts.push(h('div', { class: 'sof-legend-item sof-legend-row' }, h('span', { class: 'sof-legend-strike', 'aria-hidden': 'true' }), h('p', {}, items.strikes)));
+    }
     if (items.rings) parts.push(h('div', { class: 'sof-legend-item' }, h('p', {}, items.rings)));
     if (items.traffic) parts.push(h('div', { class: 'sof-legend-item' }, h('p', {}, items.traffic)));
     legendBody.replaceChildren(...parts);
@@ -186,7 +190,7 @@ export function createMapControls(handlers) {
     escape: closeOnEscape,
     /** The key for what is showing (map-model.js `legendItems`), or null to hide it (the ADS-B Exchange view). Redrawn only when it changes. */
     setLegend(items) {
-      const shown = items && (items.radar || items.lightning || items.rings || items.traffic);
+      const shown = items && (items.radar || items.lightning || items.strikes || items.rings || items.traffic);
       legend.hidden = !shown;
       const sig = shown ? JSON.stringify(items) : '';
       if (sig === legendSig) return;

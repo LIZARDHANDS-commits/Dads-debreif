@@ -55,6 +55,7 @@ Dad's open SOF questions (SOF-Q5 to SOF-Q8, SOF-Q12) are settings or named defau
 | SOF-R26 The everyday extras | New: the Zulu and local clocks agree with the DTG; the radar loop steps through the last hour's pictures, each with its own time; tapping a card centres the map on that airfield; Other airfields and About open from buttons and start closed. The NATO chart, Large text and the links are on the future list and get no tests | Each change (unit); sign-off (browser) | |
 | SOF-R27 Wind and crosswind | Future list (4 Oct 09:22Z), not tested now. When built: crosswind worked out by hand for each runway from the wind and the runway heading; amber just over 15 kt dry (10 wet, 5 icy), red just over 25 kt dry; a 30 kt wind or gust gives the warning and 35 kt the cease-flying caution; changing a setting changes the call; nothing stops past a limit (S4, T10) | Each change | Dad checks the numbers and their page references |
 | SOF-R28 Extra map layers, off by default except radar coverage | Fresh map: radar, lightning and radar coverage on, the rest off; each turns on and off; label overlap as in SOF-R14 | Each change (unit); sign-off (browser) | |
+| SOF-R29 Radar in 3D with its measured heights (NOAA MRMS, two modes) | The one light check: our GRIB2 reader reads a real MRMS file right (`tests/unit/sof/mrms-grib2.test.js`, V2.452): MRMS's grid, the field and its time, a storm cell's echo top and its neighbours, and no-echo and no-coverage cells read as such, with the expected values read from NOAA's own file by ecCodes, never from the code; a file of another product fails the check | Each change | Over a known storm the 3D radar top matches MRMS's own echo-top picture for that time (NCEP WMS `conus_neet_v18`); in both modes; with the network to `noaa-mrms-pds.s3.amazonaws.com` blocked the fallback words show; at Moose Jaw, Dad's comparison with ECCC and his RadarScope (plan Step 2b, Weather fidelity 4, item 6) |
 
 **At SOF sign-off:** both SOF browser files in full, the hands-on checklist above and `archive/docs/checklists/sof.md`, and one look in real Safari. Sign-off comes after the one-screen rebuild (SOF-Q13).
 
@@ -78,6 +79,7 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 - [ ] Tab through the screen (SOF-R24)
 - [ ] The checklist itself (SOF-R25)
 - [ ] Dad checks the numbers and their page references (SOF-R27; future list, only once it is built)
+- [ ] Over a known storm the 3D radar top matches MRMS's own echo-top picture, in Performance and High; with MRMS blocked the fallback words show; at Moose Jaw, Dad's comparison with ECCC and RadarScope (SOF-R29)
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 
