@@ -1,0 +1,29 @@
+# Line endings: every text file is stored with LF line ends, whatever computer commits it (Patrick, 13 Oct 2026:
+# "Yes, in both repos"). Binary files are never converted.
+* text=auto eol=lf
+
+# Binary
+*.glb binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.mp4 binary
+*.webm binary
+*.gz binary
+*.zip binary
+*.bundle binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.blend binary
+
+# Dad's V6 is never edited or converted (rule book).
+original/** -text
+
+# Kept as it is until EP Tabletop's pull request #934 merges (it owns this file); remove this line then.
+src/shell/registry.js -text

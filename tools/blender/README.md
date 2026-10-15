@@ -1,13 +1,37 @@
 # Blender CT-156
 
-**Moving (ALL-38, 12 Oct 2026):** the CT-156's shape now belongs to Blender master files in the private repo
-`3d-work`. These scripts build the model from the code tables as today and seed those master files; they stay until
-the code-drawn CT-156 is retired under ALL-38 (5). See `docs/modules/shared/plan.md` Step 3b.
+**The CT-156's model files come from `3d-work` (ALL-38, plan Step 3b item 3.4).** Blender master files in the private
+repo `3d-work` own the shape. Its delivery command (`node ct156/build/deliver.mjs`) builds the outside, gear and cockpit
+files in High and Performance from the master, bakes their pictures, checks them (the Khronos validator, the sizes,
+triangle budgets, the seams between neighbouring parts, the named points) and writes a delivery folder with its sheet.
+The app takes a delivery only through:
 
-The CT-156's outside (ALL-33), landing gear (ALL-34) and cockpit (ALL-32) are model files built here by script from the code model's own
-shapes, so the code's tables stay the one source for the aircraft's shape and size. Blender adds what code can't easily:
-smooth shading with sharp edges where they belong, baked soft shadows, and the panel lines and control-surface gaps.
-If a file is missing, or a part's shape has changed since it was built, the code-drawn part shows.
+```
+npm run models:import -- <delivery folder>            check it, then copy it into public/models/ct156/
+npm run models:import -- <delivery folder> --check    check only
+```
+
+`models-import.mjs` refuses a delivery that failed its checks or is a draft, or whose files are not the ones its sheet
+checked (sizes and SHA-256 fingerprints, no extra files), and re-reads each model file as the app does (its parts,
+normals and picture corners, no transform left on a node, triangles as the sheet says). It runs the Khronos glTF
+validator again when this computer has it (set `GLTF_VALIDATOR` to its path, or have `gltf_validator` on the path);
+without it the sheet's result stands. Nothing is copied on a refusal. It writes:
+
+| Path | What it is |
+|---|---|
+| `public/models/ct156/high/` | The files the app loads today: `ct156-exterior.glb` with `-ao`, `-bump` and `-dirt` pictures, `ct156-gear.glb` with `-ao`, `ct156-cockpit.glb` with one `ct156-cockpit-ao-<part>.jpg` per part |
+| `public/models/ct156/performance/` | The same names, fewer triangles once the chunks are rebuilt, smaller pictures, no bump or dirt; not loaded until the Graphics switch picks it (item 8), and left out of the offline copy until then |
+| `public/models/ct156/delivery.json` | The delivery's sheet: its name, the master commit, every check, every file's fingerprint. The app loads a file only when each of its parts carries this delivery's name (`ct156-blender.js` `loadDelivered`); this replaced the code's fingerprints, since the file's shape may now differ from the code's on purpose |
+| `public/models/ct156/ct156-points.json` | The named points in feet: eyes, reference points, hinges, the faces the app draws on, and each gear part's place gear down (for 3.5) |
+
+An import that changes the files changes the version on screen in its pull request (rule book). The import prints the
+points that differ from the code's own (`ct156-points.mjs`), the to-do list for 3.5. The console says
+`CT-156 models: delivery <name>` once the files attach. If a file is missing or not from the delivery, the code-drawn
+part shows (ALL-38 (4) and (5)). The test `tests/unit/ui-kit/ct156-delivery.test.js` checks every file against the sheet.
+
+**The build scripts below no longer write the app's files.** They built the files from the code's tables before
+ALL-38 and seeded the master files; they stay as the record until the code-drawn CT-156 is retired under ALL-38 (5).
+The delivery's bake is ported from them (`3d-work` `ct156/build/exterior_pictures.py`).
 
 | File | What it does |
 |---|---|
@@ -48,7 +72,7 @@ Blender 6.0; it still works.
 
 To look at the result, the render scripts in `render/` take pictures from the seats and outside, and from past versions (see `render/README.md`).
 
-## Rebuild the outside
+## Rebuild the outside (before 3.4; not for the app's files now)
 
 Rebuild it after every change to the outside's shape in the code (ct156-model.js):
 
@@ -61,7 +85,7 @@ blender -b --factory-startup -P tools/blender/build_ct156_exterior.py -- ct156-e
 The shadow bake (Cycles, on the processor) takes about five minutes. The file is used only whole: if any part's shape
 has changed since it was built, the console says "out of date" and every ship stays as the code draws it.
 
-## Rebuild the landing gear
+## Rebuild the landing gear (before 3.4; not for the app's files now)
 
 Rebuild it after every change to the gear's shape in the code (ct156-model.js):
 
@@ -75,7 +99,7 @@ blender -b --factory-startup -P tools/blender/build_ct156_gear.py -- ct156-gear-
 The shadow bake takes under a minute. As with the outside, the file is used only whole: if any gear part's shape has
 changed since it was built, the console says "out of date" and the code's own gear shows.
 
-## Rebuild the cockpit parts
+## Rebuild the cockpit parts (before 3.4; not for the app's files now)
 
 ```
 node tools/blender/ct156-cockpit-shape.mjs > ct156-cockpit-shape.json
