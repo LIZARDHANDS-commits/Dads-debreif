@@ -5,7 +5,55 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026): every agent finding verified and ruled
+## Latest (15 Oct 2026): round 3 on main in both repos
+
+- **Landed.** The CT-156 Blender model through round 3 is on the app's main through #1044 (V2.441, merge commit
+  91f6001) and on `3d-work` main through #104 (b00e242), after Patrick's look ("All looks good"). #1034, #1035 and
+  #1036 closed as landed; #1040 (chunk 9 as Antigravity built it) kept open as the donor for increments 2 to 4.
+- **#1032 still open:** eight of its commits never reached the stack (seven handover and plan updates of 13 and 14 Oct,
+  and fcf5152, the delivery sheet asked for only after the model file loads). Patrick decides whether it merges.
+- **Still open:** shared plan Step 3 gear item 3, the landing and taxi lights (Patrick's look had no lights view), and
+  Step 3b items 6 to 8. #1030 (the Traffic CT-102) brings main in itself with `git merge -X renormalize origin/main`.
+- **Next:** increment 2 of `3d-work` `ct156/increments.md`, in a fresh session.
+
+## Earlier (13 Oct 2026, evening): the rebuild under way; read `3d-work` `ct156/plan.md` "Resume here" first
+
+- **How it runs:** one Opus orchestrator session talks to Patrick and verifies every agent result itself; one agent per
+  lane, reused for the lane's next job (Patrick: "keep reusing the agents that are already working"): A, the master
+  (Opus modeller, its own worktree); B, code (Opus); C, checks and research (Sonnet).
+- **Chunk 1b, the delivery command (plan 3.4): built.** `3d-work` #31 merged (`node ct156/build/deliver.mjs`); here
+  #1032 (V2.427): the model files come from a delivery in `public/models/ct156/`, the code fingerprints are replaced by
+  a delivery check, `npm run models:import` refuses a failing delivery and leaves the old files in place if the dev
+  server holds the folder (stop it first). The first delivery put today's picture on screen (render kit: under 0.05 %
+  of pixels).
+- **Chunk 1, the station-change references: delivered onto #1032's branch** (`ct156-2026-10-13-f9eccd5`; master in
+  `3d-work` #30): the rings streamlined, the tail point (estimate until a photo), the pitots a third of the chord back
+  on a tall mast (Patrick's T-6A photo `F11`), the paddle white with its foot cap. Waiting on Patrick's look; then merge
+  #30 and #1032.
+- **The new look (chunk L2): approved for every 3D module at once,** built on #1032's branch after chunk 1 (a shared
+  helper `src/ui-kit/ct156-look.js`; every module's world is Z up, so today's sky light and reflections point
+  sideways). Then the app's `.gitattributes` (Patrick: line ends, "Yes, in both repos"; `3d-work` #32 done).
+- **Rulings today** (all in `3d-work` `ct156/plan.md`'s decisions log): the delivery design ("Approve all"); the ring
+  "parelell with the fusilage, stramlined into wind"; the roundel's real maple leaf; the pitot (`F11`); the eye's
+  height is a seat setting Patrick will choose in game; the enhancements EN1 to EN16 kept for consideration.
+- **Next:** chunk 2, the canopy (stacked on chunk 1's master).
+- **Found, not ours to fix:** EP Tabletop never disposes its CT-156 (`src/modules/ep-tabletop/world3d.js`, the
+  `ship` made around line 142; its `dispose()` frees the cockpit, airports, terrain, ground and sky but not the ship),
+  so the shared CT-156 material kit outlives the view. That file belongs to the EP Tabletop lane (#934, #946).
+- **Line ends:** the app's `.gitattributes` now stores every text file with LF (#1032's branch renormalised the 67
+  files stored with CRLF, line ends only). #1030 edits `src/modules/traffic/profile.js`, one of those files, so
+  whichever of #1030 and #1032 merges second should merge with `-X renormalize`.
+
+## Earlier (13 Oct 2026, later): station-change references first; pictures wanted listed
+
+- **Station-change references (Patrick: "its vital that we get this right", his formation slide `F07`):** the tie-down
+  rings, the pitot and the aft belly paddle lead the fixes, checked from the slide's wingman positions. The hanging ring
+  stays (dark, about 0.4 ft, an "8"). "Ignore the tan dome." Open: G20, the number under the left wing.
+- **Pictures and measurements wanted:** `3d-work` `ct156/measurements.md` now lists P1 to P15 and M1 to M47; keep it
+  up to date whenever a row waits on one (Patrick).
+- **Next:** `3d-work` `ct156/plan.md`, "Resume here".
+
+## Earlier (13 Oct 2026): every agent finding verified and ruled
 
 - **Read `3d-work` `ct156/plan.md` first**, then `ct156/fix-list.md` (114 rows; the fix-it plan has, for each approved
   row, today's values with code lines, the targets, the checks and a labelled picture in `refs/review/`).
