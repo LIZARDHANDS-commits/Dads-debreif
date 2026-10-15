@@ -29,6 +29,11 @@ Ideas for the shared parts (flight core, app frame, weather, airfields, storage,
   - The pilots are drawn in code and are not in the Blender cockpit file, so they have no rounded edges or baked shadows yet.
   - Rear seat raised 0.5 in (Patrick's pick, 12 Oct 2026): check the rear seat's 220 KIAS view in flight.
 
+## Aircraft models
+
+- The CT-102B Astra II model moved up to `plan.md` Step 3c (Patrick approved, 13 Oct 2026).
+- The C-130J model (Dad, 15 Oct 2026) went straight to `plan.md` Step 3e (Patrick approved the same day, relayed by Dad).
+
 ## Graphics (shared 3D)
 
 - **EN17, Graphics in the rest of each module** (Patrick, 13 Oct 2026: "i just want to focus on the model"; "save the work it did in a folder and put a note for future features to look at graphics elsewhere"): the whole-scene look was built and saved, not shipped, when Patrick narrowed the new look to the CT-156 model only: Neutral tone mapping on the renderer, the code-built sky as the scene's light, the hemisphere light pointed up (today it points north in the Z-up worlds, a real bug), anisotropy 16, and the grounds and photos kept off tone mapping. Where: the app branch `shared-3d-look-whole-scene` (0b6dcaa0) and `3d-work` `refs/review/look/whole-scene-L2/` (pictures, patches, README). What to solve first: Debrief's runways near black (Neutral's toe on the basic asphalt in `src/ui-kit/airfield3d.js`, shared with EP Tabletop and SOF), Debrief's land and Turn Fight's ground shifted in colour, and Traffic's shade filled in by the sky.

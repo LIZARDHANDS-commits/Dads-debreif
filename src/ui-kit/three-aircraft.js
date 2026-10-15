@@ -13,6 +13,8 @@
 // model itself is not scaled by it.
 
 import { disposeCt156Model, CT156_DATUM_DEG } from './ct156-model.js';
+import { disposeT38aModel } from './t38a-model.js';
+import { disposeC130jModel } from './c130j-model.js';
 
 /**
  * Distance from the camera to its target, in feet. The camera is orthographic, so it only
@@ -220,6 +222,8 @@ export function createStandInMesh(THREE, { color, outline = null, kind = 'generi
  */
 export function disposeAircraftMesh(mesh) {
   if (mesh.userData.ct156) return disposeCt156Model(mesh);
+  if (mesh.userData.t38a) return disposeT38aModel(mesh); // its file's shapes are shared by every T-38
+  if (mesh.userData.c130j) return disposeC130jModel(mesh); // and the C-130J's by every C-130J (DB-35)
   mesh.removeFromParent();
   const materials = new Set();
   mesh.traverse((o) => {
