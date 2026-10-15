@@ -21,6 +21,7 @@ import { liftBankDeg } from './live/flight.js';
 import { drawnAttitudeOf } from './live/attitude.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
+import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, createEyeLean, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 
 /** His speed brake is out: the boards stage, with power or at idle (live/slow-down.js STAGES). */
@@ -222,6 +223,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   function build() {
     // Graphics (TS-210): Performance draws without edge smoothing, set when the 3D view starts (a switch reloads the page).
     const performanceAtStart = source.layers?.().graphics === 'performance';
+    setCt156Level(performanceAtStart ? 'performance' : 'high'); // and the CT-156's files and pictures at that level (shared plan Step 3b item 8)
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: !performanceAtStart });
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
