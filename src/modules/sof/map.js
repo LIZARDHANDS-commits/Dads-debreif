@@ -5,7 +5,7 @@
 // routes; the 25 and 50 NM rings; the airfield dots with wind barbs; and live traffic through our own relay.
 // The ADS-B Exchange view swaps the whole map area for their own page, and the 3D view (view3d.js, SOF-39) swaps it for a
 // three.js picture of the weather round home; the two are never on together.
-// NOAA's lightning strikes (SOF-71, V2.437; strikes-feed.js, read in their own background worker) run wherever the site profile names them, for the map's
+// NOAA's lightning strikes (SOF-71, V2.455; strikes-feed.js, read in their own background worker) run wherever the site profile names them, for the map's
 // crosses, the 3D bolts and the near-home check (a US base's source, Moose Jaw's backup).
 //
 // This file wires the pieces together and touches the page. Where things are and what they say is decided
@@ -1111,7 +1111,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     // ECCC's lightning picture, or none at a base that has NOAA's strikes instead (no "no source" line beside NOAA's).
     const lightning = site.sources.lightning || !strikesSource() ? pic('lightning') : null;
     const satellite = pic('cloud');
-    // NOAA's strikes (SOF-71): a neon bolt for each strike of the last 30 minutes, dimmer the older (V2.438), while their Layers switch is on (on at a US base, off at Moose Jaw), with their line.
+    // NOAA's strikes (SOF-71): a neon bolt for each strike of the last 30 minutes, dimmer the older (V2.456), while their Layers switch is on (on at a US base, off at Moose Jaw), with their line.
     let strikes = null;
     if (strikesSource()) {
       const held = strikesFeed.held();

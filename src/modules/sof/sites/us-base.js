@@ -19,8 +19,8 @@
 // - radar from NOAA NCEP's MRMS base reflectivity and satellite from NASA GIBS's GOES-East infrared (part C, Dad approved 8 Oct 2026; both public
 //   domain, US Government; the hosts and layers are feeds.js WMS_SERVICES). RainViewer is the radar's backup as at Moose Jaw. No radar coverage
 //   layer exists for MRMS: the coverage line says "not shown for this source" (neutral, not a tick, not a failure);
-// - lightning strikes from NOAA (SOF-71, V2.437): MRMS's NLDN one-minute cloud-to-ground files from the same public bucket as the 3D radar heights, for the
-//   map's crosses, the 3D bolts and the near-home check and its caution (until V2.437 the line said "Lightning: no source for this base, can't tell"); ECCC's
+// - lightning strikes from NOAA (SOF-71, V2.455): MRMS's NLDN one-minute cloud-to-ground files from the same public bucket as the 3D radar heights, for the
+//   map's crosses, the 3D bolts and the near-home check and its caution (until V2.455 the line said "Lightning: no source for this base, can't tell"); ECCC's
 //   lightning picture is Canada only, so there is none here. The plain link to the Blitzortung lightning map (lightningmaps.org), an outside site this tool
 //   does not check, stays;
 // - every other picture source `null` ("no source for this base, can't tell", never a tick); the fronts are WPC's coded surface analysis through the

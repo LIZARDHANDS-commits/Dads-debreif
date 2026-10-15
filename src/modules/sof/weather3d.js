@@ -22,7 +22,7 @@ const RAIN_OPACITY = 0.3; // estimate
 const RAIN_INSET = 0.3; // estimate, a share of a radar cell
 const RAIN_STREAKS = [255, 40, 0, 160, 0, 0, 220, 30, 0, 120, 0, 200, 0, 0, 90, 0];
 /**
- * A bolt (Dad, 15 Oct 2026, on V2.437's thick yellow posts: "maybe like bright neon line then a fade at the same rate of the time stamps"): a thin jagged line, white-hot
+ * A bolt (Dad, 15 Oct 2026, on V2.455's thick yellow posts: "maybe like bright neon line then a fade at the same rate of the time stamps"): a thin jagged line, white-hot
  * at its core (BOLT_CORE), inside a faint yellow glow column BOLT_GLOW_FT wide (BOLT_GLOW at BOLT_GLOW_OPACITY), with a small glow on the ground BOLT_SPLASH_FT across
  * where it struck. All of it adds light (additive blending, no depth written), so a bolt brightens what is behind it and never hides the radar. A bolt's `alpha` (0 to 1,
  * the age steps strikes-model.js MARK_AGES gives the 2D crosses; 1 without one) dims all three. BOLT_KINKS segments, each kinked sideways up to BOLT_JITTER_FT, the

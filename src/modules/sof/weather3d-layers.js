@@ -13,7 +13,7 @@
 // columns to the measured echo tops, or High's see-through volume, drawn as nested shells since V2.453, SOF-69), cell by cell, never merged; the blocks in the model
 // cloud below (SOF-56, SOF-57's merging) are the fallback when it cannot be had, and the key says why.
 //
-// NOAA's lightning strikes (SOF-71, V2.437; neon and fading with age since V2.438): a bolt for each strike of the last 30 minutes (map.js `weather3d().strikes`, from strikes-model.js), drawn as the ECCC
+// NOAA's lightning strikes (SOF-71, V2.455; neon and fading with age since V2.456): a bolt for each strike of the last 30 minutes (map.js `weather3d().strikes`, from strikes-model.js), drawn as the ECCC
 // bolts are (`bolts`, `buildBolts`), shown and hidden with the same Lightning switch. Not drawn when the strikes are not fresh (strikes-model.js decides).
 import { h } from '../../ui-kit/dom.js';
 import { drawGeoImage } from './map-draw.js';
@@ -270,7 +270,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         return buildBolts(T, { bolts: list, scale });
       });
 
-      // NOAA's lightning strikes (SOF-71): a neon bolt for each strike of the last 30 minutes, dimmer the older (V2.438), from the ground to the model cloud top above it.
+      // NOAA's lightning strikes (SOF-71): a neon bolt for each strike of the last 30 minutes, dimmer the older (V2.456), from the ground to the model cloud top above it.
       const strikes = weather.strikes ?? null;
       const strikesOn = Boolean(strikes && Array.isArray(strikes.cells) && strikes.cells.length);
       place('strikes', strikesOn ? `${strikes.key}|${modelKey}|${standing}` : 'off', () => {
