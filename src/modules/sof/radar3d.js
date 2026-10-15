@@ -6,7 +6,7 @@
 // - High: the 12 heights as one volume: a three.js Data3DTexture (dBZ in half steps, mrms-model.js dbzCode, lightly smoothed across cells) ray-marched in a small
 //   shader through a box over the square, drawn as nested see-through shells (SOF-69; Dad, 14 Oct 2026): the surfaces where the echo reaches 10, 20, 40 and 50 dBZ
 //   (mrms-model.js HIGH_SHELL_DBZ) in NOAA's blue, green, yellow and red, each faint where it faces the view, glowing at its outline, with faint lines every
-//   5,000 ft, so the inside shows through; the map's own flat radar picture lies on the ground under them. One draw. Until V2.432 it was a fog that grew more
+//   5,000 ft, so the inside shows through; the map's own flat radar picture lies on the ground under them. One draw. Until V2.453 it was a fog that grew more
 //   solid with the echo (Dad: "so thick it blocks alot of data"). Chosen over instanced cubes (the research's other option) because the volume draws every 1 km
 //   cell at every height in one draw whatever the weather (a squall line can be half a million cells) and never merges cells; the cost is per pixel, not per cell.
 // - The ground: a picture of where MRMS has no coverage (grey hatching, never clear air) and the strip north of 55° N with its words, laid on the 3D ground with the
@@ -408,7 +408,7 @@ export function buildRadarVolume(T, { set, scale, groundFt }) {
   mesh.onBeforeRender = (renderer, scene, camera) => {
     material.uniforms.uHalfPx.value = renderer.getDrawingBufferSize(drawn).y / 2; // the contour lines' width in pixels
     // With the camera inside the box (zoomed in low over wide weather) its near faces are behind the camera, so the far faces are drawn instead and the rays start
-    // at the camera; they are not hidden by the ground then (the box's floor is the home field's ground, under any higher terrain). Until V2.432 nothing drew there.
+    // at the camera; they are not hidden by the ground then (the box's floor is the home field's ground, under any higher terrain). Until V2.453 nothing drew there.
     const p = camera.position;
     const m = 2 * (camera.near ?? 0);
     const inside = Boolean(camera.isPerspectiveCamera) && p.x > box.x0 - m && p.x < box.x1 + m && p.y > box.y0 - m && p.y < box.y1 + m && p.z > bottom - m && p.z < top + m;

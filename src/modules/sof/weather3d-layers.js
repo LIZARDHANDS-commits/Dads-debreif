@@ -9,8 +9,8 @@
 // current); the satellite sheet follows the 2D layer: a stale picture is drawn fainter and the status line says STALE; a picture that failed leaves nothing. The fronts are
 // fronts.js's: old or missing fronts are not drawn and the view says "Fronts unavailable".
 //
-// Radar with its real heights (SOF-67, V2.430): while NOAA MRMS answers (mrms-feed.js, a set no older than 20 minutes) the radar is drawn from it (radar3d.js: Performance
-// columns to the measured echo tops, or High's see-through volume, drawn as nested shells since V2.432, SOF-69), cell by cell, never merged; the blocks in the model
+// Radar with its real heights (SOF-67, V2.452): while NOAA MRMS answers (mrms-feed.js, a set no older than 20 minutes) the radar is drawn from it (radar3d.js: Performance
+// columns to the measured echo tops, or High's see-through volume, drawn as nested shells since V2.453, SOF-69), cell by cell, never merged; the blocks in the model
 // cloud below (SOF-56, SOF-57's merging) are the fallback when it cannot be had, and the key says why.
 //
 // NOAA's lightning strikes (SOF-71, V2.437; neon and fading with age since V2.438): a bolt for each strike of the last 30 minutes (map.js `weather3d().strikes`, from strikes-model.js), drawn as the ECCC
