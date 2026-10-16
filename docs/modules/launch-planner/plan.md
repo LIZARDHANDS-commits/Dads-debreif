@@ -44,12 +44,18 @@ No real names in the repo, the examples or the tests: generic labels ("Instructo
 
 A schedule file that can't be read is refused with the reason, nothing half-loaded. Inputs that can't fit (a sortie longer than the window) are said, not silently dropped. Traffic can't load: the comparison still shows its numbers.
 
-## Questions (one at a time, for Dad first, then Patrick)
+## Dad's picks (16 Oct 2026, card answers)
 
-1. Who uses it: the scheduler planning tomorrow, the SOF on the day, or both?
-2. Does a real schedule come in from a file (what format does today's tool export?), or is the day typed in?
-3. The default goal: most sorties, or most sorties with the circuit's peak held under a number (which number)?
-4. Where it lives: its own module, or a tab in the SOF?
+1. **Users: both.** The scheduler plans tomorrow's launches and crews; the SOF uses the same day view live (airborne, landed, cancelled) and re-plans after a weather hold.
+2. **Input: typed or pasted.** The day typed in a table, or rows pasted from a spreadsheet; crews as labels, or real names kept only in that browser.
+3. **Default goal: most sorties with the circuit capped.** The most sorties that keep landings at or under a set number per 15 minutes (5 as a starting default, an estimate; changeable on screen).
+4. **Where: its own module**, a "Launch Planner" card on the home screen, with a small link from the SOF to today's plan.
+
+## Questions still open (for Patrick)
+
+- The circuit cap's default, and whether it changes by runway in use or by mix (CT-156, CT-102B).
+- The real minimum turn, brief and debrief times, and crew limits, from Patrick or the orders (estimates until then; limits flagged, never walls).
+- Whether the SOF's live tracking should mark aircraft airborne from the traffic feed automatically, or by hand only.
 
 ## Not in this plan
 
