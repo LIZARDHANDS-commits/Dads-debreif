@@ -4,16 +4,33 @@
 <script type="module">
 import * as THREE from 'three';
 import * as M from '/src/ui-kit/ct156-model.js';
+import { setCt156Level } from '/src/ui-kit/ct156-blender.js';
+import { setCt156Look, getCt156Look } from '/src/ui-kit/ct156-look-settings.js';
+// ?level=performance draws the Performance files (set before the first model, as a view's Graphics switch does).
+setCt156Level(new URLSearchParams(location.search).get('level'));
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 const F = 23.148, X = (ft) => 0.66 - ft / F;
 const ship = M.createCt156Model(THREE, { color: '#c03030', number: 104 });
-window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, parked = false, pitch = 0, ground = false, sky = '#9fb8d6', ortho = 0, controls = {}, hide = [], propStopped = false }) => {
+const mats = () => { const s = new Set(); ship.traverse((o) => { if (o.material) for (const m of [o.material].flat()) s.add(m); }); return s; };
+// Extras for the look checks: sun (direction toward the light, model frame), hemi (sky light), look (the sliders, not
+// saved), envRot (degrees about the vertical: the reflections turn), env (false: no reflections), hideGlass, dusk.
+window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, parked = false, pitch = 0, ground = false, sky = '#9fb8d6', ortho = 0, controls = {}, hide = [], propStopped = false,
+  sun = [0.3, 0.6, 2], hemi = 1.6, sunI = 2.0, look = null, envRot = 0, env = true, hideGlass = false, dusk = false }) => {
   const d = ship.userData.ct156; for (const k of Object.keys(d)) if (d[k] && d[k].isObject3D) d[k].visible = !hide.includes(k);
+  if (hideGlass) d.canopy.visible = false;
+  setCt156Look(look ?? { weathering: 0.7, relief: 1, wear: 1 }, { save: false });
+  for (const m of mats()) {
+    if (m.envMapRotation) m.envMapRotation.set(0, 0, envRot * Math.PI / 180);
+    if (m.envMapIntensity !== undefined) {
+      m.userData.ct156EnvBase ??= m.envMapIntensity;
+      m.envMapIntensity = env ? m.userData.ct156EnvBase : 0;
+    }
+  }
   renderer.setSize(w, h, false);
-  const sc = new THREE.Scene(); sc.background = new THREE.Color(sky);
-  sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', 1.6));
-  const sun = new THREE.DirectionalLight('#ffffff', 2.0); sun.position.set(0.3, 0.6, 2); sc.add(sun, sun.target);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(dusk ? '#232c40' : sky);
+  sc.add(new THREE.HemisphereLight('#ffffff', '#8a8f80', dusk ? 0.12 : hemi));
+  const s = new THREE.DirectionalLight(dusk ? '#ffb27a' : '#ffffff', dusk ? 0.25 : sunI); s.position.set(...sun); sc.add(s, s.target);
   M.setGear(ship, t, parked); M.setControls(ship, controls); M.setPropStopped(ship, propStopped); // stopped: the blades feather over PROP_PITCH.featherS, so give it a draw after that
   ship.rotation.order = 'ZYX'; ship.rotation.set(0, -pitch * Math.PI / 180, 0);
   sc.add(ship); ship.updateMatrixWorld(true);
@@ -30,6 +47,23 @@ window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, parked = false, pi
   renderer.render(sc, cam);
   renderer.render(sc, cam); // the prop's turn and pitch are set while a picture is drawn (turnProp), so they show in the next one
   return true;
+};
+window.rerender = () => { const { sc, cam } = window.lastView; renderer.render(sc, cam); return true; };
+// What the last picture drew, and the graphics memory of the model's pictures (width x height x bytes per pixel, plus a
+// third for mipmaps), from the textures its materials hold.
+window.info = () => {
+  const tex = new Map();
+  for (const m of mats()) for (const k of Object.keys(m)) {
+    const v = m[k]; if (v?.isTexture && v.image?.width) tex.set(v, v);
+  }
+  const kit = ship.userData.ct156.kit;
+  for (const t of [kit.skin?.mask, kit.skin?.weather, kit.skin?.sheen]) if (t) tex.set(t, t);
+  let mb = 0; const list = [];
+  for (const t of tex.values()) {
+    const bpp = t.format === THREE.RedFormat ? 1 : 4, size = t.image.width * t.image.height * bpp * (t.generateMipmaps === false ? 1 : 4 / 3) / 2 ** 20;
+    mb += size; if (size > 1) list.push(`${t.image.width}x${t.image.height}${bpp === 1 ? ' R8' : ''} ${size.toFixed(1)}`);
+  }
+  return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, textures: renderer.info.memory.textures, modelPicturesMB: +mb.toFixed(1), pictures: list, sheen: kit.sheenInfo, look: getCt156Look() };
 };
 window.ready = true;
 </script></body></html>
