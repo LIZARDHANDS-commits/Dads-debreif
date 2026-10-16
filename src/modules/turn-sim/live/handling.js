@@ -5,14 +5,14 @@
 // unchanged from flight.js, pilot.js and power.js (12.2b); numbers with no manual page or ruling are estimates and say so.
 //
 // This file imports only core, so any file can read it without an import loop.
-import { T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { T6A_G_ONSET_CEILING_GPS } from '../../../core/t6-performance.js';
 
 /**
- * The fastest the gate lets G build (G per second): twice the T-6A's normal onset (core T6A_G_ONSET, 4 G/s), an estimate.
- * Patrick 5 Oct 23:27Z: "higher than 4 occasionally is fine thats life as a pilot": 4 G/s is the normal pull, not a wall;
- * the gate only stops a pull no pilot could make. (Traffic keeps its own copy in traffic/envelope.js.)
+ * The fastest the gate lets G build (G per second): core T6A_G_ONSET_CEILING_GPS, 6 G/s (ALL-40; it was 8, twice the
+ * normal 4 G/s). Patrick 5 Oct 23:27Z: "higher than 4 occasionally is fine thats life as a pilot": 4 G/s is the normal
+ * pull, not a wall; the gate only stops a pull no pilot could make. Traffic reads the same core number.
  */
-export const G_ONSET_CEILING = 2 * T6A_G_ONSET.maxRateDps;
+export const G_ONSET_CEILING = T6A_G_ONSET_CEILING_GPS;
 /**
  * Steeper than this the level-turn G (1 / cos bank) is not this model's (a lag roll through the inverted): the gate holds the
  * roll only (flight.js), and the pilot's G shaping leaves it to the roll alone (pilot.js). An estimate.
@@ -38,6 +38,17 @@ export const PUSH_MARGIN_DEG = 45;
  * (pilot.js). One number for both (they were two copies of 0.985); an estimate.
  */
 export const POWER_MAX_FROM = 0.985;
+
+/**
+ * How the engine answers the PCL, every aircraft (TS-218; power.js engineStep is the one model). From 5% torque up the power
+ * follows the PCL quickly: the torque's full travel in quickSec, 0.25 s (Patrick 5 Oct 06:02Z: "2 percent to 100 in .25
+ * seconds"; TS-218's words). Once it has sat below idleTorquePct, 5% (Patrick 12 Oct 2026: "if the power is at 5% or more
+ * its very responsive, but once you go idle and the prop feathers there is lag"), for at least idleSettleSec, the first
+ * idleLagSec after the PCL is advanced give no rise in power, then it follows at the quick rate again ("it's 3-4 seconds";
+ * the SMM: spool-up from idle is slow; 3.5 s is the working value). idleSettleSec, 1 s, is an ESTIMATE: a dip below 5%
+ * shorter than that is not "gone idle", so it brings no lag. The delay-then-rise shape is an ESTIMATE from his "lag".
+ */
+export const ENGINE = Object.freeze({ quickSec: 0.25, idleTorquePct: 5, idleLagSec: 3.5, idleSettleSec: 1 });
 
 /**
  * The fastest the wingman's pilot slows, KIAS per second, whatever the power, the boards and the climb give (pilot.js

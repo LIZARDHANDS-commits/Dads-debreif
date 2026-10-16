@@ -1,0 +1,46 @@
+# Fable audit of the close-formation wingman design (13 Oct 2026)
+
+One-off architecture audit (Fable, high effort, read-only; Patrick: "Launch it and tell it to do a gaps analysis too. Fable HIGH") of `docs/modules/turn-sim/spec.md` section 7b (TS-226) before any B1 code. The thread checked its main claims against the code (`events.js` inBandAndSteady, `rates.js` DEFAULT_CLOSE_BANK_DEG, `power.js` TORQUE.weightLb, `formation-turns.js` holdInPlane's feed-forward, `formation.js` holdStationIdle) and the decisions; Patrick approved all 13 resulting changes (spec 7b.6d, TS-227). The audit's own numbers are estimates from a Node probe and a hand-coded frequency sweep, to be confirmed in `tools/flight-design`.
+
+## Verdict: build B1 after these changes
+
+The structure and the law are right for close formation: what he sees (0.3 s late) plus feed-forward of Lead's motion, plus proportional-and-rate feedback with a weak trim, is what the crossover-model literature says a trained pilot does on a two-integration task. Nothing breaks the physics or the rule book. Five things would bite on day one: the tracker-to-live hand-over is on B1's path from the default start; the pitch feed-forward must be the place's motion (Lead's roll acceleration × 43 ft), not Lead's G; the shaper must not apply the T-6A's onsets a second time on top of stepLead; `formation.js` has hooks (`inBandAndSteady`, `holdStationIdle`, the per-aircraft dry run) that assume #2 has a plan; and B1's one test was B2's turn.
+
+## Findings, most important first
+
+1. **The tracker-to-live hand-over is a B1 need, not B4.** From the default start the only way into echelon is the tracker's turning rejoin, which ends when `inBandAndSteady` says so (within 5 ft, under 5 kt, within 10° of Lead's bank; `events.js`). The live hold then starts from a wingman still moving at up to 8 ft/s: a "large move" on its first step; with empty memory the pace loop pulls the power to the floor and the first second lurches. Fix: `startFrom(aircraft)` reads the motion the tracker leaves (as `holdInPlane`'s hand-over branch does) and fills the loops, trims and 0.3 s buffer from it. `inBandAndSteady` also requires |KIAS − 200| ≤ 0.5 and |climb| ≤ 1 ft/s, tighter than TS-80's 5 kt.
+2. **The pitch feed-forward must be the place's motion, not Lead's G.** Echelon 43 ft out, 45° telegraphed turn (9°/s built over 1.5 s, 6°/s²): the place moves along Lead's lift line at a peak 6.8 ft/s and accelerates at 4.5 ft/s² = 0.14 G; at 60°, 9 ft/s and 0.19 G; Lead's own G rises only 1.0 to 1.41. With PD alone, a steady target acceleration leaves a lag of a/(kp·g) ≈ 3.5 ft on top of the delay's 2 ft: about 5.5 ft. `holdInPlane` already feeds this forward from Lead's plan. Fix: perception derives Lead's bank, roll rate and roll acceleration from the delayed bank history; the feed-forward is r × seen roll acceleration along the lift line plus r × (seen roll rate)² across the wing line (0.03-0.06 G, about 2° of bank). Perception never reads Lead's roll rate, roll acceleration or plan (TS-211).
+3. **Don't apply the T-6A's onsets twice.** stepLead already eases G and roll; a second limiter in the shaper adds lag the plane axis cannot spare. The shaper limits the pilot's hand only (pressure size and rate of change per job).
+4. **The plane-axis numbers check out, with little margin.** L(s) = g(kd·s + kp)e^(−0.3s)/s², kp 0.04 G/ft, kd 0.06 G/(ft/s): crossover 2.03 rad/s, 36.9° of phase margin; with a 0.1 s rate filter 25.9°; with the G onset about 17° (linear estimate). A time simulation (3 ft off) still settles in 2.3 s with no overshoot. Keep the filter at 0.1 s at most; fallback gains 0.03/0.06 (3.6 s settle). Line axis (total lag about 0.55 s): crossover 1.0-1.2 rad/s, P about 0.5° of bank per foot, D about 1.7-2.1° per ft/s, settling in 3-4 s. Hinge: 1% torque = 0.036 kt/s at 200 KIAS and 8,000 ft; a pace loop needs about 10-13% torque per ft/s of pace error. The engine model is a travel-rate limiter (full travel in 0.25 s), so the hinge's lag is the pilot's.
+5. **2-3 ft at 45° needs prediction across the delay.** The delay alone costs 2.0 ft at 45° and 2.7 ft at 60°. Perception dead-reckons Lead's bank 0.3 s ahead from what it saw; the telegraph's longer prediction sizes only the power lead. Power (powerFor): level 57% torque at 200 KIAS; Lead at 45° 64%, #2 outside 65%; roll-in peak about 77%; at 60° Lead 79%, #2 80%, roll-in about 87%.
+6. **Four integration hooks assume #2 has a plan.** The per-aircraft dry run for the drawn path and end time; `finish()` on `inBandAndSteady`; `holdStationIdle` nudging idle wingmen; nothing stepping a planless #2 between presses. Fix: `wingman.js` steps #2 every step in a close formation when Live; the drawn path from a co-simulation at the press (`fw-live.js` planFwMoveLive's pattern); a close turn is done when Lead's plan is done and #2 is steady.
+7. **B1's one test was B2's.** B1 is straight and level; its test: change to echelon, hold 60 s, never outside 5 ft, closure under 5 kt, never within a wingspan, bank within 5° and G within 0.5 G of Lead's. The turn test moves to B2. The default close bank is 60° (`rates.js`). Gauge additions: per-axis deviation, settle time, bank-off and G-off Lead, torque range and reversals, #2's roll-start lag (about 0.3 s).
+8. **Write the stick as one lift vector** (core gAndBankForLift, as `fluid-wing-live.js`): bank-off δ puts G·sin δ along Lead's wing line and G·cos δ along his lift line whatever his bank, decoupling the loops and removing sign bookkeeping. Remaining couplings scale with sin(bank) and are taken out by the D terms. The roll-in's extra G adds induced drag, which powerFor at the seen G already includes.
+9. **Imperfection: delay and a soft threshold, no randomness in B1.** P reads the error less 0.5 ft, smoothly; D ignores drift under about 0.5 ft/s; no integrating inside the threshold. No noise (it would make the test flaky); a seeded drift behind a setting later if wanted.
+10. **Room to leave:** the supervisor's job as a list from B1; the technique exposing its current inputs for B5; perception parameterised by "the aircraft he flies off"; Lead's frame from velocity and body-up (not heading and bank); "under Lead" defined now.
+11. **Rule book:** nothing breaks it. Small: 5,168 lb (core) vs 6,000 lb (`power.js` TORQUE); "1.5 kt more" should name its kind; the speed he holds should be the briefed speed, not an instrument he looks at.
+12. **Alternatives:** a precision pilot model is heavier and its useful part is the predictor (finding 5); full state feedback on error and rate is the PD; model-predictive control would need Lead's plan, which TS-211 forbids. Keep the law.
+
+## Gaps table (as reported)
+
+| What is missing | Why it matters | Proposed answer |
+|---|---|---|
+| The tracker-to-live start, and "done" once the hold owns the end | First second lurches; the 0.5 kt gate may never be met | Spec it; done = in band, closure under 5 kt, bank within 10° |
+| Who steps #2 between presses; the drawn path; `finish()` for a turn | Straight drawn path through the turn; turn ends early | Live every step in close formation; co-sim at the press; done = Lead done and #2 steady |
+| Units and signs in one place | Sign slips fly a wingman away | A frames note in `wingman.js`; the lift-vector form |
+| What perception may read | Reading Lead's state breaks TS-211 | Only Lead's position, velocity, body-up over the last 0.3 s |
+| Rate filter, shaper rate limits, soft threshold | Hunting; double onsets | ≤ 0.1 s; torque ≤ 10%/s on station, 15-20%/s in a telegraph; 0.5 ft and 0.5 ft/s |
+| The pace taper | A 10 ft small move at jogging pace overshoots (about 19 ft to stop at 20% torque, 1.33 kt/s) | pace = min(8, √(2·a·distance)) |
+| Out of power or under the floor | Falls back silently, or idle and its 3.5 s spool lag | Flag on the card; boards below about 10% torque before idle (Patrick: 10%) |
+| Lead harder than the telegraph | A full-roll prediction overshoots | Prediction limited to 0.3 s ahead; the loops carry the rest |
+| #2 badly out at the start (route, under Lead, ahead of the 3/9 line) | B1 supervisor "on station only" | Out-before-up and large-move jobs in B1's list; "under" defined |
+| A very slow or fast Lead | At 240 KIAS #2 outside a 60° turn is over MAX | Gains speed-independent by design; flag the power case |
+| The setting switched mid-flight | Nothing to go back to | Takes effect at the next press, said on screen |
+| The 4-ship later | #4 rewritten at phase C | Parameterise by reference aircraft now |
+| Numbers without a source | AGENTS.md | All estimates labelled |
+| Default close bank 60° vs a 45° criterion | The checklist flies 60° | Patrick: the default, 60° |
+| Weight 5,168 vs 6,000 lb | Torque vs hp differ by about 15% | Note; later clean-up |
+
+## What the audit could not check
+
+Patrick's own numbers (0.3 s, 2-3 ft, 8 and 13 ft/s) stand as his rulings; it did not open the two PDFs (relied on the README), did not run `tools/flight-design` (margins are from a Node sweep and a 12 s simulation), and did not read `tracker.js` or `ride.js` beyond their headers (the fields the rejoin leaves at hand-over to be confirmed against `kinematic.js` handOverAt). Nothing flown.

@@ -733,7 +733,7 @@ function planRollOutFix({ lead, wing, t0, segments: own, profile, leadRun, targe
   const tR = t0 + baseRun.durationSec; // the step the roll-out fix starts on
   const tas = baseRun.end.tasFtps;
   const tasPerKias = tas / baseRun.end.kias;
-  const leadKias = lead.kias;
+  const leadKias = baseRun.end.kias;
   const hBase = profile?.length ? profile[profile.length - 1].toFt : h0;
   const leadHeading = leadRun.end.headingRad;
   const vertical = tools.vertical;
@@ -770,7 +770,7 @@ function planRollOutFix({ lead, wing, t0, segments: own, profile, leadRun, targe
     let prof = profile ? profile.map((l) => ({ ...l })) : undefined;
     if (speed && speed.diveFt) {
       // The dive (or zoom) is flown over exactly the time each speed change takes, so the energy adds up.
-      const [up, back] = speedChangeTimes(wing, { segments: segs, profile }, t0);
+      const [up, back] = speedChangeTimes(wing, { segments: segs, profile }, t0).filter((l) => l.t0 >= tR - STEP_SEC);
       prof = [...(prof ?? []),
         { t0: up.t0, t1: up.t1, fromFt: hBase, toFt: hBase + speed.diveFt },
         { t0: back.t0, t1: back.t1, fromFt: hBase + speed.diveFt, toFt: hBase }];
