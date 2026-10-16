@@ -13,6 +13,7 @@
 // when their callbacks aren't given, and the wind boxes, the 3D switch, the photo
 // and Engine-out reach layers when `available` doesn't say they exist.
 import { h } from '../../ui-kit/dom.js';
+import { ct156LookControls } from '../../ui-kit/ct156-look-settings.js';
 import { DEFAULTS, SPEEDS, LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
 import { TRAFFIC_VERSION } from './version.js';
 import { trueToMagnetic, magneticToTrue } from './airfield.js';
@@ -252,6 +253,11 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
   const graphicsSwitch = available.view3d
     ? controls.choice('graphicsQuality', { label: 'Graphics', options: [{ value: 'high', label: 'High' }, { value: 'low', label: 'Performance' }] })
     : null;
+  // The CT-156's look beside Graphics (Patrick, 15 Oct 2026: "Yeah add em"): weathering, relief and wear, live, saved for
+  // every view, with Reset to defaults (ct156-look-settings.js); folded away until opened.
+  const lookMenu = available.view3d
+    ? h('details', { class: 'bar-ct156-look' }, h('summary', {}, 'Look (3D)'), ct156LookControls())
+    : null;
 
   const runwaySelect = h(
     'select',
@@ -448,7 +454,7 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
       clock, status, versionBadge,
     ),
     // The Fit button left the bar (Patrick, 12 Oct 2026: "get rid of this button"); the 3D camera bar keeps its own Fit view.
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, graphicsSwitch, layers?.element),
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, graphicsSwitch, lookMenu, layers?.element),
   );
 
   const write = (node, text) => {

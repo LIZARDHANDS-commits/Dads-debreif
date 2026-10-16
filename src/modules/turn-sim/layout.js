@@ -8,6 +8,7 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { TAG_DEFAULTS } from './tags.js';
 import { VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
+import { ct156LookControls } from '../../ui-kit/ct156-look-settings.js';
 import { ERROR_FIELDS, FIX_WHEN_OPTIONS, FIX_TOOLS } from './live/errors.js';
 
 /**
@@ -507,13 +508,16 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // Real aircraft size, and the scale slider when it is off (Patrick, 5 Oct).
   const scaleSlider = lc.slider('planeScale', { label: 'Scale', min: 0.5, max: 4, step: 0.25, format: (v) => `×${v}` });
   const sizeGroup = h('div', { class: 'ts-size' }, lc.checkbox('realSize', { label: 'Real aircraft size' }), scaleSlider);
+  // The CT-156's look beside Graphics (Patrick, 15 Oct 2026: "Yeah add em"): weathering, relief and wear, live, saved for
+  // every view, with Reset to defaults (ct156-look-settings.js).
+  const lookMenu = menu('Look (3D)', 'ts-ct156-look', [ct156LookControls()]);
   const bar = h(
     'div',
     { class: 'ts-bar', role: 'group', 'aria-label': 'Playback' },
     playButton, resetRunButton, speedSelect, time, sizeGroup,
     h('span', { class: 'ts-bar-gap' }),
     fitButton,
-    lc.viewSwitch(), lc.choice('graphics', { label: 'Graphics', options: [{ value: 'high', label: 'High' }, { value: 'performance', label: 'Performance' }] }), note3d, cameraMenu.element, layersMenu.element, dataTagMenu.element,
+    lc.viewSwitch(), lc.choice('graphics', { label: 'Graphics', options: [{ value: 'high', label: 'High' }, { value: 'performance', label: 'Performance' }] }), lookMenu.element, note3d, cameraMenu.element, layersMenu.element, dataTagMenu.element,
   );
   const stage = h('section', { class: 'ts-stage', 'aria-label': 'Formation from above and playback' }, bar, canvasWrap);
 
