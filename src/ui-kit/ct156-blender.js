@@ -206,15 +206,14 @@ onCt156Look((look) => {
 });
 
 /**
- * The painted weathering (3d-work slice 4.1, scratch/increment-4/app-handover.md; the reference is 3d-work
- * ct156/build/bake4/s5_render.py look_material): each channel shown as smoothstep(t, t + 0.5, v) x (0.45 + 0.55 k),
- * t = 0.75 (1 - k), k the strength (0 none); the paint mixed toward worn paint, scuffs, oil and soot in that order
- * (linear colours; the worn paint and scuffs only ever lighten, as the spec has them, "faint lighter wear": on the navy
- * that is the formula exactly, and the white leading edges, lighter already, are left clean rather than greyed), and
- * the roughness raised by soot, scuffs and wear and lowered by oil. The strength changes how far
- * and how dark, never the colours. Above k 1 (the slider runs to 1.5) t stays 0, so clean paint stays clean and only
- * the marks' darkness grows, held at the colour itself (a judgement, logged for Patrick: the formula alone would wash
- * the whole aircraft past heavy).
+ * The painted weathering (3d-work slice 4.1, scratch/increment-4/app-handover.md): each channel shown as
+ * min(v x 3.5 k, 1), k the strength (0 none, light 0.35, medium 0.7, heavy 1.0, the slider to 1.5), so a mark's faint
+ * edges show too and each step up spreads it further (Patrick, 15 Oct 2026: "Fix the weathering"; the first formula,
+ * smoothstep(t, t + 0.5, v) with t = 0.75 (1 - k), cut off half of every soot plume and left light, medium and heavy
+ * looking the same on 4.3's sheets). The paint is mixed toward worn paint, scuffs, oil and soot in that order (linear
+ * colours; the worn paint and scuffs only ever lighten, "faint lighter wear", so the white leading edges stay clean).
+ * Soot is a dull warm grey, a little lighter than the navy, and matte (roughness up, clearcoat off): on dark paint soot
+ * shows by taking the shine off, not by being darker. Oil is a dark brown and glossier. Clean paint never changes.
  * The mask's green is the mesh's curvature (0.5 flat): convex edges lightened toward worn paint, hollows darkened, by
  * the wear (look_material's edge and hollow terms); its blue, the dirt table, is data only and never darkens (the
  * weather picture is the dirt; Patrick: nothing gathered along the seams). The panel-to-panel sheen (`sheen`, a picture
@@ -222,17 +221,16 @@ onCt156Look((look) => {
  */
 const SHEEN_VAR = 0.06; // an estimate, judged on renders (the donor's sheenVar)
 const WEATHER_GLSL = `
-	float ct156T = 0.75 * max( 1.0 - ct156WeatherK, 0.0 );
-	float ct156A = ct156WeatherK > 0.0 ? 0.45 + 0.55 * ct156WeatherK : 0.0;
+	float ct156G = 3.5 * max( ct156WeatherK, 0.0 );
 	vec4 ct156W = texture2D( ct156Weather, vAoMapUv );
-	float ct156FWear = min( smoothstep( ct156T, ct156T + 0.5, ct156W.b ) * ct156A, 1.0 );
-	float ct156FScuff = min( smoothstep( ct156T, ct156T + 0.5, ct156W.a ) * ct156A, 1.0 );
-	float ct156FOil = min( smoothstep( ct156T, ct156T + 0.5, ct156W.g ) * ct156A, 1.0 );
-	float ct156FSoot = min( smoothstep( ct156T, ct156T + 0.5, ct156W.r ) * ct156A, 1.0 );
+	float ct156FWear = min( ct156W.b * ct156G, 1.0 );
+	float ct156FScuff = min( ct156W.a * ct156G, 1.0 );
+	float ct156FOil = min( ct156W.g * ct156G, 1.0 );
+	float ct156FSoot = min( ct156W.r * ct156G, 1.0 );
 	diffuseColor.rgb = mix( diffuseColor.rgb, max( diffuseColor.rgb, vec3( 0.030, 0.034, 0.048 ) ), ct156FWear );
 	diffuseColor.rgb = mix( diffuseColor.rgb, max( diffuseColor.rgb, vec3( 0.024, 0.026, 0.034 ) ), ct156FScuff );
-	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.011, 0.010, 0.010 ), ct156FOil );
-	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.010, 0.009, 0.009 ), ct156FSoot );`;
+	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.014, 0.009, 0.005 ), ct156FOil );
+	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.030, 0.027, 0.024 ), ct156FSoot );`;
 
 /**
  * A copy of `material` shaded by the baked pictures on the part's own uv map: `ao` darkens it in the sun's light as well
