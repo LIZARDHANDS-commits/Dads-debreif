@@ -75,7 +75,7 @@ export function createView2d({ timers, getProjection, onZoom }) {
     ctx.setLineDash([]);
   };
   /** A label on a dark plate, kept inside the canvas (it moves to the left of its point near the right edge). */
-  const label = (ctx, words, x, y, colour = COLOURS.text) => {
+  const label = (ctx, words, x, y, colour = /** @type {string} */ (COLOURS.text)) => {
     ctx.font = FONT;
     const w = ctx.measureText(words).width;
     const right = ctx.canvas.clientWidth || Infinity;
