@@ -19,13 +19,16 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CT156_PICTURES } from '../../src/ui-kit/ct156-blender.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEST = join(ROOT, 'public', 'models', 'ct156');
 // The sheet layout this app reads (3d-work ct156/build/app_layout.json "layout"); raised there when the app must change.
 // Layout 2 (3d-work increment 2, 15 Oct 2026): the 18 parts the app drew from its own code come in the files, and the
-// pilots have a file of their own.
-const LAYOUT = 2;
+// pilots have a file of their own. Layout 3 (3d-work slice 4.5A, 15 Oct 2026): the cockpit panels' plates, bezels and
+// handles in the cockpit's body with a new colour slot `panel` (ct156-cockpit.js colours it PANEL_GREY), and the 53
+// screen rectangles under "screens" in ct156-points.json (read; drawn into by slice 4.5B).
+const LAYOUT = 3;
 // The parts the app takes from each file: src/ui-kit/ct156-model.js EXTERIOR_PARTS and GEAR_PARTS with the prop's
 // blade and tip (PROP_PARTS) and the gear lamp (since 3d-work delivery 423e5eb; the root cuffs F29 were withdrawn in
 // 7bd9b52), layout 2's parts (LAYOUT2_EXTERIOR, GEAR_WELLS, PILOT_PARTS), and the cockpit's parts
@@ -37,9 +40,10 @@ const PARTS = {
   'ct156-cockpit.glb': ['body', 'canopy-rails', 'forward-bow', 'pcl', 'seat', 'shade', 'stick'],
   'ct156-pilots.glb': ['helmetFront', 'helmetRear'],
 };
-// The pictures the app loads by name beside the High files (the cockpit's are named by each part, ct156_ao).
-const HIGH_PICTURES = ['ct156-exterior-ao.jpg', 'ct156-exterior-bump.jpg', 'ct156-exterior-dirt.jpg', 'ct156-gear-ao.jpg'];
-const POINTS = { eyes: 2, reference: 12, hinges: 25, faces: 10 }; // hinges: blade1 to blade4 and the two gear lamps since 423e5eb
+// The pictures the app loads by name beside each level's files, and the size each must be (ct156-blender.js
+// CT156_PICTURES; 3d-work slice 4.1: the old bump and dirt pictures are gone). The cockpit's soft shadows are named by
+// each part (ct156_ao) and checked against the sheet only.
+const POINTS = { eyes: 2, reference: 12, hinges: 25, faces: 10, screens: 53 }; // hinges: blade1 to blade4 and the two gear lamps since 423e5eb; screens: layout 3
 
 const args = process.argv.slice(2);
 const CHECK_ONLY = args.includes('--check');
@@ -152,16 +156,30 @@ function jpegSize(p) {
   }
   throw new Error('no frame header');
 }
-const needed = [...HIGH_PICTURES.map((f) => `high/${f}`), ...[...cockpitPictures.high].map((f) => `high/${f}`), ...[...cockpitPictures.performance].map((f) => `performance/${f}`)];
+function pngSize(p) {
+  const b = readFileSync(p);
+  if (b.length < 24 || b.readUInt32BE(0) !== 0x89504e47 || b.toString('latin1', 12, 16) !== 'IHDR') throw new Error('not a PNG');
+  return [b.readUInt32BE(16), b.readUInt32BE(20)];
+}
+const pictureSize = (p) => (/\.png$/i.test(p) ? pngSize(p) : jpegSize(p));
+const needed = [...[...cockpitPictures.high].map((f) => `high/${f}`), ...[...cockpitPictures.performance].map((f) => `performance/${f}`)];
+for (const [level, pics] of Object.entries(CT156_PICTURES)) for (const { file } of Object.values(pics)) needed.push(`${level}/${file}`);
 for (const p of needed) if (!listed.has(p)) refuse(`${p} is missing: the app loads it.`);
 for (const pic of sheet.pictures) {
   let size;
   try {
-    size = jpegSize(join(SRC, pic.file));
+    size = pictureSize(join(SRC, pic.file));
   } catch (e) {
     refuse(`${pic.file} can't be read: ${e.message}.`);
   }
   if (size[0] !== pic.width || size[1] !== pic.height) refuse(`${pic.file} is ${size[0]} by ${size[1]} px; the sheet says ${pic.width} by ${pic.height}.`);
+}
+// The app's own sizes (a picture of another size would sit on the wrong layout): each level's table, square pictures.
+for (const [level, pics] of Object.entries(CT156_PICTURES)) {
+  for (const { file, size } of Object.values(pics)) {
+    const [w, h] = pictureSize(join(SRC, `${level}/${file}`));
+    if (w !== size || h !== size) refuse(`${level}/${file} is ${w} by ${h} px; the app reads it at ${size} by ${size} (ct156-blender.js CT156_PICTURES).`);
+  }
 }
 
 // ---------- the named points ----------
@@ -171,6 +189,10 @@ const points = JSON.parse(readFileSync(pointsPath, 'utf8'));
 if (points.delivery !== sheet.name) refuse(`ct156-points.json is from ${points.delivery}, not ${sheet.name}.`);
 for (const [k, n] of Object.entries(POINTS)) {
   if (Object.keys(points[k] ?? {}).length < n) refuse(`ct156-points.json has ${Object.keys(points[k] ?? {}).length} ${k}; the app reads ${n}.`);
+}
+for (const [name, s] of Object.entries(points.screens)) {
+  const corner = (c) => Array.isArray(s[c]) && s[c].length === 3 && s[c].every(Number.isFinite);
+  if (!['tl', 'tr', 'br', 'bl'].every(corner) || !['opening', 'plate'].includes(s.family)) refuse(`ct156-points.json screen ${name} lacks a corner or its family.`);
 }
 
 // ---------- the validator again, if this computer has it ----------

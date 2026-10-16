@@ -21,6 +21,7 @@ import { liftBankDeg } from './live/flight.js';
 import { drawnAttitudeOf } from './live/attitude.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_REFERENCE_POINTS, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
+import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 
 /**
  * The points of Lead the seat's lean tries to show (ct156-cockpit.js eyeLeanFor), each [CT156_REFERENCE_POINTS name or null
@@ -229,6 +230,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   function build() {
     // Graphics (TS-210): Performance draws without edge smoothing, set when the 3D view starts (a switch reloads the page).
     const performanceAtStart = source.layers?.().graphics === 'performance';
+    setCt156Level(performanceAtStart ? 'performance' : 'high'); // and the CT-156's files and pictures at that level (shared plan Step 3b item 8)
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: !performanceAtStart });
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
@@ -856,6 +858,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     drawTagsOver(state, layers, box, ratio, signs);
     drawn++;
     canvas.dataset.draws = String(drawn);
+    canvas.dataset.calls = String(renderer.info.render.calls); // draw calls and triangles of the last frame, as Traffic's 3D view shows them
+    canvas.dataset.triangles = String(renderer.info.render.triangles);
   }
 
   /** The info tags over the 3D picture, beside each aircraft where it is drawn (Patrick, 5 Oct: tags in 3D too). */
@@ -1128,6 +1132,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       if (!gl) return;
       gl.cockpit?.part.dispose();
       for (const { mesh } of gl.planes.values()) disposeAircraftMesh(mesh);
+      setCt156Level(source.layers?.().graphics === 'performance' ? 'performance' : 'high'); // on close the files stay at this view's Graphics setting, so modules with no switch inherit it (Patrick, 15 Oct 2026: "Back to high on close unless the app is in \"performance\" mode, in which case its never high")
       for (const line of [...gl.trails.values(), ...gl.plans.values(), gl.guideLines]) {
         line.geometry.dispose();
         line.material.dispose();

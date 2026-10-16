@@ -30,6 +30,7 @@ import {
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
 import { createT38aModel, createT38aCockpitMount, t38aEyeWorld } from '../../../ui-kit/t38a-model.js';
+import { ct156CloneMaterial } from '../../../ui-kit/ct156-blender.js';
 import { createCockpitMount, aimCockpitCamera, PANEL_REDRAW_MS } from '../../../ui-kit/ct156-cockpit.js';
 import { createAircraftShadows } from '../../../ui-kit/aircraft-shadows.js';
 import { buildAirspace } from '../../../ui-kit/airspace3d.js';
@@ -312,22 +313,30 @@ function clearGroup(group) {
   }
 }
 
-// A ship's model made see-through for a filled gap: its own copies of the materials, so other ships keep theirs. A T-38A
-// (Aircraft "T-38A Talon", shared plan Step 3d item 6) ghosts its own copies when its file is in (ui-kit t38a-model.js).
+// A ship's model made see-through for a filled gap: its own copies of the materials, so other ships keep theirs. The
+// copies keep what the CT-156's shaders add (its baked pictures and look: ct156CloneMaterial), and the model keeps
+// ghosting the shaded paint that replaces the plain once its pictures load (ct156Ghost, ct156Plain: ct156-model.js).
+// A T-38A (Aircraft "T-38A Talon", shared plan Step 3d item 6) ghosts its own copies when its file is in (ui-kit t38a-model.js).
 function ghostModel(THREE, options) {
   if (options.t38a) return { mesh: createT38aModel(THREE, { lengthFt: options.lengthFt, ghost: GHOST_OPACITY, onReady: options.onReady }), copies: [] };
   const mesh = createCt156Model(THREE, options);
   const copies = [];
-  mesh.traverse((o) => {
-    if (!o.material) return;
-    const swap = (m) => {
-      const c = m.clone();
+  const made = new Map(); // each material's see-through copy, made once
+  const swap = (m) => {
+    if (!made.has(m)) {
+      const c = ct156CloneMaterial(m);
       c.transparent = true;
       c.opacity = (m.opacity ?? 1) * GHOST_OPACITY;
       c.depthWrite = false;
       copies.push(c);
-      return c;
-    };
+      made.set(m, c);
+    }
+    return made.get(m);
+  };
+  mesh.traverse((o) => {
+    if (!o.material) return;
+    o.userData.ct156Plain = o.material;
+    o.userData.ct156Ghost = swap;
     o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
   });
   return { mesh, copies };
