@@ -20,8 +20,15 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { drawnAttitudeOf } from './live/attitude.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, CT156_UNIT_LENGTH, CT156_REFERENCE_POINTS, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
 import { setCt156Level } from '../../ui-kit/ct156-blender.js';
+
+/**
+ * The points of Lead the seat's lean tries to show (ct156-cockpit.js eyeLeanFor), each [CT156_REFERENCE_POINTS name or null
+ * for his middle, weight]: the spinner and both exhaust stacks (echelon's and the corner's references, Patrick 14 Oct 2026)
+ * and the wingtips weigh most, then the middle and the fin top (weights estimates).
+ */
+const LEAN_POINTS = Object.freeze([['spinnerTip', 3], ['leftExhaust', 3], ['rightExhaust', 3], ['leftLight', 2], ['rightLight', 2], [null, 1], ['finTop', 1]]);
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, createEyeLean, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 
 /** His speed brake is out: the boards stage, with power or at idle (live/slow-down.js STAGES). */
@@ -584,7 +591,13 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       // behind the bow or under the glareshield, the eye eases up to 6 in sideways or up until he shows. Layout eyeLean.
       const base = { x: seatEye.x + gl.cockpit.eyeFwdFt, y: seatEye.y, z: seatEye.z + gl.cockpit.eyeUpFt };
       const lead = pov.id !== 1 ? gl.planes.get(1)?.mesh : null;
-      const target = lead ? me.worldToLocal(lead.position.clone()).multiplyScalar(CT156_FT_PER_UNIT) : null;
+      // Lead's references as well as his middle (Patrick 14 Oct 2026): the spinner and exhaust stacks (echelon's and the
+      // corner's references) and the wingtips weigh most (ct156-model.js CT156_REFERENCE_POINTS).
+      const target = lead ? LEAN_POINTS.map(([name, w]) => {
+        const q = name ? new THREE.Vector3(...CT156_REFERENCE_POINTS[name]) : new THREE.Vector3();
+        const v = me.worldToLocal(lead.localToWorld(q)).multiplyScalar(CT156_FT_PER_UNIT);
+        return { x: v.x, y: v.y, z: v.z, w };
+      }) : null;
       gl.eyeLean ??= createEyeLean();
       const lean = gl.eyeLean.update(performance.now() / 1000, base, target, gl.cockpit.seat, source.layers().eyeLean !== false);
       eye = me.localToWorld(new THREE.Vector3(base.x, base.y + lean.dy, base.z + lean.dz).divideScalar(CT156_FT_PER_UNIT));
