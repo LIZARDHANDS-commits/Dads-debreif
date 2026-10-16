@@ -20,7 +20,7 @@ You don't need to read other modules' folders or `archive/` to do your work.
 | `TESTING.md` | The testing policy: what tests check, when they run, the sign-off checklist | Only with Patrick's yes |
 | `DECISIONS.md` | Decisions that affect more than one module (ALL-) | A new decision gets the next number and updates what it changes in the same piece of work |
 | `questions-for-dad.md` | Flying calls only Dad can settle, each with its working answer | Patrick decides when to send them |
-| `references/` | Notes that point to manual pages (the SMM aerobatics catalogue, the traffic pattern matrix). Page references only, never manual text | Anyone, with a page for every number |
+| `references/` | Notes that point to manual pages (the SMM aerobatics catalogue, the traffic pattern matrix). Page references and manual extracts, each with its page; never the CFAFM (ALL-41) | Anyone, with a page for every number |
 | `modules/<module>/` | One folder per module, the same seven files in each (below) | The module's work |
 
 ## Inside each module folder

@@ -18,7 +18,7 @@
 //     CT-156's 2.0 NM), then back to the initial by the 90 to initial (90° onto a leg square to the runway, 90° onto
 //     initial) or the 45 to initial (135° onto a 45° leg, 45° onto initial), every turn at 45° and 180 KIAS
 //     (Patrick, TR-164); then the initial, break, downwind, final turn and final above.
-//   - A route with only the first seven points (a setup saved before V2.471) flies the lap it was saved with: the climb
+//   - A route with only the first seven points (a setup saved before V2.490) flies the lap it was saved with: the climb
 //     straight ahead and a 30° climbing turn at 90 KIAS onto the downwind line (TR-158; spec 4.19 item 3).
 //
 // buildAstraCircuit returns three paths. `track` is the lap after a touch-and-go, from touchdown round to touchdown, a
@@ -43,8 +43,8 @@ import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { perfFor } from './types.js';
 
 /**
- * Which point of the Astra route (data/moose-jaw.json, PAT_ASTRA) is which. Points 0 to 6 are the inner pattern's (V2.468);
- * 7 to 11 the outer pattern's (V2.471, spec 4.19 item 11), added after them so a start saved by its index keeps its place.
+ * Which point of the Astra route (data/moose-jaw.json, PAT_ASTRA) is which. Points 0 to 6 are the inner pattern's (V2.487);
+ * 7 to 11 the outer pattern's (V2.490, spec 4.19 item 11), added after them so a start saved by its index keeps its place.
  * The lap after a touch-and-go passes 0, 1, 7, 8, 9, 10, 5, 6, 2, 3, 4 (the 45 to initial passes 11 instead of 10).
  * Points 9 to 11 place the outer legs on the ground (outerLines); 7 and 8 are where the upwind and crosswind are in calm
  * air, for the drawn route only (the pilot starts the crosswind turn at 180 KIAS, so it moves with the wind and the day).
@@ -53,7 +53,7 @@ export const ASTRA_POINT = Object.freeze({
   threshold: 0, departureEnd: 1, downwind: 2, perch: 3, window: 4, initial: 5, break: 6,
   upwind: 7, crosswind: 8, outerDownwind: 9, ninetyToInitial: 10, fortyFiveToInitial: 11,
 });
-/** The fewest points the Astra route can be flown with (the inner pattern's, V2.468), and the fewest for the outer pattern. */
+/** The fewest points the Astra route can be flown with (the inner pattern's, V2.487), and the fewest for the outer pattern. */
 export const ASTRA_FEWEST_POINTS = ASTRA_POINT.break + 1;
 export const ASTRA_OUTER_POINTS = ASTRA_POINT.fortyFiveToInitial + 1;
 /** An Astra flying off its lap (the overhead from its initial, the 45 to initial) joins the lap again this many path points (0.4 s each) after it rolls out on its downwind or its initial (an engineering choice: wings level on the line). */
@@ -234,7 +234,7 @@ function outerLines(points) {
  * Why not circuit.js readyToTurnOnto and a circle: scaling the radius by the mean ground speed is close for a 90° turn
  * in light wind but leaves out the drift over the turn's time, and in 15 kt along the outside downwind the 135° turn
  * onto the 45 to initial's leg rolled out some 600 ft past the leg, never settled on it, and so never turned onto
- * initial (seen in runs without the screen, V2.471 part 2). Why not bankFor alone: its 3° of bank per degree of heading
+ * initial (seen in runs without the screen, V2.490 part 2). Why not bankFor alone: its 3° of bank per degree of heading
  * error needs some 20° of error to hold 45°, so it falls behind and overshoots. Pattern 1's planned turn (circuit.js
  * plannedBank) is not exported, and circuit.js is the CT-156's and stays as it is.
  * `pilot` is a makePilot; returns { onto(line), ready(line), onLine(line), rolledOut(line), past(line) } bound to it.
@@ -433,7 +433,7 @@ function lengthTo(track, to) {
  * each path [{ x, y, alt, kt, g, bankDeg, src, phase, headingDeg, tag }]; the perch the search found, where the break
  * starts (ft past the threshold), how far the lap's final turn rolled out from the window (ft), and the seconds each path
  * takes (via45Sec from the branch point). A route with only the inner pattern's points (fewer than ASTRA_OUTER_POINTS)
- * gets the V2.468 lap and no via45.
+ * gets the V2.487 lap and no via45.
  */
 export function buildAstraCircuit(points, windFromDeg = 360, windKt = 0, numbers = ASTRA_PATTERN) {
   const k = numbers;
@@ -489,7 +489,7 @@ export function buildAstraCircuit(points, windFromDeg = 360, windKt = 0, numbers
 }
 
 /**
- * The V2.468 lap, for a route with only the inner pattern's points (a setup saved before V2.471): the climb-out and 30°
+ * The V2.487 lap, for a route with only the inner pattern's points (a setup saved before V2.490): the climb-out and 30°
  * climbing turn onto the line through the perch (flyClimbOut), downwind, final turn and final; and the overhead with the
  * same perch. Returns buildAstraCircuit's answer without via45.
  */

@@ -1,0 +1,2 @@
+const fs=require('fs');const dir=process.argv[2],tag=process.argv[3];
+for(const f of fs.readdirSync(dir).filter(x=>x.startsWith('b5-')&&x.endsWith('.'+tag+'.json'))){const tr=JSON.parse(fs.readFileSync(dir+'/'+f));const W=tr.aircraft[Object.keys(tr.aircraft)[1]];const p2=tr.presses[1]?.t??1e9;let m=0,m2=0;for(let i=0;i<W.t.length;i++){if(!W.aspectDeg)break;if(W.t[i]<p2)m=Math.max(m,W.aspectDeg[i]);else m2=Math.max(m2,W.aspectDeg[i]);}console.log(f.replace('.json',''),'turn',m.toFixed(0),'after',m2.toFixed(0));}
