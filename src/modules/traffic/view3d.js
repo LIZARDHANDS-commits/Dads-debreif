@@ -1958,7 +1958,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     releaseGround();
     tightTier.dispose();
     releaseCore();
-    setCt156Level('high'); // the files' level is the view's: a module with no Graphics switch gets High
+    setCt156Level(source.settings?.().graphicsQuality === 'low' ? 'performance' : 'high'); // on close the files stay at this view's Graphics setting, so modules with no switch inherit it (Patrick, 15 Oct 2026: "Back to high on close unless the app is in \"performance\" mode, in which case its never high")
     patchTexture?.dispose();
     patchTexture = null;
     patchCanvas = null;
