@@ -300,6 +300,26 @@ button[aria-disabled='true'] {
 /* Reduced motion: components take their durations from --motion-duration
    (tokens.css), which is 0 here. This catch-all covers anything that doesn't,
    but any class selector outranks it, so don't rely on it. */
+/* The CT-156's look sliders (ct156-look-settings.js), in whichever view's Graphics menu holds them. */
+.ct156-look {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 14rem;
+}
+.ct156-look-row {
+  display: grid;
+  grid-template-columns: 6rem 1fr 3rem;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ct156-look-row output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ct156-look-reset {
+  justify-self: start;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

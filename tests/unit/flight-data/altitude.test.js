@@ -60,7 +60,7 @@ test('two ships level side by side read level after the altitude check, and park
   }
 });
 
-// Checks (V2.449): a ship whose log starts in the air, with one slow step there (a GPS hiccup at start-up), is not "corrected" from that
+// Checks (V2.474): a ship whose log starts in the air, with one slow step there (a GPS hiccup at start-up), is not "corrected" from that
 //   one fix, and does not move the ships that taxied. Expected values from the constructed tracks: every ship truly level in the air, with
 //   no GPS error, so nothing should move; margin 10 ft as above. Shape from Dad's Cobra flight (14 Oct 2026): Lead's log began at 4,519 ft
 //   and 192 kt, its first step read slow, and the check took it for ground and moved Lead about 2,000 ft down and the others 660 ft up.
