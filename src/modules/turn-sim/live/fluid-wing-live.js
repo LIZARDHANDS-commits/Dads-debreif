@@ -51,7 +51,7 @@ import { STEP_SEC } from './flight.js';
 import { G_RULE, WING, HOLD, LIVE } from './tuning.js';
 import { FW_BAND } from './slots.js';
 import { leadStateOf, stepLead, leadThrottle } from './fluid-lead.js';
-import { powerFrom } from './power.js';
+import { powerFrom, withEngine } from './power.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3, poseOf3d } from './attitude.js';
 
 const dt = STEP_SEC;
@@ -437,9 +437,10 @@ export function stepLiveWing(ws, ctx) {
     x: next.pm.x, y: next.pm.y, altAbove: next.pm.z - blockFt, vel: next.vel, up: next.bodyUp,
     kias: next.kias, g: next.g, rollDps: -next.rollRate,
   });
-  // His tag's power (power.js): MAX, the throttle that flies his place, or IDLE.
+  // His tag's power (power.js): MAX, the throttle that flies his place, or IDLE: what his engine gives (TS-218, stepLead),
+  // carried on with his power so the next pilot of the aircraft has it.
   const throttle = leadThrottle(next, holdKias);
-  const power = throttle < 0.005 ? powerFrom('idle', 0, next.kias, next.pm.z) : powerFrom(null, throttle, next.kias, next.pm.z);
+  const power = withEngine(throttle < 0.005 ? powerFrom('idle', 0, next.kias, next.pm.z) : powerFrom(null, throttle, next.kias, next.pm.z), next.eng);
 
   // ---- the words: LAG, PURE or LEAD, read from the slide with a dead band ----
   let word = ws.word;

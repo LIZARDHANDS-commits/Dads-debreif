@@ -1,0 +1,78 @@
+{
+ "code": "formation-close-wingman-b2 at c65159fe (the T29t tidy 482f0857, the powerAsk rename db651dec) with part 2's trace columns and probe (flying unchanged)",
+ "tag": "cm",
+ "files": 12,
+ "note": "crossings of the on line over the fighting wing set; wobble: median spread about the 2 s trend at a crossing",
+ "rows": [
+  {
+   "id": "sTurn",
+   "col": "slantFt",
+   "line": 550,
+   "band": 50,
+   "crossings": 2,
+   "files": 12,
+   "wobbleMedian": 43.3,
+   "bandOverWobble": 1.16
+  },
+  {
+   "id": "quickFix",
+   "col": "closureFtps",
+   "line": 20,
+   "band": 10,
+   "crossings": 39,
+   "files": 12,
+   "wobbleMedian": 6.8,
+   "bandOverWobble": 1.47
+  },
+  {
+   "id": "guard",
+   "col": "predFt",
+   "line": 600,
+   "band": 100,
+   "crossings": 41,
+   "files": 12,
+   "wobbleMedian": 28.1,
+   "bandOverWobble": 3.55
+  },
+  {
+   "id": "filterFailing",
+   "col": "passFt",
+   "line": 600,
+   "band": 0,
+   "crossings": 132,
+   "files": 12,
+   "wobbleMedian": 49.5,
+   "bandOverWobble": 0
+  },
+  {
+   "id": "powerCut",
+   "col": "cActualFtps",
+   "line": 0,
+   "band": 0,
+   "crossings": 42,
+   "files": 12,
+   "wobbleMedian": 3.3,
+   "bandOverWobble": 0
+  },
+  {
+   "id": "idle",
+   "col": "cActualFtps",
+   "line": 40,
+   "band": 15,
+   "crossings": 13,
+   "files": 12,
+   "wobbleMedian": 22.1,
+   "bandOverWobble": 0.68
+  },
+  {
+   "id": "boards",
+   "col": "cActualFtps",
+   "line": 60,
+   "band": 25,
+   "crossings": 13,
+   "files": 12,
+   "wobbleMedian": 24.7,
+   "bandOverWobble": 1.01
+  }
+ ]
+}
