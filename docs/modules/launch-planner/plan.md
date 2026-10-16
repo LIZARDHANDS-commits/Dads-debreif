@@ -1,5 +1,7 @@
 # Launch Planner: plan (proposed)
 
+> **Shelved by Dad, 16 Oct 2026:** "Nvm skip this plan". The plan and its worked example stay on this branch (pull request #1057, marked draft) in case it is wanted later; nothing of it is on main.
+>
 > **Status:** proposed, waiting on Patrick's yes. Dad asked on 16 Oct 2026, showing a day's flying schedule (kept out of the repo: it carries names): "Is there a better way to display schedule data than this. Is it Better to waterfall launches or wave launch when we have limited aircraft", then "Start thinking. Clear names. Generic is fine instructor A, student b. If I have a set flying window can we assess the most efficient schedule too".
 
 ## What it would do
