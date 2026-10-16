@@ -78,10 +78,14 @@ export function openBrief({ data, world, stage, groundAt, onClose }) {
         h('p', { class: 'np-brief-hint' }, 'Obstacles: not shown (no Canadian obstacle data). Terrain clearance and fuel are estimates.'));
       if (w && legs.length) {
         const first = legs[0];
-        const a = route.points[0];
-        w.setArea(route.points.reduce((m, p, _i, all) => ({ lat: m.lat + p.lat / all.length, lon: m.lon + p.lon / all.length }), { lat: 0, lon: 0 }), 120, 30);
-        w.setAircraft({ lat: a.lat, lon: a.lon, altFt: eyeHeight(first, a), headingDegT: first.trackDegT });
-        w.chase(60000, 40);
+        // The whole route from high above and behind its middle, looking along the first leg's direction.
+        const lats = route.points.map((p) => p.lat);
+        const lons = route.points.map((p) => p.lon);
+        const centre = { lat: (Math.max(...lats) + Math.min(...lats)) / 2, lon: (Math.max(...lons) + Math.min(...lons)) / 2 };
+        const spanNm = Math.max((Math.max(...lats) - Math.min(...lats)) * 60, (Math.max(...lons) - Math.min(...lons)) * 60 * Math.cos((centre.lat * Math.PI) / 180), 5);
+        w.setArea(centre, Math.min(200, Math.max(60, Math.ceil(spanNm * 1.5 + 20))), Math.min(40, Math.max(12, Math.ceil(spanNm + 6))));
+        w.setAircraft({ lat: centre.lat, lon: centre.lon, altFt: FIELD_FT + first.heightFt, headingDegT: first.trackDegT, hidden: true });
+        w.chase(spanNm * 6076 * 1.1, 55);
       }
     } else {
       const leg = legs[page - 1];
@@ -112,7 +116,7 @@ export function openBrief({ data, world, stage, groundAt, onClose }) {
         w.eye({ ...from, altFt: eyeHeight(leg, from) }, { lat: b.lat, lon: b.lon, altFt: Number.isFinite(g) ? g : FIELD_FT });
       }
     }
-    if (!w) picture.append(h('p', { class: 'np-3d-note' }, 'No 3D picture in this browser.'));
+    if (!w && !picture.querySelector('.np-3d-note')) picture.append(h('p', { class: 'np-3d-note' }, 'No 3D picture in this browser.'));
     w?.redraw();
   }
 

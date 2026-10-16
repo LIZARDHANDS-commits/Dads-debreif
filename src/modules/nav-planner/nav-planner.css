@@ -93,6 +93,7 @@
 /* The route card: printed only. */
 .np-card { display: none; }
 @media print {
+  html, body { background: #fff; }
   body * { visibility: hidden; }
   .np-card, .np-card * { visibility: visible; }
   .np-card { display: block; position: absolute; left: 0; top: 0; width: 100%; background: #fff; color: #000; font: 10pt system-ui, sans-serif; }

@@ -440,8 +440,8 @@ function mount(root, app) {
     debriefBox.append(
       h('h2', {}, `Plan against flown: ${flown.name}`),
       h('div', { class: 'np-debrief-grid' },
-        h('table', { class: 'np-table' }, h('thead', {}, h('tr', {}, ['Turn point', 'Pass', 'Miss NM', 'Early / late'].map((t) => h('th', {}, t)))), h('tbody', {}, passRows)),
-        h('table', { class: 'np-table' }, h('thead', {}, h('tr', {}, ['Leg', 'Largest track error NM', 'Average NM', 'Height vs plan ft', 'Planned ft MSL', 'Lowest flown ft MSL'].map((t) => h('th', {}, t)))), h('tbody', {}, legRows))),
+        h('div', { class: 'np-scroll' }, h('table', { class: 'np-table' }, h('thead', {}, h('tr', {}, ['Turn point', 'Pass', 'Miss NM', 'Early / late'].map((t) => h('th', {}, t)))), h('tbody', {}, passRows))),
+        h('div', { class: 'np-scroll' }, h('table', { class: 'np-table' }, h('thead', {}, h('tr', {}, ['Leg', 'Largest track error NM', 'Average NM', 'Height vs plan ft', 'Planned ft MSL', 'Lowest flown ft MSL'].map((t) => h('th', {}, t)))), h('tbody', {}, legRows)))),
       h('p', { class: 'np-hint' }, 'Each pass is the flown fix nearest the turn point, in order; the clock starts at the first. Track error: R right of the planned line, L left. Heights are ForeFlight\'s GPS heights, not pressure altitude.'));
   }
 
@@ -606,7 +606,7 @@ function mount(root, app) {
           w.setRoute(route.points, result.legs);
           w.setFlown(flown?.fixes ?? null);
           placePlane();
-          w.chase(6000, 20);
+          w.chase(300, 12);
         }
         return w;
       }).catch((err) => {
@@ -643,7 +643,7 @@ function mount(root, app) {
     if (world && view === '3d') {
       const a = routeArea();
       world.setArea(a.centre, a.outerNm, a.innerNm);
-      world.chase(6000, 20);
+      world.chase(300, 12);
       world.redraw();
     }
   }
@@ -721,7 +721,7 @@ function mount(root, app) {
         if (w) {
           const a = routeArea();
           w.setArea(a.centre, a.outerNm, a.innerNm);
-          w.chase(6000, 20);
+          w.chase(300, 12);
           placePlane();
           w.redraw();
         }

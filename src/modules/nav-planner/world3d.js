@@ -31,7 +31,7 @@ const LINE_STEP_FT = 1500;
 /** A turn point's pole stands this far above the route line (ft; for the eye). */
 const POLE_ABOVE_FT = 400;
 /** The chase camera: distance behind (ft), and its limits for the wheel (estimates for the view). */
-const CHASE = Object.freeze({ distFt: 900, minFt: 150, maxFt: 30000, pitchDeg: 12 });
+const CHASE = Object.freeze({ distFt: 300, minFt: 120, maxFt: 400000, pitchDeg: 12 });
 
 /** The ground's two squares for an area centred on { lat, lon }: outerNm and innerNm across (the inner one sharper). As the EP Tabletop's mooseJawArea, sized by the caller. */
 export function planArea(centre, outerNm, innerNm) {
@@ -271,10 +271,15 @@ export async function createRouteWorld({ host, timers, doc = globalThis.document
     camera.aspect = w / h;
     if (mode === 'eye' && eyeAt) {
       camera.fov = 60;
+      scene.fog.near = HAZE_NM.from * FT_PER_NM;
+      scene.fog.far = HAZE_NM.to * FT_PER_NM;
       camera.position.set(...eyeAt.from);
       camera.lookAt(...eyeAt.to);
     } else {
       camera.fov = 55;
+      // The haze starts beyond the aircraft, so a far overview isn't washed out.
+      scene.fog.near = HAZE_NM.from * FT_PER_NM + look.distFt;
+      scene.fog.far = HAZE_NM.to * FT_PER_NM + look.distFt * 1.5;
       const p = ship.position;
       const head = plane ? plane.headingDegT : 0;
       const yaw = degToRad(head + 180 + look.yawDeg); // behind the nose, swung by the drag
@@ -317,7 +322,7 @@ export async function createRouteWorld({ host, timers, doc = globalThis.document
     const [x, y] = xy(plane.lat, plane.lon);
     ship.position.set(x, y, plane.altFt);
     ship.rotation.set(0, 0, compassDegToHeadingRad(plane.headingDegT ?? 0), 'ZYX');
-    ship.visible = true;
+    ship.visible = !plane.hidden; // hidden: a place for the camera to look at, with no aircraft drawn
   }
 
   // Drag swings the chase camera round the aircraft; the wheel moves it closer or further.
@@ -361,7 +366,7 @@ export async function createRouteWorld({ host, timers, doc = globalThis.document
       flown = fixes;
       buildFlown();
     },
-    /** The aircraft: { lat, lon, altFt, headingDegT }, or null to hide it. */
+    /** The aircraft: { lat, lon, altFt, headingDegT, hidden? }, or null to hide it (hidden: the chase camera's centre with no aircraft drawn). */
     setAircraft(pos) {
       plane = pos;
       if (pos) placeShip();
