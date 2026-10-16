@@ -23,6 +23,7 @@ Patrick's own picks on 30 Sep were ideas 1, 2, 3, 4, 6, 7, 8 and 10 for the futu
 
 ## Whole-tool ideas
 
+- **Static thrust in core** (found by the Formation thrust check, 12 Oct 2026, `Pat's claude work/formation-review-12oct/research/thrust.md`): at zero airspeed core `thrustPerWeight` gives about 5,650 lb of thrust where NFM p.1-18 gives about 2,750 lb. Above about 80 KTAS the model matches the manual's 1 G top speeds and Patrick's recorded speed-up, so only take-offs, slow flight and tail slides feel it (Traffic, the zoom and split-S helpers). Not fixed: it touches every module and four test files that pin numbers.
 - **Privacy mode**: swap names for callsigns on import and strip metadata before anything is shared; it must come before share-by-link (Feature Ideas idea 12; value high, effort small; `pf/reset/2-inventory/agents/sources/feature-ideas.md:14`)
 - **Flight physics explorables**: slider pages for load factor against bank, stall speed against G, corner speed, the flight envelope and turn radius against rate; T-6 numbers labelled as not for flight; closest to Turn Fight's purpose (`pf/reset/1-requirements/scope-and-ideas.md:197`) (Feature Ideas idea 25; value high, effort medium; flight math, so it needs a check first; `pf/reset/2-inventory/agents/sources/feature-ideas.md:27`)
 - **Spatial disorientation demos**: animations of the leans, the somatogravic illusion and Coriolis, showing sensed attitude beside true attitude (Feature Ideas idea 30; value medium, effort medium; `pf/reset/2-inventory/agents/sources/feature-ideas.md:32`)

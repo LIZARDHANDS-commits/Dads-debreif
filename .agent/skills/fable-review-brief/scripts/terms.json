@@ -1,0 +1,44 @@
+{
+  "_about": "Term map for Fable briefs (skill fable-review-brief). rename: [project term, brief term], used by `scrub.mjs rename` and, reversed, by `scrub.mjs back`. legacyBack: older brief terms from the 6 Oct engine review, mapped back only. avoid: words to keep out of a brief; proven = it was in what Fable read or was told when its safety filter stopped a run (13-14 Oct 2026), guess = avoided to be safe.",
+  "rename": [
+    ["fighting wing", "the trail cone"],
+    ["lead pursuit", "steer-ahead"],
+    ["pure pursuit", "steer-on"],
+    ["lag pursuit", "steer-behind"],
+    ["making the miss", "passing clear"],
+    ["make the miss", "pass clear"],
+    ["the 500 ft bubble", "the 500 ft ring"]
+  ],
+  "legacyBack": [
+    ["fighting wing", "cone position"],
+    ["lead pursuit", "lead point"],
+    ["pure pursuit", "nose on"],
+    ["lag pursuit", "lag point"],
+    ["pursuit", "pointing"],
+    ["chase", "follow"],
+    ["tactical", "spread"],
+    ["hunting", "wandering"],
+    ["angle of attack", "alpha"],
+    ["Turn Fight", "two-ship module"]
+  ],
+  "avoid": [
+    { "pattern": "offensive", "proven": true, "suggest": "drop it, or say what the formation is for (manoeuvrable, flexible)" },
+    { "pattern": "tactical", "proven": true, "suggest": "drop it, or 'formation training'" },
+    { "pattern": "fighters?", "proven": true, "suggest": "'trainer aircraft'" },
+    { "pattern": "pursuit", "proven": true, "suggest": "steer-ahead / steer-on / steer-behind" },
+    { "pattern": "kiss(es|ed|ing)? the bubble", "proven": true, "suggest": "'a brief entry into the 500 ft ring'" },
+    { "pattern": "bubble", "proven": false, "suggest": "'the 500 ft ring'" },
+    { "pattern": "bust(s|ed|ing)?", "proven": false, "suggest": "'enters'" },
+    { "pattern": "defensive", "proven": false, "suggest": "drop it" },
+    { "pattern": "attack(s|ed|ing)?", "proven": false, "suggest": "'approach', or for angle of attack 'alpha'" },
+    { "pattern": "threats?", "proven": false, "suggest": "'a sudden manoeuvre by Lead'" },
+    { "pattern": "combat", "proven": false, "suggest": "drop it" },
+    { "pattern": "dogfight\\w*", "proven": false, "suggest": "drop it" },
+    { "pattern": "engage(s|d|ment|ments)?", "proven": false, "suggest": "'acts', 'switches on'" },
+    { "pattern": "kill(s|ed|ing)?", "proven": false, "suggest": "'stop', 'take out' (closure); 'kill the horizontal closure' got through once (14 Oct), rewording is still safer" },
+    { "pattern": "weapons?", "proven": false, "suggest": "drop it" },
+    { "pattern": "bandits?|hostile|enemy", "proven": false, "suggest": "drop it" },
+    { "pattern": "fight(s|ing)?(?! wing)", "proven": false, "suggest": "'the two-ship module', or 'interact' for controllers" },
+    { "pattern": "CFAFM", "proven": false, "suggest": "never send: a controlled document" }
+  ]
+}
