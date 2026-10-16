@@ -6,6 +6,8 @@ Patrick's notes: about 90% torque; gentle aerobatics; loops "almost always 3.5 G
 
 Scripts: the analysis scripts stayed in the thread's scratch folder (the telemetry reader is a `future.md` item). Trace files beside this note: `gopro-loop.json` and `gopro-rolls.json` (open them on `tools/flight-plot/` with "Or a trace file"; no positions in either).
 
+**Correction (12 Oct 2026, the thrust check, `thrust.md` beside this note):** every "KIAS" below that comes from GPS is ground speed turned into KIAS with no wind removed. A wind of about 40 kt from about 300° true (36-49 kt, fitted from four level turns in chapter 2) was blowing, so GPS-based speeds carry about ±40 kt, not ±10-15. Section 5's "accelerates faster than the model" finding is withdrawn: the speed-up was flown almost straight downwind, and in true airspeed the model at MAX matches it. The speeds worked out from the pull itself (inside the loops, and before the Cuban-eight half rolls) don't use GPS and stand, within their own ±15%.
+
 ## 1. Mount: fixed to the aircraft (high confidence)
 
 - In steady turns the gyro's total rate matches the GPS track's turn rate: median ratio 0.97, 1.00 and 1.10 in the three chapters.
@@ -133,7 +135,7 @@ Roll rate is the gyro about the aircraft's roll axis, filtered at 6 Hz (a 3 Hz f
 
 The fastest single roll was 100 °/s (a Cuban half roll, chapter 2 15:56). The quickest build-ups (0.3 to 0.4 s to 63%, 127 to 146 °/s²) were roll-ins for the 3 to 3.75 G clearing turns at about 200 KIAS.
 
-## 5. Power and speed changes
+## 5. Power and speed changes (the acceleration finding is withdrawn: see the correction at the top)
 
 From GPS, in straight flight with the altitude flat, at about 12,600 ft. The 5 s GPS steps jitter by about ±1.5 kt/s, so these are averages over 25 to 60 s:
 - 125 → 227 KIAS in about 60 s with a 500 ft climb: about 1.7 kt/s (chapter 2, 00:00-01:00).
