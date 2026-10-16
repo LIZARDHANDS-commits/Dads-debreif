@@ -862,3 +862,152 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-1) var(--space-3);
 }
+
+/* The simulated drop's box in the Formation column (DB-36), laid out as the tennis ball's. */
+[data-module='debrief'] .drop-panel[hidden],
+[data-module='debrief'] .drop-panel [hidden] {
+  display: none;
+}
+
+[data-module='debrief'] .drop-panel {
+  margin-top: var(--space-3);
+}
+
+[data-module='debrief'] .drop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+[data-module='debrief'] .drop-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+[data-module='debrief'] .drop-status {
+  margin: var(--space-2) 0 var(--space-1);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+[data-module='debrief'] .drop-status.tone-good {
+  color: var(--good);
+}
+
+[data-module='debrief'] .drop-status.tone-caution {
+  color: var(--caution);
+}
+
+[data-module='debrief'] .drop-status.tone-bad {
+  color: var(--bad);
+}
+
+[data-module='debrief'] .drop-lines {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .drop-lines li + li {
+  margin-top: var(--space-1);
+}
+
+[data-module='debrief'] .drop-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+
+[data-module='debrief'] .drop-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+[data-module='debrief'] .drop-at {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .drop-at input {
+  width: 8rem;
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+}
+
+[data-module='debrief'] .drop-at .control-message {
+  flex-basis: 100%;
+}
+
+[data-module='debrief'] .drop-group {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='debrief'] .drop-group h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+}
+
+[data-module='debrief'] .drop-note {
+  margin: var(--space-1) 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .drop-more {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='debrief'] .drop-more > summary {
+  cursor: pointer;
+  padding-block: var(--space-1);
+}
+
+/* The map waits for the tap that places the drop's point of impact. */
+[data-module='debrief'] canvas.is-placing,
+[data-module='debrief'] canvas.is-placing.is-dragging {
+  cursor: crosshair;
+}
+
+/* The one "on" look (accent edge and a light accent tint): Place on map while it waits for the tap. */
+[data-module='debrief'] .drop-panel .button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: rgb(66 191 233 / 0.16);
+}
+
+[data-module='debrief'] .drop-controls .control {
+  min-width: 0;
+}
+
+[data-module='debrief'] .drop-controls .drop-wide {
+  grid-column: 1 / -1;
+}
+
+[data-module='debrief'] .drop-controls select {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-module='debrief'] .drop-controls input[type='number'] {
+  width: 4.5em;
+  min-width: 0;
+}

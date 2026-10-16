@@ -9,7 +9,7 @@ import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { loadFlight } from '../../flight-data/load.js';
 import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
-import { sampleAt } from '../../flight-data/flight.js';
+import { sampleAt, headingAt } from '../../flight-data/flight.js';
 import { toDebriefFile, readDebriefFile, MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
 import { fillGapsInSteps } from '../../flight-data/gap-fill.js';
 import { windVectorFtps } from '../../core/wind.js';
@@ -54,6 +54,16 @@ import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './we
 import { TIME_KEY, weatherSettingOf, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName, pucksFromSettings, timingsFromSettings, altitudesFromSettings } from './debrief-session.js';
 import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
 import { radarKept, framesToDraw, savedNoteLine, savedFromSetting, droppedNotice, SAVED_ALPHA } from './weather/saved-radar.js';
+import { createDropPanel } from './drop-panel.js';
+import {
+  DROP_ALLOWED, DROP_FILE_RULES, presetPatch, releaseAt, parseReleaseTime, typedWindFrom, dropWind, dropGround, runDrop, loadAt, dropWords,
+  dropStorageKey, readDropPlace, dropForFile, dropFromFile, runInFor, zoneShape,
+} from './drop.js';
+import { TERRAIN_ZOOM } from './terrain-heights.js';
+import { latLonToLocalFt, localFtToLatLon, lonLatToTile } from '../../core/geo.js';
+import { headingRadToCompassDeg } from '../../core/angles.js';
+import { formatZuluSeconds } from '../../core/time.js';
+import { FT_PER_NM } from '../../core/units.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
 
@@ -66,6 +76,7 @@ function mount(root, app) {
     allowed: {
       view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS), wxWindModel: Object.keys(WIND_MODELS),
       ...CAMERA_ALLOWED,
+      ...DROP_ALLOWED,
     },
   });
   const controls = createControls(layout);
@@ -75,6 +86,7 @@ function mount(root, app) {
   const dfpPanel = createDfpPanel({ time: app.time, on: dfpActions() });
   const filePanel = createFilePanel({ layout, canExample, on: fileActions() });
   const tennisPanel = createTennisPanel({ controls, layout });
+  const dropPanel = createDropPanel({ controls, layout, on: dropActions() });
   const puckPanel = createPuckPanel({
     layout, swatch: shipSwatch,
     on: {
@@ -87,7 +99,7 @@ function mount(root, app) {
   const ui = createLayout({
     layout, controls, bar, canExample, listen: app.listen,
     flightExtras: [puckPanel.element, filePanel.element],
-    formationExtras: [tennisPanel.element, dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
+    formationExtras: [tennisPanel.element, dropPanel.element, dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
   });
   const currentStandards = () => app.standards?.get() ?? DEFAULT_STANDARDS;
   root.append(ui.element);
@@ -147,6 +159,18 @@ function mount(root, app) {
   let gapFill = { result: null, running: false, key: '' };
   let stopFill = null;
   let flightCount = 0; // which loaded flight this is, for gapFill.key
+  // The simulated drop (DB-36): this flight's release time and point of impact ({ releaseT, point: { lat, lon } }), kept
+  // in the browser beside its DFPs and in the debrief file; whether the 2D map waits for the tap that places the point;
+  // the terrain tiles under the drop (only with the 3D Ground on "Terrain and satellite"); and the last answer worked out.
+  let dropPlace = { releaseT: null, point: null };
+  let dropKey = null;
+  let placing = false;
+  let dropTerrain = null;
+  let dropTerrainKey = '';
+  let dropHeld = { key: '', result: null, zoneGroundFt: null, trail: null };
+  let lastDropLoad = layout.get().dropLoad;
+  let lastDropOpen = layout.get().dropOpen;
+  let lastRunIn = layout.get().dropRunIn;
   const shownFills = () => (layout.get().fillGaps ? gapFill.result?.fills ?? null : null);
 
   // The one tennis-ball solution both views draw and the panel describes (#19), while it's open.
@@ -265,6 +289,9 @@ function mount(root, app) {
     time: () => clock?.t ?? 0,
     layers: () => layout.get(),
     dfps: () => dfps.map((d) => ({ x: d.x, y: d.y, label: dfpLabel(dfps, d) })),
+    drop: () => dropDrawing(),
+    placing: () => placing && layout.get().dropOpen && Boolean(flight),
+    onTap: (x, y) => placeDropPoint(x, y),
     onImagery: (state) => ui.setImagery(state),
     onCharts: (state) => ui.setCharts(state),
     weather: () => satelliteWanted(),
@@ -298,6 +325,7 @@ function mount(root, app) {
     tennis: tennisNow,
     space: () => spaceNow(),
     fills: shownFills,
+    drop: () => dropDrawing(),
     // The model wind at a time and height, { dirDeg, kt } (true "from", knots), or null: the cockpit's crab and airspeed (DB-21).
     wind: (t, altFt) => leadWindVector(t, altFt),
     // Bumped when the wind's state changes, so the cockpit works its attitude table out again.
@@ -481,6 +509,194 @@ function mount(root, app) {
     ui.setWindArrows({ caption, status });
   }
 
+  // ---- The simulated drop (DB-36; spec "Simulated drop"; drop.js has the plain values and core drop.js the fall) ----
+
+  /** The point of impact in this flight's map feet, or null. */
+  const dropPoint = () => (dropPlace.point && flight ? latLonToLocalFt(flight.ref, dropPlace.point.lat, dropPlace.point.lon) : null);
+
+  /** The Debrief's model winds aloft for the fall, at the release time: { at(z) → { dirDeg, kt } | null, why, label, key }. Asks for them once. */
+  function dropModelWind(releaseT) {
+    const on = layout.get();
+    const model = windModelFor(on.wxWindModel, flight.startT);
+    if (!model) return { at: null, why: 'No model winds go back this far.', label: 'model', key: 'none' };
+    const { label } = WIND_MODELS[model];
+    const entry = winds.get(model);
+    if (!entry) return { at: null, why: `No ${label} winds: Lead's track has no position.`, label, key: 'nopoint' };
+    const key = `${model}:${entry.state}`;
+    if (entry.state === 'ready') return { at: (z) => windAt(entry.hours, releaseT, z, { fieldFt: homeFieldFt() })?.wind ?? null, why: '', label, key };
+    const retry = 'Close the Drop box and open it again to try again.';
+    const why = entry.state === 'loading' ? `${label} winds still loading.`
+      : entry.state === 'busy' ? `${label} winds: Open-Meteo is busy. ${retry}` : windFailureText(label, entry.failure, retry);
+    return { at: null, why, label, key };
+  }
+
+  /**
+   * The terrain under the drop, with the 3D Ground on "Terrain and satellite" (DB-27's tiles and decoder, through
+   * terrain-heights.js): the tiles round the release and the point of impact (a nautical mile each way, for the drift) and
+   * under the tracks' ground fixes, whose height moves the terrain to the tracks' ground as the 3D view's does.
+   * Returns { at(x, y) → feet or NaN, state, key }; { at: null, state: 'none' } with any other Ground.
+   */
+  function dropTerrainFor(release, point) {
+    if (layout.get().datum3d !== 'terrain') {
+      dropTerrain?.dispose();
+      dropTerrain = null;
+      dropTerrainKey = '';
+      return { at: null, state: 'none', key: 'none' };
+    }
+    const g = groundNow();
+    const toLl = (x, y) => localFtToLatLon(flight.ref, x, y);
+    const points = [];
+    if (Number.isFinite(g?.x) && Number.isFinite(g?.y)) points.push(toLl(g.x, g.y));
+    const nm = FT_PER_NM;
+    for (const p of [release, point].filter(Boolean)) {
+      for (const [dx, dy] of [[0, 0], [nm, 0], [-nm, 0], [0, nm], [0, -nm]]) points.push(toLl(p.x + dx, p.y + dy));
+    }
+    const key = [...new Set(points.map((ll) => {
+      const tile = lonLatToTile(ll.lon, ll.lat, TERRAIN_ZOOM);
+      return `${tile.x}/${tile.y}`;
+    }))].sort().join(' ');
+    if (key !== dropTerrainKey) {
+      dropTerrain?.dispose();
+      dropTerrainKey = key;
+      dropTerrain = createTerrainHeights({ points, timers: app.scheduler, doc: document, onChange: () => { renderDrop(); redraw(); } });
+    }
+    const state = dropTerrain.state();
+    if (state === 'none') return { at: null, state: 'none', key: 'none' };
+    const mid = Number.isFinite(g?.x) ? toLl(g.x, g.y) : null;
+    const middle = mid ? dropTerrain.refAt(mid.lat, mid.lon) : NaN;
+    const shiftFt = Number.isFinite(middle) && Number.isFinite(g?.groundFt) ? g.groundFt - middle : NaN;
+    const heights = dropTerrain;
+    const at = Number.isFinite(shiftFt) ? (x, y) => {
+      const ll = toLl(x, y);
+      return heights.refAt(ll.lat, ll.lon) + shiftFt;
+    } : null;
+    return { at, state: state === 'loading' || at ? state : 'failed', key: `${key}:${state}:${Number.isFinite(shiftFt)}` };
+  }
+
+  /** The drop worked out for now, while its box is open: drop.js runDrop's result, kept until anything it reads changes. */
+  function dropNow() {
+    const on = layout.get();
+    if (!on.dropOpen || !flight) return null;
+    const point = dropPoint();
+    const slot = on.dropShip;
+    const release = Number.isFinite(dropPlace.releaseT) ? releaseAt(flight.tracks[slot], dropPlace.releaseT, slot) : null;
+    const from = release && !release.reason ? release : null;
+    const model = from && on.dropWind === 'model' ? dropModelWind(dropPlace.releaseT) : { at: null, why: '', label: 'model', key: 'off' };
+    const terrainNowDrop = from || point ? dropTerrainFor(from, point) : { at: null, state: 'none', key: 'none' };
+    const g = groundNow();
+    const trackFt = g?.groundFt ?? homeFieldFt();
+    const settingsKey = Object.keys(on).filter((k) => k.startsWith('drop')).map((k) => on[k]).join('|');
+    const key = [flightCount, dropPlace.releaseT, dropPlace.point?.lat, dropPlace.point?.lon, settingsKey, model.key, terrainNowDrop.key, trackFt].join('#');
+    if (key === dropHeld.key) return dropHeld.result;
+    const ground = dropGround({
+      trackFt, trackWords: g?.source === 'tracks' ? "the tracks' ground" : "the home field's elevation", terrainAt: terrainNowDrop.at, terrain: terrainNowDrop.state,
+    });
+    const wind = dropWind({
+      mode: on.dropWind, model: model.at, modelWhy: model.why, modelLabel: model.label, typed: typedWindFrom(on),
+      releaseFt: from?.z ?? trackFt, groundFt: from ? ground.at(from.x, from.y) : trackFt,
+    });
+    const result = runDrop({ release, point, on, wind, ground });
+    const zoneGroundFt = point ? ground.at(point.x, point.y) : trackFt;
+    dropHeld = { key, result, zoneGroundFt, trail: result.ok ? result.fall.path.map((p) => ({ x: p.x, y: p.y, altFt: p.z })) : null };
+    return result;
+  }
+
+  /** What the map and the 3D view draw for the drop (map2d/drop-layer.js says what it holds), or null while the box is shut. */
+  function dropDrawing() {
+    const on = layout.get();
+    if (!on.dropOpen || !flight) return null;
+    const r = dropNow();
+    const point = dropPoint();
+    let zone = r?.ok ? r.zone : null;
+    if (!zone && point) {
+      // Before a drop, a box lies along the chosen ship's track now (or its set heading).
+      const track = flight.tracks[on.dropShip];
+      const hdg = track && clock ? headingAt(track, clock.t) : null;
+      zone = zoneShape(point, on, runInFor(on, null, hdg === null ? 360 : headingRadToCompassDeg(hdg)));
+    }
+    const out = { zone: zone ? { ...zone, groundFt: dropHeld.zoneGroundFt ?? groundNow()?.groundFt ?? homeFieldFt() } : null, trail: null, release: null, impact: null, impactWords: '', note: '', carp: null, now: null };
+    if (!r?.ok) return out;
+    const rel = r.release;
+    out.trail = dropHeld.trail;
+    out.release = { x: rel.x, y: rel.y, altFt: rel.z };
+    if (r.impact) {
+      out.impact = { x: r.impact.x, y: r.impact.y, altFt: r.impact.z };
+      out.impactWords = r.miss ? `Impact ${Math.round(r.miss.missFt).toLocaleString('en-US')} ft at ${r.miss.clock} o'clock` : 'Impact';
+    }
+    out.note = r.windNote;
+    if (r.carp) {
+      const c = r.carp;
+      // A short release line along the track: two seconds of the pass either side of the CARP, at least 150 ft (for the eye only).
+      const half = Math.max(150, 2 * Math.hypot(rel.vx, rel.vy));
+      const line = c.u ? [[c.x - c.u.x * half, c.y - c.u.y * half], [c.x + c.u.x * half, c.y + c.u.y * half]] : [[c.x, c.y], [c.x, c.y]];
+      out.carp = { x: c.x, y: c.y, altFt: c.z, groundFt: out.zone?.groundFt ?? rel.z - rel.aglFt, line };
+    }
+    // The load itself while the replay is inside its fall.
+    const t = clock?.t ?? 0;
+    const endT = rel.t + (r.impact?.t ?? r.fall.path[r.fall.path.length - 1].t);
+    if (t >= rel.t && t < endT) out.now = loadAt(r, t);
+    return out;
+  }
+
+  /** The Drop box: shown or hidden with its Tools tick, and its answer and buttons for now. */
+  function renderDrop() {
+    const on = layout.get();
+    dropPanel.element.hidden = !on.dropOpen;
+    if (!on.dropOpen) return;
+    dropPanel.showFor(on);
+    const r = flight ? dropNow() : null;
+    dropPanel.render(dropWords(r, { placed: Boolean(dropPlace.point) }), {
+      flight: Boolean(flight), placing, placed: Boolean(dropPlace.point), nowText: clock ? formatZuluSeconds(clock.t) : '',
+      is3d: on.view === '3d', hasRelease: Number.isFinite(dropPlace.releaseT),
+    });
+  }
+
+  /** A new release time or point of impact for this flight, kept in the browser beside its DFPs. */
+  function setDropPlace(next) {
+    dropPlace = next;
+    if (dropKey) app.storage.set(dropKey, dropPlace);
+    renderDrop();
+    redraw();
+  }
+
+  function setPlacing(on) {
+    placing = Boolean(on);
+    map.setPlacing(placing);
+  }
+
+  /** The tap on the 2D map that places the point of impact (map feet). */
+  function placeDropPoint(x, y) {
+    if (!flight) return;
+    const ll = localFtToLatLon(flight.ref, x, y);
+    setPlacing(false);
+    setDropPlace({ ...dropPlace, point: { lat: ll.lat, lon: ll.lon } });
+  }
+
+  function dropActions() {
+    return {
+      dropNow() {
+        if (clock) setDropPlace({ ...dropPlace, releaseT: clock.t });
+      },
+      dropAt(text) {
+        if (!flight) return '';
+        const t = parseReleaseTime(text, flight.startT, flight.endT);
+        if (t === null) return `Type a time in the replay as hh:mm:ssZ, from ${formatZuluSeconds(flight.startT)} to ${formatZuluSeconds(flight.endT)}.`;
+        setDropPlace({ ...dropPlace, releaseT: t });
+        return '';
+      },
+      clear: () => setDropPlace({ ...dropPlace, releaseT: null }),
+      place() {
+        setPlacing(true);
+        renderDrop();
+      },
+      cancelPlace() {
+        setPlacing(false);
+        renderDrop();
+      },
+      preset: () => layout.update(presetPatch(layout.get().dropLoad)),
+    };
+  }
+
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
   // Performance), and at once for a step, a seek or a pause.
   const READOUT_MS = 100;
@@ -495,6 +711,7 @@ function mount(root, app) {
     renderMetar();
     renderWindArrows();
     renderSavedWeather();
+    renderDrop();
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -548,6 +765,12 @@ function mount(root, app) {
     dfpKey = dfpStorageKey(fingerprint);
     setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
     unsaved = false;
+    // The drop (DB-36): an opened debrief file's wins, as its DFPs do; checked against this flight's window either way.
+    dropKey = dropStorageKey(fingerprint);
+    dropPlace = readDropPlace(session.drop ?? app.storage.get(dropKey, null), flight.startT, flight.endT);
+    if (session.drop) app.storage.set(dropKey, dropPlace);
+    dropHeld = { key: '', result: null, zoneGroundFt: null, trail: null };
+    setPlacing(false);
     bar.setClock(clock);
     space.setFlight(flight);
     map.setFlight(flight);
@@ -652,6 +875,13 @@ function mount(root, app) {
     dfpKey = null;
     setDfps([], { changed: false });
     unsaved = false;
+    dropKey = null;
+    dropPlace = { releaseT: null, point: null };
+    dropHeld = { key: '', result: null, zoneGroundFt: null, trail: null };
+    dropTerrain?.dispose();
+    dropTerrain = null;
+    dropTerrainKey = '';
+    setPlacing(false);
     bar.setClock(null);
     space.setFlight(null);
     map.setFlight(null);
@@ -709,7 +939,9 @@ function mount(root, app) {
         if (!flight) return;
         try {
           const kept = savedRadar.state().saved;
-          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, weather, pucks, timings, altitudes));
+          // The drop goes in only when one is set (DB-36), so a debrief without one doesn't change the Drop box when opened.
+          const dropSettings = Number.isFinite(dropPlace.releaseT) || dropPlace.point ? dropForFile(dropPlace, layout.get()) : {};
+          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), { ...sessionSettings(currentStandards(), clock.t, weather, pucks, timings, altitudes), ...dropSettings });
           // The opener refuses a file over MAX_DEBRIEF_BYTES (counted in bytes), so a save that would be is made without the radar.
           const built = buildDebriefFile({
             write, weather: kept, window: { startT: flight.startT, endT: flight.endT }, maxBytes: MAX_DEBRIEF_BYTES, sizeOf: (text) => new Blob([text]).size,
@@ -732,7 +964,7 @@ function mount(root, app) {
         }
         run('Opening the debrief', async () => {
           const text = await file.text();
-          const opened = readDebriefFile(text, { settings: settingsRules(app.standards?.limits ?? {}, { weather: true, pucks: true }) });
+          const opened = readDebriefFile(text, { settings: { ...settingsRules(app.standards?.limits ?? {}, { weather: true, pucks: true }), ...DROP_FILE_RULES } });
           const next = loadFlight(opened.files);
           return { flight: next, opened, text };
         }, ({ flight: next, opened, text }) => {
@@ -746,7 +978,13 @@ function mount(root, app) {
           // Pictures outside the flight's window are left out and counted in a line (F4b); a block over the length or not
           // text (which the file reader drops unseen) is left out with a line too (F4a).
           const wx = savedFromSetting(weatherSettingOf(text, opened.settings), { startT: next.startT, endT: next.endT });
-          return { flight: next, pucks: filePucks, timings: fileTimings, altitudes: fileAltitudes, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
+          // The drop (DB-36): the Drop box's settings from the file, then its release and point of impact (each value range-checked).
+          const fileDrop = dropFromFile(opened.settings, next.startT, next.endT);
+          if (fileDrop) {
+            lastDropLoad = fileDrop.patch.dropLoad ?? lastDropLoad; // the file's load numbers stand, not the preset's
+            layout.update(fileDrop.patch);
+          }
+          return { drop: fileDrop?.place, flight: next, pucks: filePucks, timings: fileTimings, altitudes: fileAltitudes, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
         });
       },
       csv() {
@@ -824,6 +1062,7 @@ function mount(root, app) {
   );
   tennisPanel.element.hidden = !layout.get().tennisOpen;
   tennisPanel.render(null);
+  renderDrop();
   ui.onFit(() => map.fit());
   ui.onSaveWx(() => {
     if (!flight) return;
@@ -838,6 +1077,19 @@ function mount(root, app) {
   let lastWindKey = '';
   let lastSmoothG = layout.get().smoothG;
   const stopLayout = layout.subscribe((values) => {
+    // The Drop box (DB-36): a new load takes its preset's numbers; opening it asks again for winds that failed; a set run-in
+    // starts from the release's track; shutting it stops the placing.
+    if (values.dropLoad !== lastDropLoad) {
+      lastDropLoad = values.dropLoad;
+      layout.update(presetPatch(values.dropLoad)); // tells this again with the new numbers (or nothing, when they already match)
+    }
+    if (values.dropOpen && !lastDropOpen) winds.retry();
+    if (!values.dropOpen && placing) setPlacing(false);
+    lastDropOpen = values.dropOpen;
+    const runInSet = values.dropRunIn === 'set' && lastRunIn !== 'set';
+    lastRunIn = values.dropRunIn;
+    if (runInSet && dropHeld.result?.ok) layout.update({ dropRunInDeg: Math.round(dropHeld.result.release.trackDeg) || 360 });
+    renderDrop();
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
     filePanel.setCollapsed(!values.filesOpen);
@@ -889,6 +1141,8 @@ function mount(root, app) {
     stopLayout();
     terrain?.dispose();
     terrain = null;
+    dropTerrain?.dispose();
+    dropTerrain = null;
     metars.dispose();
     winds.dispose();
     window.removeEventListener('beforeunload', onBeforeUnload);
