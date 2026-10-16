@@ -78,6 +78,7 @@ The plan and Dad's picks (flights of four, each flight its own type and call sig
 - [x] 3. Colours, labels, the Formation panel, the camera pills and the 3D types per flight. **Built 16 Oct 2026 (V2.464; `flights-panel.js`, `view3d/camera-bar.js`, `view3d/view.js`, `map2d/`); the flights' table sits under "More" in the picker and in the Flight column; first pass, not yet seen by Patrick or Dad.**
 - [x] 4. The CSV and the drop per ship and flight. **Built 16 Oct 2026 (V2.464; `export-csv.js`, `drop-panel.js`, `drop.js`); first pass, not yet seen by Patrick or Dad.**
 - [x] 5. One light test: a 16-file load gives four flights, each judged as a four-ship would be alone. **`tests/unit/debrief/exercise.test.js` (run once locally, passes; CI has not run it); first pass, not yet seen by Patrick or Dad.**
+- [x] Performance (exercise-plan.md "When data fails"). **Measured 16 Oct 2026 in headless Chromium (software drawing): 2D 16 ships 16.7 ms a frame, the same as three; 3D 16 ships about 8 frames a second against about 15 for three, with the far T-38A and C-130J ships on their light model files (spec, Performance); first pass, not yet seen on a real computer.**
 - [ ] 6. Sign-off checklist on a real large exercise's tracks.
 
 ## Step 4. Check the Debrief's tests match the new rules

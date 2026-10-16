@@ -404,7 +404,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   function crewTable(flights, values, onChange) {
     return h('table', { class: 'picker-table crew-table' },
       h('caption', { class: 'visually-hidden' }, 'Call sign and aircraft for each flight'),
-      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Flight'), h('th', { scope: 'col' }, 'Call sign'), h('th', { scope: 'col' }, 'Aircraft'))),
+      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Flight')), h('th', { scope: 'col' }, 'Call sign'), h('th', { scope: 'col' }, 'Aircraft'))),
       h('tbody', {}, flights.map((f) => {
         const input = h('input', {
           type: 'text', maxlength: String(CALL_SIGN_MAX), placeholder: defaultCallSign(f), value: values[f]?.callSign ?? '',

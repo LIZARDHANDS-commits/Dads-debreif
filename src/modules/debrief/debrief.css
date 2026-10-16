@@ -1037,17 +1037,18 @@
   min-width: 0;
 }
 
-[data-module='debrief'] .crew-table td {
+[data-module='debrief'] .crew-table td,
+[data-module='debrief'] .crew-table th {
   padding-right: var(--space-1);
 }
 
 [data-module='debrief'] .crew-table .crew-flight {
-  width: 1.5rem;
   text-align: center;
 }
 
-[data-module='debrief'] .crew-table select {
-  max-width: 7.5rem;
+/* The call sign box stays short (16 characters at most) so the aircraft names show whole in the Flight column. */
+[data-module='debrief'] .crew-table input {
+  width: 4.75rem;
 }
 
 [data-module='debrief'] .flight-blocks {
