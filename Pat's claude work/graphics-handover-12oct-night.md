@@ -5,7 +5,87 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (15 Oct 2026): round 3 on main in both repos
+## Latest (15 Oct 2026, late night): increment 4 and 3.2 merged (V2.465), polish V2.466
+- **Merged to main** (Patrick: "After that, merge and finish the phase and any of phase 5 that is critical"): #1049
+  (V2.460), #1051 (V2.464), #1053 (V2.465), tags `v2.460-ct156-increment2-details`, `v2.464-ct156-pictures-glass-cockpit`,
+  `v2.465-ct156-graphics-level-switch`; 3d-work #111 to #115 (delivery `ct156-2026-10-15-6b02eca`).
+- **Weathering fixed before the merge** (Patrick: "Fix the weathering"): each mark at its picture's value x 3.5 x
+  strength, soot a dull matte grey; light, medium and heavy now differ by eye.
+- **Level on close** (Patrick: "Back to high on close unless the app is in 'performance' mode, in which case its never
+  high"): the CT-156 stays at the closing view's Graphics setting.
+- **V2.466 (this branch):** model files that fail to load are logged; a disposed ship's nav ovals freed; a shader name
+  that hid the wear uniform renamed. W6 (prop blades carry the outside's pictures) is obsolete since 4.1: the blades have
+  their own place in the outside's layout (76.5 px/ft).
+- **Later** (Patrick): the EFIS control panel, the engine display's look, the wingtip strobe hardware.
+
+## Latest (15 Oct 2026, night): slice 3.2, the Graphics switch picks the CT-156's files (V2.465, branch `shared-3d-ct156-level-switch`, draft PR stacked on #1051)
+
+- Formation and Traffic call `setCt156Level` when their 3D view starts (Performance files at Performance) and set High
+  when it goes. `ct156-blender.js` keeps a level, a generation count (`ct156Generation`) and `onCt156Level`; a real change
+  frees the old level's pictures. `ct156-model.js` `unshadeKit` puts every ship back to plain paint, disposes the shaded
+  copies and the sheen picture, then re-attaches the shapes and pictures at the new level; a load that began under an
+  earlier generation is dropped. `ct156-cockpit-model.js` does the same for each live cockpit (`detachCockpitModel` on
+  its dispose). The look sliders are separate (shared uniforms) and keep working across a switch.
+- Open: the first High holds 14 geometries more than any later level (the first frame draws the fine detail once, 140
+  draw calls then 29), so "back to the first High's counts" is met as "back to Performance's count, not above the first".
+  Formation's overview shows the same draw calls and triangles at both levels (61, 30,780).
+
+## Earlier (15 Oct 2026, late): 4.5B and 4.5C built on the same draft (#1051, V2.464; was V2.462, which #1050 also claimed)
+
+- Fix delivery `ct156-2026-10-15-6b02eca` imported. `ct156-cockpit.js` `attachScreens` draws a face into each of the 53
+  rectangles in `ct156-points.json` (`loadCt156Points`), glass over the openings, the striped handles from the delivery's
+  `handle-stripes` face; the old `PANEL_INSTRUMENTS` layout, `drawStaticPanel`, `drawLowerPanel` and the code body's
+  layout bezels are gone; placards lettered (`PLACARD_WORDS`). The cockpit render page takes `night`, `hud`, `engine`,
+  `hideFaces`, and `window.placement()` checks each quad against its delivered corners.
+- **Open:** the VO / VLO speeds (dashes: which source?); the gear placard's and engine label's words are estimates; the
+  delivery's `handle-stripes` puts a striped T on the rear panel, which row E1 says the rear doesn't have (the master's).
+
+## Earlier (15 Oct 2026, evening): increment 4.2 and 4.4 built here, draft PR, V2.464 (was V2.462)
+
+- **Branch `shared-3d-ct156-increment4`** (stacked on #1049), draft PR "V2.464 Shared 3D: the CT-156's baked pictures,
+  glass, reflections and lights (increment 4.2 + 4.4)". Delivery `ct156-2026-10-15-117020e` (layout 3) imported.
+- **What changed:** relief, mask and painted weathering drawn with MikkTSpace tangents (`ct156-blender.js` `loadParts`
+  `tangents`, `aoShaded`), pictures loaded per level at checked sizes and switched in only when all are in
+  (`shadeWhenLoaded`, the one test); panel sheen per real panel (`ct156PanelSheen`); the look sliders
+  (`ct156-look-settings.js`, a "Look (3D)" menu beside Graphics in Formation and Traffic); canopy glass edges, mirror
+  and paint reflections, nav and tail lenses (`ct156-model.js`, `ct156-cockpit.js`). The render pages take `?level=`,
+  `look`, `envRot`, `env`, `hideGlass`, `dusk`, `sun`, `gearDown`.
+- **Not done:** 4.5B/C (part 2 of the same run, next); the mirror brackets' colour (W2: the bracket is in the
+  master's `grey` slot, a 3d-work change); the lamps can't be seen lit from a seat (under the wing); item 8 (the
+  Graphics switch picking the files) waits, as Patrick moved it after increment 4. Run notes and pictures:
+  `3d-work/scratch/increment-4/app-run/`.
+
+## Earlier (15 Oct 2026, afternoon): increments 3.1, 4.1 and 4.5A built in `3d-work`, not yet imported here
+
+- **Built in `3d-work`, each a draft PR stacked on the one before (#111, then #112, #113, #115), nothing merged:**
+  3.1 the hand-cut Performance outside (#112; the weld fix keeps every part's triangles, delivery
+  `ct156-2026-10-15-1315ace`); 4.1 the baked pictures with the painted weathering (soot, oil streaks, edge wear,
+  scuffs), the wingtips and tail in high detail and real nav-light lenses (#113, delivery `ct156-2026-10-15-f3207b6`,
+  verified); 4.5A the cockpit panels' hardware in the master (bezels, handles, the TAS panel, the rear VO/VLO plate) and
+  53 screen rectangles in `ct156-points.json` for the app to draw into (#115, delivery `ct156-2026-10-15-117020e`).
+- **4.5A's verifier failed it:** the panel plate lay in the sun-shade veil's plane and baked black. The fix (veil cut
+  where the plates are) is running; it re-delivers, naming `117020e` as previous.
+- **Patrick's rulings today:** Performance outside budget 25,000 triangles (was 15,000; now 25,268, logged, tweaked at
+  the end); 3.2 (the Graphics switch) moved after increment 4; spend stop raised to $290.
+- **Next, here:** one Opus run in this worktree, stacked on #1049, imports the 4.5A delivery (it carries 4.1's
+  pictures): 4.2 + 4.4 (materials, glass, reflections, sheen, markings, lit lights), then 4.5B/C (live instrument faces
+  in the delivered rectangles, the flat panel drawing retired, placards); then 4.3 look sheets (Sonnet) for Patrick's
+  wear and relief picks; one fresh verifier. State: `3d-work` `ct156/increments.md` and `scratch/next-steps.md`.
+
+## Earlier (15 Oct 2026, night): increment 2 imported, draft #1049 (V2.460)
+
+- **Built:** `3d-work` increment 2 (draft #111 there, both audits PASS) delivered as `ct156-2026-10-15-5f132cb` and
+  imported here on branch `shared-3d-ct156-increment2`, draft #1049. The app now reads layout 2: the master's stacks,
+  coamings, floor, speed brake and well, flap and gear wells, tub and pilots take the code's shapes in place (the code
+  shapes stay only as the no-delivery fallback, so nothing draws twice); `no_picture` parts skip the shadow picture;
+  the wicks and the speed brake's slot floors are dark (slots `aileron|1`, `elevator|1`, `rudder|1`, `speedBrake|1`).
+  The importer refuses paths outside the delivery and a second picture layout.
+- **Pictures** (render kit, before and after, noise floor 0.000 %): `3d-work` `scratch/increment-2/run-b/`.
+- **Waiting on Patrick:** merging #1049 (and `3d-work` #111). Every open PR with a version label will clash on that
+  one line once it lands; #1040 (the donor) and #1032 also share the model files.
+- **Next:** increment 3 (the Graphics switch picks High or Performance).
+
+## Earlier (15 Oct 2026): round 3 on main in both repos
 
 - **Landed.** The CT-156 Blender model through round 3 is on the app's main through #1044 (V2.441, merge commit
   91f6001) and on `3d-work` main through #104 (b00e242), after Patrick's look ("All looks good"). #1034, #1035 and
