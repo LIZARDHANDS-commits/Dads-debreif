@@ -15,6 +15,7 @@
       import * as THREE from 'three';
       import { createCt156Model, disposeCt156Model } from '/src/ui-kit/ct156-model.js';
       import { setCt156Level } from '/src/ui-kit/ct156-blender.js';
+      import { createCt156Cockpit } from '/src/ui-kit/ct156-cockpit.js';
 
       try {
         const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c') });
@@ -55,6 +56,36 @@
         disposeCt156Model(ship);
         renderer.render(scene, camera);
         out.disposed = count();
+
+        // A cockpit opened at Performance and closed, then one opened at High (a Performance view left for a High one):
+        // the second has High's cockpit file and relief picture, not the first's (3.2 audit). Triangles as drawn, against
+        // the delivery's own count for each level.
+        const delivered = await fetch('/models/ct156/delivery.json').then((r) => r.json());
+        const deliveredTriangles = (at) => delivered.glb.find((g) => g.kind === 'cockpit' && g.level === at).triangles;
+        async function cockpitAt(at) {
+          setCt156Level(at);
+          const cockpit = createCt156Cockpit(THREE, { doc: document });
+          const look = () => {
+            let triangles = 0, normal = 0;
+            for (const part of cockpit.group.children.filter((c) => c.name.endsWith('-model'))) {
+              part.traverse((o) => {
+                if (!o.isMesh) return;
+                triangles += o.geometry.attributes.position.count / 3;
+                for (const m of [o.material].flat()) if (m?.normalMap?.image) normal = m.normalMap.image.width;
+              });
+            }
+            return { triangles, normal };
+          };
+          let seen = look();
+          for (let i = 0; i < 240 && !(seen.triangles && seen.normal); i++) {
+            await pause(250);
+            seen = look();
+          }
+          cockpit.dispose();
+          return { ...seen, delivered: deliveredTriangles(at) };
+        }
+        out.cockpitPerformance = await cockpitAt('performance');
+        out.cockpitHigh = await cockpitAt('high');
         window.__ct156Level = out;
       } catch (e) {
         window.__ct156Level = { error: String(e) }; // e.g. no WebGL: fail with the reason, not a timeout

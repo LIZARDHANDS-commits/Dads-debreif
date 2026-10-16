@@ -365,7 +365,7 @@ test.describe('Harvard model memory', () => {
       route.fulfill({ path: join(ROOT, 'public', decodeURIComponent(new URL(route.request().url()).pathname)) }));
     await page.goto(`${site.url}tests/e2e/pages/ct156-level.html`);
     await page.waitForFunction(() => window.__ct156Level, null, { timeout: 90_000 });
-    const { error, high, unshaded, performance, highAgain } = await page.evaluate(() => window.__ct156Level);
+    const { error, high, unshaded, performance, highAgain, cockpitPerformance, cockpitHigh } = await page.evaluate(() => window.__ct156Level);
     expect(error).toBeUndefined();
     expect(high.shaded).toBeGreaterThan(0); // the pictures are on the paint
     expect(high.files.some((f) => f.includes('/ct156/performance/'))).toBe(false); // High asked for none of Performance's
@@ -379,5 +379,10 @@ test.describe('Harvard model memory', () => {
     expect(highAgain.memory.textures).toBe(high.memory.textures);
     expect(highAgain.memory.geometries).toBeLessThanOrEqual(high.memory.geometries);
     expect(highAgain.memory).toEqual(performance.memory);
+    // A cockpit closed at Performance, then one opened at High: each draws its own level's file (the delivery's count)
+    // and the High one the larger relief picture, not the Performance file left over (3.2 audit).
+    expect(cockpitPerformance.triangles).toBe(cockpitPerformance.delivered);
+    expect(cockpitHigh.triangles).toBe(cockpitHigh.delivered);
+    expect(cockpitHigh.normal).toBeGreaterThan(cockpitPerformance.normal);
   });
 });

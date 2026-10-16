@@ -12,12 +12,22 @@ const FILE = 'ct156-cockpit.glb';
 // with MikkTSpace tangents worked out for the body only.
 const RELIEF_PART = 'body';
 
-/** The file's parts, loaded once per page and shared by every cockpit: Promise of [{ name, ao, meshes }]. */
+/** The file's parts at partsLevel, loaded once per level and shared by every cockpit: Promise of [{ name, ao, meshes }]. */
 let parts = null;
+let partsLevel = null;
 const attached = new Map(); // group -> its attach (what it added and made), while the cockpit lives
 let stopLevel = null; // stops onLevel following the level, once no cockpit is left
+/** Frees the cached file's shapes (no cockpit uses them any more) and forgets it. */
+function dropParts() {
+  const old = parts;
+  parts = null;
+  old?.then((list) => list.forEach(({ meshes }) => meshes.forEach(({ geometry }) => geometry.dispose())), () => {});
+}
 function cockpitParts(THREE) {
+  // Loaded at another level while no cockpit was open to hear the switch (a Performance view closed, then a High one): the old file goes.
+  if (parts && partsLevel !== ct156Level()) dropParts();
   if (!parts) {
+    partsLevel = ct156Level();
     parts = loadDelivered(FILE, { tangents: (name) => name === RELIEF_PART }).then((list) => list.map(({ name, extras, meshes }) => ({
       name, ao: extras.ct156_ao ? loadAo(THREE, ct156Files() + extras.ct156_ao) : null, meshes,
     })));
@@ -30,11 +40,14 @@ function cockpitParts(THREE) {
  * Adds the Blender parts to a cockpit's group (createCt156Cockpit) when the file is in, hiding the code's parts they
  * replace. mats: the cockpit's own materials by the file's material names (its colour slots: band, black, frame, dark,
  * seat, knob and the rest), so the parts
- * light and dispose with the rest of the cockpit; own(material) hands it the shaded copies to dispose. Does nothing without a browser (tests, export scripts).
+ * light and dispose with the rest of the cockpit; the shaded copies are this file's to free (detachCockpitModel), so the
+ * fourth argument (the cockpit's own list) is no longer used. Does nothing without a browser (tests, export scripts).
  */
-export function attachCockpitModel(THREE, group, mats, own = (m) => m, partMats = {}) {
+export function attachCockpitModel(THREE, group, mats, _own, partMats = {}) {
   if (typeof document === 'undefined') return;
-  const entry = { THREE, group, mats, partMats, own: (m) => (entry.mine.push(m), own(m)), mine: [], added: [], hidden: [] };
+  // The shaded copies stay in entry.mine, freed at each level switch (unbuild) and when the cockpit goes
+  // (detachCockpitModel), not handed to the cockpit's own list, where freed copies would pile up switch after switch.
+  const entry = { THREE, group, mats, partMats, own: (m) => (entry.mine.push(m), m), mine: [], added: [], hidden: [] };
   attached.set(group, entry);
   stopLevel ??= onCt156Level(onLevel);
   build(entry);
@@ -52,17 +65,16 @@ function unbuild(entry) {
 
 /** A level switch: every cockpit's parts, the shared file and its pictures are freed, and the new level's loaded. */
 function onLevel() {
-  const old = parts;
-  parts = null;
-  old?.then((list) => list.forEach(({ meshes }) => meshes.forEach(({ geometry }) => geometry.dispose())), () => {});
+  dropParts();
   for (const entry of attached.values()) {
     unbuild(entry);
     build(entry);
   }
 }
 
-/** Stops a cockpit following the level (its dispose calls this); the last one stops the listener. */
+/** Stops a cockpit following the level and frees its parts' shaded copies (its dispose calls this); the last one stops the listener. */
 export function detachCockpitModel(group) {
+  for (const m of attached.get(group)?.mine ?? []) m.dispose();
   attached.delete(group);
   if (!attached.size && stopLevel) {
     stopLevel();
