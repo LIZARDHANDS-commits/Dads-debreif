@@ -15,7 +15,7 @@ Picture: `screen-mockup.png` in this folder. It is a mock-up, not the built scre
 One screen, laid out by the house rules (`.agent/skills/screen-layout-and-style`): Setup on the left, the 3D view in the middle with a small plan view, the result on the right, and playback and cameras in the bar under the view.
 
 **Left: Setup.** Showing from the start: **Run** (Flyover; Practice bomb, flat; Practice bomb, dive; Cargo offload), **Aircraft** (filled in from the run, RS-Q1), **Target** (the shapes below), **Place** (tap the map; default the Moose Jaw area, RS-Q4) and **Time over target** (a time after the start, default +6:00, an estimate). Below them are closed boxes, each showing its settings in one line:
-- **Orbit:** height (ft AGL above the target's ground), radius (NM) and direction; or a bank angle instead of a radius; and where the orbit's centre sits (over the target, or offset back along the run-in).
+- **Orbit (RS-11):** the pattern, **Holding pattern** (the default), **Figure 8** or **Circle**; its height (ft AGL above the target's ground), speed and turn direction. A holding pattern also has its leg time and bank; a figure 8 its bank; a circle its radius (or bank) and where its centre sits.
 - **Run-in:** heading (°M), the IP (initial point) as miles back from the target, speed (KIAS), Flat or Dive. For a dive: the dive angle and the roll-in height.
 - **Release:** the release height (ft AGL), and where to release: at the computed air release point (the CARP, the default), or at a set distance before the target (to see a miss). For a flyover, the height over the target's top instead.
 - **Escape:** turn direction (left, right, or straight ahead), G, bank, heading change, and the height to climb back to.
@@ -25,6 +25,10 @@ One screen, laid out by the house rules (`.agent/skills/screen-layout-and-style`
 Each box shows only the few settings the user sets for that run (RS-9, below). Everything else in it is worked out by the computer and shown greyed with "set to hit". The main button is **Fly the pass**. Every setting starts at a default (the table below), and each box marks an estimate with a ⓘ that says so.
 
 **Middle: the 3D view.** The real ground (the shared terrain, with the satellite picture draped on it) round the target, the target shape, the aircraft model, and the planned lines: the orbit, the IP, the run-in and the dive line, the CARP and the escape. As it flies, a trail follows the aircraft, and after release a trail follows the load to its impact mark. A small **plan view (2D)**, north up, sits in a corner. It shows the same lines from above with the wind arrow and a scale.
+
+**The 2D view (RS-13).** A **3D | 2D** switch above the view. 2D fills the middle with two drawings, both following the playback:
+- **Plan,** north up, on the satellite map at true scale: the target's footprint at its own heading, the orbit pattern, the IP, the run-in line, the aim-off point, the CARP, the impact, the escape and the flown track, with the aircraft's mark moving, the wind arrow, a north arrow and a scale.
+- **Profile,** along the run-in, height against distance to the target: the ground under the run-in (from the terrain), the target cut where the run-in crosses it (the bridge's deck shows as a slab as wide as the run-in sees it at its crossing angle, with its towers), the aircraft's path, the dive line, the release, the load's fall to its impact, and the escape, with heights AGL labelled.
 
 **Bar under the view:** a time line with the legs marked (Orbit, IP, Roll-in, Release, TOT, Escape), play and pause, and speeds ×1, ×2, ×4 and ×8. The cameras are **Chase**, **Cockpit** (the CT-156 cockpit when the aircraft is the CT-156), **Target** (from the target, looking at the aircraft), **Overhead** and **Side** (the profile, square to the run-in). The camera never moves on a click (house rules).
 
@@ -48,7 +52,7 @@ The IP distance, the wind, the escape and the orbit keep their defaults unless t
 
 ## Targets (RS-2)
 
-Generic shapes, sized in feet, placed on the real ground at the tapped point and turned to the run-in heading (or any heading). Each size is an estimate chosen to look like the kind of thing, not any real one:
+Generic shapes, sized in feet, placed on the real ground at the tapped point. **Each keeps its own heading, set in Setup as Target heading (°M); changing the run-in heading never turns it (RS-12)**, so the run-in can cross a bridge at any angle and show whether the load lands on top of the deck or falls past it underneath. Defaults: the bridge and the stadium at 050°M, square to the default 320°M run-in (estimates). Each size is an estimate chosen to look like the kind of thing, not any real one:
 
 | Shape | Size (estimate) | Aim point |
 |---|---|---|
@@ -64,7 +68,11 @@ Generic shapes, sized in feet, placed on the real ground at the tapped point and
 
 Five legs, the same for every run type (RS-3):
 
-1. **Orbit:** the aircraft starts on the orbit at the orbit's height and speed. It is a circle over the ground (so the bank changes with the wind) when a radius is set, or a steady bank (drifting with the wind) when a bank is set. The pilot leaves the orbit at the moment that makes the planned time over target (RS-8); if no exit in the next orbit can make it, the pass flies the soonest exit and the card says how late.
+1. **Orbit (RS-11):** the aircraft starts in the pattern at the orbit's height and speed, flown over the ground (so the bank in the turns changes with the wind):
+   - **Holding pattern** (the default): a racetrack on the IP, the inbound leg along the run-in heading ending at the IP, the turns in the set direction at the set bank (30°, an estimate), legs of 1 minute (the standard holding leg below 14,000 ft, a reference; an estimate here).
+   - **Figure 8:** two loops touching at the IP, one each side of the run-in line, each flown through the IP heading inbound, at the set bank (30°, an estimate).
+   - **Circle:** the circle of the first version (a radius, or a steady bank), centred over the target or back along the run-in.
+   In the holding pattern and the figure 8 the pilot leaves at the IP already heading inbound, so the run-in starts straight. The time over target is made by the computer (RS-8, RS-9): the holding pattern's last outbound leg is stretched or shortened, the figure 8's last loop flown wider or tighter (between 15° and 45° of bank, estimates); when even that can't make it, the soonest exit, and the card says how late.
 2. **To the IP and the run-in:** a turn onto the run-in line at the IP. Then, holding the run-in heading's ground track with the crab the wind needs (core `windTriangle`), it holds the run-in speed and height.
 3. **Dive (dive runs only):** at the roll-in point (where the dive line from the release point meets the roll-in height), the pilot pushes over or rolls in to the dive angle. It then tracks the dive line to the release point.
 4. **Release:** the load leaves with the aircraft's velocity at that moment and falls under gravity and drag through the wind to the ground (core `drop.js`, DB-36), drawn with its trail. For a flyover, the time over target is when the aircraft passes over or abeam the aim point.
@@ -84,6 +92,7 @@ Written down before code, as the rule book asks. Search first: everything below 
   The gains are the module's own, and each is marked an estimate. No new formula is written for the flying. Anything new the pilot needs that another module could use goes into core with a line in the flight-math list.
 - **Speeds name their kind:** the user sets KIAS. The model flies true airspeed, converted with `iasToTasKt` at the day's temperature (`densityRatio`). The result card says KIAS for the aircraft and ground speed where it means it.
 - **The dive is flown at idle** with the idle prop's drag on top of the clean airframe's: the Formation Sim's TS-61 drag (`turn-sim/live/slow-down.js`, sized from Patrick's overhead break, about 5 kt/s level at 200 KIAS), imported where it is (RS-10). Without it, a 30° dive from a 200 KIAS roll-in passed VMO.
+- **On top of the bridge or underneath (RS-12):** a load that meets the bridge's deck stops there and the card leads with "On the deck"; one that misses the deck falls past it to the ground and the card says "Under the bridge: missed the deck by … ft (long, short, left or right)" with where it hit the ground.
 - **The load:** core `drop.js` as built for the Debrief (DB-36), with its two presets and their estimates. Its CARP today assumes a level release. The dive release needs the CARP to take the release velocity's vertical part (`ground.vz`) and to slide the release point along the dive line instead of over the ground. That is an improvement to `carp()` in place, with a line in the flight-math list, never a second copy (RS-5).
 - **Heights:** the ground under the aircraft and under the load from the shared terrain heights. Heights on screen are AGL (above the ground under the target) unless they say MSL.
 - **Limits (RS-6):** what the aircraft physically can't do always holds: the stall line (`availableG`), its roll limit and G onset. Published limits (the G limit, VMO) and the module's own references (the minimum escape height and target distance) are flagged on screen, never walls. A setting past them is flown as set, and the card flags it. A setting the aircraft can't fly (a dive it can't pull out of above the ground, a turn tighter than the stall line allows) is flown as best it can, and the card says so. It is never silently changed.

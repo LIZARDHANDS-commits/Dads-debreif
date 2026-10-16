@@ -25,6 +25,11 @@ Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a st
 - [ ] The cargo offload from the C-130J: waits for its performance set (RS-Q1); the engine is ready for it.
 - [x] The planning wind under More (RS-7) (V2.502).
 
+## Step 4b. Dad's first look (16 Oct 2026)
+- [ ] The orbit as a holding pattern or a figure 8, leaving at the IP heading inbound (RS-11).
+- [ ] The target keeps its own heading; on the bridge's deck or underneath on the card (RS-12).
+- [ ] The 2D view: plan and profile behind a 3D / 2D switch (RS-13).
+
 ## Step 5. One light test
 - [x] A flat pass in still air, released at the CARP, puts the bomb on the aim point and the escape stays above the ground (`testing.md`; `tests/unit/run-in-sim/pass.test.js`, V2.502).
 
