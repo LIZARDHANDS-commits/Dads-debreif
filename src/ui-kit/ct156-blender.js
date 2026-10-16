@@ -130,6 +130,11 @@ export function loadCt156Points() {
   return points;
 }
 
+/** Logs a CT-156 file that did not load or decode (what then shows instead), unless the failure was already reported. */
+export function warnUnlessReported(file, error, fallback) {
+  if (!error?.ct156Reported) console.warn(`${file} did not load (${error?.message ?? error}); ${fallback}`);
+}
+
 /**
  * A delivered file's parts (loadParts), used only when every part carries the name of the delivery the import wrote
  * beside them, so a mixed or half-copied set never shows. This replaced the code's fingerprints (plan 3.4, Patrick
@@ -141,7 +146,7 @@ export function loadDelivered(file, options = {}) {
     const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
     if (!name || foreign.length) {
       console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);
-      throw new Error('not delivered');
+      throw Object.assign(new Error('not delivered'), { ct156Reported: true }); // said above: warnUnlessReported stays quiet
     }
     if (!told) {
       told = true;
@@ -479,8 +484,8 @@ float ct156Noise( vec3 x ) { // smooth value noise, 0 to 1
 	float ct156Fine = clamp( 1.5 - length( fwidth( ct156G ) ), 0.0, 1.0 ); // the grain only where a pixel is smaller than it
 	float ct156Grain = ( ct156Noise( ct156G ) * 0.65 + ct156Noise( ct156G * 2.7 + 7.1 ) * 0.35 - 0.5 ) * ct156Fine;
 	float ct156Mottle = ct156Noise( vCt156Pos / ${f(mottleSize)} ) * 0.6 + ct156Noise( vCt156Pos / ${f(mottleSize * 0.31)} + 3.3 ) * 0.4 - 0.5;
-	float ct156Wear = smoothstep( 0.6, 0.8, ct156Noise( vCt156Pos / ${f(wearSize)} + 11.7 ) ) * smoothstep( 0.45, 0.7, ct156Noise( vCt156Pos / ${f(mottleSize)} + 5.1 ) );
-	diffuseColor.rgb *= 1.0 + ${f(speckle)} * 2.0 * ct156Grain + ${f(mottle)} * 2.0 * ct156Mottle + ${f(wear)} * ct156Wear;`)
+	float ct156Scuffed = smoothstep( 0.6, 0.8, ct156Noise( vCt156Pos / ${f(wearSize)} + 11.7 ) ) * smoothstep( 0.45, 0.7, ct156Noise( vCt156Pos / ${f(mottleSize)} + 5.1 ) );
+	diffuseColor.rgb *= 1.0 + ${f(speckle)} * 2.0 * ct156Grain + ${f(mottle)} * 2.0 * ct156Mottle + ${f(wear)} * ct156Scuffed;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 	roughnessFactor = clamp( roughnessFactor + ${f(shine)} * 2.0 * ct156Grain, 0.04, 1.0 );`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>

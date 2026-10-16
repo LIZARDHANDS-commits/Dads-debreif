@@ -5,6 +5,19 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
+## Latest (15 Oct 2026, late night): increment 4 and 3.2 merged (V2.465), polish V2.466
+- **Merged to main** (Patrick: "After that, merge and finish the phase and any of phase 5 that is critical"): #1049
+  (V2.460), #1051 (V2.464), #1053 (V2.465), tags `v2.460-ct156-increment2-details`, `v2.464-ct156-pictures-glass-cockpit`,
+  `v2.465-ct156-graphics-level-switch`; 3d-work #111 to #115 (delivery `ct156-2026-10-15-6b02eca`).
+- **Weathering fixed before the merge** (Patrick: "Fix the weathering"): each mark at its picture's value x 3.5 x
+  strength, soot a dull matte grey; light, medium and heavy now differ by eye.
+- **Level on close** (Patrick: "Back to high on close unless the app is in 'performance' mode, in which case its never
+  high"): the CT-156 stays at the closing view's Graphics setting.
+- **V2.466 (this branch):** model files that fail to load are logged; a disposed ship's nav ovals freed; a shader name
+  that hid the wear uniform renamed. W6 (prop blades carry the outside's pictures) is obsolete since 4.1: the blades have
+  their own place in the outside's layout (76.5 px/ft).
+- **Later** (Patrick): the EFIS control panel, the engine display's look, the wingtip strobe hardware.
+
 ## Latest (15 Oct 2026, night): slice 3.2, the Graphics switch picks the CT-156's files (V2.465, branch `shared-3d-ct156-level-switch`, draft PR stacked on #1051)
 
 - Formation and Traffic call `setCt156Level` when their 3D view starts (Performance files at Performance) and set High
