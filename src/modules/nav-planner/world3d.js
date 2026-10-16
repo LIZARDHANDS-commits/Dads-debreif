@@ -263,6 +263,7 @@ export async function createRouteWorld({ host, timers, doc = globalThis.document
 
   // The cameras.
   let mode = 'chase';
+  /** @type {{ yawDeg: number, pitchDeg: number, distFt: number }} */
   const look = { yawDeg: 0, pitchDeg: CHASE.pitchDeg, distFt: CHASE.distFt };
   let eyeAt = null;
   let plane = null;

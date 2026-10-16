@@ -10,6 +10,8 @@ const M_PER_FT = 0.3048;
 /**
  * The route as KML: one line of the route and a named point per turn point. msl(i) gives turn point i's planned MSL altitude in feet, or NaN
  * when unknown (an AGL point over unknown terrain); with every altitude known the line is absolute, otherwise clamped to the ground.
+ * @param {{ name: string, points: Array<{ name: string, lat: number, lon: number }> }} route
+ * @param {(i: number) => number} [msl]
  */
 export function toKml(route, msl = () => NaN) {
   const alts = route.points.map((_, i) => msl(i));
@@ -31,7 +33,11 @@ export function toKml(route, msl = () => NaN) {
   ].join('\n');
 }
 
-/** The route as GPX 1.1: a <rte> with a <rtept> per turn point (name, and elevation in metres when the MSL altitude is known). */
+/**
+ * The route as GPX 1.1: a <rte> with a <rtept> per turn point (name, and elevation in metres when the MSL altitude is known).
+ * @param {{ name: string, points: Array<{ name: string, lat: number, lon: number }> }} route
+ * @param {(i: number) => number} [msl]
+ */
 export function toGpx(route, msl = () => NaN) {
   const pts = route.points.map((p, i) => {
     const alt = msl(i);

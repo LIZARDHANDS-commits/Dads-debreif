@@ -47,6 +47,7 @@ export class RouteFileError extends Error {
   }
 }
 
+/** @type {(v: any, range: readonly number[]) => boolean} */
 const inRange = (v, [lo, hi]) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 
 /** A name as plain text: control characters dropped, trimmed, at most MAX_NAME_CHARS. */
@@ -73,6 +74,7 @@ export function exampleRoute() {
     const b = (bearingDeg * Math.PI) / 180;
     return localFtToLatLon(ref, Math.sin(b) * nm * FT_PER_NM, Math.cos(b) * nm * FT_PER_NM);
   };
+  /** @type {Array<[string, number, number, any]>} */
   const spots = [
     ['CYMJ', 0, 0, {}],
     ['Start', 120, 12, {}],

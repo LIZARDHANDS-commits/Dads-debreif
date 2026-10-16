@@ -56,6 +56,7 @@ export function summarizeLeg(samples, heights, loading) {
  * The tile loaders. timers: the module's scheduler scope; doc: the page's document; onChange() when a tile lands or is given up on.
  * Returns { want(points), heightAt(lat, lon) (ft, NaN unknown), loading(lat, lon), summarize(a, b), stats(), dispose() }.
  * want() asks for every tile under the route's samples (up to MAX_TILES in all); tiles already asked for are kept.
+ * @param {{ timers: any, doc: Document, onChange?: () => void, makeImage?: () => any }} options
  */
 export function createRouteTerrain({ timers, doc, onChange = () => {}, makeImage }) {
   const loaders = new Map(); // "x/y" -> createTerrainHeights

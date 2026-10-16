@@ -20,6 +20,7 @@ const SPAN_FT = Object.freeze({ min: 0.3 * FT_PER_NM, max: 400 * FT_PER_NM });
  * canvas: the map's <canvas>; wrap: its parent (pointer presses are caught there first, so dragging a point never pans the map).
  * timers: the module's scheduler scope. state(): { points, legs, selected, addMode, flown (fixes or null), plane ({ lat, lon, headingDegT } or null) }.
  * on: { add(lat, lon), move(i, lat, lon), moveEnd(i), select(i) }. onImagery(state) after each draw: the tiles' { wanted, ready, failed }.
+ * @param {{ canvas: HTMLCanvasElement, wrap: HTMLElement, timers: any, state: () => any, on: any, onImagery?: (state: any) => void }} options
  */
 export function createRouteMap({ canvas, wrap, timers, state, on, onImagery = () => {} }) {
   let ref = makeLocalRef(CYMJ_ORIGIN.lat, CYMJ_ORIGIN.lon);
@@ -44,7 +45,9 @@ export function createRouteMap({ canvas, wrap, timers, state, on, onImagery = ()
     return map.worldToScreen(q.x, q.y);
   };
 
-  function label(ctx, text, x, y, { colour = COLOURS.point, align = 'left', bold = false } = {}) {
+  /** @param {CanvasRenderingContext2D} ctx @param {string} text @param {number} x @param {number} y @param {{ colour?: string, align?: CanvasTextAlign, bold?: boolean }} [opts] */
+  function label(ctx, text, x, y, opts = {}) {
+    const { colour = COLOURS.point, align = 'left', bold = false } = opts;
     ctx.font = `${bold ? '600 ' : ''}12px system-ui, sans-serif`;
     ctx.textAlign = align;
     ctx.textBaseline = 'middle';

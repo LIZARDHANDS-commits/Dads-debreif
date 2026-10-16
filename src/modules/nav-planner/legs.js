@@ -56,10 +56,14 @@ export const toMagnetic = (degT, varE = MAG_VARIATION_DEG_E) => wrapDeg360(degT 
  * headingDegM, crabDeg, distNm, altFt (MSL used for KTAS and winds), altEstimated, heightFt, heightRef, kias, tasKt, wind ({ fromDegT, kt } or
  * null), windNote (why still air, or ''), gsKt, canHoldTrack, timeS (NaN when the track can't be held), startS, runS, fuelUsedLb, fuelRemLb,
  * clearance: { ft (or null when unknown), atMost (true when only an upper bound is known), low, status, highestFt, highestAt, safeAltFt }.
+ *
+ * @param {Array<{ name: string, lat: number, lon: number, heightFt: number, heightRef: string, kias: number }>} points
+ * @param {{ startFuelLb: number, fuelFlowPph: number, minClearanceFt: number, windFor?: (i: number, ctx: { mid: { lat: number, lon: number }, altFt: number, startS: number }) => any,
+ *   terrainFor?: (i: number) => any, fieldFt?: number, varE?: number }} options
  */
 export function computeLegs(points, {
   startFuelLb, fuelFlowPph, minClearanceFt, windFor = () => null, terrainFor = () => null, fieldFt = FIELD_FT, varE = MAG_VARIATION_DEG_E,
-} = {}) {
+}) {
   const legs = [];
   let runS = 0;
   let fuelUsed = 0;

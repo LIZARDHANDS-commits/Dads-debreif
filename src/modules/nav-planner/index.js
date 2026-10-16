@@ -40,7 +40,9 @@ function mount(root, app) {
   document.head.append(stylesheet);
 
   // ---- State ----
+  /** @type {{ name: string, points: any[] }} */
   let route = emptyRoute();
+  /** @type {{ startFuelLb: number, fuelFlowPph: number, minClearanceFt: number, wind: { mode: string, fromDegT: number, kt: number, timeZ: string } }} */
   let settings = { ...SETTING_DEFAULTS, wind: { ...SETTING_DEFAULTS.wind } };
   try {
     const draft = app.storage.get(DRAFT_KEY, null);
@@ -50,6 +52,7 @@ function mount(root, app) {
   }
   let selected = -1;
   let addMode = true;
+  /** @type {{ legs: any[], totals: any }} */
   let result = { legs: [], totals: { distNm: 0, timeS: 0, fuelUsedLb: 0, fuelRemLb: settings.startFuelLb, complete: true } };
   let flown = null; // { name, fixes, startT, endT }
   let comparison = null;
@@ -237,7 +240,7 @@ function mount(root, app) {
   const legsBody = h('tbody', {});
   const legsFoot = h('tfoot', {});
   const legsTable = h('table', { class: 'np-table np-legs' },
-    h('thead', {}, h('tr', {}, ['Leg', '°T', 'Trk °M', 'Hdg °M', 'NM', 'Alt ft MSL', 'KTAS', 'Wind', 'GS kt', 'Time', 'Run', 'Fuel used', 'Fuel rem', 'Clearance ft', 'High ground ft', 'MSL to clear'].map((t) => h('th', {}, t)))),
+    h('thead', {}, h('tr', {}, ['Leg', '°T', 'Trk °M', 'Hdg °M', 'NM', 'Alt ft MSL', 'KTAS', 'Wind °T/kt', 'GS kt', 'Time', 'Run', 'Fuel used', 'Fuel rem', 'Clearance ft', 'High ground ft', 'MSL to clear'].map((t) => h('th', {}, t)))),
     legsBody, legsFoot);
   const debriefBox = h('section', { class: 'np-section', hidden: true });
   const cardHost = h('div', { class: 'np-card' });
@@ -301,9 +304,9 @@ function mount(root, app) {
   }
 
   // ---- Turn points table ----
+  // The rows' own handlers go with the rows when they are redrawn (not app.listen, which would keep every old row's until the module closes).
   function cellInput(i, key, attrs, value) {
-    const box = h('input', { class: 'np-input', dataset: { k: key }, value: String(value), ...attrs });
-    app.listen(box, 'change', () => commitCell(i, key, box));
+    const box = h('input', { class: 'np-input', dataset: { k: key }, value: String(value), ...attrs, onchange: () => commitCell(i, key, box) });
     return box;
   }
   function commitCell(i, key, box) {
@@ -333,15 +336,23 @@ function mount(root, app) {
     if (!n) pointsBody.append(h('tr', {}, h('td', { colspan: '8', class: 'np-faint' }, 'No turn points yet: tap the map, or press Example.')));
     route.points.forEach((p, i) => {
       const last = i === n - 1;
-      const del = h('button', { type: 'button', class: 'np-x', 'aria-label': `Delete turn point ${i + 1} ${p.name}` }, '✕');
-      app.listen(del, 'click', (e) => {
-        e.stopPropagation();
-        deletePoint(i);
-      });
-      const ref = h('select', { class: 'np-input', dataset: { k: 'heightRef' }, 'aria-label': `Turn point ${i + 1} height reference` },
+      const del = h('button', {
+        type: 'button', class: 'np-x', 'aria-label': `Delete turn point ${i + 1} ${p.name}`,
+        onclick: (e) => {
+          e.stopPropagation();
+          deletePoint(i);
+        },
+      }, '✕');
+      const ref = h('select', { class: 'np-input', dataset: { k: 'heightRef' }, 'aria-label': `Turn point ${i + 1} height reference`, onchange: () => commitCell(i, 'heightRef', ref) },
         h('option', { value: 'AGL', selected: p.heightRef === 'AGL' }, 'AGL'), h('option', { value: 'MSL', selected: p.heightRef === 'MSL' }, 'MSL'));
-      app.listen(ref, 'change', () => commitCell(i, 'heightRef', ref));
-      const row = h('tr', { dataset: { i: String(i) } },
+      const row = h('tr', {
+        dataset: { i: String(i) },
+        onclick: () => {
+          selected = i;
+          markSelected();
+          map.requestDraw();
+        },
+      },
         h('td', {}, String(i + 1)),
         h('td', {}, cellInput(i, 'name', { type: 'text', maxlength: '40', 'aria-label': `Turn point ${i + 1} name` }, p.name)),
         h('td', {}, cellInput(i, 'lat', { type: 'number', step: '0.00001', min: String(RANGES.lat[0]), max: String(RANGES.lat[1]), 'aria-label': `Turn point ${i + 1} latitude` }, p.lat.toFixed(5))),
@@ -350,11 +361,6 @@ function mount(root, app) {
         last ? h('td', {}) : h('td', {}, ref),
         last ? h('td', {}) : h('td', {}, cellInput(i, 'kias', { type: 'number', step: '5', min: String(RANGES.kias[0]), max: String(RANGES.kias[1]), 'aria-label': `Leg ${i + 1} KIAS` }, p.kias)),
         h('td', {}, del));
-      app.listen(row, 'click', () => {
-        selected = i;
-        markSelected();
-        map.requestDraw();
-      });
       pointsBody.append(row);
     });
     markSelected();

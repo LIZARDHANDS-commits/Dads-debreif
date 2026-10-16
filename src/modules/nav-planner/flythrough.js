@@ -18,7 +18,12 @@ export function planTimeline(points, legs) {
   return { segments, durationS: t };
 }
 
-/** The aircraft on the plan at time t (seconds from the first turn point): { lat, lon, altFt, headingDegT, legIndex }, or null with no legs. */
+/**
+ * The aircraft on the plan at time t (seconds from the first turn point): { lat, lon, altFt, headingDegT, legIndex }, or null with no legs.
+ * @param {{ segments: any[] }} timeline
+ * @param {number} t
+ * @param {(lat: number, lon: number) => number} [groundAt]
+ */
 export function planPositionAt(timeline, t, groundAt = () => NaN) {
   const { segments } = timeline;
   if (!segments.length) return null;

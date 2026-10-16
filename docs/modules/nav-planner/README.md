@@ -4,7 +4,7 @@ This folder is the low-level navigation planner: draw a route at Moose Jaw, get 
 
 ## Where it stands
 
-**Approved (Patrick's yes relayed by Dad, 16 Oct 2026: "pat yes, build the nav planner"; ALL-43). Plan steps 0 to 5 being built for V2.483 on branch `claude/nav-planner-plan`; not yet seen in the app by Patrick or Dad.** Step 6 (the US bases) is not started. The code is in `src/modules/nav-planner/`.
+**Approved (Patrick's yes relayed by Dad, 16 Oct 2026: "pat yes, build the nav planner"; ALL-43). Plan steps 0 to 5 built in V2.483 on branch `claude/nav-planner-plan`; not yet seen in the app by Patrick or Dad.** Step 6 (the US bases) is not started. The code is in `src/modules/nav-planner/`.
 
 ## What is next
 

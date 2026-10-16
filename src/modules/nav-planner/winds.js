@@ -13,6 +13,7 @@ const SPAN_S = 3 * 3600;
 /**
  * fetch: the browser's fetch (for tests); onChange(): when the model winds arrive or fail.
  * Returns { windFor(settings, legPoints) -> the function computeLegs takes, status(settings) -> words for the Wind box, update(settings, mids), dispose() }.
+ * @param {{ fetch?: any, onChange: () => void }} options
  */
 export function createLegWinds({ fetch, onChange }) {
   const feed = createWindsFeed({ ...(fetch ? { fetch } : {}), onChange });

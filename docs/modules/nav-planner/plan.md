@@ -1,6 +1,6 @@
 # Low-level Navigation Planner: plan (approved)
 
-> **Status:** approved. Patrick's yes, relayed by Dad, 16 Oct 2026: "pat yes, build the nav planner" (ALL-43). Steps 0 to 5 being built for V2.483. Dad asked on 16 Oct 2026, from the idea list: "Low-level navigation planner: draw a route, get legs, times, fuel and terrain clearance, then fly it in the Debrief or check it against a real track. Could we do this better than falcon view?" Dad's picks below (16 Oct 2026, card answers).
+> **Status:** approved. Patrick's yes, relayed by Dad, 16 Oct 2026: "pat yes, build the nav planner" (ALL-43). Steps 0 to 5 built in V2.483 (branch `claude/nav-planner-plan`), not yet seen in the app by Patrick or Dad. Dad asked on 16 Oct 2026, from the idea list: "Low-level navigation planner: draw a route, get legs, times, fuel and terrain clearance, then fly it in the Debrief or check it against a real track. Could we do this better than falcon view?" Dad's picks below (16 Oct 2026, card answers).
 
 ## What it is
 
@@ -38,10 +38,10 @@ No winds: still air, said on every leg. Terrain tiles missing: clearance shown a
 
 - [x] 0. Patrick's yes (relayed by Dad, 16 Oct 2026), and the whole-tool decision for the new module (ALL-43).
 - [x] 1. Spec, requirements and decisions (NP-), with the screen's picture (`spec.md`, `requirements.md`, `decisions.md`, `screen.png`). Approved with the module (the brief's working answers stand until Patrick says otherwise).
-- [ ] 2. Route editing, legs, times and fuel at Moose Jaw (V2.483).
-- [ ] 3. Terrain clearance and the route card (V2.483).
-- [ ] 4. Brief: 2D and 3D fly-through, and **Brief mode** (Dad, 16 Oct 2026: "COuld this be a low level Briefing tool"; card pick "Add a Brief mode"; NP-11): a full-screen, leg-by-leg page with Next and Back and the arrow keys, each leg's run-in picture of its next turn point from the planned height 1 NM before it (estimate), and the leg's heading, time, ground speed, height, fuel remaining and hazards (V2.483).
-- [ ] 5. Debrief: the flown track against the plan (V2.483).
+- [x] 2. Route editing, legs, times and fuel at Moose Jaw (V2.483).
+- [x] 3. Terrain clearance and the route card (V2.483).
+- [x] 4. Brief: 2D and 3D fly-through, and **Brief mode** (Dad, 16 Oct 2026: "COuld this be a low level Briefing tool"; card pick "Add a Brief mode"; NP-11): a full-screen, leg-by-leg page with Next and Back and the arrow keys, each leg's run-in picture of its next turn point from the planned height 1 NM before it (estimate), and the leg's heading, time, ground speed, height, fuel remaining and hazards (V2.483).
+- [x] 5. Debrief: the flown track against the plan (V2.483).
 - [ ] 6. The US bases: sectionals, obstacles, military training routes (not in this piece).
 - [ ] 7. Sign-off checklist in Dad's and Patrick's words, on a real low-level route and its flown track (`testing.md`).
 
