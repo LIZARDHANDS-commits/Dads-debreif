@@ -55,7 +55,7 @@ export function createDropPanel({ controls, layout, on }) {
   const length = controls.number('dropLengthFt', { label: 'Length', unit: 'ft', ...L.lengthFt });
   const width = controls.number('dropWidthFt', { label: 'Width', unit: 'ft', ...L.widthFt });
   const runIn = controls.select('dropRunIn', { label: 'Run-in', options: [
-    { value: 'track', label: "The ship's track at release" },
+    { value: 'track', label: "The ship's track when placed" },
     { value: 'set', label: 'Set heading' },
   ] });
   const runInDeg = controls.number('dropRunInDeg', { label: 'Run-in heading', unit: '°T', ...L.headingDeg });

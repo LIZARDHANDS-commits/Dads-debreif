@@ -586,7 +586,7 @@ function mount(root, app) {
     const g = groundNow();
     const trackFt = g?.groundFt ?? homeFieldFt();
     const settingsKey = Object.keys(on).filter((k) => k.startsWith('drop')).map((k) => on[k]).join('|');
-    const key = [flightCount, dropPlace.releaseT, dropPlace.point?.lat, dropPlace.point?.lon, settingsKey, model.key, terrainNowDrop.key, trackFt].join('#');
+    const key = [flightCount, dropPlace.releaseT, dropPlace.point?.lat, dropPlace.point?.lon, dropPlace.point?.runInDeg, settingsKey, model.key, terrainNowDrop.key, trackFt].join('#');
     if (key === dropHeld.key) return dropHeld.result;
     const ground = dropGround({
       trackFt, trackWords: g?.source === 'tracks' ? "the tracks' ground" : "the home field's elevation", terrainAt: terrainNowDrop.at, terrain: terrainNowDrop.state,
@@ -595,7 +595,7 @@ function mount(root, app) {
       mode: on.dropWind, model: model.at, modelWhy: model.why, modelLabel: model.label, typed: typedWindFrom(on),
       releaseFt: from?.z ?? trackFt, groundFt: from ? ground.at(from.x, from.y) : trackFt,
     });
-    const result = runDrop({ release, point, on, wind, ground });
+    const result = runDrop({ release, point, on, wind, ground, placedRunInDeg: dropPlace.point?.runInDeg ?? null });
     const zoneGroundFt = point ? ground.at(point.x, point.y) : trackFt;
     dropHeld = { key, result, zoneGroundFt, trail: result.ok ? result.fall.path.map((p) => ({ x: p.x, y: p.y, altFt: p.z })) : null };
     return result;
@@ -609,10 +609,11 @@ function mount(root, app) {
     const point = dropPoint();
     let zone = r?.ok ? r.zone : null;
     if (!zone && point) {
-      // Before a drop, a box lies along the chosen ship's track now (or its set heading).
+      // Before a drop, a box lies along the run-in kept when it was placed (or its set heading); only a drop zone saved
+      // without one falls back to the chosen ship's track now.
       const track = flight.tracks[on.dropShip];
       const hdg = track && clock ? headingAt(track, clock.t) : null;
-      zone = zoneShape(point, on, runInFor(on, null, hdg === null ? 360 : headingRadToCompassDeg(hdg)));
+      zone = zoneShape(point, on, runInFor(on, dropPlace.point?.runInDeg, hdg === null ? 360 : headingRadToCompassDeg(hdg)));
     }
     const out = { zone: zone ? { ...zone, groundFt: dropHeld.zoneGroundFt ?? groundNow()?.groundFt ?? homeFieldFt() } : null, trail: null, release: null, impact: null, impactWords: '', note: '', carp: null, now: null };
     if (!r?.ok) return out;
@@ -668,8 +669,11 @@ function mount(root, app) {
   function placeDropPoint(x, y) {
     if (!flight) return;
     const ll = localFtToLatLon(flight.ref, x, y);
+    // The run-in is the chosen ship's track now, kept with the point so the box stays put as the replay plays.
+    const track = flight.tracks[layout.get().dropShip];
+    const hdg = track && clock ? headingAt(track, clock.t) : null;
     setPlacing(false);
-    setDropPlace({ ...dropPlace, point: { lat: ll.lat, lon: ll.lon } });
+    setDropPlace({ ...dropPlace, point: { lat: ll.lat, lon: ll.lon, ...(hdg === null ? {} : { runInDeg: headingRadToCompassDeg(hdg) }) } });
   }
 
   function dropActions() {
@@ -1088,7 +1092,10 @@ function mount(root, app) {
     lastDropOpen = values.dropOpen;
     const runInSet = values.dropRunIn === 'set' && lastRunIn !== 'set';
     lastRunIn = values.dropRunIn;
-    if (runInSet && dropHeld.result?.ok) layout.update({ dropRunInDeg: Math.round(dropHeld.result.release.trackDeg) || 360 });
+    if (runInSet) { // a set heading starts from the run-in kept when the drop zone was placed, else the release's track
+      const from = dropPlace.point?.runInDeg ?? (dropHeld.result?.ok ? dropHeld.result.release.trackDeg : null);
+      if (Number.isFinite(from)) layout.update({ dropRunInDeg: Math.round(from) || 360 });
+    }
     renderDrop();
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
