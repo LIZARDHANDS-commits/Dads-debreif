@@ -20,7 +20,7 @@ All entry gates, target G-loads, power settings, apex floats, and exit criteria 
 | Maneuver | Syllabus Phase | Citation | Target Entry KIAS | Suggested Torque | Entry / Pull G Law | Apex Target Speed & Attitude | Exit Gate & Target KIAS |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Aileron Roll** | Contact / CH | SMM 7.4 | **230 KIAS** | MAX | Smooth 20° pitch-up, 1.0 G ballistic roll | Coordinated roll rate, zero rudder | Wings level on heading, 230 KIAS (±10 kt) |
-| **The Loop** | Contact / CH | SMM 7.5 | **230 KIAS** | MAX | **Dynamic G pull** (more G if slow, less if fast) | 100–120 KIAS inverted, float horizon | Level flight, **230 KIAS**, on heading |
+| **The Loop** | Contact / CH | SMM 7.5 | **230 KIAS** | MAX | **Dynamic G pull** (more G if slow, less if fast) | 100–120 KIAS inverted (EFIG p.171, which is built from the SMM), float horizon | Level flight, **230 KIAS**, on heading |
 | **Cuban Eight** | Contact / CH | SMM 7.6 | **230 KIAS** | MAX | **Dynamic G pull** (more G if slow, less if fast) | 45° dive line, half-roll at ~0.5 G | Accelerate to **230 KIAS** into 2nd half / exit |
 | **Cloverleaf** | Contact / CH | SMM 7.7 | **230 KIAS** | MAX | **Dynamic G pull** (2.5–3.5 G nominal) | 100–110 KIAS inverted, 90° reference | Roll out level 90° off entry heading, **230 KIAS** |
 | **Hesitation Roll (Airspeed Reset)** | Contact / CH | SMM 7.8 | **As Flown (180–230 kt)** | MAX | Smooth 20° pitch-up, roll inverted, pause | Inverted pause sets calibrated dive attitude | Roll upright in dive, **accelerate to target KIAS (230–280 kt)** |
@@ -57,7 +57,7 @@ All entry gates, target G-loads, power settings, apex floats, and exit criteria 
   - The entry target is 230 KIAS.
   - If the aircraft enters **slower than 230 KIAS**, pull **more G** (up to 4.0 G / stick shaker limit) to reduce loop radius and ensure sufficient momentum across the top.
   - If the aircraft enters **faster than 230 KIAS**, pull **less G** (~3.0 G) to expand the loop and bleed excess energy.
-- **Apex Criteria:** Cross the top inverted at 100–120 KIAS with slight positive G. The opposite horizon appears in the top of the canopy.
+- **Apex Criteria:** Cross the top inverted at 100–120 KIAS (EFIG p.171, built from the SMM) with slight positive G. The opposite horizon appears in the top of the canopy.
 - **Exit Gate:** Modulate back pressure in the dive recovery to exit in level flight at exactly **230 KIAS**.
 
 ### 7.6 The Cuban Eight
