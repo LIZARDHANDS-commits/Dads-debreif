@@ -1,0 +1,197 @@
+// The close-formation wingman, one step (B1, TS-226; spec 7b.2 and 7b.8): Lead flies → perception (what he sees, 0.3 s
+// late) → supervisor (the job) → close-formation technique (the correction on each axis, and the holding power) → shaper
+// (pressure-sized inputs) → his aircraft, the same point mass as Lead's (fluid-lead.js stepLead, TS-225) → his new place
+// goes back into what he sees. Not wired into the formation yet (plan 12.4 B1, T5): nothing calls this outside the probes.
+//
+// Frames and signs (one place for them, spec 7b.8 and the audit's gap "units and signs in one place"):
+//  - World: feet and seconds; x east, y north, z up (heights absolute, the block included, as stepLead's st.pm).
+//  - The aircraft he flies off (`ref`, Lead in the 2-ship; written for the one ahead in the 4-ship later): only its
+//    position, velocity and body up are read (perception.js seenOf; TS-211), never its plan, roll rate, roll acceleration
+//    or G.
+//  - Its frame: nose along its velocity, up its body up, left = up × nose. Bank and roll rate left wing down positive (the
+//    Turn Sim's way). stepLead's own st.bank is the point mass's way, right wing down positive: never mixed here, because
+//    he asks stepLead for a lift vector, not a bank.
+//  - His deviation: off the plane (+ above Lead's wing plane), off the line (+ ahead of the spinner-to-wingtip line), along
+//    the line (+ out, away from Lead); his place from slots.js (echelon about 18 ft back, 43 ft out, 3 ft down).
+//  - His controls: G along Lead's lift line, lift along Lead's wing line (bank off Lead's; left +), torque in percent
+//    (turned into stepLead's throttle with power.js throttleAtTorque at his own speed and height).
+//  - Steps of 0.05 s (flight.js STEP_SEC). No randomness (spec 7b.6d item 11).
+//
+// The state `w` is never changed in place: stepWingman returns a new one. startFrom fills it from the motion he already
+// has (bumpless, 7b.6d item 2): his memory of the picture over the last 0.3 s (from his velocity and the acceleration the
+// tracker hands over, kinematic.js handOverAt), the job for what he sees, the trims at zero and his torque as it is, so the
+// first step reads the picture as it is moving, from the tracker's up to 8 ft/s, and nothing lurches.
+import { leadStateOf, stepLead } from '../fluid-lead.js';
+import { applyPose } from '../kinematic.js';
+import { poseOf3d } from '../attitude.js';
+import { pairSlot, LINE_BACK_PER_OUT } from '../slots.js';
+import { throttleAtTorque, powerFrom, withEngine } from '../power.js';
+import { STEP_SEC } from '../flight.js';
+import { startPerception, perceive, look, seenOf, placeDeviation, aimAt } from './perception.js';
+import { startJob, supervise, progress, deconflict } from './supervisor.js';
+import { startLaw, holdingTorque, closeLaw, liftFor, torqueFromThrottle } from './close-formation.js';
+import { startHand, shape } from './shaper.js';
+
+const vec = (a) => (a ? { x: a[0], y: a[1], z: a[2] } : null);
+
+/**
+ * The wingman's state from his aircraft (flight.js fields; a tracker hand-over's velFtps and accFtps2 when it has them)
+ * and the state of the aircraft he flies off (refSt: stepLead's or leadStateOf's). opts: { blockFt, key (the close
+ * formation, slots.js), side (+1 left of it, -1 right), refAcc (its acceleration, ft/s², if known) }.
+ */
+export function startFrom(aircraft, refSt, { blockFt, key = 'echelon', side, refAcc = null }) {
+  const st = leadStateOf(aircraft, blockFt);
+  const place = pairSlot(key, side);
+  const per = startPerception(seenOf(refSt), seenOf(st), { place, side, refAcc, ownAcc: vec(aircraft.accFtps2) });
+  const seen = look(per);
+  const job = startJob(seen);
+  const holdPct = holdingTorque(seen, st, place, key);
+  const torquePct = st.eng?.thr !== null && st.eng?.thr !== undefined ? torqueFromThrottle(st.eng.thr, st.kias, st.pm.z) : holdPct;
+  return { st, per, job, law: startLaw(), hand: startHand({ torquePct }, job), place, side, key, blockFt, t: 0, flags: { outOfPower: false, boards: false }, route: null, guard: null };
+}
+
+/**
+ * B3 (spec 7c.3, TS-231): the live wingman starting a change between the close formations: places, the list he flies
+ * through (supervisor.js stationChange, the last the new place), key the formation it ends in. He aims at the first place
+ * from the next step; the supervisor's off station job flies the list.
+ */
+export function withChange(w, places, key) {
+  if (!places.length) return w;
+  const first = places[0];
+  const side = first.side || w.side;
+  const place = pairSlot(first.key, side);
+  return { ...w, key, route: { places, i: 0 }, place, side, per: aimAt(w.per, place, side) };
+}
+
+/** Whether he is flying a change's list of places (B3), and the place of it he is flying to: { i, n, key, side } or null. */
+export function changeOf(w) {
+  if (!w.route) return null;
+  const p = w.route.places[w.route.i];
+  return { i: w.route.i, n: w.route.places.length, key: p.key, side: p.side };
+}
+
+/**
+ * One step. refSt: the aircraft he flies off, at the same moment as his own state (before either steps). Returns { w, trace },
+ * trace: what he saw and did this step, for the gauge and the plot page ({ t, job, dev, rate, under, gWant, bankOffDeg,
+ * torquePct, holdPct, flags }).
+ */
+export function stepWingman(w, refSt) {
+  const p = perceive(w.per, seenOf(refSt), seenOf(w.st));
+  const seen = p.seen;
+  const job = supervise(w.job, seen, Boolean(w.route));
+  const holdPct = holdingTorque(seen, w.st, w.place, w.key);
+  const paceFtps = w.route ? w.route.places[w.route.i].paceFtps : null;
+  const law = closeLaw(w.law, seen, job, { st: w.st, side: w.side, key: w.key, holdPct, held: w.hand.held, place: w.place, paceFtps, torqueNow: w.hand.torquePct });
+  const hand = shape(w.hand, law.want, job, seen.g);
+  const lift = liftFor(seen, w.st, hand.mem);
+  const throttle = throttleAtTorque(hand.mem.torquePct, w.st.kias, w.st.pm.z);
+  const st = stepLead(w.st, { lift, throttle });
+  // B3 (spec 7c.3): where he aims next step: on a change, the place of its list he is flying to (passed on within 5 ft and
+  // 5 kt, TS-117; the list done once settled on the last), else his formation's place; then the deconfliction guards on it.
+  const route = progressOf(w, seen);
+  const target = route ? route.places[route.i] : { key: w.key, side: w.side };
+  const side = target.side || w.side;
+  const base = pairSlot(target.key, side);
+  const k = LINE_BACK_PER_OUT;
+  const vLeft = (w.side * (k * seen.rate.line + seen.rate.along)) / Math.hypot(1, k);
+  const vFwd = (seen.rate.line - k * seen.rate.along) / Math.hypot(1, k);
+  // The guards fly the changes (B3); on station and in B1's moves back onto his place the jobs (out before up) do.
+  const guarded = route ? deconflict(base, seen.rel, vLeft, w.guard, vFwd) : { place: base, guard: null };
+  const per = aimAt(p.mem, guarded.place, side);
+  const next = { ...w, st, per, job, law: law.mem, hand: hand.mem, t: w.t + STEP_SEC, flags: hand.flags, route, place: guarded.place, side, guard: guarded.guard };
+  return {
+    w: next,
+    trace: {
+      t: next.t, job: job.kind, dev: seen.dev, rate: seen.rate, under: seen.under,
+      gWant: seen.gAhead + seen.ffUpG + hand.mem.upCorrG, leftG: seen.ffLeftG + hand.mem.leftCorrG,
+      torquePct: hand.mem.torquePct, holdPct, flags: hand.flags,
+      // the loops' terms and each control asked against granted by the hand (plan T29m part 2; T29r's trace half)
+      terms: law.terms, asked: { upCorrG: law.want.upCorrG, leftCorrG: law.want.leftCorrG, torquePct: law.want.torquePct }, ffUpG: seen.ffUpG, ffLeftG: seen.ffLeftG, gAheadG: seen.gAhead,
+      change: route ? { i: route.i, n: route.places.length, key: target.key } : null, guard: guarded.guard,
+    },
+  };
+}
+
+/**
+ * A change's list after this step (B3): on to the next place once he has passed the one he flies to, null once settled
+ * on the last (supervisor.js progress), read against the place itself, not the guarded aim. seen.rel: where he is in the
+ * other aircraft's frame (as he saw it).
+ */
+function progressOf(w, seen) {
+  if (!w.route) return null;
+  const t = w.route.places[w.route.i];
+  const pl = pairSlot(t.key, t.side || w.side);
+  const offFt = Math.hypot(seen.rel.fwd - pl.fwd, seen.rel.left - pl.left, seen.rel.up - pl.alt);
+  const movingFtps = Math.hypot(seen.rate.plane, seen.rate.line, seen.rate.along);
+  return progress(w.route, offFt, movingFtps);
+}
+
+/**
+ * Whether he is settled on his place against the aircraft he flies off as it is now (refSt): within about 1 ft on every
+ * axis and closing under about 1 ft/s (spec 7b.7's "within about 1 ft"; the gauge's settle; B2's end of a live close turn).
+ */
+export function settledOn(w, refSt) {
+  const d = placeDeviation(seenOf(refSt), seenOf(w.st), w.place, w.side);
+  const r = w.per.filt.rate;
+  return Math.max(Math.abs(d.plane), Math.abs(d.line), Math.abs(d.along)) <= 1 && Math.max(Math.abs(r.plane), Math.abs(r.line), Math.abs(r.along)) <= 1;
+}
+
+/** The live wingman flying to a new place (the echelon setting moved, TS-230): his state with it, nothing else changed. */
+export function withPlace(w, place) {
+  return { ...w, place, per: { ...w.per, place } };
+}
+
+/** The inputs he holds now (for the next technique to start from, B5): { upCorrG, leftCorrG, torquePct }. */
+export function inputsOf(w) {
+  const { upCorrG, leftCorrG, torquePct } = w.hand;
+  return { upCorrG, leftCorrG, torquePct };
+}
+
+/**
+ * Starts the close-formation controller for the 100 -> 250 ft range-phased hand-over to fighting wing (B5 T30,
+ * control-model.md §7.13): initializes bumplessly from the aircraft's current state and aims straight back along his
+ * held side toward backToFt (500 ft) and stackFt (-50 ft).
+ */
+export function startCloseHandOver(aircraft, refSt, { blockFt, key = 'echelon', side = -1, backToFt = 500, stackFt = -50 }) {
+  const w0 = startFrom(aircraft, refSt, { blockFt, key, side });
+  const outFt = side * Math.max(43, Math.abs(w0.place.left));
+  const place = { fwd: -backToFt, left: outFt, alt: stackFt };
+  return {
+    ...w0,
+    place,
+    route: { places: [{ key, side, paceFtps: 10 }], i: 0 },
+    per: aimAt(w0.per, place, side),
+  };
+}
+
+/**
+ * One step of the close-formation law on shared plant state `st` during the 100 -> 250 ft range-phased hand-over to
+ * fighting wing (B5 T30): returns { w, lift, throttle } without stepping stepLead a second time.
+ */
+export function stepCloseHandOver(w, refSt, st, paceFtps = 10) {
+  const wSync = { ...w, st };
+  const p = perceive(wSync.per, seenOf(refSt), seenOf(st));
+  const seen = p.seen;
+  const job = supervise(wSync.job, seen, true);
+  const holdPct = holdingTorque(seen, st, wSync.place, wSync.key);
+  const law = closeLaw(wSync.law, seen, job, { st, side: wSync.side, key: wSync.key, holdPct, held: wSync.hand.held, place: wSync.place, paceFtps, torqueNow: wSync.hand.torquePct });
+  const hand = shape(wSync.hand, law.want, job, seen.g);
+  const lift = liftFor(seen, st, hand.mem);
+  const throttle = throttleAtTorque(hand.mem.torquePct, st.kias, st.pm.z);
+  const per = aimAt(p.mem, wSync.place, wSync.side);
+  return {
+    w: { ...wSync, per, job, law: law.mem, hand: hand.mem, t: wSync.t + STEP_SEC, flags: hand.flags },
+    lift,
+    throttle,
+  };
+}
+
+/**
+ * Writes his aircraft's fields from his state as the live laws do (fluid-wing-live.js: attitude.js poseOf3d, kinematic.js
+ * applyPose), with his power and engine (power.js), so the 3D view, the judge and the card read him as today.
+ */
+export function applyTo(aircraft, w) {
+  const s = w.st;
+  applyPose(aircraft, poseOf3d({ x: s.pm.x, y: s.pm.y, altAbove: s.pm.z - w.blockFt, vel: s.vel, up: s.bodyUp, kias: s.kias, g: s.g, rollDps: -s.rollRate }));
+  aircraft.power = withEngine(powerFrom(null, s.eng?.thr ?? null, s.kias, s.pm.z), s.eng);
+}
