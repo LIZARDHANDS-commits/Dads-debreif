@@ -8,16 +8,16 @@
 //  - bank is capped at the dynamic stall bank (acos(1 / stallLimitG(kias))).
 import { KT_TO_FTPS } from '../../core/units.js';
 import { bankDegFromG, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
-import { T6A_G_ONSET, T6A_PERFORMANCE } from '../../core/t6-performance.js';
+import { T6A_PERFORMANCE, T6A_G_ONSET_CEILING_GPS } from '../../core/t6-performance.js';
 
 /** Steeper than this the level-turn G (1 / cos bank) is not this model's: the gate holds the roll only. */
 export const GATE_G_MAX_BANK_DEG = 85;
 
 /**
- * The fastest the gate lets G build (G per second): twice the T-6A's normal onset (core T6A_G_ONSET, 4 G/s).
+ * The fastest the gate lets G build (G per second): core T6A_G_ONSET_CEILING_GPS, 6 G/s (ALL-40; it was twice the T-6A's normal 4 G/s).
  * Patrick: 4 G/s is the normal pull, not a wall; the gate only stops a pull no pilot could make.
  */
-export const G_ONSET_CEILING = 2 * T6A_G_ONSET.maxRateDps;
+export const G_ONSET_CEILING = T6A_G_ONSET_CEILING_GPS; // core, 6 G/s (ALL-40; was 8, twice T6A_G_ONSET)
 
 /**
  * The roll limits flown at a true airspeed (ft/s): the lower of the pilot's (`roll`) and the aircraft's own at that speed.
@@ -32,8 +32,8 @@ export function rollLimitAt(tasFtps, roll = null, perf = T6A_PERFORMANCE) {
 /**
  * The envelope gate: one step of the wings rolling toward targetDeg, held inside what the aircraft can do.
  *  - roll rate and roll onset: the lower of the pilot's (`roll`) and the aircraft's at this speed (rollLimitAt);
- *  - G onset: rolling steeper never builds the turn's G (1 / cos bank) faster than twice the aircraft's normal onset
- *    (G_ONSET_CEILING, 8 G/s, for the T-6A);
+ *  - G onset: rolling steeper never builds the turn's G (1 / cos bank) faster than G_ONSET_CEILING
+ *    (6 G/s, core, ALL-40) for the T-6A, twice its normal onset for another aircraft;
  *  - stall: never steeper than the bank whose G the speed can give (the set's stallLimitG).
  * `roll` is the pilot's limits, or null for the aircraft's own; `tasFtps` true airspeed, ft/s; `kias` indicated, kt;
  * `perf` the aircraft's performance set, the T-6A's unless given (so every caller that passes none flies as before).
@@ -41,7 +41,7 @@ export function rollLimitAt(tasFtps, roll = null, perf = T6A_PERFORMANCE) {
  */
 export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, perf = T6A_PERFORMANCE) {
   const limits = rollLimitAt(tasFtps, roll, perf);
-  const gOnsetCeiling = 2 * perf.gOnset.maxRateDps; // G_ONSET_CEILING for the T-6A
+  const gOnsetCeiling = perf === T6A_PERFORMANCE ? G_ONSET_CEILING : 2 * perf.gOnset.maxRateDps; // ALL-40 for the T-6A
   const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps));
   if (!(dt > 0)) return { bankDeg, rollRateDps: rate0 };
 
