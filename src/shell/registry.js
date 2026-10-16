@@ -101,6 +101,25 @@ export const MODULES = [
     prototype: true,
   },
   {
+    id: 'nav-planner',
+    eyebrow: 'Navigation',
+    title: 'Low-level Nav Planner',
+    blurb: 'Plan a low-level route, brief it, then check the flown track against it',
+    details: {
+      summary: 'Low-level navigation planner and debrief at Moose Jaw: legs, times, fuel and terrain clearance, a 3D fly-through and a leg-by-leg Brief mode, then the flown track against the plan. Not for flight planning.',
+      capabilities: [
+        'Tap turn points on the satellite map, then edit names, heights (AGL or MSL) and speeds in a table',
+        'Each leg\'s track and heading in °M, distance, ground speed with the wind, time and fuel (estimates labelled)',
+        'Terrain clearance along each leg from the shared terrain, with low legs flagged; a printable route card',
+        'A 3D fly-through and a full-screen Brief mode, and a flown KML compared turn point by turn point',
+      ],
+    },
+    // The card's still lives with the module (src/modules/nav-planner/card.jpg), so the module stays in its own folder.
+    media: { still: new URL('../modules/nav-planner/card.jpg', import.meta.url).href },
+    load: () => import('../modules/nav-planner/index.js'),
+    prototype: true,
+  },
+  {
     id: 'sof',
     eyebrow: 'Operations',
     title: 'SOF Dashboard',

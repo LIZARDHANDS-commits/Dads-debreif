@@ -1,0 +1,105 @@
+/* Low-level Navigation Planner (docs/modules/nav-planner/spec.md, "The screen"). Colours from src/ui-kit/tokens.css; the one "on" look is the
+   accent border and tint; red only for a leg below the minimum clearance ([LOW], always with the word); grey for unknown. The route card shows
+   only when printing. */
+.np {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+}
+.np [hidden] { display: none; }
+.np-top { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.np-top h1 { margin: 0; font-size: var(--text-md); }
+.np-version { color: var(--text-muted); font-weight: 600; }
+.np-notice { margin: 0 0 0 auto; padding: 2px 10px; border: 1px solid var(--caution); border-radius: var(--radius); color: var(--caution); font-size: var(--text-sm); font-weight: 600; }
+.np-main { display: grid; grid-template-columns: 19rem minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+.np-side { display: grid; gap: var(--space-2); }
+.np-side .panel-body { display: grid; gap: var(--space-2); }
+.np-field { display: grid; gap: 2px; font-size: var(--text-sm); color: var(--text-muted); }
+.np-field > span { color: var(--text-muted); }
+.np-est { color: var(--text-faint); }
+.np-input {
+  background: var(--bg-sunken); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; padding: 3px 6px; font: inherit;
+  font-size: var(--text-sm); min-width: 0;
+}
+.np-num { width: 8rem; }
+.np-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-actions .button, .np-bar .button { padding: 4px 10px; font-size: var(--text-sm); }
+.np-toggle[aria-pressed='true'], .np-seg[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--bg-raised)); color: var(--text); }
+.np-segs { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.np-seg { padding: 3px 10px; font-size: var(--text-sm); }
+.np-hint { margin: 0; font-size: var(--text-sm); color: var(--text-muted); }
+.np-message { margin: 0; font-size: var(--text-sm); color: var(--text); min-height: 1.2em; }
+.np-message.is-bad { color: var(--bad); }
+.np-wind-typed { display: flex; gap: var(--space-2); }
+.np-wind-typed .np-num { width: 5rem; }
+
+.np-stage { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.np-viewwrap { position: relative; height: 56vh; min-height: 22rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #05090d; }
+.np-map { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.np-map.is-dragging { cursor: grabbing; }
+.np-stage3d { position: absolute; inset: 0; background: #2f6aa8; }
+.np-3d-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.np-3d-note { padding: var(--space-4); color: var(--text); }
+.np-bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.np-bar-gap { flex: 1; }
+.np-bar-label { font-size: var(--text-sm); color: var(--text-muted); margin-right: 2px; }
+.np-scrub { width: 12rem; }
+.np-playtime { font-size: var(--text-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 7rem; }
+.np-stage-status { font-size: 0.75rem; color: var(--text-faint); }
+
+.np-section h2 { margin: var(--space-2) 0; font-size: var(--text-sm); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted); }
+.np-scroll { overflow-x: auto; }
+.np-table { border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; width: 100%; }
+.np-table th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 4px 6px; border-bottom: 1px solid var(--border-strong); white-space: nowrap; }
+.np-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.np-table tfoot td { font-weight: 600; border-top: 1px solid var(--border-strong); }
+.np-points .np-input { width: 7.5rem; }
+.np-points td:nth-child(2) .np-input { width: 9rem; }
+.np-points td:nth-child(5) .np-input, .np-points td:nth-child(7) .np-input { width: 5rem; }
+.np-points select.np-input { width: auto; }
+.np-points tr.is-selected td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.np-x { background: none; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: 6px; cursor: pointer; padding: 0 6px; }
+.np-x:hover { color: var(--text); border-color: var(--accent); }
+.np-strong { font-weight: 700; color: var(--text); }
+.np-low { color: var(--bad); font-weight: 700; }
+.np-unknown { color: var(--text-faint); font-style: italic; }
+.np-faint { color: var(--text-faint); }
+.np-table tr.is-low td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+.is-bad { color: var(--bad); }
+.np-debrief-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: var(--space-3); align-items: start; }
+
+/* Brief mode: full screen over the page. */
+.np-brief { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
+.np-brief [hidden] { display: none; }
+.np-brief-bar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); }
+.np-brief-bar h1 { margin: 0; font-size: var(--text-lg); }
+.np-brief-count { font-weight: 600; color: var(--text-muted); }
+.np-brief-note { margin-left: auto; color: var(--caution); font-size: var(--text-sm); font-weight: 600; }
+.np-brief-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 24rem; min-height: 0; }
+.np-brief-picture { position: relative; min-height: 0; background: #2f6aa8; }
+.np-brief-picture .np-stage3d { position: absolute; inset: 0; }
+.np-brief-facts { padding: var(--space-4); overflow-y: auto; border-left: 1px solid var(--border); }
+.np-brief-facts h2 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+.np-brief-facts h3 { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-sm); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted); }
+.np-brief-row { display: flex; justify-content: space-between; gap: var(--space-3); padding: 5px 0; border-bottom: 1px solid var(--border); font-size: var(--text-md); }
+.np-brief-row span { color: var(--text-muted); }
+.np-brief-row b { text-align: right; }
+.np-brief-row.is-low b { color: var(--bad); }
+.np-brief-row.is-unknown b { color: var(--text-faint); font-style: italic; }
+.np-brief-hint { margin: var(--space-3) 0 0; color: var(--text-muted); font-size: var(--text-sm); }
+
+/* The route card: printed only. */
+.np-card { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  .np-card, .np-card * { visibility: visible; }
+  .np-card { display: block; position: absolute; left: 0; top: 0; width: 100%; background: #fff; color: #000; font: 10pt system-ui, sans-serif; }
+  .np-card h1 { font-size: 14pt; margin: 0 0 4pt; }
+  .np-card p { margin: 2pt 0; }
+  .np-card table { border-collapse: collapse; width: 100%; margin: 6pt 0; }
+  .np-card th, .np-card td { border: 1px solid #000; padding: 2pt 4pt; text-align: left; }
+  .np-card tr.is-low td { font-weight: 700; }
+  .np-card-warn { font-weight: 700; }
+}
