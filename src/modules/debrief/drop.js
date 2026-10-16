@@ -304,10 +304,14 @@ export function insideZone(zone, p) {
   return Math.abs(along) <= zone.lengthFt / 2 && Math.abs(cross) <= zone.widthFt / 2;
 }
 
-/** The run-in heading (compass degrees, true): the box's set heading, else the ship's track at release (or fallbackDeg before a drop). */
-export function runInFor(on, release, fallbackDeg = 360) {
+/**
+ * The run-in heading (compass degrees, true): the box's set heading, else the chosen ship's track when the drop zone was
+ * placed, held fixed from then on (Dad, 16 Oct 2026: "it spins it should remain fixed when you built it"); fallbackDeg only
+ * for a drop zone saved before the heading was kept (the release's track, or the ship's track now before a drop).
+ */
+export function runInFor(on, placedDeg, fallbackDeg = 360) {
   if (on.dropShape === 'box' && on.dropRunIn === 'set') return num(on, 'dropRunInDeg') % 360;
-  return isNum(release?.trackDeg) ? release.trackDeg : fallbackDeg;
+  return isNum(placedDeg) ? placedDeg % 360 : fallbackDeg;
 }
 
 // ---- Published release figures: flags only, never walls ------------------------------------------------------------------
@@ -340,11 +344,11 @@ export function releaseFlags(load, release) {
 /**
  * The whole drop: release, fall, impact, miss, the drop zone, the CARP and the drift.
  * release: releaseAt's (or { reason }); point: the point of impact { x, y } in map feet, or null when not placed; on: the
- * box's settings; wind: dropWind's; ground: dropGround's; fallbackRunInDeg: the run-in before any release.
+ * box's settings; wind: dropWind's; ground: dropGround's; placedRunInDeg: the run-in kept when the drop zone was placed.
  * Returns { ok: false, reason } or { ok: true, load, release, fall, landed, impact, zone, runInDeg, miss, inside, carp,
  * driftFt, driftToDeg, flags, windWords, windNote, groundWords, stillAir }.
  */
-export function runDrop({ release, point, on, wind, ground }) {
+export function runDrop({ release, point, on, wind, ground, placedRunInDeg = null }) {
   if (!release || release.reason) return { ok: false, reason: release?.reason ?? 'no release yet' };
   const load = dropLoadFrom(on);
   // The release's speeds by kind: true airspeed from the ground velocity less the wind there, est. IAS = TAS × √σ.
@@ -366,7 +370,7 @@ export function runDrop({ release, point, on, wind, ground }) {
   const windNote = wind.note();
   const stillAir = wind.stillAir();
   const groundWords = ground.words(fall.impact?.z ?? groundBelowFt);
-  const runInDeg = runInFor(on, release);
+  const runInDeg = runInFor(on, placedRunInDeg, isNum(release.trackDeg) ? release.trackDeg : 360);
   const zone = zoneShape(point, on, runInDeg);
   const out = {
     ok: true, load, release: rel, fall, landed: fall.landed, impact: fall.impact, zone, runInDeg,
@@ -498,7 +502,10 @@ export function readDropPlace(value, startT = -Infinity, endT = Infinity) {
   if (!value || typeof value !== 'object') return out;
   if (isNum(value.releaseT) && value.releaseT >= startT && value.releaseT <= endT) out.releaseT = value.releaseT;
   const p = value.point;
-  if (p && isNum(p.lat) && isNum(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180) out.point = { lat: p.lat, lon: p.lon };
+  if (p && isNum(p.lat) && isNum(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180) {
+    out.point = { lat: p.lat, lon: p.lon };
+    if (isNum(p.runInDeg) && p.runInDeg >= 0 && p.runInDeg <= 360) out.point.runInDeg = p.runInDeg;
+  }
   return out;
 }
 
@@ -511,6 +518,7 @@ export const DROP_FILE_RULES = Object.freeze({
   [`${FILE_PREFIX}releaseT`]: { type: 'number', min: 0, max: 1e11 },
   [`${FILE_PREFIX}lat`]: { type: 'number', min: -90, max: 90 },
   [`${FILE_PREFIX}lon`]: { type: 'number', min: -180, max: 180 },
+  [`${FILE_PREFIX}runInDeg`]: { type: 'number', min: 0, max: 360 },
   ...Object.fromEntries(FILE_LAYOUT_KEYS.map((k) => [
     `${FILE_PREFIX}${k}`,
     STRING_KEYS.includes(k) ? { type: 'string', oneOf: [...DROP_ALLOWED[k]] }
@@ -527,6 +535,7 @@ export function dropForFile(place, on) {
   if (place?.point) {
     out[`${FILE_PREFIX}lat`] = place.point.lat;
     out[`${FILE_PREFIX}lon`] = place.point.lon;
+    if (isNum(place.point.runInDeg)) out[`${FILE_PREFIX}runInDeg`] = place.point.runInDeg;
   }
   return out;
 }
@@ -546,6 +555,7 @@ export function dropFromFile(settings, startT, endT) {
   }
   const lat = settings[`${FILE_PREFIX}lat`];
   const lon = settings[`${FILE_PREFIX}lon`];
-  const place = readDropPlace({ releaseT: settings[`${FILE_PREFIX}releaseT`], point: isNum(lat) && isNum(lon) ? { lat, lon } : null }, startT, endT);
+  const runInDeg = settings[`${FILE_PREFIX}runInDeg`];
+  const place = readDropPlace({ releaseT: settings[`${FILE_PREFIX}releaseT`], point: isNum(lat) && isNum(lon) ? { lat, lon, runInDeg } : null }, startT, endT);
   return { place, patch };
 }
