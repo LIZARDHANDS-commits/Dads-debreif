@@ -7,6 +7,8 @@
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-plan.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
+import { TELEGRAPH, TELEGRAPH_RANGE, setTelegraph, telegraphNow } from './live/rates.js';
+import { KIAS_OUTSIDE_LAB_RULED, KIAS_OUTSIDE_LAB_RANGE, setKiasOutsideLab } from './live/moves.js';
 import { REJOIN, TURNING_REJOIN, G_RULE_BANK_DEG, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow, CLOSE_BANK_CHOICES, DEFAULT_CLOSE_BANK_DEG, setCloseBank, closeBankNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords, FW_BAND } from './live/slots.js';
@@ -45,12 +47,6 @@ const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', 
 // The Rejoin kind, from line abreast and (since V2.59, TS-67; Patrick 5 Oct 05:13Z: "FW-Esch you can pick TRJ or SARJ.
 // Obviously TRJ is faster") from fighting wing to echelon or route: the turning rejoin (TRJ, the default) or straight ahead (SARJ).
 // Auto (TS-76, the chooser): both are flown ahead as dry runs and the quicker that passes the checks is flown; 2-ship only.
-const REJOIN_OPTIONS = Object.freeze([
-  { value: 'into', label: 'Turning (TRJ), Lead turns into #2' },
-  { value: 'straight', label: 'Straight ahead (SARJ)' },
-  { value: 'auto', label: 'Auto, the quicker of the two' },
-  { value: 'roll', label: 'Turning with a roll (TRJ + roll), when it is quicker' },
-]);
 
 
 /** "Line abreast, right" for the pair as classified now (live/judge.js classify). */
@@ -71,7 +67,7 @@ export function nowWords(where) {
 export function changeFlags(state, where) {
   const [lead, wing] = state.aircraft;
   const flags = [];
-  const limit = where.key === 'fw' ? 4 : ['echelon', 'route', 'astern'].includes(where.key) ? 3 : Infinity;
+  const limit = where.key === 'fw' ? 4 : ['echelon', 'route', 'astern', 'corner'].includes(where.key) ? 3 : Infinity;
   if (lead.g > limit) flags.push(`Lead is pulling ${lead.g.toFixed(1)} G in ${FORMATIONS[where.key].label.toLowerCase()}; the limit is ${limit} G (Orders B2 ch 8).`);
   const c = state.current?.change;
   if (c?.rejoining) {
@@ -110,7 +106,7 @@ function placeWords(key, p) {
  * shown under this one for the 2-ship, or null. Returns
  * { element, cardElement, setShips(n), update(state, where), renderCard(state, where), values() }.
  */
-export function createChangeUi({ onChange, fluidUi = null }) {
+export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, onFwWing = null, onEchelonShift = null, onCornerShift = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let turn = 'into'; // TRJ Into or Away (TS-174): which way Lead turns, toward #2's side or away from it
@@ -177,42 +173,38 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     // The rolling rejoin (rolling-rejoin.js; Patrick 6 Oct 16:02Z, 16:22Z: its own button, a roll only when pressed).
     { value: 'roll', label: 'TRJ + roll', title: 'A turning rejoin that starts with a barrel roll or high yo-yo, flown only when it gets #2 in quicker than the plain turning rejoin' },
   ]);
-  const rejoinButtons = REJOIN_SWITCH.map((o) => h('button', {
-    type: 'button',
-    class: 'button ts-side-button',
-    dataset: { rejoin: o.value },
-    title: o.title,
-    'aria-pressed': String(o.value === rejoin),
-    onclick: () => setRejoin(o.value),
-  }, o.label));
-  // The rejoin kind matters only where a rejoin starts: line abreast, and fighting wing to a close formation (update).
-  const rejoinRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead, auto or turning with a roll' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons);
+  // A drop-down since 14 Oct 2026 (Patrick: "Make rejoin be a drop down menu, with TRJ the default. TRJ into/away also a drop
+  // down menu, next to rejoin"; they were two rows of buttons).
+  const rejoinMenu = h('select', {
+    class: 'ts-bank-select',
+    'aria-label': 'Rejoin: turning, straight ahead, auto or turning with a roll',
+    title: REJOIN_SWITCH.map((o) => `${o.label}: ${o.title}`).join(' · '),
+    onchange: () => setRejoin(rejoinMenu.value),
+  }, REJOIN_SWITCH.map((o) => h('option', { value: o.value, title: o.title, selected: o.value === rejoin }, o.label)));
   function setRejoin(value) {
     rejoin = value;
-    for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
-    if (rejoinSelect.value !== rejoin) rejoinSelect.value = rejoin;
-    turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
+    if (rejoinMenu.value !== rejoin) rejoinMenu.value = rejoin;
+    turnMenu.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
     greyFour();
   }
 
   // TRJ Into or Away (TS-174, Patrick 10 Oct 2026 20:37Z; SMM 16.20 para 65b(1), Fig 16.24): Into, Lead turns toward #2's
   // side; Away, he turns away from it and #2 crosses behind him to the inside of the turn. Default Into.
-  const turnButtons = [
+  const TURN_SWITCH = [
     { value: 'into', label: 'Into', title: "Lead turns toward #2's side" },
     { value: 'away', label: 'Away', title: "Lead turns away from #2's side; #2 crosses behind him to the inside of the turn" },
-  ].map((o) => h('button', {
-    type: 'button',
-    class: 'button ts-side-button',
-    dataset: { turn: o.value },
-    title: o.title,
-    'aria-pressed': String(o.value === turn),
-    onclick: () => {
-      turn = o.value;
-      for (const x of turnButtons) x.setAttribute('aria-pressed', String(x.dataset.turn === turn));
+  ];
+  const turnMenu = h('select', {
+    class: 'ts-bank-select',
+    'aria-label': 'TRJ: Lead turns into or away from #2',
+    title: TURN_SWITCH.map((o) => `${o.label}: ${o.title}`).join(' · '),
+    onchange: () => {
+      turn = turnMenu.value;
       greyFour();
     },
-  }, o.label));
-  const turnRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'TRJ: Lead turns into or away from #2' }, h('span', { class: 'ts-hint' }, 'TRJ'), turnButtons);
+  }, TURN_SWITCH.map((o) => h('option', { value: o.value, title: o.title, selected: o.value === turn }, o.label)));
+  // The rejoin kind matters only where a rejoin starts: line abreast, and fighting wing to a close formation (update).
+  const rejoinRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin, and for TRJ Lead turning into or away' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinMenu, turnMenu);
 
   // Bank angle setting for close formation turns (echelon, route, line astern; students learn at 30, then 45, then 60).
   const bankOptions = CLOSE_BANK_CHOICES.map((deg) => ({
@@ -231,6 +223,146 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     'aria-label': 'Bank angle for close formation turns',
     hidden: true,
   }, h('span', { class: 'ts-hint' }, 'Bank angle'), bankSelect);
+
+  // #2 in close formation: Held (today's planned poses) or Live (the close-in wingman, TS-226; B1 flies the echelon hold
+  // straight and level). Read at the next press, so it is set before pressing Echelon (plan 12.4 B1 T6). 2-ship only.
+  // Live the default since Patrick 14 Oct 2026 ("yes live default", TS-232); Held kept to compare until Checkpoint E.
+  let closeWing = 'live';
+  const CLOSE_WING_HINT = 'Live (the default): the close-in wingman flies #2 off what he sees of Lead, 0.3 s late, in echelon, route, line astern and the corner, their turns and the changes between them. Held: the old planned poses and tracker, to compare. Takes effect at once when nothing is being flown, otherwise at the next press.';
+  const closeWingButtons = [
+    { value: 'held', label: 'Held' },
+    { value: 'live', label: 'Live' },
+  ].map((o) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    dataset: { closeWing: o.value },
+    title: CLOSE_WING_HINT,
+    'aria-pressed': String(o.value === closeWing),
+    onclick: () => {
+      closeWing = o.value;
+      for (const x of closeWingButtons) x.setAttribute('aria-pressed', String(x.dataset.closeWing === closeWing));
+      onCloseWing?.(closeWing);
+    },
+  }, o.label));
+  const closeWingRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': '#2 in close formation: Held or Live', title: CLOSE_WING_HINT },
+    h('span', { class: 'ts-hint' }, '#2 in close formation'), closeWingButtons);
+
+  // #2 in fighting wing: Old (today's live law, fw-live.js, TS-208) or Live (the live wingman's fighting wing technique, B5,
+  // TS-233, spec 7e). Old the default until Patrick has flown Live (spec 7e.11, T28). Read at the next press of one of Lead's
+  // fighting wing moves. 2-ship only.
+  let fwWing = 'law';
+  const FW_WING_HINT = `Live (B5, being built): #2 flies off what he sees of Lead, 0.4 s late; his guard keeps him outside 500 ft slant, making the miss below Lead and reversing onto Lead's circle. Range keeping and the swept place come next (T29). Old: today's fighting wing law. Read at the next press of a fighting wing move.`;
+  const fwWingButtons = [
+    { value: 'law', label: 'Old' },
+    { value: 'live', label: 'Live' },
+  ].map((o) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    dataset: { fwWing: o.value },
+    title: FW_WING_HINT,
+    'aria-pressed': String(o.value === fwWing),
+    onclick: () => {
+      fwWing = o.value;
+      for (const x of fwWingButtons) x.setAttribute('aria-pressed', String(x.dataset.fwWing === fwWing));
+      onFwWing?.(fwWing);
+    },
+  }, o.label));
+  const fwWingRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': '#2 in fighting wing: Old or Live', title: FW_WING_HINT, hidden: true },
+    h('span', { class: 'ts-hint' }, '#2 in fighting wing'), fwWingButtons);
+
+  // Echelon on the line (TS-230; Patrick 14 Oct 2026: "a little toggle that moves us up and down the line 1 foot at a time? so
+  // i can play with it"): Up 1 ft toward Lead, Down 1 ft away, along the spinner-to-wingtip line; the value is from TS-230's
+  // place. A live #2 slides there at once; held flying takes it at the next press. 2-ship only.
+  let shiftFt = 0;
+  const ECHELON_SHIFT_HINT = "Moves #2's echelon place along the spinner-to-wingtip line, 1 ft a step: Up toward Lead, Down away from him (0 is 15.9 ft back, 40.2 ft out, 3 ft down; 5 ft up to 10 ft down). Live: he slides there now. Held: from the next press (choose Live to watch it). Route moves with it.";
+  const shiftValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
+  const showShift = () => { shiftValue.textContent = `${shiftFt > 0 ? '+' : shiftFt < 0 ? '−' : '+'}${Math.abs(shiftFt)} ft`; };
+  const shiftButton = (label, delta, title) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    title,
+    onclick: () => {
+      shiftFt = onEchelonShift ? onEchelonShift(shiftFt + delta) : shiftFt + delta;
+      showShift();
+    },
+  }, label);
+  const echelonShiftRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Echelon on the line, 1 ft a step', title: ECHELON_SHIFT_HINT },
+    h('span', { class: 'ts-hint' }, 'Echelon line'),
+    shiftButton('Up', -1, 'Move #2 1 ft up the line, toward Lead'), shiftValue, shiftButton('Down', 1, 'Move #2 1 ft down the line, away from Lead'));
+
+  // The Corner's place (Patrick 14 Oct 2026: "Add a 'forward/back' and 'up/down' button in the corner and I'll adjust"):
+  // Forward / Back and Up / Down, 1 ft a step, from line astern's fore and aft and height (slots.js CORNER_SHIFT). A live #2
+  // moves there at once; held flying at the next press. The station change's corner moves with it. 2-ship, in the corner.
+  let corner = { fwd: 0, up: 0 };
+  const CORNER_HINT = "Moves #2's corner place 1 ft a step (0 is line astern's fore and aft and height: 43.4 ft back, 17 ft down, at echelon's 40.2 ft out; 10 ft each way). Live: he moves there now. Held: from the next press. The station change's corner moves with it.";
+  const signed = (n) => `${n > 0 ? '+' : n < 0 ? '−' : '+'}${Math.abs(n)}`;
+  const fwdValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
+  const upValue = h('span', { class: 'ts-hint', 'aria-live': 'polite' }, '+0 ft');
+  const showCorner = () => { fwdValue.textContent = `${signed(corner.fwd)} ft`; upValue.textContent = `${signed(corner.up)} ft`; };
+  const cornerButton = (label, axis, delta, title) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    title,
+    onclick: () => {
+      const next = { ...corner, [axis]: corner[axis] + delta };
+      corner = onCornerShift ? onCornerShift(next) : next;
+      showCorner();
+    },
+  }, label);
+  const cornerFwdRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Corner forward or back, 1 ft a step', title: CORNER_HINT },
+    h('span', { class: 'ts-hint' }, 'Corner'),
+    cornerButton('Fwd', 'fwd', 1, 'Move the corner 1 ft forward'), fwdValue, cornerButton('Back', 'fwd', -1, 'Move the corner 1 ft back'));
+  const cornerUpRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Corner up or down, 1 ft a step', title: CORNER_HINT },
+    h('span', { class: 'ts-hint' }, 'Corner'),
+    cornerButton('Up', 'up', 1, 'Move the corner 1 ft up'), upValue, cornerButton('Down', 'up', -1, 'Move the corner 1 ft down'));
+
+  // Lead behaviours (Patrick 14 Oct 2026: "Can we put all of these things under a 'lead behaviours' settings so i can play with
+  // them while flying?"; his pick: the telegraph's roll time and build-up, and close formation speed). Each box starts at the
+  // ruled value; a change applies from Lead's next press and lasts the session; "Back to the rulings" puts them back.
+  const numberBox = (value, [min, max], step, onChange, label) => {
+    const input = h('input', { type: 'number', class: 'ts-number', value: String(value), min: String(min), max: String(max), step: String(step), 'aria-label': label });
+    input.addEventListener('change', () => onChange(input));
+    return input;
+  };
+  const telegraphWords = () => {
+    const t = telegraphNow();
+    const rate = 60 / (t.rolledSec - t.easeSec);
+    return `60° at ${rate.toFixed(1)}°/s, built over ${t.easeSec.toFixed(1)} s (${(rate / t.easeSec).toFixed(1)}°/s²)`;
+  };
+  const telegraphLine = h('span', { class: 'ts-hint' }, telegraphWords());
+  const rolledBox = numberBox(TELEGRAPH.rolledSec, TELEGRAPH_RANGE.rolledSec, 0.25, (el) => {
+    el.value = String(setTelegraph({ rolledSec: el.value }).rolledSec);
+    easeBox.value = String(telegraphNow().easeSec);
+    telegraphLine.textContent = telegraphWords();
+  }, "Lead's close-turn roll, wings level to bank, seconds");
+  const easeBox = numberBox(TELEGRAPH.easeSec, TELEGRAPH_RANGE.easeSec, 0.25, (el) => {
+    el.value = String(setTelegraph({ easeSec: el.value }).easeSec);
+    telegraphLine.textContent = telegraphWords();
+  }, "Lead's telegraph build-up and ease, seconds");
+  const kiasBox = numberBox(KIAS_OUTSIDE_LAB_RULED, KIAS_OUTSIDE_LAB_RANGE, 5, (el) => {
+    el.value = String(setKiasOutsideLab(el.value));
+  }, 'Close formation speed, KIAS');
+  const leadSettings = h('details', { class: 'ts-more ts-lead-behaviours' },
+    h('summary', {}, 'Lead behaviours'),
+    h('label', { class: 'ts-field', title: "TS-209: wings level to his bank in a close turn; the roll-out the same. Ruled 8.25 s." }, h('span', { class: 'ts-hint' }, 'Close-turn roll, wings level to bank (s)'), rolledBox),
+    h('label', { class: 'ts-field', title: 'TS-209: how long his roll rate takes to build (the telegraph) and to ease off. Ruled 2.0 s.' }, h('span', { class: 'ts-hint' }, 'Telegraph build-up and ease (s)'), easeBox),
+    telegraphLine,
+    h('label', { class: 'ts-field', title: 'The speed outside line abreast: the close formations, fighting wing and the rejoins (SMM 12.23 para 53; ruled 200 KIAS). 190 to 230 KIAS: below 190 the rejoins (tuned at 200) end wide; above 230 Lead at 80% torque cannot hold it.' }, h('span', { class: 'ts-hint' }, 'Close formation speed (KIAS)'), kiasBox),
+    ...(fluidUi?.settingsFields ?? []),
+    h('p', { class: 'ts-hint' }, "Changes apply from Lead's next press and last until you reload."),
+    h('button', {
+      type: 'button',
+      class: 'button',
+      onclick: () => {
+        setTelegraph(TELEGRAPH);
+        setKiasOutsideLab(KIAS_OUTSIDE_LAB_RULED);
+        rolledBox.value = String(TELEGRAPH.rolledSec);
+        easeBox.value = String(TELEGRAPH.easeSec);
+        kiasBox.value = String(KIAS_OUTSIDE_LAB_RULED);
+        telegraphLine.textContent = telegraphWords();
+      },
+    }, 'Back to the rulings'),
+  );
 
   const handlers = {};
 
@@ -394,13 +526,11 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     pickRow);
 
   const refusal = h('p', { class: 'ts-warning', role: 'status', hidden: true });
-  const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => setRejoin(rejoinSelect.value) },
-    REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
-  const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
   const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at about his 11 or 1 o'clock with the fin on the upper wing, slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63). Auto: both are tried ahead and the quicker one is flown; the card says which. TRJ + roll: #2 starts with a barrel roll or high yo-yo, flown only when it gets him in quicker than the plain turning rejoin (it pays when he is hot, forward of abeam); the card says which.`;
   const FOUR_REJOIN_HINT = `From any spread position each wingman joins straight into the formation called, fighting wing, finger or echelon, with no station change after (TS-176). A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each lines up behind the one he joins on and comes in through route in turn. TRJ Away: Lead turns away from #2 and holds the turn until all are in; #3 and #4 join on the inside first, and #2 crosses at least 500 ft behind and 50 ft below Lead and joins last (TS-179): in echelon next to Lead, in fighting wing on the inside, in finger back on his own side. Not yet from the offset box or fighting wing. From the offset box #3 and #4 ride #2's rejoin line inside Lead's turn first, then join one at a time, to finger and fighting wing on the outside (Patrick 10 Oct, Fable's advice). A rejoin not built from where the four are is greyed, with the reason on the button.`;
-  const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
-  const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
+  // The Settings box's "Rejoin kind" list and this note went with the menu of 14 Oct 2026 (Patrick: "a bunch of old 'rejoin kinds'
+  // and a big explanation"): the Rejoin menu under How chooses it, and the note is that menu's hover text.
+  rejoinMenu.title = PAIR_REJOIN_HINT;
   // Rates (clean-up steps 2 and 3, TS-65, TS-66; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast the wingmen close,
   // Student, Instructor (the default) or AI, 2-ship and 4-ship. It changes the closures only, not the banks or the G (06:07Z).
   const rateWords = (c) => `${RATE_WORDS[c]}: ${REJOIN_CLOSURE_KT[c]} kt rejoins, route to echelon in about ${CLOSE_IN_SEC[c]} s`;
@@ -411,8 +541,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   // Break and rejoin (TS-175): how long #2 waits before he follows Lead's break; Patrick's 5 s by default.
   const breakSelect = h('select', { 'aria-label': 'Break and rejoin: #2 follows after', onchange: () => setBreakDelaySec(Number(breakSelect.value)) },
     BREAK_DELAY_CHOICES.map((sec) => h('option', { value: String(sec), selected: sec === BREAK.delaySec }, `${sec} s`)));
-  const breakField = h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, 'Break: #2 follows after'), breakSelect);
-  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint, ratesField, breakField);
+  // Beside Break and rejoin in the Manoeuvres box since the menu of 14 Oct 2026 (settings live where they are used); echelon only.
+  const breakField = h('label', { class: 'ts-field', hidden: true }, h('span', { class: 'ts-hint' }, 'Break: #2 follows after'), breakSelect);
+  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, ratesField);
 
   const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is lit; a button this formation cannot use is hidden.';
   const FOUR_HINT = 'The four fly the manuals\' way there from where they are now, one at a time where the manuals say to wait. Side is #2\'s side, and every formation is named by it.';
@@ -420,7 +551,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   // Two groups (Patrick, 5 Oct): Tactical (line abreast, fighting wing, fluid, the four's wide formations) and Close formation.
   const TACTICAL = new Set(['lab', 'fw', 'fluid', 'spread4', 'fluid4', 'fluidMan', 'offsetBox']);
   const group = (title, buttons) => h('div', { class: 'ts-change-group' }, h('h4', { class: 'ts-change-subtitle' }, title), h('div', { class: 'ts-change-grid' }, buttons));
-  const pairAll = [...CHANGE_BUTTONS, { key: 'astern', label: 'Line astern' }];
+  // Corner (TS-231; Patrick 14 Oct 2026: "if we want to stop in the corner we hit corner"), after Line astern.
+  const pairAll = [...CHANGE_BUTTONS, { key: 'astern', label: 'Line astern' }, { key: 'corner', label: 'Corner' }];
   const fourAll = [...FOUR_CHANGE_BUTTONS, ...FOUR_MORE_BUTTONS];
   const pairGrid = h('div', {},
     group('Tactical', pairAll.filter((b) => TACTICAL.has(b.key)).map((b) => makeButton(b))),
@@ -428,21 +560,30 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const fourGrid = h('div', { hidden: true },
     group('Tactical', fourAll.filter((b) => TACTICAL.has(b.key)).map(makeFourButton)),
     group('Close formation', fourAll.filter((b) => !TACTICAL.has(b.key)).map(makeFourButton)));
+  // The Controls panel (Patrick 14 Oct 2026, "Yes, as drawn"): Manoeuvres first (layout.js, with manoeuvreParts below), then
+  // Go to (the formations), How (how to get there: the station side, the rejoin, the position in the band), and a #2 box in
+  // close formation only (Held / Live; the echelon line in echelon only). Each shows only what the formation can use.
+  const twoBar = h('div', { class: 'ts-section-bar' }, h('h3', {}, '#2'));
   const element = h('section', { class: 'ts-change', 'aria-labelledby': 'ts-change-title' },
-    // The FORMATION bar, the two groups, then Side, just above the manoeuvres (Patrick, 5 Oct).
-    h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Formation')),
+    h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Go to')),
     pairGrid,
     fourGrid,
+    refusal,
+    h('div', { class: 'ts-section-bar' }, h('h3', {}, 'How')),
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     rejoinRow,
-    turnRow,
-    bankRow,
     positionGroup,
-    refusal,
     floatHeight,
-    fluidUi?.element ?? null,
-    fluidUi?.lagElement ?? null, // "#2": the lag roll, in its own small group
+    twoBar,
+    closeWingRow,
+    fwWingRow,
+    echelonShiftRow,
+    cornerFwdRow,
+    cornerUpRow,
   );
+  // What the pair can fly now that lives in this file: the close-turn bank, the fluid and fighting wing moves (fluid-panel.js)
+  // and #2's lag roll; layout.js puts them in the Manoeuvres box.
+  const manoeuvreParts = [bankRow, breakField, fluidUi?.element ?? null, fluidUi?.lagElement ?? null].filter(Boolean);
 
   // ---- the card's lines ----
   const nowLine = h('p', { class: 'ts-line ts-now-formation' });
@@ -452,11 +593,13 @@ export function createChangeUi({ onChange, fluidUi = null }) {
 
   return {
     element,
+    manoeuvreParts,
     cardElement,
     /** The fluid settings, for the Settings box (fluid-panel.js), or null. */
-    fluidSettings: fluidUi?.settingsElement ?? null,
+    fluidSettings: null, // in Lead behaviours since the menu of 14 Oct 2026
     /** The rejoin choice and its note, for the Settings box. */
     rejoinSettings,
+    leadSettings, // "Lead behaviours" (Patrick 14 Oct 2026), in Settings
     onSideChanged: (fn) => (handlers.sideChanged = fn),
     /** Called when Change position starts, a spot is picked, or it ends (the picture redraws the box). */
     onPickChanged: (fn) => (handlers.pickChanged = fn),
@@ -515,21 +658,20 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         cancelPick();
       }
       fourGrid.hidden = !four;
+      closeWingRow.hidden = fwWingRow.hidden = four; // the pair's only in B1 (update shows it in close formation only)
+      echelonShiftRow.hidden = four; // the pair's only (TS-230; update shows it in echelon only)
+      cornerFwdRow.hidden = cornerUpRow.hidden = four; // the pair's only (update shows them in the corner only)
+      twoBar.hidden = four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
       if (fluidUi) fluidUi.lagElement.hidden = true; // the pair's lag roll group is shown by update
-      if (fluidUi) fluidUi.settingsElement.hidden = four;
-      rejoinField.hidden = false;
-      rejoinHint.hidden = false;
-      rejoinLabel.textContent = four ? 'Rejoin to fighting wing, finger or echelon' : 'Rejoin kind';
-      rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
+      for (const el of fluidUi?.settingsFields ?? []) el.hidden = four;
       // Auto and TRJ + roll race the 2-ship's rejoins (chooser.js); the 4-ship has no race, so it goes back to the turning rejoin.
       const pairOnly = (v) => v === 'auto' || v === 'roll';
       if (four && pairOnly(rejoin)) setRejoin('into');
-      for (const o of rejoinSelect.options) if (pairOnly(o.value)) o.disabled = four;
-      for (const b of rejoinButtons) if (pairOnly(b.dataset.rejoin)) b.hidden = four;
-      turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
-      rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
+      for (const o of rejoinMenu.options) if (pairOnly(o.value)) o.disabled = o.hidden = four;
+      turnMenu.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
+      rejoinMenu.title = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */
     update(state, where) {
@@ -547,7 +689,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       // Position: only in a formation it works in, with nothing else flying (or a move in the band, so a new spot can be picked).
       stateNow = state;
       const moving = state.current?.key === `change:${MOVE_IN_BAND_KEY}`;
-      const showPosition = MOVE_IN_BAND_FORMATIONS.includes(where.key) && !where.manoeuvring && (!state.current || moving);
+      // Line abreast and fighting wing only since the menu of 14 Oct 2026 (Patrick, "as drawn"): in the close formations the
+      // Echelon line control and the live wingman place #2; the move in their ±5 ft band stays in move-in-band.js.
+      const showPosition = PLACE_BOX_FORMATIONS.includes(where.key) && MOVE_IN_BAND_FORMATIONS.includes(where.key) && !where.manoeuvring && (!state.current || moving);
       positionGroup.hidden = !showPosition;
       if (!showPosition || !PLACE_BOX_FORMATIONS.includes(where.key)) cancelPick();
       if (showPosition) {
@@ -561,8 +705,14 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       // group in fighting wing and echelon (TS-78, fluid-panel.js). A button that is only busy for a moment is greyed.
       // ...and in trail after a break and rejoin, TRJ or SARJ (TS-175; Patrick 11 Oct 2026 07:57Z).
       rejoinRow.hidden = where.key !== 'lab' && where.key !== 'fw' && !(where.key === 'other' && state.trailSide);
-      const closeBankVisible = ['echelon', 'route', 'astern', 'trail'].includes(where.key);
+      const closeBankVisible = ['echelon', 'route', 'astern', 'corner', 'trail'].includes(where.key);
       bankRow.hidden = !closeBankVisible;
+      closeWingRow.hidden = !closeBankVisible;
+      fwWingRow.hidden = where.key !== 'fw'; // B5: Lead's fighting wing moves (2-ship)
+      echelonShiftRow.hidden = where.key !== 'echelon';
+      cornerFwdRow.hidden = cornerUpRow.hidden = where.key !== 'corner';
+      breakField.hidden = where.key !== 'echelon';
+      twoBar.hidden = closeWingRow.hidden && fwWingRow.hidden && echelonShiftRow.hidden && cornerFwdRow.hidden;
       if (bankSelect.value !== String(closeBankNow())) {
         bankSelect.value = String(closeBankNow());
       }
