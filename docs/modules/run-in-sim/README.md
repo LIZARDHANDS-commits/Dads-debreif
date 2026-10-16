@@ -4,13 +4,12 @@ An orbit, a run-in, a release (or a flypast) and an escape, flown in 3D over the
 
 ## Where it stands
 
-**Spec written, waiting on Patrick's approval; no code yet.** Dad asked on 16 Oct 2026; Patrick approved the plan (relayed by Dad, 16 Oct 2026). It does not show on the home screen until Step 2 is built (ALL-R4). It is built once the Debrief's drop (core `drop.js`) and the C-130J model are on main.
+**Spec approved; building Step 2.** Dad asked on 16 Oct 2026; Patrick approved the plan and the spec (relayed by Dad, 16 Oct 2026), adding RS-9: the user sets a few essentials and the computer works out the rest to hit. It does not show on the home screen until Step 2 is built (ALL-R4). It is built once the Debrief's drop (core `drop.js`) and the C-130J model are on main.
 
 ## What is next
 
-1. Patrick reads `spec.md` with `screen-mockup.png`, and approves it (or says what to change), with the wording of ALL-44 and RS-1 to RS-8.
-2. The open questions below, one at a time; each has a working answer the spec uses.
-3. Step 2, the world.
+1. Steps 2 to 5 (the world, the flying, the three run types, the one test) as one pull request.
+2. The open questions below, one at a time; each has a working answer the spec uses. RS-Q1's C-130J numbers table goes to Patrick before the C-130J flies.
 
 ## The files
 
@@ -19,7 +18,7 @@ An orbit, a run-in, a release (or a flypast) and an escape, flown in 3D over the
 | `spec.md` | How it works: the screen, the targets, the five legs, how it flies, the defaults, what happens when data fails |
 | `screen-mockup.png` | The screen picture (a mock-up; its numbers are made up) |
 | `requirements.md` | What it must do, in Dad's words, with how each is checked (RS-R) |
-| `decisions.md` | Decisions proposed with the spec (RS-) |
+| `decisions.md` | Decisions approved with the spec (RS-) |
 | `testing.md` | The one light test and the sign-off checklist |
 | `plan.md` | The ordered steps and checkboxes |
 | `future.md` | Ideas not being built until Patrick moves an item up |

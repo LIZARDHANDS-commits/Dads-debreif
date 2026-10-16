@@ -1,6 +1,6 @@
 # Run-in Simulator: decisions (RS-)
 
-All proposed with the spec, for Patrick's approval; none is in force until he says yes. Wording not yet confirmed with Patrick.
+Approved with the spec by Patrick (relayed by Dad, 16 Oct 2026: "yea pat approves"); RS-9 is his addition.
 
 | ID | Decision | Files | Source |
 |---|---|---|---|
@@ -11,7 +11,8 @@ All proposed with the spec, for Patrick's approval; none is in force until he sa
 | RS-5 | **The load is core `drop.js`** (DB-36); its CARP is improved in place to take a dive release (the release velocity's vertical part, the release point slid along the dive line). | `src/core/drop.js`, flight-math list | Rule book, one copy of each formula. |
 | RS-6 | **Limits flag, never stop.** The stall line, the roll limit and the G onset always hold; the published G limit and VMO and the module's escape references (lowest height, distance from the target, the flyover's height over the target's top) are flagged on the result card; a setting past them is flown as set; a pass the aircraft can't make is flown as best it can and flagged, never silently changed. | spec | Rule book, "References, not walls". |
 | RS-7 | **Wind and temperature are typed**, at the release height and the ground, linear between; a "planning wind" under More works out the CARP when it differs from the wind met. No outside weather source. | spec, Setup | Dad, 16 Oct 2026: "speed alt winds" set by the user; rule book, new outside sources need Patrick's yes. |
-| RS-8 | **The pilot times the orbit's exit to make the planned time over target**; when no exit can, it flies the soonest and the card says how late. | spec, The pass | Build choice (time over target is the flyover's point); wording to confirm. |
+| RS-8 | **The pilot times the orbit's exit to make the planned time over target**; when no exit can, it flies the soonest and the card says how late. | spec, The pass | Build choice (time over target is the flyover's point); approved with the spec. |
+| RS-9 | **The user sets a few essentials; the computer works out the rest to hit.** For each run a short list of settings is the user's (spec table); the release point, the aim-off for the wind, the roll-in point, the IP turn and the orbit exit are worked out so the load lands on the aim point (or the flypast is on time and height). Under More any worked-out number can be set by hand, and the card shows the miss that results. | spec, What the user sets | Patrick, relayed by Dad, 16 Oct 2026: "the user should sset a few parameters the then the computer sets the offset or whatever variable needs adjusting to hit". |
 
 ## Waiting on a question
 

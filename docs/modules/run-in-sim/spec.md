@@ -1,6 +1,6 @@
 # Run-in Simulator: spec
 
-Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a stadium, a bridge, mountains etc in a 3d enviroment. the user should see an orbit and a run in and be able to set those parameters along with speed alt winds. to see how the flyover, inert bomb drop, DZ offload will go, Diving drop or flat, as well as the escape manuver". Patrick approved the plan (relayed by Dad, 16 Oct 2026: "got the yes"). **This spec is a draft for Patrick's approval; no code starts before it** (rule book, "Write it down first").
+Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a stadium, a bridge, mountains etc in a 3d enviroment. the user should see an orbit and a run in and be able to set those parameters along with speed alt winds. to see how the flyover, inert bomb drop, DZ offload will go, Diving drop or flat, as well as the escape manuver". Patrick approved the plan (relayed by Dad, 16 Oct 2026: "got the yes"). **Patrick approved this spec (relayed by Dad, 16 Oct 2026: "yea pat approves"), adding: "the user should sset a few parameters the then the computer sets the offset or whatever variable needs adjusting to hit"** (RS-9, below).
 
 ## What it is for
 
@@ -22,7 +22,7 @@ One screen, laid out by the house rules (`.agent/skills/screen-layout-and-style`
 - **Wind:** at the release height and at the ground (°M and kt, linear between them), and today's temperature against the standard day. Under More, a "planning wind" the CARP is worked out with, if different from the wind the pass meets, to see what a wrong forecast does.
 - **Display:** what's drawn (the orbit and run-in lines, the CARP, the load's trail, the flags), as the house rules say.
 
-The main button is **Fly the pass**. Every setting starts at a default (the table below), and each box marks an estimate with a ⓘ that says so.
+Each box shows only the few settings the user sets for that run (RS-9, below). Everything else in it is worked out by the computer and shown greyed with "set to hit". The main button is **Fly the pass**. Every setting starts at a default (the table below), and each box marks an estimate with a ⓘ that says so.
 
 **Middle: the 3D view.** The real ground (the shared terrain, with the satellite picture draped on it) round the target, the target shape, the aircraft model, and the planned lines: the orbit, the IP, the run-in and the dive line, the CARP and the escape. As it flies, a trail follows the aircraft, and after release a trail follows the load to its impact mark. A small **plan view (2D)**, north up, sits in a corner. It shows the same lines from above with the wind arrow and a scale.
 
@@ -32,6 +32,19 @@ The main button is **Fly the pass**. Every setting starts at a default (the tabl
 - the release (height, KIAS, dive angle) against the plan, and the load's time of fall;
 - the escape: the lowest height above the ground over the whole pass after the IP, peak G, the closest distance to the target and the lowest airspeed, each flagged against its reference;
 - the time on each leg.
+
+## What the user sets and what the computer works out (RS-9)
+
+Patrick (relayed by Dad, 16 Oct 2026): "the user should sset a few parameters the then the computer sets the offset or whatever variable needs adjusting to hit". So for each run the user sets a few essentials. The computer then works out every other number the pass needs to hit the aim point (or to make the flypast on time and at height), and flies it. These include the release point, the aim-off for the wind, the roll-in point, the IP turn and the orbit exit.
+
+| Run | The user sets | The computer works out to hit |
+|---|---|---|
+| Flyover | target, run-in heading, speed, height over the target's top, time over target | the crab for the wind, the IP turn, the orbit exit for the time over target |
+| Practice bomb, flat | target, run-in heading, speed, release height | the release point (the CARP), so the aim-off for the wind; the crab; the orbit exit |
+| Practice bomb, dive | target, run-in heading, dive angle, speed at release, release height | the release point on the dive line and the aim-off point upwind; the roll-in point and height, so the dive is steady for a few seconds before release (5 s, an estimate); the orbit exit |
+| Cargo offload | drop zone and point of impact, run-in heading, drop speed, drop height | the release point (the CARP: the green light), the crab, the orbit exit |
+
+The IP distance, the wind, the escape and the orbit keep their defaults unless the user changes them. Under More, any worked-out number can be set by hand instead. The pass is then flown as set, and the card shows the miss that results, which shows what a late release or a wrong aim-off does. When the essentials can't hit (for example, a release too low for the dive to be steady), the computer says which essential stops it and what would work, and still flies the pass as set.
 
 ## Targets (RS-2)
 
