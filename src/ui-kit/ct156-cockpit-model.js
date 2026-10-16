@@ -5,7 +5,7 @@
 // file (forward-bow, canopy-rails, and the seat, pcl and stick rounded from the code's own pieces) replaces the code cockpit's mesh named ct156-cockpit-<part> once the file is in; until
 // then, or if it never loads, the code's part shows. Built in the cockpit's own feet (nose +X, left +Y, up +Z), so the
 // parts drop into the cockpit's group as they are. A picture only: no flight numbers.
-import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, loadAo, loadDelivered, loadPicture, onCt156Level, shadeWhenLoaded } from './ct156-blender.js';
+import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, loadAo, loadDelivered, loadPicture, onCt156Level, shadeWhenLoaded, warnUnlessReported } from './ct156-blender.js';
 
 const FILE = 'ct156-cockpit.glb';
 // The body's relief picture (3d-work slice 4.1: the glare shield's screws and rivets, on the body's own layout), drawn
@@ -31,7 +31,7 @@ function cockpitParts(THREE) {
     parts = loadDelivered(FILE, { tangents: (name) => name === RELIEF_PART }).then((list) => list.map(({ name, extras, meshes }) => ({
       name, ao: extras.ct156_ao ? loadAo(THREE, ct156Files() + extras.ct156_ao) : null, meshes,
     })));
-    parts.catch(() => {}); // a missing file leaves the code's parts showing
+    parts.catch((e) => warnUnlessReported(FILE, e, "the code's cockpit parts show")); // once per load; a missing file leaves the code's parts showing
   }
   return parts;
 }
@@ -123,5 +123,5 @@ function build(entry) {
         });
       }
     }
-  }, (e) => console.warn(`${FILE} did not load (${e?.message ?? e}); the code's cockpit parts show`));
+  }, () => {});
 }

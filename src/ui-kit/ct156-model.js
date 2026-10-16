@@ -27,7 +27,7 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, ct156PanelSheen, onCt156Level, loadDelivered, loadPicture, paintBands, paintGrain, shadeWhenLoaded } from './ct156-blender.js';
+import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, ct156PanelSheen, onCt156Level, loadDelivered, loadPicture, paintBands, paintGrain, shadeWhenLoaded, warnUnlessReported } from './ct156-blender.js';
 import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
@@ -1027,7 +1027,7 @@ function attachExterior(kit) {
       for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
       if (kit.propDelivered) for (const mesh of kit.propMeshes) shadeMesh(kit, mesh);
     });
-  }, (e) => console.warn(`${EXTERIOR_FILE} did not load (${e?.message ?? e}); the code model shows`));
+  }, (e) => warnUnlessReported(EXTERIOR_FILE, e, 'the code model shows'));
 }
 
 /** The gear's Blender file (ALL-34), as attachExterior: all its parts or none; without it the code's gear shows. */
@@ -1064,7 +1064,7 @@ function attachGear(kit) {
       kit.lampDelivered = true;
       for (const lamps of kit.lampShips) showLamps(lamps);
     }
-  }, (e) => console.warn(`${GEAR_FILE} did not load (${e?.message ?? e}); the code's gear shows`));
+  }, (e) => warnUnlessReported(GEAR_FILE, e, "the code's gear shows"));
 }
 
 /** The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture (NO_PICTURE). */
@@ -1080,7 +1080,7 @@ function attachPilots(kit) {
       return;
     }
     for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-  }, (e) => console.warn(`${PILOTS_FILE} did not load (${e?.message ?? e}); the code's pilots show`));
+  }, (e) => warnUnlessReported(PILOTS_FILE, e, "the code's pilots show"));
 }
 
 /**

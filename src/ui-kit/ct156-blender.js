@@ -130,6 +130,11 @@ export function loadCt156Points() {
   return points;
 }
 
+/** Logs a CT-156 file that did not load or decode (what then shows instead), unless the failure was already reported. */
+export function warnUnlessReported(file, error, fallback) {
+  if (!error?.ct156Reported) console.warn(`${file} did not load (${error?.message ?? error}); ${fallback}`);
+}
+
 /**
  * A delivered file's parts (loadParts), used only when every part carries the name of the delivery the import wrote
  * beside them, so a mixed or half-copied set never shows. This replaced the code's fingerprints (plan 3.4, Patrick
@@ -141,7 +146,7 @@ export function loadDelivered(file, options = {}) {
     const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
     if (!name || foreign.length) {
       console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);
-      throw new Error('not delivered');
+      throw Object.assign(new Error('not delivered'), { ct156Reported: true }); // said above: warnUnlessReported stays quiet
     }
     if (!told) {
       told = true;
