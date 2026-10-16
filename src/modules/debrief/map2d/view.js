@@ -13,6 +13,7 @@ import { projectRoute, routeBounds, drawRoute, projectSpace, drawSpace } from '.
 import { createTileLayer, ESRI_IMAGERY } from '../../../ui-kit/map-tiles.js';
 import { createVncLayer, chartsBounds, VNC_CHOICES } from './vnc.js';
 import { createSavedWeatherLayer } from './saved-weather.js';
+import { drawDrop } from './drop-layer.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../../core/geo.js';
 import { VNC_ANCHOR } from '../data/cymj.js';
 
@@ -44,9 +45,12 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * failed, failedKeys }, or null when there are none. fills(): the filled GPS
  * gaps to draw (gap-fill.js fillGaps's `fills`), or null while the fill is off.
  * space(): the airspace and airfields round the flight (DB-24; debrief/airspace.js), { key, toXY, airspace, airfields }, or null.
+ * drop(): the simulated drop to draw (DB-36; index.js dropDrawing, map2d/drop-layer.js), or null. placing(): true while the
+ * Drop box waits for a tap on the map; onTap(x, y) then gets the tapped point in map feet (a press that didn't move).
  */
 export function createMapView(canvas, {
   timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null, fills = () => null, space = () => null,
+  drop = () => null, placing = () => false, onTap = /** @type {(x: number, y: number) => void} */ (() => {}),
   savedWeather = /** @type {() => any[]} */ (() => []),
   labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
   onImagery = /** @type {(state: any) => void} */ (() => {}),
@@ -200,9 +204,30 @@ export function createMapView(canvas, {
       if (on.clockMarks) drawClockMarks(ctx, map, ships);
       const ball = tennis();
       if (ball?.points) drawTennis(ctx, map, ball);
+      const dropped = drop();
+      if (dropped) drawDrop(ctx, map, dropped);
       drawShips(ctx, map, ships, labels(flight, t));
     },
   });
+
+  // A tap on the map while the Drop box is placing its point of impact (DB-36): a press and release that moved under
+  // TAP_PX, so a drag still pans the map as before.
+  const TAP_PX = 6;
+  let press = null;
+  const onDown = (e) => {
+    press = e.button === 0 && placing() ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null;
+  };
+  const onUp = (e) => {
+    if (!press || e.pointerId !== press.id) return;
+    const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);
+    press = null;
+    if (moved > TAP_PX || !placing()) return;
+    const rect = canvas.getBoundingClientRect();
+    const [x, y] = map.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    onTap(x, y);
+  };
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointerup', onUp);
 
   return {
     /** Shows a new flight (or none) and fits it to the view. */
@@ -224,6 +249,10 @@ export function createMapView(canvas, {
       if (flight) map.fit(flightBounds(flight));
     },
     requestDraw: map.requestDraw,
+    /** Marks the map as waiting for a tap (the crosshair cursor) while the Drop box places its point of impact. */
+    setPlacing(on) {
+      canvas.classList.toggle('is-placing', Boolean(on));
+    },
     get view() {
       return map.view;
     },
@@ -233,6 +262,8 @@ export function createMapView(canvas, {
       weatherLayers.clear();
       savedLayer.dispose();
       charts.dispose();
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointerup', onUp);
       map.dispose();
     },
   };

@@ -10,6 +10,7 @@ import { formatZuluSeconds } from '../../core/time.js';
 import { puckSummary, puckLine } from './puck.js';
 import { timingSummary, timingLines } from './gps-timing.js';
 import { altitudeSummary, altitudeStatusLine } from './altitude.js';
+import { DROP_DEFAULTS } from './drop.js';
 
 /**
  * Ship colours as in V6 (line 2104), except #4, which V6 drew near-black on a
@@ -98,6 +99,8 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   tennisTofSec: 3,
   tennisRadiusFt: 250,
   tennisGravity: true,
+  // The simulated drop's box (DB-36), closed at first: its load, ship, drop zone size, wind and load numbers (drop.js).
+  ...DROP_DEFAULTS,
   // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
   // is gone: it was the same as Centre formation (#26).
   view: '2d',

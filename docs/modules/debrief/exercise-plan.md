@@ -1,6 +1,6 @@
-# Large exercises, up to 16 ships: plan (proposed)
+# Large exercises, up to 16 ships: plan (approved)
 
-> **Status:** proposed, waiting on Patrick's yes. Dad asked on 15 Oct 2026: "Additionally lets add a to the KML viewer an large 16 ship exercises option". Dad's picks below (15 Oct 2026, card answers). Until Patrick moves it up it sits on `future.md` ("Large exercises, up to 16 ships"). It would be built after the simulated drop (plan Step 3b).
+> **Status:** approved: Patrick said yes (relayed by Dad, 16 Oct 2026: "pat yes, build the 16 ship"). Dad asked on 15 Oct 2026: "Additionally lets add a to the KML viewer an large 16 ship exercises option". Dad's picks below (15 Oct 2026, card answers). Debrief plan Step 3c, built after the simulated drop (Step 3b).
 
 ## What it does
 
@@ -30,7 +30,7 @@ A file that fails to load leaves its slot empty with the reason, and the rest lo
 
 ## Steps
 
-0. **Patrick's yes** on this plan.
+0. **Patrick's yes** on this plan (16 Oct 2026, relayed by Dad).
 1. **Spec, requirements and decisions** with the screen picture, approved before code.
 2. **Flights as a level above the four slots** in the loading, the playback window and the debrief file; a four-file load unchanged.
 3. **Colours, labels, the Formation panel, the camera pills and the 3D types** per flight.
