@@ -157,7 +157,7 @@ function byType(row, giver, holder, swap = true) {
  *    and not past its perch (final turn or final), gives way to one that is not: a CT-156 climbing through 3,000 ft on
  *    the upwind (the overtake near the departure end, review Finding 4) or coming down through it before its perch
  *    (spec 4.19 item 6's words). In its final turn it is past the perch, the point of no return, and the next row
- *    decides (V2.446, TR-165: told to go around there, a CT-156 levelled where it was and turned onto the centreline
+ *    decides (V2.471, TR-165: told to go around there, a CT-156 levelled where it was and turned onto the centreline
  *    about 100 ft above an Astra on its initial, inside the red, where with no move it passed some 500 ft above);
  *  - one past its perch (final turn or final) has right of way over one that is not (the rows' own "final and past the
  *    perch have right of way"; Patrick's card, Q1: the perch is the point of no return); both past it: the rows after;
