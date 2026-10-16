@@ -27,7 +27,7 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, CT156_PICTURES, ct156Files, ct156Level, ct156PanelSheen, loadDelivered, loadPicture, paintBands, paintGrain, shadeWhenLoaded } from './ct156-blender.js';
+import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, ct156PanelSheen, onCt156Level, loadDelivered, loadPicture, paintBands, paintGrain, shadeWhenLoaded } from './ct156-blender.js';
 import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
@@ -869,12 +869,15 @@ function shadeMesh(kit, mesh, gear = false) {
       copy = gear ? aoShaded(mat, kit.gearAo) : aoShaded(mat, kit.ao, { ...kit.skin, mirrored });
       cache.set(mat, copy);
       const mine = mesh.userData.ct156Mine;
-      (mine?.includes(mat) ? mine : kit.own).push(copy);
+      const owner = mine?.includes(mat) ? mine : kit.own;
+      owner.push(copy);
+      kit.shadedCopies.push([copy, owner]); // so a level switch can free it (unshadeKit)
     }
     return copy;
   };
   const ghost = mesh.userData.ct156Ghost ?? ((m) => m); // the Debrief's see-through copy of a ship (it keeps the pictures)
   const plain = mesh.userData.ct156Ghost ? mesh.userData.ct156Plain : mesh.material;
+  mesh.userData.ct156Unshaded = plain; // the base a level switch goes back to: never re-shade an already shaded copy
   mesh.material = Array.isArray(plain) ? plain.map((m) => ghost(swap(m))) : ghost(swap(plain));
 }
 
@@ -943,9 +946,53 @@ function mirrorShape(THREE, into, from) {
   into.computeBoundingSphere();
 }
 
+/**
+ * A level switch (setCt156Level): every ship goes back to its plain paint, the shaded copies and the pictures' textures
+ * made at the old level are freed, and the next shading starts from each mesh's base material, not from a copy of a copy.
+ * The look sliders aren't touched: they live in shared uniforms and normalScale (ct156-blender.js), not in the files.
+ */
+function unshadeKit(kit) {
+  for (const set of [kit.exteriorMeshes, kit.gearMeshes, kit.propMeshes, kit.lampMeshes]) {
+    for (const mesh of set) {
+      const plain = mesh.userData.ct156Unshaded;
+      if (!plain) continue;
+      mesh.userData.ct156Unshaded = null;
+      setPlain(mesh, plain);
+    }
+  }
+  for (const [copy, owner] of kit.shadedCopies) {
+    copy.dispose();
+    const at = owner.indexOf(copy);
+    if (at !== -1) owner.splice(at, 1);
+  }
+  kit.shadedCopies.length = 0;
+  kit.shaded = new WeakMap();
+  kit.shadedMirrored = new WeakMap();
+  kit.gearShaded = new WeakMap();
+  const sheen = kit.skin.sheen;
+  if (sheen) {
+    sheen.dispose();
+    const at = kit.own.indexOf(sheen);
+    if (at !== -1) kit.own.splice(at, 1);
+  }
+  kit.ao = null;
+  kit.skin = {};
+  kit.gearAo = null;
+  kit.sheenInfo = null;
+}
+
+/** Loads the files at the level now in use: the shapes and the pictures (each attach drops itself if the level changes again before it finishes). */
+function attachFiles(kit) {
+  attachExterior(kit);
+  attachGear(kit);
+  attachPilots(kit);
+}
+
 function attachExterior(kit) {
+  const gen = ct156Generation();
+  const stale = () => kit.disposed || gen !== ct156Generation();
   loadDelivered(EXTERIOR_FILE, { tangents: true }).then((list) => {
-    if (kit.disposed) return;
+    if (stale()) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
     const missing = [...EXTERIOR_PARTS, ...LAYOUT2_EXTERIOR].filter((name) => !usable(byName.get(name)));
@@ -971,7 +1018,7 @@ function attachExterior(kit) {
     const P = CT156_PICTURES[ct156Level()], at = ct156Files();
     const pic = (k) => loadPicture(kit.THREE, at + P[k].file, P[k].size);
     shadeWhenLoaded({ ao: pic('ao'), normal: pic('normal'), mask: pic('mask'), weather: pic('weather') }, (p) => {
-      if (kit.disposed) return;
+      if (stale()) return;
       const sheen = ct156PanelSheen(kit.THREE, p.mask);
       kit.own.push(sheen.texture);
       kit.sheenInfo = { panels: sheen.panels, ms: sheen.ms, samples: sheen.samples };
@@ -985,8 +1032,10 @@ function attachExterior(kit) {
 
 /** The gear's Blender file (ALL-34), as attachExterior: all its parts or none; without it the code's gear shows. */
 function attachGear(kit) {
+  const gen = ct156Generation();
+  const stale = () => kit.disposed || gen !== ct156Generation();
   loadDelivered(GEAR_FILE).then((list) => {
-    if (kit.disposed) return;
+    if (stale()) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
     const missing = [...GEAR_PARTS, ...GEAR_WELLS].filter((name) => !usable(byName.get(name)));
@@ -1003,7 +1052,7 @@ function attachGear(kit) {
     takeShape(kit.THREE, kit.geo.gearNoseWell, byName.get('gearNoseWell').meshes);
     const { gearAo } = CT156_PICTURES[ct156Level()];
     shadeWhenLoaded({ ao: loadPicture(kit.THREE, ct156Files() + gearAo.file, gearAo.size) }, ({ ao }) => {
-      if (kit.disposed) return;
+      if (stale()) return;
       kit.gearAo = ao;
       for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
       for (const lamps of kit.lampShips) showLamps(lamps);
@@ -1020,8 +1069,9 @@ function attachGear(kit) {
 
 /** The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture (NO_PICTURE). */
 function attachPilots(kit) {
+  const gen = ct156Generation();
   loadDelivered(PILOTS_FILE).then((list) => {
-    if (kit.disposed) return;
+    if (kit.disposed || gen !== ct156Generation()) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
     const missing = PILOT_PARTS.filter((name) => !usable(byName.get(name)));
@@ -2857,7 +2907,11 @@ function buildKit(THREE) {
     marks: decalMat(tex.marks),
     dot: decalMat(tex.dot),
   };
-  const kit = { THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, dispose: () => ((kit.disposed = true), own.forEach((o) => o.dispose())) };
+  const kit = {
+    THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, offLevel: () => {},
+    dispose: () => ((kit.disposed = true), kit.offLevel(), own.forEach((o) => o.dispose())),
+  };
+  kit.shadedCopies = []; // [copy, the list that owns it]: the shaded materials a level switch frees
   // Each outside part's fingerprint of the code's own shape, before the file's shape takes its place: read by the
   // export scripts in tools/blender/ (ct156ExteriorPieces); since plan 3.4 the app no longer compares it with the file.
   kit.hashes = Object.fromEntries(EXTERIOR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
@@ -2888,9 +2942,12 @@ function buildKit(THREE) {
   kit.lampShips = new Set();
   kit.lampDelivered = false;
   if (typeof window !== 'undefined') {
-    attachExterior(kit);
-    attachGear(kit);
-    attachPilots(kit);
+    attachFiles(kit);
+    // A level switch under ships already made: back to plain paint, the old level's copies and pictures freed, the new level's loaded.
+    kit.offLevel = onCt156Level(() => {
+      unshadeKit(kit);
+      attachFiles(kit);
+    });
   }
   return kit;
 }
@@ -3440,8 +3497,10 @@ export function disposeCt156Model(group) {
     d.kit.exteriorMeshes.delete(o);
     d.kit.propMeshes.delete(o);
     d.kit.lampMeshes.delete(o);
+    d.kit.gearMeshes.delete(o);
   });
   d.kit.lampShips.delete(d.lamps);
+  d.kit.shadedCopies = d.kit.shadedCopies.filter(([, owner]) => owner !== d.mine); // freed below with the ship's own
   for (const o of d.mine) {
     o.map?.dispose();
     o.dispose();

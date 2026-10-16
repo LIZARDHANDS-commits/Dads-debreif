@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Harvard model Graphics level test page</title>
+  </head>
+  <body>
+    <canvas id="c" width="300" height="200" aria-label="Harvard model"></canvas>
+    <!-- Straight from src/, the bare name "three" needs a map to the installed copy. -->
+    <script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js" } }</script>
+    <script type="module">
+      // One Harvard drawn at High, then Performance, then High again, counting what the renderer holds on the GPU
+      // (renderer.info.memory) each time its files and pictures are in, and which files the page asked for
+      // (tests/e2e/ui-kit.spec.js, "Harvard model Graphics level").
+      import * as THREE from 'three';
+      import { createCt156Model, disposeCt156Model } from '/src/ui-kit/ct156-model.js';
+      import { setCt156Level } from '/src/ui-kit/ct156-blender.js';
+
+      try {
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c') });
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, 1.5, 0.1, 1000);
+        camera.position.set(0, 5, 30);
+        const count = () => ({ ...renderer.info.memory });
+        const asked = () => performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p.includes('/models/ct156/'));
+        const pause = (ms) => new Promise((done) => setTimeout(done, ms));
+        const shaded = (ship) => {
+          let n = 0;
+          ship.traverse((o) => { if (o.isMesh) for (const m of [o.material].flat()) if (m?.aoMap) n++; });
+          return n;
+        };
+        // Waits until the ship's paint is shaded by the level's pictures and the count holds still, then draws it. (The very
+        // first frame draws the fine detail too, 140 draw calls then 29, so the first High holds 14 more geometries than any later level.)
+        async function settled(ship) {
+          let last = -1, still = 0;
+          for (let i = 0; i < 240 && still < 6; i++) {
+            await pause(250);
+            const n = shaded(ship);
+            still = n > 0 && n === last ? still + 1 : 0;
+            last = n;
+          }
+          renderer.render(scene, camera);
+          return { shaded: last, memory: count(), files: asked() };
+        }
+
+        const ship = createCt156Model(THREE, { color: '#c03030', number: 1 });
+        scene.add(ship);
+        const out = {};
+        out.high = await settled(ship);
+        setCt156Level('performance');
+        out.unshaded = shaded(ship); // back to plain paint the moment the level changes
+        out.performance = await settled(ship);
+        setCt156Level('high');
+        out.highAgain = await settled(ship);
+        disposeCt156Model(ship);
+        renderer.render(scene, camera);
+        out.disposed = count();
+        window.__ct156Level = out;
+      } catch (e) {
+        window.__ct156Level = { error: String(e) }; // e.g. no WebGL: fail with the reason, not a timeout
+      }
+    </script>
+  </body>
+</html>

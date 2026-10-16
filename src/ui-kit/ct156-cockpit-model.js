@@ -5,7 +5,7 @@
 // file (forward-bow, canopy-rails, and the seat, pcl and stick rounded from the code's own pieces) replaces the code cockpit's mesh named ct156-cockpit-<part> once the file is in; until
 // then, or if it never loads, the code's part shows. Built in the cockpit's own feet (nose +X, left +Y, up +Z), so the
 // parts drop into the cockpit's group as they are. A picture only: no flight numbers.
-import { aoShaded, CT156_PICTURES, ct156Files, ct156Level, loadAo, loadDelivered, loadPicture, shadeWhenLoaded } from './ct156-blender.js';
+import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, loadAo, loadDelivered, loadPicture, onCt156Level, shadeWhenLoaded } from './ct156-blender.js';
 
 const FILE = 'ct156-cockpit.glb';
 // The body's relief picture (3d-work slice 4.1: the glare shield's screws and rivets, on the body's own layout), drawn
@@ -14,6 +14,8 @@ const RELIEF_PART = 'body';
 
 /** The file's parts, loaded once per page and shared by every cockpit: Promise of [{ name, ao, meshes }]. */
 let parts = null;
+const attached = new Map(); // group -> its attach (what it added and made), while the cockpit lives
+let stopLevel = null; // stops onLevel following the level, once no cockpit is left
 function cockpitParts(THREE) {
   if (!parts) {
     parts = loadDelivered(FILE, { tangents: (name) => name === RELIEF_PART }).then((list) => list.map(({ name, extras, meshes }) => ({
@@ -32,8 +34,48 @@ function cockpitParts(THREE) {
  */
 export function attachCockpitModel(THREE, group, mats, own = (m) => m, partMats = {}) {
   if (typeof document === 'undefined') return;
+  const entry = { THREE, group, mats, partMats, own: (m) => (entry.mine.push(m), own(m)), mine: [], added: [], hidden: [] };
+  attached.set(group, entry);
+  stopLevel ??= onCt156Level(onLevel);
+  build(entry);
+}
+
+/** Frees what a cockpit's Blender parts made (its materials; the shared shapes are freed by onLevel) and shows the code's parts again. */
+function unbuild(entry) {
+  for (const part of entry.added) part.removeFromParent();
+  for (const code of entry.hidden) code.visible = true;
+  for (const m of entry.mine) m.dispose();
+  entry.added = [];
+  entry.hidden = [];
+  entry.mine = [];
+}
+
+/** A level switch: every cockpit's parts, the shared file and its pictures are freed, and the new level's loaded. */
+function onLevel() {
+  const old = parts;
+  parts = null;
+  old?.then((list) => list.forEach(({ meshes }) => meshes.forEach(({ geometry }) => geometry.dispose())), () => {});
+  for (const entry of attached.values()) {
+    unbuild(entry);
+    build(entry);
+  }
+}
+
+/** Stops a cockpit following the level (its dispose calls this); the last one stops the listener. */
+export function detachCockpitModel(group) {
+  attached.delete(group);
+  if (!attached.size && stopLevel) {
+    stopLevel();
+    stopLevel = null;
+  }
+}
+
+function build(entry) {
+  const { THREE, group, mats, partMats, own } = entry;
+  const gen = ct156Generation();
+  const stale = () => group.userData.disposed || gen !== ct156Generation() || attached.get(group) !== entry;
   cockpitParts(THREE).then((list) => {
-    if (group.userData.disposed) return;
+    if (stale()) return;
     for (const { name, ao, meshes } of list) {
       // Every part of the imported delivery replaces the code's part of its name (loadDelivered checked the file came
       // from that delivery; since plan 3.4 the code's fingerprints are no longer compared). 'shade' is the pictured
@@ -56,11 +98,15 @@ export function attachCockpitModel(THREE, group, mats, own = (m) => m, partMats 
         if (m !== base && geometry.attributes.tangent) relief.push([mesh, base]);
       }
       group.add(part);
-      if (code) code.visible = false;
+      entry.added.push(part);
+      if (code) {
+        code.visible = false;
+        entry.hidden.push(code);
+      }
       if (relief.length) {
         const { cockpitNormal: n } = CT156_PICTURES[ct156Level()];
         shadeWhenLoaded({ normal: loadPicture(THREE, ct156Files() + n.file, n.size) }, ({ normal }) => {
-          if (group.userData.disposed) return;
+          if (stale()) return;
           for (const [mesh, base] of relief) mesh.material = own(aoShaded(base, ao, { normal }));
         });
       }

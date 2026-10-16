@@ -359,4 +359,25 @@ test.describe('Harvard model memory', () => {
       expect(inScene).toBe(0);
     }
   });
+
+  test('a Graphics level switch loads the other files and returns the renderer to its baseline', async ({ page }) => {
+    await page.route(/\/models\//, (route) =>
+      route.fulfill({ path: join(ROOT, 'public', decodeURIComponent(new URL(route.request().url()).pathname)) }));
+    await page.goto(`${site.url}tests/e2e/pages/ct156-level.html`);
+    await page.waitForFunction(() => window.__ct156Level, null, { timeout: 90_000 });
+    const { error, high, unshaded, performance, highAgain } = await page.evaluate(() => window.__ct156Level);
+    expect(error).toBeUndefined();
+    expect(high.shaded).toBeGreaterThan(0); // the pictures are on the paint
+    expect(high.files.some((f) => f.includes('/ct156/performance/'))).toBe(false); // High asked for none of Performance's
+    expect(unshaded).toBe(0); // plain paint the moment the level changes, none of the old level's pictures left on it
+    expect(performance.shaded).toBe(high.shaded);
+    expect(performance.files.some((f) => f.endsWith('/ct156/performance/ct156-exterior.glb'))).toBe(true);
+    expect(performance.files.some((f) => f.endsWith('/ct156/performance/ct156-exterior-normal.png'))).toBe(true);
+    expect(highAgain.shaded).toBe(high.shaded);
+    // High, Performance, High: nothing left over from Performance. The first High holds 14 geometries more than any later
+    // level (the first frame draws the fine detail once, then hides it), so back at High it is at Performance's count.
+    expect(highAgain.memory.textures).toBe(high.memory.textures);
+    expect(highAgain.memory.geometries).toBeLessThanOrEqual(high.memory.geometries);
+    expect(highAgain.memory).toEqual(performance.memory);
+  });
 });

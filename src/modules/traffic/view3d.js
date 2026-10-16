@@ -19,6 +19,7 @@ import {
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
@@ -1810,6 +1811,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       // A logarithmic depth buffer, so the perspective views can draw from a foot away (the cockpit on the runway) without the
       // stacked photo squares flickering far off (TR-96).
       // Performance draws without edge smoothing (TR-152); a switch reloads the page, as the canvas keeps its first setting.
+      // The CT-156's files and pictures follow it (shared plan Step 3b item 8).
+      setCt156Level(source.settings?.().graphicsQuality === 'low' ? 'performance' : 'high');
       renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document) && source.settings?.().graphicsQuality !== 'low', logarithmicDepthBuffer: true });
     } catch (err) {
       canvas.remove();
@@ -1955,6 +1958,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     releaseGround();
     tightTier.dispose();
     releaseCore();
+    setCt156Level('high'); // the files' level is the view's: a module with no Graphics switch gets High
     patchTexture?.dispose();
     patchTexture = null;
     patchCanvas = null;
