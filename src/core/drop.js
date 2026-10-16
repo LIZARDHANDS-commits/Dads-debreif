@@ -124,10 +124,9 @@ export function carp({ target, heightFt, ground, load, windAt = null, groundAt =
     const ex = target.x - fall.impact.x;
     const ey = target.y - fall.impact.y;
     const missFt = Math.hypot(ex, ey);
-    if (missFt <= toleranceFt) return { x: rx, y: ry, missFt, passes: pass, fall };
+    if (missFt <= toleranceFt || pass === maxPasses) return { x: rx, y: ry, missFt, passes: pass, fall }; // the miss is this point's own
     rx += ex;
     ry += ey;
-    if (pass === maxPasses) return { x: rx, y: ry, missFt, passes: pass, fall };
   }
   return null;
 }
