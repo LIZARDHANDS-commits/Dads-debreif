@@ -222,7 +222,7 @@ export function createView3d(canvas, {
       relief = gl.terrain.sync({ flight: shown, ground: ground(), groundFt: tracksGround, space: spaceWant, scale: view.altScale });
     } else gl.terrain.hide();
     tellTerrain(relief ? { words: relief.words, credit: relief.credit } : null);
-    const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit, relief, look: lk });
+    const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit, relief, look: lk, watched: w });
     if (cockpit?.again && !panelRetry) {
       panelRetry = timers.after(cockpit.again, () => {
         panelRetry = null;
@@ -424,7 +424,7 @@ function disposePicture(gl) {
 }
 
 /** Draws the picture; returns the slots drawn as a model (the rest get a 2D marker). */
-function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum, filled = null, cockpit = null, relief = null, look = null }) {
+function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum, filled = null, cockpit = null, relief = null, look = null, watched = 0 }) {
   // A ship's colour and aircraft: its flight's in an exercise (DB-37), else #1 to #4's colours and 3D settings' Aircraft.
   const colorOf = (slot) => (look?.exercise ? look.color(slot) : SHIP_COLORS[slot]);
   const typeOf = (slot) => (look?.exercise ? look.model(slot, on.model3d) : on.model3d);
@@ -608,7 +608,10 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     const type = typeOf(s.slot);
     const t38a = type === 't38a';
     const c130j = type === 'c130j' && !(inCockpit && (!look?.exercise || s.ridden));
-    return { type, t38a, c130j, key: `${t38a ? 't38a' : c130j ? 'c130j' : paint}|${lengthFt}|${rootScale}` };
+    // In an exercise the T-38A and C-130J files' light copies draw the ships outside the watched flight, which sit away
+    // from the camera (DB-37, the three-performance skill's far-ship rule); the watched flight and the ridden ship stay full.
+    const detail = look?.exercise && !s.ridden && watched && Math.ceil(s.slot / 4) !== watched && (t38a || c130j) ? 'lite' : 'high';
+    return { type, t38a, c130j, detail, key: `${t38a ? 't38a' : c130j ? 'c130j' : paint}|${lengthFt}|${rootScale}|${detail}` };
   };
   const riddenKind = cockpit ? shipKind({ slot: cockpit.slot, ridden: true }) : null;
   const t38a = Boolean(riddenKind?.t38a);
@@ -637,8 +640,8 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
       };
       const fallback = () => createCt156Model(THREE, options); // the CT-156 until a model file is in, or if it fails
       const solid = () => {
-        if (kind.t38a) return createT38aModel(THREE, { lengthFt, fallback, onReady: options.onReady });
-        if (kind.c130j) return createC130jModel(THREE, { lengthFt, fallback, onReady: options.onReady });
+        if (kind.t38a) return createT38aModel(THREE, { lengthFt, detail: kind.detail, fallback, onReady: options.onReady });
+        if (kind.c130j) return createC130jModel(THREE, { lengthFt, detail: kind.detail, fallback, onReady: options.onReady });
         return createCt156Model(THREE, options);
       };
       entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: solid() };

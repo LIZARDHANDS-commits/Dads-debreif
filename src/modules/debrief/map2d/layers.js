@@ -5,15 +5,15 @@
 // CSS pixels; `map` is the ui-kit canvas view (worldToScreen, visibleBounds,
 // view). Where each thing goes is worked out in geometry.js.
 import { SHIP_COLORS, OUTLINED_SHIPS, OUTLINE_COLOR, trackRuns } from '../state.js';
+import { spacingPairs, line39, coneOutlines, trailRuns, TRAIL_WINDOW_S } from './geometry.js';
+import { KT_TO_FTPS } from '../../../core/units.js';
+import { arrowVector } from '../weather/wind-arrows.js';
 
 /**
  * How ships look and are named on the map: #1 to #4's colours, outlines and numbers, unless the view passes an
  * exercise's (exercise.js shipLook, DB-37: each flight's colour family and "<call sign> <n>").
  */
 const FOUR_SHIP_LOOK = Object.freeze({ color: (slot) => SHIP_COLORS[slot], outlined: (slot) => OUTLINED_SHIPS.has(slot), label: (slot) => `#${slot}` });
-import { spacingPairs, line39, coneOutlines, trailRuns, TRAIL_WINDOW_S } from './geometry.js';
-import { KT_TO_FTPS } from '../../../core/units.js';
-import { arrowVector } from '../weather/wind-arrows.js';
 
 /** V6's grid spacing (line 2690). */
 export const GRID_FT = 5000;

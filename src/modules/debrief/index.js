@@ -63,7 +63,7 @@ import {
 import { TERRAIN_ZOOM } from './terrain-heights.js';
 import {
   SHIPS_PER_FLIGHT, isExercise, perFlight, choicesOf, fillPerFlight, readoutsByFlight, formationByFlight, shipLook, readCrew, crewStorageKey,
-  CREW_FILE_RULES, crewForFile, crewFromFile, flightOf, flightGroups,
+  CREW_FILE_RULES, crewForFile, crewFromFile, flightOf, numberOf, flightGroups, defaultCallSign,
 } from './exercise.js';
 import { latLonToLocalFt, localFtToLatLon, lonLatToTile } from '../../core/geo.js';
 import { headingRadToCompassDeg } from '../../core/angles.js';
@@ -1048,9 +1048,10 @@ function mount(root, app) {
             lastDropLoad = fileDrop.patch.dropLoad ?? lastDropLoad; // the file's load numbers stand, not the preset's
             layout.update(fileDrop.patch);
           }
-          const left = leftOutWords(next.failed);
+          const fileCrew = crewFromFile(opened.settings);
+          const left = leftOutWords(next.failed, fileCrew ?? {});
           return {
-            drop: fileDrop?.place, flight: next, pucks: filePucks, timings: fileTimings, altitudes: fileAltitudes, crew: crewFromFile(opened.settings) ?? undefined,
+            drop: fileDrop?.place, flight: next, pucks: filePucks, timings: fileTimings, altitudes: fileAltitudes, crew: fileCrew ?? undefined,
             dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved,
             notice: [left, wx.problem ?? (droppedNotice(wx.dropped) || '')].filter(Boolean).join(' ') || undefined,
           };
@@ -1079,10 +1080,12 @@ function mount(root, app) {
     };
   }
 
-  // The words for the track files an exercise left out because they couldn't be read (DB-37), or ''.
-  function leftOutWords(failed) {
+  // The words for the track files an exercise left out because they couldn't be read (DB-37), or ''. Each is named by
+  // its flight's call sign and number ("Viper 3"), from the picker's or the file's call signs.
+  function leftOutWords(failed, names = {}) {
     if (!failed?.length) return '';
-    const each = failed.map((x) => `Flight ${flightOf(x.slot)} #${((x.slot - 1) % SHIPS_PER_FLIGHT) + 1}: ${x.message}`);
+    const signs = readCrew(names);
+    const each = failed.map((x) => `${signs[flightOf(x.slot)]?.callSign || defaultCallSign(flightOf(x.slot))} ${numberOf(x.slot)}: ${x.message}`);
     return `Left out, couldn't be read: ${each.join(' ')} The rest loaded.`;
   }
 
@@ -1136,7 +1139,7 @@ function mount(root, app) {
       // Five or more files are an exercise (DB-37): a file that can't be read is left out with its reason, the rest load.
       const exercise = picked.length > SHIPS_PER_FLIGHT;
       return loadFlight(picked.map((p, i) => ({ slot: p.slot, name: p.file.name, text: texts[i] })), { maxTracks: MAX_SHIPS, skipBad: exercise });
-    }, (next) => ({ flight: next, crew: pickedCrew ?? undefined, notice: leftOutWords(next.failed) || undefined })),
+    }, (next) => ({ flight: next, crew: pickedCrew ?? undefined, notice: leftOutWords(next.failed, pickedCrew ?? {}) || undefined })),
   );
   // A flight's call sign or aircraft changed in the flights table (DB-37): kept for this flight, and every view shows it.
   ui.onCrew((f, patch) => {
