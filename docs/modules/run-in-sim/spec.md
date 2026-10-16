@@ -41,7 +41,7 @@ Patrick (relayed by Dad, 16 Oct 2026): "the user should sset a few parameters th
 |---|---|---|
 | Flyover | target, run-in heading, speed, height over the target's top, time over target | the crab for the wind, the IP turn, the orbit exit for the time over target |
 | Practice bomb, flat | target, run-in heading, speed, release height | the release point (the CARP), so the aim-off for the wind; the crab; the orbit exit |
-| Practice bomb, dive | target, run-in heading, dive angle, speed at release, release height | the release point on the dive line and the aim-off point upwind; the roll-in point and height, so the dive is steady for a few seconds before release (5 s, an estimate); the orbit exit |
+| Practice bomb, dive | target, run-in heading, dive angle, roll-in speed, release height | the release point on the dive line and the aim-off point upwind, for the speed the dive arrives with; the roll-in point and height, so the dive is steady for a few seconds before release (5 s, an estimate); the orbit exit. Under More, the speed at release can be set instead and the roll-in speed is worked out (RS-10) |
 | Cargo offload | drop zone and point of impact, run-in heading, drop speed, drop height | the release point (the CARP: the green light), the crab, the orbit exit |
 
 The IP distance, the wind, the escape and the orbit keep their defaults unless the user changes them. Under More, any worked-out number can be set by hand instead. The pass is then flown as set, and the card shows the miss that results, which shows what a late release or a wrong aim-off does. When the essentials can't hit (for example, a release too low for the dive to be steady), the computer says which essential stops it and what would work, and still flies the pass as set.
@@ -83,6 +83,7 @@ Written down before code, as the rule book asks. Search first: everything below 
   - speed held with the throttle.
   The gains are the module's own, and each is marked an estimate. No new formula is written for the flying. Anything new the pilot needs that another module could use goes into core with a line in the flight-math list.
 - **Speeds name their kind:** the user sets KIAS. The model flies true airspeed, converted with `iasToTasKt` at the day's temperature (`densityRatio`). The result card says KIAS for the aircraft and ground speed where it means it.
+- **The dive is flown at idle** with the idle prop's drag on top of the clean airframe's: the Formation Sim's TS-61 drag (`turn-sim/live/slow-down.js`, sized from Patrick's overhead break, about 5 kt/s level at 200 KIAS), imported where it is (RS-10). Without it, a 30° dive from a 200 KIAS roll-in passed VMO.
 - **The load:** core `drop.js` as built for the Debrief (DB-36), with its two presets and their estimates. Its CARP today assumes a level release. The dive release needs the CARP to take the release velocity's vertical part (`ground.vz`) and to slide the release point along the dive line instead of over the ground. That is an improvement to `carp()` in place, with a line in the flight-math list, never a second copy (RS-5).
 - **Heights:** the ground under the aircraft and under the load from the shared terrain heights. Heights on screen are AGL (above the ground under the target) unless they say MSL.
 - **Limits (RS-6):** what the aircraft physically can't do always holds: the stall line (`availableG`), its roll limit and G onset. Published limits (the G limit, VMO) and the module's own references (the minimum escape height and target distance) are flagged on screen, never walls. A setting past them is flown as set, and the card flags it. A setting the aircraft can't fly (a dive it can't pull out of above the ground, a turn tighter than the stall line allows) is flown as best it can, and the card says so. It is never silently changed.
@@ -95,7 +96,7 @@ Written down before code, as the rule book asks. Search first: everything below 
 | Target | Stadium bowl | Range circle | Range circle | Drop zone, 300 ft radius (estimate) |
 | Orbit | 3,000 ft AGL, 2.0 NM, left, 200 KIAS | same | same | 1,500 ft AGL, 3.0 NM, left, 160 KIAS |
 | IP | 5.0 NM | 5.0 NM | 5.0 NM | 6.0 NM |
-| Run-in speed | 250 KIAS | 220 KIAS | 250 KIAS | 140 KIAS (the G-12's typical release speed, Safran/Airlift data sheet, unchecked; drop-plan.md) |
+| Run-in speed | 250 KIAS | 220 KIAS | 200 KIAS at the roll-in (RS-10) | 140 KIAS (the G-12's typical release speed, Safran/Airlift data sheet, unchecked; drop-plan.md) |
 | Run-in height | 1,000 ft above the target's top (the CARs 602.14 built-up-area reference, to be checked) | 1,000 ft AGL | roll-in 6,000 ft AGL | 600 ft AGL (above drop-plan.md's 475 to 550 ft lowest drop height, unchecked) |
 | Dive angle | — | — | 30° | — |
 | Release | — | at the CARP | 3,000 ft AGL, at the CARP | at the CARP |

@@ -181,7 +181,9 @@ export function pilotStep(p, cmd, env, dt) {
   }
 
   const w = windAt(s.z);
-  const next = stepPointMass(s, { g, bankRad: degToRad(bankDeg) }, dt, aircraft.excessFn(throttle));
+  // At idle (cmd.idle) the idle prop's drag counts too, where the aircraft has it (aircraft.js idleExcessFn).
+  const excess = cmd.idle && aircraft.idleExcessFn ? aircraft.idleExcessFn : aircraft.excessFn(throttle);
+  const next = stepPointMass(s, { g, bankRad: degToRad(bankDeg) }, dt, excess);
   next.x += w.x * dt; // the air moves the aircraft with it
   next.y += w.y * dt;
   return {

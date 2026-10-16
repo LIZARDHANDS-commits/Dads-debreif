@@ -4,13 +4,18 @@
 // is approved, RS-Q1) means adding one entry here and listing it on a run in defaults.js.
 import {
   excessFnFor, stallLimitG, rollWithinT6A, T6A_G_ONSET, T6A_G_ONSET_CEILING_GPS, T6A_LIMITS, T6A_MANOEUVRE, maxKiasT6A,
-  attitudeDegFromClimb,
+  attitudeDegFromClimb, tasToIasKt,
 } from '../../core/t6-performance.js';
+import { excessPerWeight } from '../turn-sim/live/slow-down.js';
 
 /**
  * The CT-156 Harvard II on the T-6A performance set (core t6-performance.js), the set Traffic, the Formation and the EP
  * Tabletop fly:
  *  - excessFn(throttle): (thrust − drag) ÷ weight for the point-mass step at part throttle (excessFnFor);
+ *  - idleExcessFn: the same at idle, with the idle prop's drag (the blades full fine) on top of the clean airframe's: the
+ *    Formation Sim's TS-61 drag (turn-sim live/slow-down.js, sized from Patrick's overhead break, about 5 kt/s level at
+ *    200 KIAS), used where moving it to core isn't worth it yet (rule book, 11 Oct 2026). The dive is flown at idle;
+ *    without it the dive gained far more speed than a T-6 does (Dad's pick (a), 16 Oct 2026, found it past VMO);
  *  - stallG(kias): the stall line, the most G the wing gives (stallLimitG, stall 86 KIAS, Patrick 30 Sep): a physical
  *    limit, always held;
  *  - roll(limits, ktas): a pilot's roll held under the aircraft's (rollWithinT6A, estimates, ALL-39);
@@ -29,6 +34,7 @@ const CT156 = Object.freeze({
   model: 'ct156',
   cockpit: true,
   excessFn: (throttle) => excessFnFor(throttle),
+  idleExcessFn: (ktas, altFt, g) => excessPerWeight('idle', tasToIasKt(ktas, altFt), altFt, g),
   stallG: (kias) => stallLimitG(kias),
   roll: (limits, ktas) => rollWithinT6A(limits, ktas),
   gOnset: Object.freeze({
