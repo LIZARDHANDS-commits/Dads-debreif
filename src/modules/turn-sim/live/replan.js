@@ -34,6 +34,8 @@ function nearestPlace(lead, wing, spacingFt = 6000, lastSide = -1) {
   const s = Math.sign(rel.left) || lastSide;
   let best = { key: 'lab', side: s, offFt: Infinity };
   for (const key of Object.keys(FORMATIONS)) {
+    // The corner (TS-231) is left out: a press mid-move plans from the places it did before the corner was a formation.
+    if (key === 'corner') continue;
     const side = key === 'astern' ? 0 : s;
     const slot = pairSlot(key, side, spacingFt);
     const offFt = Math.hypot(rel.fwd - slot.fwd, rel.left - slot.left);

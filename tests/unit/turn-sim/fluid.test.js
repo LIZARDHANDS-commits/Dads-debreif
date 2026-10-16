@@ -16,7 +16,8 @@
 //    15° off Lead's tail (Patrick 22:28Z, shared ±5°), inside the 60° cone, 30° either side (Patrick's pick row 2);
 //  - Lead's level turn is level (shared ±100 ft); Terminate ends with the pair in fighting wing (Patrick's pick row 7);
 //  - climb and descend (V2.18): Lead climbs or descends and levels off;
-//  - the loop (V2.18): over the top and back to level on Lead's heading at about 230 KIAS (SMM 7.5, Table 7.1);
+//  - the loop (V2.18; V2.424): at full power Lead pulls at whatever speed he has, 200 KIAS or more, and comes out within
+//    15 kt of it, never over his 4 G (TS-221, Patrick 12 Oct 2026; Gen Book p.11);
 //  - the side swap (V2.19): through a hard reversal #2 may change sides, and only behind Lead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,7 +25,9 @@ import { createFormation } from '../../../src/modules/turn-sim/live/formation.js
 import { judgeFormation } from '../../../src/modules/turn-sim/live/judge.js';
 import { checkFluidRange } from '../../../src/modules/turn-sim/live/fluid.js';
 import { TOLERANCES } from '../../helpers/tolerances.js';
-import { T6A_ROLL } from '../../../src/core/t6-performance.js';
+import { T6A_ROLL, iasToTasKt } from '../../../src/core/t6-performance.js';
+import { leadStateOf, stepLead, loop } from '../../../src/modules/turn-sim/live/fluid-lead.js';
+import { KT_TO_FTPS } from '../../../src/core/units.js';
 
 const BUBBLE_FT = 500; // SMM 16.17 para 44c; Gen Book p.11
 const LIVE_FLOOR_FT = 400; // the live wingman: 500 (Patrick 12 Oct 2026 01:53Z) less the shared ±100 ft margin
@@ -264,4 +267,32 @@ test('Live #2: from high and close in the cone, Lead\'s standard sequence turnin
     farFt = Math.max(farFt, f.state.fluid.readouts.rangeFt);
   }
   assert.ok(farFt < 1500, `#2 kept Lead through the 360° into him: farthest ${Math.round(farFt)} ft`);
+});
+
+test('Lead\'s loop at full power: from 200 and from 250 KIAS he comes out within 15 kt of his entry, never over 4 G', () => {
+  // TS-221 (Patrick 12 Oct 2026): "Min speed for loop is 200 ... Exit must be within 15 knots of entry"; Lead's +4 G in
+  // fluid manoeuvring (Gen Book p.11), with the shared 0.5 G margin for the eased G. 8,000 ft, wings level, PCL MAX. The
+  // loop is generous: 60 s for one that takes about 25.
+  const EXIT_TOL_KT = 15;
+  const LEAD_MAX_G = 4;
+  for (const kias of [200, 250]) {
+    const altFt = 8000;
+    const a = { headingRad: 0, tasFtps: iasToTasKt(kias, altFt) * KT_TO_FTPS, climbFtps: 0, xFt: 0, yFt: 0, altAboveFt: 0, bankDeg: 0, rollRateDps: 0, g: 1 };
+    let st = leadStateOf(a, altFt);
+    const ctl = loop();
+    const mem = ctl.init(st, {});
+    let r = null;
+    let maxG = 0;
+    let wentOver = false;
+    for (let i = 0; i < 1200; i++) {
+      r = ctl.step(st, mem);
+      st = stepLead(st, { ...r, lead: true });
+      maxG = Math.max(maxG, st.g);
+      if (st.nose.z < -0.5) wentOver = true; // nose well down: he came over the top
+      if (r.done) break;
+    }
+    assert.ok(r.done && wentOver, `${kias} KIAS: the loop came round and ended`);
+    assert.ok(Math.abs(r.exitKias - r.entryKias) <= EXIT_TOL_KT, `${kias} KIAS: in at ${r.entryKias.toFixed(1)}, out at ${r.exitKias.toFixed(1)}`);
+    assert.ok(maxG <= LEAD_MAX_G + TOLERANCES.G_FORCE, `${kias} KIAS: Lead pulled ${maxG.toFixed(2)} G`);
+  }
 });
