@@ -1,0 +1,107 @@
+[
+ {
+  "case": "vertical-T1",
+  "what": "height against Lead (ft) for a 40 ft step in the height target",
+  "rig_final": 1,
+  "rig_peak": 1.014,
+  "rig_overshoot": 1,
+  "rig_t63": 4.85,
+  "filter_steps": 0,
+  "trim": {
+   "sFt": null,
+   "dFt": null,
+   "slantFt": 628,
+   "heightFt": -50,
+   "job": "swept"
+  },
+  "lin_final": 1.0,
+  "lin_peak": 1.013,
+  "lin_overshoot": 1,
+  "lin_t63": 4.62,
+  "verdict": "holds"
+ },
+ {
+  "case": "steering-T1",
+  "what": "his lateral place (ft, out) for a 60 ft step in the swept aim",
+  "rig_final": 0.979,
+  "rig_peak": 0.982,
+  "rig_overshoot": 0,
+  "rig_t63": 9.25,
+  "filter_steps": 0,
+  "trim": {
+   "sFt": null,
+   "dFt": null,
+   "slantFt": 628,
+   "heightFt": -50,
+   "job": "swept"
+  },
+  "lin_final": 0.989,
+  "lin_peak": 0.992,
+  "lin_overshoot": 0,
+  "lin_t63": 7.45,
+  "verdict": "holds"
+ },
+ {
+  "case": "power-T1",
+  "what": "his KIAS for a 3 KIAS step in the wanted speed",
+  "rig_final": -0.136,
+  "rig_peak": 0.558,
+  "rig_overshoot": 310,
+  "rig_t63": 2.45,
+  "filter_steps": 0,
+  "trim": {
+   "sFt": null,
+   "dFt": null,
+   "slantFt": 628,
+   "heightFt": -50,
+   "job": "swept"
+  },
+  "lin_final": -0.137,
+  "lin_peak": 0.577,
+  "lin_overshoot": null,
+  "lin_t63": 2.59,
+  "verdict": "holds"
+ },
+ {
+  "case": "offset-T2",
+  "what": "his offset d inside Lead's circle (ft) for a 60 ft step in the aim's offset",
+  "rig_final": 4.581,
+  "rig_peak": 4.721,
+  "rig_overshoot": 3,
+  "rig_t63": 19.55,
+  "filter_steps": 217,
+  "trim": {
+   "sFt": 604,
+   "dFt": 102,
+   "slantFt": 649,
+   "heightFt": -228,
+   "job": "guard-filter"
+  },
+  "verdict": "not checkable linearly: the filter flies him at this trim",
+  "lin_final": null,
+  "lin_peak": null,
+  "lin_overshoot": null,
+  "lin_t63": null
+ },
+ {
+  "case": "arc-T2",
+  "what": "his arc closure (ft/s) for a 5 ft/s step in the wanted closure",
+  "rig_final": -1.083,
+  "rig_peak": -3.394,
+  "rig_overshoot": 213,
+  "rig_t63": 0.25,
+  "filter_steps": 199,
+  "trim": {
+   "sFt": 604,
+   "dFt": 102,
+   "slantFt": 649,
+   "heightFt": -228,
+   "job": "guard-filter"
+  },
+  "verdict": "not checkable linearly: the filter flies him at this trim",
+  "lin_final": null,
+  "lin_peak": null,
+  "lin_overshoot": null,
+  "lin_t63": null
+ }
+]
