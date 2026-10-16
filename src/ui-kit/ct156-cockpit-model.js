@@ -123,5 +123,5 @@ function build(entry) {
         });
       }
     }
-  }, () => {});
+  }, (e) => console.warn(`${FILE} did not load (${e?.message ?? e}); the code's cockpit parts show`));
 }

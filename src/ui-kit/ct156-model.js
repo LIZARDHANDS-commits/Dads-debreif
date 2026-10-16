@@ -1027,7 +1027,7 @@ function attachExterior(kit) {
       for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
       if (kit.propDelivered) for (const mesh of kit.propMeshes) shadeMesh(kit, mesh);
     });
-  }, () => {}); // no file: the code model shows
+  }, (e) => console.warn(`${EXTERIOR_FILE} did not load (${e?.message ?? e}); the code model shows`));
 }
 
 /** The gear's Blender file (ALL-34), as attachExterior: all its parts or none; without it the code's gear shows. */
@@ -1064,7 +1064,7 @@ function attachGear(kit) {
       kit.lampDelivered = true;
       for (const lamps of kit.lampShips) showLamps(lamps);
     }
-  }, () => {});
+  }, (e) => console.warn(`${GEAR_FILE} did not load (${e?.message ?? e}); the code's gear shows`));
 }
 
 /** The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture (NO_PICTURE). */
@@ -1080,7 +1080,7 @@ function attachPilots(kit) {
       return;
     }
     for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-  }, () => {});
+  }, (e) => console.warn(`${PILOTS_FILE} did not load (${e?.message ?? e}); the code's pilots show`));
 }
 
 /**
