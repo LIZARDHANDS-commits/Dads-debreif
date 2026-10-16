@@ -1,7 +1,8 @@
 // The Run-in Simulator's 3D view (spec, "Middle: the 3D view"): the real ground round the target (the shared terrain,
 // ui-kit terrain3d.js, with the satellite picture draped on it, ui-kit draped-ground.js, and the shared sky,
 // ui-kit sky-clouds.js), the target shape, the aircraft (the CT-156 model and, for the Cockpit camera, its front
-// cockpit), the planned lines (the orbit, the IP, the run-in, the dive line, the release point) and, as it flies, the
+// cockpit), the planned lines (the orbit's holding pattern, figure 8 or circle, the IP, the run-in, the dive line, the
+// release point) and, as it flies, the
 // trail behind the aircraft and the load's trail to its impact mark. Built the way the EP Tabletop builds its world
 // (src/modules/ep-tabletop/world3d.js). A picture only: it shows the stored pass at the time it is given.
 //
@@ -15,7 +16,8 @@ import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { createDrapedGround } from '../../ui-kit/draped-ground.js';
 import { attitudeDegFromClimb } from '../../core/t6-performance.js';
 import { FT_PER_NM } from '../../core/units.js';
-import { targetSizes } from './targets.js';
+import { targetSizes, DECK_THICK_FT, TOWER } from './targets.js';
+import { orbitOutline } from './pass.js';
 
 /** The haze: the ground fades to the horizon colour from 15 NM out to 40 NM (estimates for the look). */
 const HAZE_NM = Object.freeze({ from: 15, to: 40 });
@@ -119,10 +121,10 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
       targetGroup.add(field);
     } else if (id === 'bridge') {
       const steel = mat(COLOURS.steel);
-      targetGroup.add(box(s.sizeFt, s.widthFt, 10, mat(COLOURS.concrete), 0, 0, s.aimFt - 10));
+      targetGroup.add(box(s.sizeFt, s.widthFt, DECK_THICK_FT, mat(COLOURS.concrete), 0, 0, s.aimFt - DECK_THICK_FT));
       for (const x of [-s.sizeFt / 4, s.sizeFt / 4]) {
-        targetGroup.add(box(24, s.widthFt + 20, s.topFt + 5, steel, x, 0, -5));
-        targetGroup.add(box(30, s.widthFt, s.aimFt - 10 + 5, mat(COLOURS.concrete), x, 0, -5));
+        targetGroup.add(box(TOWER.alongFt, s.widthFt + TOWER.widerFt, s.topFt + 5, steel, x, 0, -5));
+        targetGroup.add(box(30, s.widthFt, s.aimFt - DECK_THICK_FT + 5, mat(COLOURS.concrete), x, 0, -5));
       }
     } else if (id === 'tower') {
       targetGroup.add(box(s.widthFt, s.widthFt, s.topFt + 5, mat(COLOURS.steel), 0, 0, -5));
@@ -167,12 +169,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
     const { u, r } = plan;
     if (display.showLines) {
       const o = plan.orbit;
-      const pts = [];
-      for (let i = 0; i < 128; i++) {
-        const a = (i / 128) * Math.PI * 2;
-        pts.push({ x: o.centre.x + o.radiusFt * Math.cos(a), y: o.centre.y + o.radiusFt * Math.sin(a), z: o.msl });
-      }
-      planGroup.add(line(pts, lineMat(COLOURS.plan, true), true));
+      for (const pts of orbitOutline(plan)) planGroup.add(line(pts.map((q) => ({ ...q, z: o.msl })), lineMat(COLOURS.plan, true)));
       const ip = { ...plan.ip, z: plan.runInMsl };
       planGroup.add(dot(ip, COLOURS.ip, 20));
       planGroup.add(line([ip, { ...ip, z: plan.groundAt(ip.x, ip.y) }], lineMat(COLOURS.ip, true)));

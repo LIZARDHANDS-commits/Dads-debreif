@@ -4,12 +4,13 @@ An orbit, a run-in, a release (or a flypast) and an escape, flown in 3D over the
 
 ## Where it stands
 
-**Built in V2.502 (plan Steps 2 to 5); not yet seen by Patrick or Dad.** Dad asked on 16 Oct 2026; Patrick approved the plan and the spec (relayed by Dad, 16 Oct 2026), adding RS-9: the user sets a few essentials and the computer works out the rest to hit. The home card shows (RS-1). Flyover, Practice bomb flat and Practice bomb dive fly with the CT-156 on the T-6A set; the cargo offload waits for the C-130J's performance set (RS-Q1), and the engine is ready for it (`src/modules/run-in-sim/README.md`). The code: `src/modules/run-in-sim/`.
+**Built in V2.502 (plan Steps 2 to 5); not yet seen by Patrick or Dad.** Dad asked on 16 Oct 2026; Patrick approved the plan and the spec (relayed by Dad, 16 Oct 2026), adding RS-9: the user sets a few essentials and the computer works out the rest to hit. The home card shows (RS-1). Dad's first-look asks are built too (plan Step 4b, still V2.502, not yet seen): the orbit as a holding pattern (the default) or a figure 8 leaving at the IP heading inbound (RS-11), the target keeping its own heading with the card saying on the bridge's deck or underneath (RS-12), and a 2D plan and profile behind a 3D | 2D switch (RS-13). Flyover, Practice bomb flat and Practice bomb dive fly with the CT-156 on the T-6A set; the cargo offload waits for the C-130J's performance set (RS-Q1), and the engine is ready for it (`src/modules/run-in-sim/README.md`). The code: `src/modules/run-in-sim/`.
 
 ## What is next
 
-1. Step 6: run the sign-off checklist in `testing.md` in the app and send Patrick the result.
-2. The open questions below, one at a time; each has a working answer the spec uses. RS-Q1's C-130J numbers table goes to Patrick before the C-130J flies.
+1. Dad or Patrick looks at Step 4b in the app (the holding pattern and the figure 8, the bridge from 90° and 30°, the 2D view).
+2. Step 6: run the sign-off checklist in `testing.md` in the app and send Patrick the result.
+3. The open questions below, one at a time; each has a working answer the spec uses. RS-Q1's C-130J numbers table goes to Patrick before the C-130J flies.
 
 ## The files
 

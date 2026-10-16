@@ -1,9 +1,11 @@
-// The small plan view (2D) in the corner of the 3D view (spec, "Middle"): north up, the same lines from above (the orbit,
+// The small plan view (2D) in the corner of the 3D view (spec, "Middle"): north up, the same lines from above (the orbit's
+// pattern or circle,
 // the IP, the run-in, the dive line's track, the release point), the flown track so far, the aircraft, the load's impact,
 // the wind arrow and a scale. A click on it opens the map (map-picker.js) to tap a new place. A picture only.
 import { createCanvasSurface } from '../../ui-kit/canvas-view.js';
 import { FT_PER_NM, KT_TO_FTPS } from '../../core/units.js';
 import { compassDegFromVector } from '../../core/angles.js';
+import { orbitOutline } from './pass.js';
 
 const COLOURS = Object.freeze({ bg: 'rgba(5, 12, 20, 0.86)', plan: '#cfe3f2', runIn: '#42bfe9', release: '#ff9f43', ip: '#f5c542', escape: '#3ecf8e', text: '#dfe8f0', target: '#ffffff' });
 
@@ -23,7 +25,8 @@ export function createPlanView(canvas, { timers, onOpen }) {
     const plan = state.plan;
     if (!plan) return;
     // The extent: the orbit, the IP and the target, and the flown track.
-    const pts = [{ x: 0, y: 0 }, plan.ip, { x: plan.orbit.centre.x - plan.orbit.radiusFt, y: plan.orbit.centre.y - plan.orbit.radiusFt }, { x: plan.orbit.centre.x + plan.orbit.radiusFt, y: plan.orbit.centre.y + plan.orbit.radiusFt }];
+    const outline = orbitOutline(plan);
+    const pts = [{ x: 0, y: 0 }, plan.ip, ...outline.flat()];
     const tl = state.pass?.flight.timeline;
     if (tl) for (let i = 0; i < tl.t.length; i += 40) pts.push({ x: tl.x[i], y: tl.y[i] });
     const minX = Math.min(...pts.map((p) => p.x)), maxX = Math.max(...pts.map((p) => p.x));
@@ -48,13 +51,7 @@ export function createPlanView(canvas, { timers, onOpen }) {
       ctx.fill();
     };
     ctx.lineWidth = 1.4;
-    const o = plan.orbit;
-    ctx.strokeStyle = COLOURS.plan;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    ctx.arc(...S(o.centre.x, o.centre.y), o.radiusFt * k, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    for (const line of outline) path(line, COLOURS.plan, [4, 3]);
     const { u, r } = plan;
     const lineAt = (along) => ({ x: u.x * along + r.x * plan.offsetFt, y: u.y * along + r.y * plan.offsetFt });
     path([plan.ip, lineAt(plan.release?.along ?? 0)], COLOURS.runIn);
