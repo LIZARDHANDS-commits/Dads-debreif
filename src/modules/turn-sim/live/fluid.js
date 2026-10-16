@@ -13,10 +13,11 @@ import { aspectAngle3dDeg, headingCrossAngle3dDeg, DEG } from '../../../core/ang
 import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
-import { WING, HOLD, closureNow, FLUID } from './tuning.js';
+import { WING, HOLD, closureNow, FLUID, LEAD_POWER, LEAD_ROLL } from './tuning.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
 import { startLiveWing, stepLiveWing } from './fluid-wing-live.js';
+import { leadPointMassOf, adoptLeadState } from './lead-pilot.js';
 
 export { FLUID }; // its home is wing-moves.js (the tuning sheet, TS-214)
 
@@ -40,7 +41,7 @@ export const LEVEL_BANKS = Object.freeze([
   { value: 'medium', label: '60/2', deg: LEAD.levelBanks.medium },
   { value: 'steep', label: 'Steep 70/3', deg: LEAD.levelBanks.steep },
 ]);
-export const bankDegFor = (value) => (LEVEL_BANKS.find((b) => b.value === value) ?? LEVEL_BANKS[1]).deg;
+export const bankDegFor = (value) => (typeof value === 'number' ? value : (LEVEL_BANKS.find((b) => b.value === value) ?? LEVEL_BANKS[1]).deg);
 
 /** The words for #2's pursuit, for the tags and the card. */
 export const PURSUIT_WORDS = Object.freeze({ lag: 'LAG', pure: 'PURE', lead: 'LEAD', swap: 'SWAPPING' });
@@ -84,7 +85,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   };
 
   // ---- Lead's entries ----
-  const st0 = leadStateOf(lead, blockFt);
+  // Lead's point mass carried straight in from his programme when he flew it on the point mass (TS-225), else worked out
+  // from the aircraft (leadStateOf).
+  const st0 = leadPointMassOf(lead, blockFt);
   const man0 = { id: manId++, key: 'entry', label: 'Entry to fluid manoeuvring' };
   const entryPlanned = entry(-side, bankDegFor(bankValue)); // the entry turn away from #2 (Fig 12.20, turn away: he collapses into the cone)
   // Both go to MAX as soon as fluid manoeuvring starts (Patrick 11 Oct 2026 22:33Z): Lead's entry holds no speed, and #2
@@ -107,7 +110,11 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const mem = structuredClone(e.mem);
     const blend = blendSecs();
     const r = e.ctl.step(e.st, mem, { wingSide: wingSide(), blendInSec: blend.inSec, blendOutSec: blend.outSec });
-    const st = stepLead(e.st, r);
+    // Lead holding a speed (Terminate, fighting wing after it) keeps 20-80% torque (TS-216); the manoeuvres stay MAX.
+    // Lead rolls at his technique rate (TS-222) except in the nose-path manoeuvres, which roll as their path asks; his
+    // roll and G are built over their onsets with the stop planned (lead: true, TS-223).
+    const roll = e.ctl.key === 'wingover' || e.ctl.key === 'barrelRoll' ? null : LEAD_ROLL;
+    const st = stepLead(e.st, { ...r, lead: true, ...(roll ? { roll } : {}), ...(r.holdKias ? { torqueBand: LEAD_POWER } : {}) });
     let ctl = e.ctl;
     let next = mem;
     let queue = e.queue;
@@ -127,11 +134,14 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         ctl = hold();
         man = { id: manId++, key: 'hold', label: 'Straight and level' };
       }
-      next = ctl.init(st, { wingSide: wingSide() });
+      // A flowing join (the sequence's loop into the wingovers, the wingovers into the barrel roll) hands the next part
+      // its nose rate and G (TS-215).
+      next = ctl.init(st, { wingSide: wingSide(), handIn: r.handover ?? null });
     }
     // Entry and exit speeds of a manoeuvre that has them (the loop): the step and KIAS where it starts and ends.
     if (r.entryKias !== undefined && e.man.entryK === undefined) Object.assign(e.man, { entryKias: r.entryKias, entryK: kMax + 1 });
     if (r.exitKias !== undefined && e.man.exitK === undefined) Object.assign(e.man, { exitKias: r.exitKias, exitK: kMax + 1 });
+    if (r.note && e.man.note === undefined) Object.assign(e.man, { note: r.note, noteK: kMax + 1 }); // an exit off its entry speed, a skipped loop
     const lastMan = r.done ? e.man : e.lastMan;
     kMax += 1;
     entries.set(kMax, toEntry(kMax, st, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end, askBank: r.bank, lastMan, holdKias: r.holdKias ?? null }));
@@ -171,7 +181,10 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       // A pitch change only: the bank Lead is asking for now is kept (point-mass convention).
       case 'climb': return [climbOrDescend(1, at.askBank ?? st.bank)];
       case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
-      case 'loop': return [loop()];
+      // Under 200 KIAS Lead refuses the loop (TS-221); full power, so he pulls at whatever speed he has above it.
+      case 'loop':
+        if (st.kias < LEAD.loopMinKias) return { reason: `Loop: Lead has ${Math.round(st.kias)} KIAS, under the ${LEAD.loopMinKias} KIAS minimum (TS-221).` };
+        return [loop()];
       // The roll's way is kept on the controller for the live wingman (fluid-wing-live.js), who keeps to its outside.
       case 'wingover': return [{ ...wingovers(dir), dir }];
       case 'barrelRoll': return [{ ...barrelRoll(dir), dir }];
@@ -251,6 +264,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       }
       // #2's tag shows the power he flies; STRETCHED only past the 1,000 ft top of fluid's range (SMM 16.17 para 42).
       applyPose(lead, lp);
+      // Back to the programme: his point mass carries straight on from fluid's (TS-225, lead-pilot.js), the engine with it.
+      if (this.done) adoptLeadState(lead, e.st, blockFt);
       applyPose(wing, { ...pose, power: liveNow.power, stretched: liveNow.rangeFt > FLUID.rangeFt.max });
       lead.turning = !this.done;
       wing.turning = !this.done;
@@ -258,7 +273,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     /**
      * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'swap' | 'entry' | 'back to fighting wing'),
      * behindSec (always null: the live #2 is not on a line), speeds }. speeds: for the loop being flown, or the last one while Lead flies straight on after it,
-     * { label, entryKias, exitKias (null until flown), book: { entryKias, exitKias, source } }; else null.
+     * { label, entryKias, exitKias (null until flown), note (an exit off its entry speed, or null), book: { minKias, exitTolKt,
+     * source } }; else null.
      */
     now() {
       const e = E(kNow);
@@ -268,6 +284,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         label: m.label,
         entryKias: m.entryK !== undefined && kNow >= m.entryK ? m.entryKias : null,
         exitKias: m.exitK !== undefined && kNow >= m.exitK ? m.exitKias : null,
+        note: m.noteK !== undefined && kNow >= m.noteK ? m.note : null,
         book,
       } : null;
       return {
