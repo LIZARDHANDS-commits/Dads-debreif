@@ -6,9 +6,10 @@
 // It changes no flight physics: the step is flight.js's and the tracker's, unchanged.
 import { STEP_SEC, SMOOTHER_PEAK, stepAircraft, copyAircraft, planDone, holdToEnvelope } from './flight.js';
 import { applyPose } from './kinematic.js';
-import { fullPowerKtps, speedSegFor } from './slow-down.js';
+import { fullPowerKtps, speedSegFor, slowRampKtps } from './slow-down.js';
 import { setKias, stepCommanded } from './tracker.js';
 import { throttleAtTorque } from './power.js';
+import { LEAD_POWER } from './lead-moves.js';
 import { thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 
@@ -91,8 +92,8 @@ export function dryRunT(aircraft, plan, t0, { maxSec = 600, sampleSec = 0.25 } =
   return { end: a, durationSec: t - t0, points };
 }
 
-/** The most torque Lead sets in formation (Patrick 12 Oct 2026 09:17Z: "lead NEVER goes above 80 tq in formation"; TS-204). */
-export const LEAD_TORQUE_PCT = 80;
+/** The most torque Lead sets in formation (Patrick 12 Oct 2026 09:17Z: "lead NEVER goes above 80 tq in formation"; TS-204): lead-moves.js LEAD_POWER (TS-216). */
+export const LEAD_TORQUE_PCT = LEAD_POWER.maxTorquePct;
 
 /** What Lead's 80% torque leaves him at kias, altFt and g, as a share of his weight (thrust less drag; standard energy). */
 export function leadExcessPerWeight(kias, altFt, g = 1) {
@@ -110,12 +111,26 @@ export function leadSpeedUpKtps(from, to, altFt = 8000) {
 }
 
 /**
- * Lead's speed segment from `from` to `to` KIAS: power back to slow down (slow-down.js, TS-61), and to speed up 80% torque
- * at most (TS-204). Until V2.394 he sped up at full power.
+ * The average rate (KIAS per second) of Lead's smooth slow-down from `from` to `to` KIAS with no less than 20% torque
+ * (TS-216: never idle, so never the engine's lag from it, TS-218): the ramp's steepest point asks no more than 20% gives
+ * at the speed it is at then (slow-down.js slowRampKtps).
  */
-export function speedSeg(from, to, blockFt = 8000) {
-  if (to > from) return { kind: 'speed', toKias: to, rateKtps: leadSpeedUpKtps(from, to, blockFt) };
-  return speedSegFor(from, to, blockFt, 'power');
+export function leadSlowDownKtps(from, to, altFt = 8000) {
+  const rate = slowRampKtps(from, to, altFt, 'power', (k) => throttleAtTorque(LEAD_POWER.minTorquePct, k, altFt));
+  return Math.max(0.1, Number.isFinite(rate) ? rate : 0.1);
+}
+
+/**
+ * Lead's speed segment from `from` to `to` KIAS, inside his 20-80% torque in formation (TS-216): to slow down power back
+ * to 20% at the least, no boards and no idle (until V2.424 to the power floor, near idle); to speed up 80% torque at most
+ * (TS-204; until V2.394 full power). lab: line abreast's own speed changes, outside the band (TS-216): power back to the
+ * floor (slow-down.js, TS-61) and, to speed up, 80% as before.
+ */
+export function speedSeg(from, to, blockFt = 8000, { lab = false } = {}) {
+  // lab rides on the segment so the point-mass Lead (TS-225, lead-pilot.js) flies it inside line abreast's power, not 20-80%.
+  if (to > from) return { kind: 'speed', toKias: to, rateKtps: leadSpeedUpKtps(from, to, blockFt), ...(lab ? { lab: true } : {}) };
+  if (lab) return { ...speedSegFor(from, to, blockFt, 'power'), lab: true };
+  return { kind: 'speed', toKias: to, rateKtps: leadSlowDownKtps(from, to, blockFt), stage: 'power' };
 }
 
 // ---- recorded flights: the moving references the tracker and the kinematic lines fly off -----

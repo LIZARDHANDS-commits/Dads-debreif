@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1288 753" width="1288" height="753" font-family="Helvetica, Arial, sans-serif">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="16" y="30" font-size="17" font-weight="bold" fill="#222">Fighting wing, Spec 7e Draft 4 target structure: level 2</text>
+<text x="16" y="50" font-size="12" fill="#c0392b">Proposed, not built: Spec 7e Draft 4 + Fable 3a/3b + Patrick's rulings of 14 Oct 2026.</text>
+<rect x="16" y="70" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">B02 Perception (S0)</text>
+<text x="26" y="100.5" font-size="10.5"  fill="#1d2433">Does: Lead 0.4 s late and dead-reckoned: position round his</text>
+<text x="26" y="114" font-size="10.5"  fill="#1d2433">seen turn, bank extrapolated by his seen roll rate (D3);</text>
+<text x="26" y="127.5" font-size="10.5"  fill="#1d2433">#2's own state now; derives slant, closure from velocities</text>
+<text x="26" y="141" font-size="10.5"  fill="#1d2433">(D11), LOS rate, aspect, HCA, sweep, height v Lead, Lead's</text>
+<text x="26" y="154.5" font-size="10.5"  fill="#1d2433">circle, arc s, offset d, arc closure, Lead's G (S05b)</text>
+<rect x="440" y="70" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">B03 Supervisor: phase and case (S3a)</text>
+<text x="450" y="100.5" font-size="10.5"  fill="#1d2433">Does: Phase weights (level, entry, turning, exit, sum 1)</text>
+<text x="450" y="114" font-size="10.5"  fill="#1d2433">from Lead's seen roll, blended 1.5 s; case label read once</text>
+<text x="450" y="127.5" font-size="10.5"  fill="#1d2433">per phase with ±50 ft dead band, side/case blended ≥6 s</text>
+<rect x="864" y="70" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="87" font-size="12.5" font-weight="bold" fill="#1d2433">B04 Supervisor: technique picker (S3b)</text>
+<text x="874" y="100.5" font-size="10.5"  fill="#1d2433">Does: Polls each technique's cue; one active at a time by</text>
+<text x="874" y="114" font-size="10.5"  fill="#1d2433">priority; 3 s no-restart timer; longest-run timer; writes</text>
+<text x="874" y="127.5" font-size="10.5"  fill="#1d2433">blend weight 0→1→0 (≥6 s path, ≥4.3 s height)</text>
+<rect x="440" y="154" width="410" height="112.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="171" font-size="12.5" font-weight="bold" fill="#1d2433">B05 Normal follower (S2)</text>
+<text x="450" y="184.5" font-size="10.5"  fill="#1d2433">Does: Writes the normal reference: path (circle concentric</text>
+<text x="450" y="198" font-size="10.5"  fill="#1d2433">with Lead's at B07's offset d, or swept line parallel to</text>
+<text x="450" y="211.5" font-size="10.5"  fill="#1d2433">Lead's track), caps 20° out / 12° in, Ke 0.026°/ft, height</text>
+<text x="450" y="225" font-size="10.5"  fill="#1d2433">target = stack − planned drop low inside (20 ft/kt past 5 kt</text>
+<text x="450" y="238.5" font-size="10.5"  fill="#1d2433">slow, cap −300 ft, D24), speed offset from B07's unmet</text>
+<text x="450" y="252" font-size="10.5"  fill="#1d2433">closure, intent 0, urgency 0</text>
+<rect x="864" y="154" width="410" height="112.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="171" font-size="12.5" font-weight="bold" fill="#1d2433">B06 Techniques T1-T8 (S3b)</text>
+<text x="874" y="184.5" font-size="10.5"  fill="#1d2433">Does: T1 pass clear (S3b), T2 back behind 3/9 line (S7), T3</text>
+<text x="874" y="198" font-size="10.5"  fill="#1d2433">lag pursuit from abeam (S6), T4 high yo-yo ending stacked</text>
+<text x="874" y="211.5" font-size="10.5"  fill="#1d2433">low (S7), T5 cut-across (S7), T6 exit vertical (S5), T7</text>
+<text x="874" y="225" font-size="10.5"  fill="#1d2433">S-turns (S5), T8 moving out from close formation (T30); each</text>
+<text x="874" y="238.5" font-size="10.5"  fill="#1d2433">cue, plan once, monitor, done; writes candidate reference</text>
+<text x="874" y="252" font-size="10.5"  fill="#1d2433">S26 and cue state S24 only</text>
+<rect x="16" y="181" width="410" height="85.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="198" font-size="12.5" font-weight="bold" fill="#1d2433">B07 Arc loop (S2)</text>
+<text x="26" y="211.5" font-size="10.5"  fill="#1d2433">Does: d = d_ss + w/ω + kc(w − c)/ω, w = (s − 650)/10 s, soft</text>
+<text x="26" y="225" font-size="10.5"  fill="#1d2433">closure limit 25→60 ft/s, d within ±250 ft, slewed 60 ft/s</text>
+<text x="26" y="238.5" font-size="10.5"  fill="#1d2433">(radius clipped ~20,000 ft); writes offset d (S30) and unmet</text>
+<text x="26" y="252" font-size="10.5"  fill="#1d2433">closure w − ω·d_cmd (S29b, clipped ±15 kt, D21)</text>
+<rect x="16" y="278.5" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="295.5" font-size="12.5" font-weight="bold" fill="#1d2433">B08 Reference blender (S1)</text>
+<text x="26" y="309" font-size="10.5"  fill="#1d2433">Does: From normal reference (S25), technique reference (S26)</text>
+<text x="26" y="322.5" font-size="10.5"  fill="#1d2433">and #2's position computes and blends by B04's weight (S23):</text>
+<text x="26" y="336" font-size="10.5"  fill="#1d2433">wanted course χ_w, path turn-rate ω_FF, height target h_T</text>
+<text x="26" y="349.5" font-size="10.5"  fill="#1d2433">and rate ḣ_T, speed offset Δv_ref, intent, urgency, cap</text>
+<text x="26" y="363" font-size="10.5"  fill="#1d2433">change</text>
+<rect x="440" y="278.5" width="410" height="45" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="295.5" font-size="12.5" font-weight="bold" fill="#1d2433">B09 Steering loop (S2)</text>
+<text x="450" y="309" font-size="10.5"  fill="#1d2433">Does: ω_cmd = ω_FF + 0.5 (χ_w − χ), crossover 0.52 rad/s</text>
+<rect x="864" y="278.5" width="410" height="58.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="295.5" font-size="12.5" font-weight="bold" fill="#1d2433">B10 Vertical loop (S3b)</text>
+<text x="874" y="309" font-size="10.5"  fill="#1d2433">Does: ΔG_v = 0.005 (h_T − h) + 0.02 (ḣ_T − ḣ), crossover</text>
+<text x="874" y="322.5" font-size="10.5"  fill="#1d2433">0.68 rad/s (D1 profile rate included)</text>
+<rect x="440" y="335.5" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="352.5" font-size="12.5" font-weight="bold" fill="#1d2433">B11 Power loop (S4)</text>
+<text x="450" y="366" font-size="10.5"  fill="#1d2433">Does: throttle = FF (drag of commanded G, climb, speed-brake</text>
+<text x="450" y="379.5" font-size="10.5"  fill="#1d2433">drag) + roll-in lead + 0.3 (V_L + Δv_ref − V) + min(intent,</text>
+<text x="450" y="393" font-size="10.5"  fill="#1d2433">−bleed request), clipped 0-1 (D21, D23); speed brake switch</text>
+<text x="450" y="406.5" font-size="10.5"  fill="#1d2433">under bleed intent ≤ −0.5 (out &gt; 60 ft/s for 1 s, in &lt; 10</text>
+<text x="450" y="420" font-size="10.5"  fill="#1d2433">ft/s per D25, held ≥ 3 s, D8)</text>
+<rect x="864" y="349" width="410" height="99" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="366" font-size="12.5" font-weight="bold" fill="#1d2433">B12 Guard (S3)</text>
+<text x="874" y="379.5" font-size="10.5"  fill="#1d2433">Does: One predictor on raw demands (S31, S32) over closing</text>
+<text x="874" y="393" font-size="10.5"  fill="#1d2433">part up to 10 s; silent at ≥600 ft; cubic taper x³ to 500</text>
+<text x="874" y="406.5" font-size="10.5"  fill="#1d2433">ft; least-change bounds on ω_cmd (S37) and ΔG_v (S38);</text>
+<text x="874" y="420" font-size="10.5"  fill="#1d2433">graded bleed request (S39); smooth cap opening 550→500 ft</text>
+<text x="874" y="433.5" font-size="10.5"  fill="#1d2433">(S40); side choice held 3 s (S41)</text>
+<rect x="16" y="389.5" width="410" height="112.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="406.5" font-size="12.5" font-weight="bold" fill="#1d2433">B13 Lift composer (S1)</text>
+<text x="26" y="420" font-size="10.5"  fill="#1d2433">Does: Composes bounded turn, 1 G hold and bounded vertical</text>
+<text x="26" y="433.5" font-size="10.5"  fill="#1d2433">within cap = min(stall warning, Lead G + 1.5 + S40 + S27f)</text>
+<text x="26" y="447" font-size="10.5"  fill="#1d2433">with 0.2 G soft knee; cap order: climb height demand gives</text>
+<text x="26" y="460.5" font-size="10.5"  fill="#1d2433">way first, then 1 G hold, turn last (D20); minG 0.5 G floor</text>
+<text x="26" y="474" font-size="10.5"  fill="#1d2433">with unload-roll-pull (never pushes to 0 or negative G);</text>
+<text x="26" y="487.5" font-size="10.5"  fill="#1d2433">hands drag of commanded G and climb (S44) to B11</text>
+<rect x="440" y="446.5" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="463.5" font-size="12.5" font-weight="bold" fill="#1d2433">B14 Shaper (S1)</text>
+<text x="450" y="477" font-size="10.5"  fill="#1d2433">Does: G onset 1 + 3u G/s by urgency u; roll ≤ 60°/s; unload,</text>
+<text x="450" y="490.5" font-size="10.5"  fill="#1d2433">roll, pull when wings are &gt; 20° off wanted lift (fighting</text>
+<text x="450" y="504" font-size="10.5"  fill="#1d2433">wing only; close formation shape() untouched)</text>
+<rect x="864" y="460" width="410" height="72" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="874" y="477" font-size="12.5" font-weight="bold" fill="#1d2433">B15 #2 aircraft and engine (S0)</text>
+<text x="874" y="490.5" font-size="10.5"  fill="#1d2433">Does: T-6A point mass: thrust, drag, roll rate and build-up,</text>
+<text x="874" y="504" font-size="10.5"  fill="#1d2433">G build-up ≤ 4 G/s, stall warning, engine 0.25 s, idle spool</text>
+<text x="874" y="517.5" font-size="10.5"  fill="#1d2433">3.5 s</text>
+<rect x="16" y="514" width="410" height="207" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="26" y="531" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it adds (estimates unless ruled)</text>
+<text x="26" y="544.5" font-size="10.5"  fill="#1d2433">Adds: approach angle out (lag) 20° (ruling); approach angle</text>
+<text x="26" y="558" font-size="10.5"  fill="#1d2433">in (lead) 12° (ruling); approach cross-track slope Ke</text>
+<text x="26" y="571.5" font-size="10.5"  fill="#1d2433">0.026°/ft (k ≈ 1/420 ft out, 1/250 ft in) (tuning); course</text>
+<text x="26" y="585" font-size="10.5"  fill="#1d2433">gain Kχ 0.5 /s (tuning); range time constant τ_s = τ_r 10 s</text>
+<text x="26" y="598.5" font-size="10.5"  fill="#1d2433">(turn and level) (tuning); speed loop proportional gain Kv</text>
+<text x="26" y="612" font-size="10.5"  fill="#1d2433">0.3 /s (no integrator; set-point offset ±15 kt) (tuning);</text>
+<text x="26" y="625.5" font-size="10.5"  fill="#1d2433">drop-low-inside continuous term k_e 20 ft/kt past 5 kt slow,</text>
+<text x="26" y="639" font-size="10.5"  fill="#1d2433">capped −300 ft (tuning); phase thresholds and blend 10°</text>
+<text x="26" y="652.5" font-size="10.5"  fill="#1d2433">entry, 5° exit, 1.5 s phase blend, ≥6 s case/side blend</text>
+<text x="26" y="666" font-size="10.5"  fill="#1d2433">(tuning); guard taper and urgency cubic x³ on 600→500 ft;</text>
+<text x="26" y="679.5" font-size="10.5"  fill="#1d2433">onset 1 + 3u G/s; soft cap knee 0.2 G (tuning); exit</text>
+<text x="26" y="693" font-size="10.5"  fill="#1d2433">vertical and technique cue bands/dwells 12 ft per ft/s</text>
+<text x="26" y="706.5" font-size="10.5"  fill="#1d2433">(physics); D6 bands and dwells (tuning)</text>
+<rect x="440" y="530.5" width="410" height="31.5" rx="6" fill="#f7f9fb" stroke="#9aa4b5"/>
+<text x="450" y="547.5" font-size="12.5" font-weight="bold" fill="#1d2433">Numbers it removes</text>
+</svg>

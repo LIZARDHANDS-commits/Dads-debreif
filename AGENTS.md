@@ -66,7 +66,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 - **References, not walls.** Orders and SMM limits are references, not absolute requirements. A simulator uses them as its default, cites them by page, and may go past them when the flying calls for it, saying so on screen. Only what the aircraft physically can't do is a hard limit. Don't write a requirement, decision or test that makes an SMM limit or an order an absolute wall without asking Patrick.
 - **Every flying number has a source:** a manual page or Patrick's ruling. An estimate is labelled as an estimate until a source backs it.
 - **Speeds name their kind** (indicated, true, ground speed or Mach) and are only compared like with like, using the shared helpers.
-- **Manuals:** the master copy is in the project files (`/mnt/project-files/manuals/`). New manuals go there first, and Patrick's copy on his computer is refreshed from it. Manual text and images never go in the repo, the site or anything public; cite the page only.
+- **Manuals:** the master copy is in the project files (`/mnt/project-files/manuals/`). New manuals go there first, and Patrick's copy on his computer is refreshed from it. Manual text and pictures may go in the repo, always with their page; the CFAFM never does (below) (Patrick, 13 Oct 2026: "SMM is fine in public repo. its just cfafm that cant"; ALL-41).
 - **Manuals:** use only the manuals in the project files. Checklists, boldface and performance charts are never shipped.
 - **The CFAFM is a controlled document.** It never goes in a repo or in project files.
 - **Patrick's track logs** are fine to use in the repo as example flights or test data.
@@ -140,7 +140,7 @@ docs/
   TESTING.md         testing policy
   DECISIONS.md       whole-tool decisions (ALL-)
   questions-for-dad.md
-  references/        page references only, never manual text
+  references/        manual page references and extracts (never the CFAFM)
   modules/<module>/  README, spec, requirements, decisions, testing, plan, future
 archive/             history only, never instructions
 ```

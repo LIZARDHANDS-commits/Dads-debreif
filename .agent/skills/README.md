@@ -4,7 +4,7 @@ This is the one skills folder. Antigravity reads it here, and `.claude/skills` i
 
 The ten workflow skills in the tables below are vetted, unmodified copies from addyosmani/agent-skills (MIT, see `LICENSE-agent-skills`) at commit 2686b62. Project rule: read a skill in full before adding it, add them one at a time, and never bulk-install.
 
-The other six are this project's own:
+The other seven are this project's own:
 
 - `sync`: start of a session. Read the rule book, the plan and the module README, then say what's next and what waits on Patrick.
 - `save`: end of a piece of work. Update the module's README and `plan.md`, commit on a work branch with a plain-English name, and push.
@@ -12,6 +12,7 @@ The other six are this project's own:
 - `screen-layout-and-style`: Patrick's house rules for a module's screen (columns, closed boxes, cards, buttons, colours, wording, display defaults) and how a screen session runs with him. Traffic is the worked example at the bottom.
 - `three-performance`: making the 3D views faster and lighter, and the High and Performance graphics settings: draw calls, graphics memory, the render loop, loading model files, lights and shadows, checked against Patrick's decisions (Patrick, 12 Oct 2026; ideas adapted from a read and scanned third-party skill, credited in its `references/rules.md`).
 - `wind-shaped-flight-paths`: how to build smooth, wind-corrected flight paths (circuits, breaks, forced landings). Its High Key and PFL parts (pillars 3, 6, 9, 11 and 12) are reviewed at the Traffic PFL review.
+- `fable-review-brief`: getting a one-off Fable review of the Formation Sim's design, physics or control system: when Fable is worth it against Opus, one self-contained renamed brief, the checker that scrubs it (`scripts/scrub.mjs`), no messages mid-run, and the steps from report to Patrick's ruling (Patrick 14 Oct 2026).
 
 ## Every module, every phase
 
