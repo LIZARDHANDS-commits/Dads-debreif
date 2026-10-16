@@ -1,0 +1,466 @@
+// The Run-in Simulator's 3D view (spec, "Middle: the 3D view"): the real ground round the target (the shared terrain,
+// ui-kit terrain3d.js, with the satellite picture draped on it, ui-kit draped-ground.js, and the shared sky,
+// ui-kit sky-clouds.js), the target shape, the aircraft (the CT-156 model and, for the Cockpit camera, its front
+// cockpit), the planned lines (the orbit, the IP, the run-in, the dive line, the release point) and, as it flies, the
+// trail behind the aircraft and the load's trail to its impact mark. Built the way the EP Tabletop builds its world
+// (src/modules/ep-tabletop/world3d.js). A picture only: it shows the stored pass at the time it is given.
+//
+// When data fails: a terrain tile that doesn't come leaves its part flat at the fallback height; a satellite tile that
+// doesn't come leaves the plain ground colour; no WebGL leaves a message in place of the view (index.js), and the plan
+// view, the settings and the result still work.
+import { loadThree, addLights, webglSupported, worldToScreen } from '../../ui-kit/three-aircraft.js';
+import { createCt156Model, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
+import { createCockpitMount, aimCockpitCamera, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
+import { createDrapedGround } from '../../ui-kit/draped-ground.js';
+import { attitudeDegFromClimb } from '../../core/t6-performance.js';
+import { FT_PER_NM } from '../../core/units.js';
+import { targetSizes } from './targets.js';
+
+/** The haze: the ground fades to the horizon colour from 15 NM out to 40 NM (estimates for the look). */
+const HAZE_NM = Object.freeze({ from: 15, to: 40 });
+/** Each camera's place (feet; estimates for the look): Chase behind and above, Overhead above, Side square to the run-in. */
+const CAMERA = Object.freeze({ chaseBackFt: 260, chaseUpFt: 55, overheadFt: 3000, sideFt: 3000, targetUpFt: 40, fovDeg: 50, targetFovDeg: 25, idleBackFt: 4500, idleUpFt: 1500 });
+/** Degrees of look per pixel dragged (an estimate for feel). */
+const DRAG_DEG_PER_PX = 0.25;
+/** The trails keep one point in this many of the pass's steps (0.2 s). */
+const TRAIL_EVERY = 4;
+const ft10 = (n) => `${(Math.round(n / 10) * 10).toLocaleString('en-CA')} ft`;
+const COLOURS = Object.freeze({
+  plan: '#e8f4ff', runIn: '#42bfe9', dive: '#42bfe9', release: '#ff9f43', ip: '#f5c542', trail: '#42bfe9', escape: '#3ecf8e', load: '#f5c542',
+  concrete: '#b8b4aa', field: '#3f7d3a', steel: '#8d969e', ring: '#ffffff', dz: '#ff9f43',
+});
+
+/**
+ * Builds the view in `host`. timers: the module's scheduler scope; terrain: ui-kit terrain3d.js's (index.js owns it and
+ * refreshes it); area: area.js areaFor(); fallbackFt: the ground's height where no tile came.
+ * Returns a Promise of the view's api, or of null without WebGL.
+ */
+export async function createRunInWorld({ host, timers, terrain, area, fallbackFt, doc = globalThis.document }) {
+  if (!webglSupported({ document: doc })) return null;
+  const THREE = await loadThree();
+  const canvas = doc.createElement('canvas');
+  canvas.className = 'rs-3d-canvas';
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'The pass in 3D over the ground round the target');
+  host.append(canvas);
+  const labels = doc.createElement('div');
+  labels.className = 'rs-3d-labels';
+  host.append(labels);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  const scene = new THREE.Scene();
+  const sky = addSkyAndClouds(THREE, scene, { doc });
+  scene.fog = new THREE.Fog(SKY_COLOURS.horizon, HAZE_NM.from * FT_PER_NM, HAZE_NM.to * FT_PER_NM);
+  addLights(THREE, scene);
+  const camera = new THREE.PerspectiveCamera(CAMERA.fovDeg, 1, 2, 400_000);
+  const owned = [];
+  const own = (thing) => {
+    owned.push(thing);
+    return thing;
+  };
+
+  // ---- The ground ----
+  let projection = area.projection;
+  let homeFt = fallbackFt;
+  let groundDirty = true;
+  let reliefRevision = -1;
+  let disposed = false;
+  let wake = null;
+  const nudge = () => {
+    if (wake || disposed) return;
+    wake = timers.after(300, () => {
+      wake = null;
+      draw();
+    });
+  };
+  const ground = createDrapedGround({ T: THREE, timers, doc, plan: area.plan, imagery: area.imagery, polygonOffset: true, onChange: () => { groundDirty = true; nudge(); } });
+  ground.setHeight(homeFt);
+  scene.add(ground.group);
+
+  // ---- The target ----
+  const targetGroup = new THREE.Group();
+  scene.add(targetGroup);
+  const mat = (color, extra = {}) => own(new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05, ...extra }));
+  const flatMat = (color) => own(new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  const clearGroup = (g) => {
+    for (const c of [...g.children]) {
+      g.remove(c);
+      c.traverse?.((o) => o.geometry?.dispose());
+    }
+  };
+  const box = (w, d, hgt, material, x = 0, y = 0, z = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, d, hgt), material);
+    m.position.set(x, y, z + hgt / 2);
+    return m;
+  };
+  const ring = (rIn, rOut, material, z = 2) => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(rIn, rOut, 96), material);
+    m.position.z = z;
+    m.renderOrder = 2;
+    return m;
+  };
+  function buildTarget({ id, sizeFt, headingDegT, groundFt }) {
+    clearGroup(targetGroup);
+    const s = targetSizes(id, sizeFt);
+    targetGroup.position.set(0, 0, groundFt);
+    targetGroup.rotation.set(0, 0, ((90 - headingDegT) * Math.PI) / 180); // its long axis along the heading
+    if (id === 'stadium') {
+      const shape = new THREE.Shape();
+      shape.absellipse(0, 0, s.sizeFt / 2, s.widthFt / 2, 0, Math.PI * 2, false, 0);
+      const hole = new THREE.Path();
+      hole.absellipse(0, 0, s.sizeFt * 0.34, s.widthFt * 0.3, 0, Math.PI * 2, true, 0);
+      shape.holes.push(hole);
+      const bowl = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: s.topFt, bevelEnabled: false, curveSegments: 48 }), mat(COLOURS.concrete));
+      bowl.position.z = -5; // stands a little into the ground, so a slope doesn't show a gap
+      targetGroup.add(bowl);
+      const field = new THREE.Mesh(new THREE.CircleGeometry(1, 48), flatMat(COLOURS.field));
+      field.scale.set(s.sizeFt * 0.34, s.widthFt * 0.3, 1);
+      field.position.z = 2;
+      targetGroup.add(field);
+    } else if (id === 'bridge') {
+      const steel = mat(COLOURS.steel);
+      targetGroup.add(box(s.sizeFt, s.widthFt, 10, mat(COLOURS.concrete), 0, 0, s.aimFt - 10));
+      for (const x of [-s.sizeFt / 4, s.sizeFt / 4]) {
+        targetGroup.add(box(24, s.widthFt + 20, s.topFt + 5, steel, x, 0, -5));
+        targetGroup.add(box(30, s.widthFt, s.aimFt - 10 + 5, mat(COLOURS.concrete), x, 0, -5));
+      }
+    } else if (id === 'tower') {
+      targetGroup.add(box(s.widthFt, s.widthFt, s.topFt + 5, mat(COLOURS.steel), 0, 0, -5));
+      targetGroup.add(box(s.widthFt * 1.4, s.widthFt * 1.4, 12, mat('#c0392b'), 0, 0, s.topFt - 12));
+    } else if (id === 'range') {
+      const white = flatMat(COLOURS.ring);
+      const k = s.sizeFt / 200;
+      for (const r of [50, 100, 200]) targetGroup.add(ring(r * k - 3, r * k + 3, white));
+      const centre = new THREE.Mesh(new THREE.CircleGeometry(10 * k, 32), white);
+      centre.position.z = 2;
+      targetGroup.add(centre);
+    } else {
+      const orange = flatMat(COLOURS.dz);
+      targetGroup.add(ring(s.sizeFt - 6, s.sizeFt + 6, orange));
+      targetGroup.add(box(60, 8, 1, orange, 0, 0, 2));
+      targetGroup.add(box(8, 60, 1, orange, 0, 0, 2));
+    }
+  }
+
+  // ---- The planned lines ----
+  const planGroup = new THREE.Group();
+  scene.add(planGroup);
+  const lineMat = (color, dashed = false) => own(dashed
+    ? new THREE.LineDashedMaterial({ color, dashSize: 400, gapSize: 250, transparent: true, opacity: 0.9 })
+    : new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+  const line = (points, material, loop = false) => {
+    const g = new THREE.BufferGeometry().setFromPoints(points.map((p) => new THREE.Vector3(p.x, p.y, p.z)));
+    const l = loop ? new THREE.LineLoop(g, material) : new THREE.Line(g, material);
+    if (material.isLineDashedMaterial) l.computeLineDistances();
+    return l;
+  };
+  const dot = (p, color, r = 40) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), own(new THREE.MeshBasicMaterial({ color })));
+    m.position.set(p.x, p.y, p.z);
+    return m;
+  };
+  let marks = []; // { words, p } for the labels
+  function buildPlan(plan, display) {
+    clearGroup(planGroup);
+    marks = [];
+    if (!plan) return;
+    const { u, r } = plan;
+    if (display.showLines) {
+      const o = plan.orbit;
+      const pts = [];
+      for (let i = 0; i < 128; i++) {
+        const a = (i / 128) * Math.PI * 2;
+        pts.push({ x: o.centre.x + o.radiusFt * Math.cos(a), y: o.centre.y + o.radiusFt * Math.sin(a), z: o.msl });
+      }
+      planGroup.add(line(pts, lineMat(COLOURS.plan, true), true));
+      const ip = { ...plan.ip, z: plan.runInMsl };
+      planGroup.add(dot(ip, COLOURS.ip, 20));
+      planGroup.add(line([ip, { ...ip, z: plan.groundAt(ip.x, ip.y) }], lineMat(COLOURS.ip, true)));
+      marks.push({ words: `IP ${(plan.ipFt / FT_PER_NM).toFixed(1)} NM`, p: ip });
+      const along = plan.run === 'bombDive' ? plan.dive.rollInAlong : plan.release.along;
+      const end = { x: u.x * along + r.x * plan.offsetFt, y: u.y * along + r.y * plan.offsetFt, z: plan.runInMsl };
+      planGroup.add(line([ip, end], lineMat(COLOURS.runIn)));
+      if (plan.run === 'bombDive') {
+        const { R, d, aimOff, rollInMsl } = plan.dive;
+        const back = (rollInMsl - R.z) / -d.z;
+        const start = { x: R.x - d.x * back, y: R.y - d.y * back, z: rollInMsl };
+        planGroup.add(line([start, aimOff], lineMat(COLOURS.dive, true)));
+        marks.push({ words: `Roll-in ${ft10(rollInMsl - plan.groundFt)} AGL`, p: start });
+      } else if (plan.run === 'flyover') {
+        planGroup.add(line([end, { x: u.x * 3000 + r.x * plan.offsetFt, y: u.y * 3000 + r.y * plan.offsetFt, z: plan.runInMsl }], lineMat(COLOURS.runIn, true)));
+      }
+    }
+    if (display.showCarp && plan.release?.point) {
+      planGroup.add(dot(plan.release.point, COLOURS.release, 14));
+      marks.push({ words: `Release ${ft10(plan.release.point.z - plan.groundFt)} AGL`, p: plan.release.point });
+    }
+  }
+
+  // ---- The trails ----
+  const trailGroup = new THREE.Group();
+  scene.add(trailGroup);
+  let trails = null; // { before, after, load, impact, nBefore, nAfter, releaseT, fall }
+  function buildTrails(pass, display) {
+    clearGroup(trailGroup);
+    trails = null;
+    if (!pass || !display.showTrails) return;
+    const tl = pass.flight.timeline;
+    const relT = pass.flight.release?.t ?? Infinity;
+    const before = [];
+    const after = [];
+    for (let i = 0; i < tl.t.length; i += TRAIL_EVERY) {
+      const p = new THREE.Vector3(tl.x[i], tl.y[i], tl.z[i]);
+      if (tl.t[i] <= relT) before.push(p);
+      else {
+        if (!after.length && before.length) after.push(before[before.length - 1]);
+        after.push(p);
+      }
+    }
+    const mk = (pts, color) => {
+      const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.length ? pts : [new THREE.Vector3()]), lineMat(color));
+      l.frustumCulled = false;
+      trailGroup.add(l);
+      return l;
+    };
+    trails = { before: mk(before, COLOURS.trail), after: mk(after, COLOURS.escape), nBefore: before.length, nAfter: after.length, releaseT: relT, fall: pass.fall, load: null, impact: null };
+    if (pass.fall) {
+      const pts = pass.fall.path.map((q) => new THREE.Vector3(q.x, q.y, q.z));
+      trails.load = mk(pts, COLOURS.load);
+      if (pass.fall.impact) {
+        const m = ring(30, 45, flatMat(COLOURS.release), 0);
+        m.position.set(pass.fall.impact.x, pass.fall.impact.y, pass.fall.impact.z + 3);
+        trailGroup.add(m);
+        trails.impact = m;
+      }
+    }
+  }
+  function showTrails(t, tl) {
+    if (!trails) return;
+    const i = Math.floor(Math.max(0, t / (tl.t[1] - tl.t[0] || 0.05)) / TRAIL_EVERY) + 1;
+    trails.before.geometry.setDrawRange(0, Math.min(trails.nBefore, i));
+    trails.after.geometry.setDrawRange(0, Math.max(0, Math.min(trails.nAfter, i - trails.nBefore + 1)));
+    if (trails.load && trails.fall) {
+      const since = t - trails.releaseT;
+      const n = since <= 0 ? 0 : trails.fall.path.findIndex((q) => q.t > since);
+      trails.load.geometry.setDrawRange(0, n < 0 ? trails.fall.path.length : n);
+      if (trails.impact) trails.impact.visible = trails.fall.impact && since >= trails.fall.impact.t;
+    }
+  }
+
+  // ---- The aircraft ----
+  const ship = createCt156Model(THREE, { color: '#58a6ff', paint: PAINT_DEFAULT, number: 1 });
+  ship.scale.setScalar(CT156_FT_PER_UNIT);
+  ship.rotation.order = 'ZYX';
+  ship.visible = false;
+  scene.add(ship);
+  const cockpit = createCockpitMount(THREE, { doc });
+  let hud = null;
+
+  // ---- Drawing ----
+  const look = { yawDeg: 0, pitchDeg: 0 };
+  let view = { camera: 'chase', pose: null, plan: null, groundFt: fallbackFt, trackDegT: 0 };
+  let size = { w: 0, h: 0 };
+
+  function aim(w, h) {
+    const p = view.pose;
+    camera.fov = CAMERA.fovDeg;
+    camera.near = 2;
+    camera.far = 400_000;
+    camera.aspect = w / h;
+    camera.up.set(0, 0, 1);
+    const hdg = p ? p.headingRad : ((90 - view.trackDegT) * Math.PI) / 180;
+    if (!p) {
+      // Before a pass is flown: the target from back along the run-in, a little above.
+      camera.position.set(-Math.cos(hdg) * CAMERA.idleBackFt, -Math.sin(hdg) * CAMERA.idleBackFt, view.groundFt + CAMERA.idleUpFt);
+      camera.lookAt(0, 0, view.groundFt);
+      camera.updateProjectionMatrix();
+      return;
+    }
+    const at = new THREE.Vector3(p.x, p.y, p.z);
+    const yaw = (look.yawDeg * Math.PI) / 180;
+    const pitch = (look.pitchDeg * Math.PI) / 180;
+    if (view.camera === 'cockpit') {
+      aimCockpitCamera(THREE, camera, ship, { seat: 'front', yawDeg: look.yawDeg, pitchDeg: look.pitchDeg - 5, width: w, height: h });
+      return;
+    }
+    if (view.camera === 'target') {
+      camera.fov = CAMERA.targetFovDeg;
+      const top = view.groundFt + (view.topFt ?? 0) + CAMERA.targetUpFt;
+      camera.position.set(-Math.cos(hdg) * 60, -Math.sin(hdg) * 60, top);
+      camera.lookAt(at);
+      camera.rotateY(-yaw);
+      camera.rotateX(pitch);
+    } else if (view.camera === 'overhead') {
+      camera.position.set(at.x, at.y - 1, at.z + CAMERA.overheadFt);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(at);
+    } else if (view.camera === 'side') {
+      const tr = ((90 - view.trackDegT) * Math.PI) / 180;
+      const right = { x: Math.sin(tr), y: -Math.cos(tr) }; // right of the run-in
+      camera.position.set(at.x + right.x * CAMERA.sideFt, at.y + right.y * CAMERA.sideFt, at.z);
+      camera.lookAt(at);
+    } else {
+      const a = hdg + Math.PI + yaw;
+      const back = CAMERA.chaseBackFt;
+      const up = CAMERA.chaseUpFt + Math.sin(pitch) * back;
+      camera.position.set(at.x + Math.cos(a) * back * Math.cos(pitch), at.y + Math.sin(a) * back * Math.cos(pitch), at.z + up);
+      camera.lookAt(at);
+    }
+    camera.updateProjectionMatrix();
+  }
+
+  function placeLabels(w, h) {
+    const items = [...marks];
+    // From afar (Target, Overhead, Side) the aircraft is a speck: a label shows where it is.
+    if (view.pose && ['target', 'overhead', 'side'].includes(view.camera)) items.push({ words: '▲ CT-156', p: view.pose });
+    if (trails?.impact?.visible && trails.fall?.impact) items.push({ words: 'Impact', p: trails.fall.impact });
+    while (labels.children.length < items.length) labels.append(doc.createElement('span'));
+    /** @type {HTMLElement[]} */ ([...labels.children]).forEach((el, i) => {
+      const m = items[i];
+      if (!m) {
+        el.hidden = true;
+        return;
+      }
+      const v = new THREE.Vector3(m.p.x, m.p.y, m.p.z).applyMatrix4(camera.matrixWorldInverse);
+      if (v.z > -1) {
+        el.hidden = true;
+        return;
+      }
+      const s = worldToScreen(THREE, camera, m.p, w, h);
+      el.hidden = s.x < 0 || s.y < 0 || s.x > w || s.y > h;
+      el.textContent = m.words;
+      el.style.transform = `translate(${Math.round(s.x + 8)}px, ${Math.round(s.y - 10)}px)`;
+    });
+  }
+
+  function draw() {
+    if (disposed) return;
+    const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
+    if (w !== size.w || h !== size.h) {
+      size = { w, h };
+      renderer.setPixelRatio(Math.min(2, globalThis.devicePixelRatio || 1));
+      renderer.setSize(w, h, false);
+    }
+    if (terrain.revision !== reliefRevision && terrain.grids) {
+      reliefRevision = terrain.revision;
+      ground.setRelief({ grids: terrain.grids, on: true, scale: 1, homeFt });
+    }
+    if (groundDirty) {
+      groundDirty = false;
+      ground.paint({ projection });
+    }
+    const inCockpit = view.camera === 'cockpit' && view.pose;
+    cockpit.mount(inCockpit ? ship : null, 'front');
+    if (inCockpit) cockpit.update(hud);
+    aim(w, h);
+    camera.updateMatrixWorld(true);
+    renderer.render(scene, camera);
+    placeLabels(w, h);
+  }
+
+  // Drag to look round (Chase, Cockpit and Target); double-click looks ahead again. The camera never moves on a click.
+  let drag = null;
+  const onDown = (e) => {
+    drag = { x: e.clientX, y: e.clientY, yaw: look.yawDeg, pitch: look.pitchDeg };
+    canvas.setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e) => {
+    if (!drag) return;
+    look.yawDeg = Math.max(-170, Math.min(170, drag.yaw - (e.clientX - drag.x) * DRAG_DEG_PER_PX));
+    look.pitchDeg = Math.max(-60, Math.min(60, drag.pitch + (e.clientY - drag.y) * DRAG_DEG_PER_PX));
+    draw();
+  };
+  const onUp = () => {
+    drag = null;
+  };
+  const ahead = () => {
+    look.yawDeg = 0;
+    look.pitchDeg = 0;
+    draw();
+  };
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointercancel', onUp);
+  canvas.addEventListener('dblclick', ahead);
+  const resizer = globalThis.ResizeObserver ? new globalThis.ResizeObserver(() => draw()) : null;
+  resizer?.observe(host);
+
+  return {
+    /** A new place: the ground repainted round it. fallback: the height where no tile came. */
+    setArea(nextProjection, nextFallbackFt) {
+      projection = nextProjection;
+      homeFt = nextFallbackFt;
+      ground.setHeight(homeFt);
+      groundDirty = true;
+      reliefRevision = -1;
+    },
+    /** The target shape on the ground: { id, sizeFt, headingDegT, groundFt }. */
+    setTarget(t) {
+      buildTarget(t);
+      view = { ...view, groundFt: t.groundFt, topFt: targetSizes(t.id, t.sizeFt).topFt };
+    },
+    /** The planned lines (pass.js buildPlan's plan) with the Display box's switches. */
+    setPlan(plan, display) {
+      buildPlan(plan, display);
+      view = { ...view, trackDegT: plan ? plan.setup.trackDegT : view.trackDegT };
+    },
+    /** The flown pass (pass.js flyPass's), or null; its trails. */
+    setPass(pass, display) {
+      buildTrails(pass, display);
+      ship.visible = Boolean(pass);
+    },
+    /** The picture at time t (s) of the pass, from camera id. */
+    show(pass, t, cameraId) {
+      view = { ...view, camera: cameraId };
+      if (pass) {
+        const tl = pass.flight.timeline;
+        const dt = tl.t[1] - tl.t[0] || 0.05;
+        const f = Math.max(0, Math.min(tl.t.length - 1, t / dt));
+        const i = Math.min(tl.t.length - 2, Math.floor(f));
+        const k = Math.max(0, Math.min(1, f - i));
+        const at = (a) => a[i] + (a[i + 1] - a[i]) * k;
+        const vx = at(tl.vx), vy = at(tl.vy), vz = at(tl.vz);
+        const v = Math.hypot(vx, vy, vz);
+        const climbDeg = (Math.atan2(vz, Math.hypot(vx, vy)) * 180) / Math.PI;
+        const bankDeg = tl.bank[i] + (((tl.bank[i + 1] - tl.bank[i] + 540) % 360) - 180) * k;
+        const kias = at(tl.kias);
+        const g = at(tl.g);
+        const attitude = attitudeDegFromClimb(vz, v, kias, g);
+        const pitchDeg = climbDeg + (attitude - climbDeg) * Math.cos((bankDeg * Math.PI) / 180); // the nose's angle of attack turns with the bank
+        const headingRad = Math.atan2(vy, vx);
+        view.pose = { x: at(tl.x), y: at(tl.y), z: at(tl.z), headingRad };
+        ship.position.set(view.pose.x, view.pose.y, view.pose.z);
+        ship.rotation.set((bankDeg * Math.PI) / 180, (-pitchDeg * Math.PI) / 180, headingRad, 'ZYX');
+        hud = { pitchDeg, bankDeg, altFt: view.pose.z, kias, headingDeg: (((90 - (headingRad * 180) / Math.PI) % 360) + 360) % 360, g, vsFpm: vz * 60 };
+        showTrails(t, tl);
+      } else {
+        view.pose = null;
+      }
+      draw();
+    },
+    redraw: draw,
+    /** Something changed on the ground (a tile arrived): a fresh picture soon. */
+    nudge,
+    dispose() {
+      disposed = true;
+      wake?.();
+      resizer?.disconnect();
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('dblclick', ahead);
+      cockpit.dispose();
+      clearGroup(targetGroup);
+      clearGroup(planGroup);
+      clearGroup(trailGroup);
+      for (const thing of owned) thing.dispose?.();
+      ground.dispose();
+      sky.dispose();
+      renderer.dispose();
+      canvas.remove();
+      labels.remove();
+    },
+  };
+}

@@ -146,6 +146,9 @@ export function buildPlan(setup, world) {
     buildDivePlan(plan, setup);
   }
   plan.ip = { x: -u.x * plan.ipFt + r.x * plan.offsetFt, y: -u.y * plan.ipFt + r.y * plan.offsetFt };
+  // The crab the run-in needs (core windTriangle, with the planning wind at the run-in's height), for the Setup's "set to hit".
+  const runInWind = windWords(planWindAt(plan.runInMsl));
+  plan.crabDeg = windTriangle(setup.trackDegT, tasFt(plan.runInKias, plan.runInMsl) / KT_TO_FTPS, runInWind.fromDeg, runInWind.kt).crabDeg;
 
   // The orbit: centred over the target or back along the run-in, a ground circle (radius) or a steady bank.
   const o = setup.orbit;
@@ -388,6 +391,8 @@ function between(a, b, f) {
  * at the release (or the flypast). record: keep every step.
  * Returns { events: { exit, ip, rollIn, release, safe }, release: { t, state, ground (velocity), kias, climbDeg } | null,
  * steadySec, ground (where it hit the ground) | null, stallHeld (seconds the stall line held the G short), timeline }.
+ * @param {any} plan
+ * @param {{ pilot: any, t0?: number, phase?: number, exitSec?: number, dt?: number, stopAt?: string | null, record?: boolean }} options
  */
 export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infinity, dt = PASS_STEP_SEC, stopAt = null, record = false }) {
   const env = { aircraft: plan.ac, sigmaAt: plan.sigmaAt, windAt: plan.windAt };

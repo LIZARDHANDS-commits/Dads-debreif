@@ -88,7 +88,10 @@ export function pilotAt(s, { aircraft, sigmaAt, bankDeg = 0, g = 1 }) {
  * The lift (G, world axes) the pilot wants: up and down from the flight-path angle he wants over the ground
  * (`climbCmdRad`, through dampedClimbG); side to side from the pursuit of `aim` (a point over the ground, { x, y }) or a
  * set bank (`bankDeg`, right positive). vRange: [lowest, highest] up-and-down G (a roll-in may ask for less than 0: he
- * rolls over and pulls). maxBankDeg caps the side-to-side pull while the lift points up.
+ * rolls over and pulls). maxBankDeg caps the side-to-side pull while the lift points up. leadSec: work on where the climb
+ * angle is heading this long ahead.
+ * @param {any} p
+ * @param {{ wind: { x: number, y: number }, sigmaAt: (z: number) => number, climbCmdRad: number, aim?: { x: number, y: number } | null, bankDeg?: number | null, vRange?: number[], maxBankDeg?: number, leadSec?: number }} options
  */
 export function wantedLift(p, { wind, sigmaAt, climbCmdRad, aim = null, bankDeg = null, vRange = [0.3, PILOT.manoeuvreG], maxBankDeg = PILOT.manoeuvreBankDeg, leadSec = 0 }) {
   const s = p.s;

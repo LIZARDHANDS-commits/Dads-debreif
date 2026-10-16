@@ -163,7 +163,7 @@ export function carp({ target, heightFt, ground, load, windAt = null, groundAt =
     rx += step * ux;
     ry += step * uy;
     rz += step * dz;
-    if (rz <= groundAt(rx, ry)) return null; // no release point on the line above the ground lands it on the target
+    if (rz <= /** @type {(x: number, y: number) => number} */ (groundAt)(rx, ry)) return null; // no release point on the line above the ground lands it on the target
   }
   return null;
 }

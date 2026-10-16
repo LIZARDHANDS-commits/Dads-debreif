@@ -24,6 +24,7 @@ import {
 const CT156 = Object.freeze({
   id: 'ct156',
   name: 'Harvard (CT-156)',
+  shortName: 'CT-156',
   performanceSet: 'T-6A',
   model: 'ct156',
   cockpit: true,

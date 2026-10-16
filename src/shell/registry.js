@@ -101,6 +101,24 @@ export const MODULES = [
     prototype: true,
   },
   {
+    id: 'run-in-sim',
+    eyebrow: 'Run-in · training only',
+    title: 'Run-in Simulator',
+    blurb: 'An orbit, a run-in, a release and an escape over real ground',
+    details: {
+      summary: 'Fly a flyover or an inert practice-bomb pass (flat or dive) in 3D over the real ground, auto-flown to your settings: the computer works out the release point, the aim-off and the timing to hit.',
+      capabilities: [
+        'Generic target shapes (a stadium, a bridge, a tower, a range circle, a drop zone) on the real terrain and satellite ground, anywhere on the map',
+        'The orbit, the IP and run-in with the crab, the dive, the release and the escape, flown on the shared CT-156 (T-6A) flight model',
+        'The release point, the aim-off for the wind, the roll-in and the orbit exit worked out to hit the time over target and the aim point',
+        'The miss in feet and clock, the time over target, and the escape flagged against its references',
+      ],
+    },
+    media: { still: 'media/cards/traffic.jpg' }, // a stand-in picture until the module has its own card picture
+    load: () => import('../modules/run-in-sim/index.js'),
+    prototype: true,
+  },
+  {
     id: 'sof',
     eyebrow: 'Operations',
     title: 'SOF Dashboard',

@@ -4,11 +4,11 @@ An orbit, a run-in, a release (or a flypast) and an escape, flown in 3D over the
 
 ## Where it stands
 
-**Spec approved; building Step 2.** Dad asked on 16 Oct 2026; Patrick approved the plan and the spec (relayed by Dad, 16 Oct 2026), adding RS-9: the user sets a few essentials and the computer works out the rest to hit. It does not show on the home screen until Step 2 is built (ALL-R4). It is built once the Debrief's drop (core `drop.js`) and the C-130J model are on main.
+**Built in V2.502 (plan Steps 2 to 5); not yet seen by Patrick or Dad.** Dad asked on 16 Oct 2026; Patrick approved the plan and the spec (relayed by Dad, 16 Oct 2026), adding RS-9: the user sets a few essentials and the computer works out the rest to hit. The home card shows (RS-1). Flyover, Practice bomb flat and Practice bomb dive fly with the CT-156 on the T-6A set; the cargo offload waits for the C-130J's performance set (RS-Q1), and the engine is ready for it (`src/modules/run-in-sim/README.md`). The code: `src/modules/run-in-sim/`.
 
 ## What is next
 
-1. Steps 2 to 5 (the world, the flying, the three run types, the one test) as one pull request.
+1. Step 6: run the sign-off checklist in `testing.md` in the app and send Patrick the result.
 2. The open questions below, one at a time; each has a working answer the spec uses. RS-Q1's C-130J numbers table goes to Patrick before the C-130J flies.
 
 ## The files

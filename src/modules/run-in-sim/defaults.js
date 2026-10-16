@@ -118,14 +118,14 @@ export const CAMERAS = Object.freeze([
 export const PLAY_SPEEDS = Object.freeze([1, 2, 4, 8]);
 
 export const ALLOWED = Object.freeze({
-  run: RUN_IDS,
+  run: [...RUN_IDS],
   target: Object.keys(TARGETS),
   orbitMode: ['radius', 'bank'],
   orbitDir: ['left', 'right'],
   releaseMode: ['carp', 'distance'],
   escapeDir: ['left', 'right', 'straight'],
   camera: CAMERAS.map((c) => c.id),
-  playSpeed: PLAY_SPEEDS,
+  playSpeed: [...PLAY_SPEEDS],
 });
 
 /** The number boxes' ranges: room for any sensible pass, not limits on the flying (estimates for the boxes). */
