@@ -142,8 +142,21 @@ export function buildPlan(setup, world) {
     plan.offsetFt = setup.byHand.aimOffFt ?? worked.aimOffFt;
     const along = setup.release.mode === 'distance' ? -setup.release.distFt : worked.releaseAlongFt;
     plan.release = { along, point: { x: u.x * along + r.x * plan.offsetFt, y: u.y * along + r.y * plan.offsetFt, z: releaseMsl } };
-  } else {
+  } else if (setup.diveSpeedAt === 'release') {
     buildDivePlan(plan, setup);
+  } else {
+    // The roll-in speed set, the release speed what the dive gives (Dad's pick, 16 Oct 2026; to confirm with Patrick): the
+    // release point is worked out for a guessed release speed, the dive flown from the roll-in, and the release point worked
+    // out again for the speed it arrived with, until the two agree within 3 kt (a few passes).
+    const n0 = notes.length;
+    let guess = null;
+    for (let k = 0; k < 4; k++) {
+      notes.length = n0;
+      buildDivePlan(plan, setup, guess);
+      const rel = plan.dive.trial?.release;
+      if (!rel || (guess !== null && Math.abs(rel.kias - guess) < 3)) break;
+      guess = rel.kias;
+    }
   }
   plan.ip = { x: -u.x * plan.ipFt + r.x * plan.offsetFt, y: -u.y * plan.ipFt + r.y * plan.offsetFt };
   // The crab the run-in needs (core windTriangle, with the planning wind at the run-in's height), for the Setup's "set to hit".
@@ -161,13 +174,16 @@ export function buildPlan(setup, world) {
 /**
  * The dive's plan: the dive line over the ground at the dive angle along the run-in, the release point on it (carp with
  * the release velocity's vertical part), the aim-off point where it meets the ground, the roll-in height and speed.
+ * relGuessKias: the speed at release to work the release point out for, when the roll-in speed is the one set.
  */
-function buildDivePlan(plan, setup) {
+function buildDivePlan(plan, setup, relGuessKias = null) {
   const { u, r, tasFt, planWindAt, notes, worked } = plan;
   const theta = degToRad(setup.diveDeg);
   const d = { x: u.x * Math.cos(theta), y: u.y * Math.cos(theta), z: -Math.sin(theta) };
   const releaseMsl = plan.groundFt + setup.releaseFt;
-  const relKias = setup.kias;
+  const atRollIn = setup.diveSpeedAt !== 'release';
+  // The speed at release: set, or (the roll-in speed set) the caller's guess, first the roll-in speed plus 50 kt (an estimate).
+  const relKias = relGuessKias ?? (atRollIn ? setup.kias + 50 : setup.kias);
   const groundVel = (z, kias) => {
     const s = speedAlong(d, planWindAt(z), tasFt(kias, z));
     return { vx: d.x * s, vy: d.y * s, vz: d.z * s };
@@ -197,7 +213,7 @@ function buildDivePlan(plan, setup) {
 
   // The roll-in speed and height: worked out by flying the run-in and the dive from the IP (diveTrial), unless set by hand.
   const handFt = setup.byHand.rollInFt;
-  const handKias = setup.byHand.rollInKias;
+  const handKias = atRollIn ? setup.kias : setup.byHand.rollInKias;
   const vRel = tasFt(relKias, releaseMsl);
   const climbPerSec = vRel * Math.sin(theta);
   const heightFor = (kias) => {
@@ -368,7 +384,7 @@ function control(plan, p, phase, esc) {
       const c = { x: R.x + d.x * (sAlong + lookDive), y: R.y + d.y * (sAlong + lookDive), z: R.z + d.z * (sAlong + lookDive) };
       const climbCmdRad = Math.atan2(c.z - s.z, Math.hypot(c.x - s.x, c.y - s.y));
       const lift = wantedLift(p, { ...env, climbCmdRad, aim: c, vRange: [-PILOT.rollInG, PILOT.rollInG], leadSec: PILOT.diveLeadSec });
-      return { lift, throttle: 0, gMax: PILOT.rollInG }; // idle in the dive (an estimate of the technique; the roll-in speed is worked out for it)
+      return { lift, throttle: 0, idle: true, gMax: PILOT.rollInG }; // idle in the dive, with the idle prop's drag (an estimate of the technique)
     }
     case PHASE.RECOVER:
       return { g: plan.setup.escape.g, bankDeg: 0, throttle: 1 };

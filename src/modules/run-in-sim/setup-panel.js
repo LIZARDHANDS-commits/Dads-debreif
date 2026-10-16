@@ -90,12 +90,13 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   const aimHand = controls.checkbox('aimOffByHand', { label: 'Set the aim-off by hand' });
   const rollInHand = controls.checkbox('rollInByHand', { label: 'Set the roll-in height by hand' });
   const rollInKiasHand = controls.checkbox('rollInKiasByHand', { label: 'Set the roll-in speed by hand' });
+  const relSpeedSet = controls.checkbox('diveSpeedAtRelease', { label: 'Set the speed at release instead (the roll-in speed is worked out)' });
   runIn.panel.body.append(
     num('runInDegM', 'Run-in heading', '°M'),
     num('ipNm', 'IP, miles back from the target', 'NM'),
     speedBox, profile, diveBox,
     crabHit.el, aimHit.el, rollInHit.el,
-    more(aimHand, aimBox, rollInHand, rollInFtBox, rollInKiasHand, rollInKiasBox),
+    more(aimHand, aimBox, relSpeedSet, rollInHand, rollInFtBox, rollInKiasHand, rollInKiasBox),
     note());
 
   // ---- Release (or the flyover's height) ----
@@ -163,24 +164,28 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     exitHit.value.textContent = exit && !exit.byHand ? `+${clock(exit.sec)}` : 'when the pass is flown';
 
     runIn.sum.textContent = `${deg3(v.runInDegM)} · IP ${v.ipNm.toFixed(1)} NM · ${v.kias} KIAS`;
-    speedLabel.textContent = dive ? 'Speed at release' : 'Speed';
+    speedLabel.textContent = dive ? (v.diveSpeedAtRelease ? 'Speed at release' : 'Roll-in speed') : 'Speed';
     show(profile, !flyover);
     flatBtn.setAttribute('aria-pressed', String(run.id === 'bombFlat'));
     diveBtn.setAttribute('aria-pressed', String(dive));
     show(diveBox, dive);
     show(crabHit.el, Boolean(plan));
     show(aimHit.el, !flyover && !v.aimOffByHand);
-    show(rollInHit.el, dive && !(v.rollInByHand && v.rollInKiasByHand));
-    for (const el of [rollInHand, rollInKiasHand]) show(el, dive);
+    show(rollInHit.el, dive && !(v.rollInByHand && v.rollInKiasByHand && v.diveSpeedAtRelease));
+    for (const el of [rollInHand, relSpeedSet]) show(el, dive);
+    show(rollInKiasHand, dive && v.diveSpeedAtRelease);
     show(aimBox, v.aimOffByHand);
     show(rollInFtBox, dive && v.rollInByHand);
-    show(rollInKiasBox, dive && v.rollInKiasByHand);
+    show(rollInKiasBox, dive && v.diveSpeedAtRelease && v.rollInKiasByHand);
     if (plan) {
       const crab = plan.crabDeg ?? 0;
       crabHit.value.textContent = Math.abs(crab) < 0.5 ? 'none' : `${Math.abs(crab).toFixed(0)}° ${crab > 0 ? 'right' : 'left'}`;
       const off = plan.worked.aimOffFt ?? 0;
       aimHit.value.textContent = Math.abs(off) < 5 ? 'none' : `${ft10(Math.abs(off))} ${off > 0 ? 'right' : 'left'} of the target`;
-      rollInHit.value.textContent = plan.dive ? `${ft10(plan.dive.rollInMsl - plan.groundFt)} AGL · ${Math.round(plan.dive.rollInKias)} KIAS` : '—';
+      const relKt = plan.dive?.trial?.release?.kias;
+      rollInHit.value.textContent = !plan.dive ? '—' : v.diveSpeedAtRelease
+        ? `${ft10(plan.dive.rollInMsl - plan.groundFt)} AGL · ${Math.round(plan.dive.rollInKias)} KIAS`
+        : `${ft10(plan.dive.rollInMsl - plan.groundFt)} AGL${relKt ? ` · ${Math.round(relKt)} KIAS at release` : ''}`;
     }
 
     release.sum.textContent = flyover ? `${ft10(v.heightOverTopFt)} over the top` : `${ft10(v.releaseFt)} AGL · ${v.releaseMode === 'carp' ? 'at the CARP · set to hit' : `${ft10(v.releaseDistFt)} before`}`;

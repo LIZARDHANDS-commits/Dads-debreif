@@ -37,7 +37,7 @@ export const RUN_DEFAULTS = Object.freeze({
     escapeDir: 'left', escapeG: 4, escapeBankDeg: 60, escapeTurnDeg: 90, escapeHeightFt: 3000,
   }),
   bombDive: Object.freeze({
-    target: 'range', kias: 250, releaseFt: 3000, diveDeg: 30,
+    target: 'range', kias: 200, releaseFt: 3000, diveDeg: 30, // kias: the roll-in speed (diveSpeedAtRelease off)
     escapeDir: 'left', escapeG: 4, escapeBankDeg: 60, escapeTurnDeg: 90, escapeHeightFt: 3000,
   }),
 });
@@ -79,6 +79,9 @@ export const DEFAULTS = Object.freeze({
   rollInFt: 6000,
   rollInKiasByHand: false,
   rollInKias: 200,
+  // The dive's speed box sets the roll-in speed and the release speed is what the dive gives (Dad's pick, 16 Oct 2026,
+  // option (a) on PR #1062; to confirm with Patrick); on, it sets the speed at release and the roll-in speed is worked out.
+  diveSpeedAtRelease: false,
   exitByHand: false,
   exitSec: 120,
   // Escape
@@ -193,6 +196,7 @@ export function setupFrom(v) {
     heightOverTopFt: v.heightOverTopFt,
     releaseFt: v.releaseFt,
     diveDeg: v.diveDeg,
+    diveSpeedAt: v.diveSpeedAtRelease ? 'release' : 'rollIn',
     release: { mode: v.releaseMode, distFt: v.releaseDistFt },
     byHand: {
       aimOffFt: v.aimOffByHand ? v.aimOffFt : null,
