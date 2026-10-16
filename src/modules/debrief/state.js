@@ -2,7 +2,7 @@
 // status line says about a flight, the flight's extent, and each track as
 // lines broken at GPS gaps. No page access, so they're tested in Node.
 import { GAP_S } from '../../flight-data/clean.js';
-import { MAX_TRACKS } from '../../flight-data/load.js';
+import { MAX_SHIPS } from '../../flight-data/load.js';
 import { MAX_FILE_BYTES } from '../../flight-data/kml.js';
 import { sampleAt, headingAt } from '../../flight-data/flight.js';
 import { fillAt, fillSampleAt } from '../../flight-data/gap-fill.js';
@@ -10,6 +10,7 @@ import { formatZuluSeconds } from '../../core/time.js';
 import { puckSummary, puckLine } from './puck.js';
 import { timingSummary, timingLines } from './gps-timing.js';
 import { altitudeSummary, altitudeStatusLine } from './altitude.js';
+import { DROP_DEFAULTS } from './drop.js';
 
 /**
  * Ship colours as in V6 (line 2104), except #4, which V6 drew near-black on a
@@ -98,6 +99,8 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   tennisTofSec: 3,
   tennisRadiusFt: 250,
   tennisGravity: true,
+  // The simulated drop's box (DB-36), closed at first: its load, ship, drop zone size, wind and load numbers (drop.js).
+  ...DROP_DEFAULTS,
   // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
   // is gone: it was the same as Centre formation (#26).
   view: '2d',
@@ -155,19 +158,24 @@ function fillWords(fill) {
   return ` (${est} filled as estimates, ${notFilled} not filled)`;
 }
 
-/** The one-line status after loading: "4 tracks loaded, 2 gaps", with the gap fill's counts when it is on. */
-export function flightSummary(flight, fill = null) {
+const NUMBER = (slot) => `#${slot}`;
+
+/**
+ * The one-line status after loading: "4 tracks loaded, 2 gaps", with the gap fill's counts when it is on. label(slot): a
+ * ship's name ("#2", or "Viper 2" in an exercise); flights: how many flights an exercise has (0 for a four-ship load, DB-37).
+ */
+export function flightSummary(flight, fill = null, { label = NUMBER, flights = 0 } = {}) {
   if (!flight) return 'No flight loaded';
   const tracks = Object.values(flight.tracks);
   const gaps = tracks.reduce((n, tr) => n + (tr.gaps?.length ?? 0), 0);
-  const parts = [`${plural(tracks.length, 'track')} loaded`];
+  const parts = [`${plural(tracks.length, 'track')} loaded${flights ? ` in ${plural(flights, 'flight')}` : ''}`];
   if (gaps) parts.push(plural(gaps, 'gap') + fillWords(fill));
   if (flight.cutTracks?.length) parts.push(`${plural(flight.cutTracks.length, 'track')} trimmed to the shared time`);
-  const timing = timingSummary(flight); // DB-25
+  const timing = timingSummary(flight, label); // DB-25
   if (timing) parts.push(timing);
-  const puck = puckSummary(flight); // DB-23
+  const puck = puckSummary(flight, label); // DB-23
   if (puck) parts.push(puck);
-  const altitude = altitudeSummary(flight); // DB-28
+  const altitude = altitudeSummary(flight, label); // DB-28
   if (altitude) parts.push(altitude);
   return parts.join(', ');
 }
@@ -179,7 +187,7 @@ export function flightSummary(flight, fill = null) {
  * gap fill on (fill as flightSummary's), how many of its gaps are filled, and
  * each gap left as a gap with its reason, or filled past +7 G (DB-19).
  */
-export function trackStatus(flight, fill = null) {
+export function trackStatus(flight, fill = null, label = NUMBER) {
   if (!flight) return [];
   return Object.values(flight.tracks)
     .sort((a, b) => a.slot - b.slot)
@@ -198,7 +206,7 @@ export function trackStatus(flight, fill = null) {
         const longest = Math.max(...gaps.map((g) => g.toT - g.fromT));
         lines.push(`${plural(gaps.length, 'GPS gap')}, longest ${formatDuration(longest)}`);
       }
-      if (fill?.on && fill.result && gaps.length) lines.push(...fillLines(fill.result, tr.slot));
+      if (fill?.on && fill.result && gaps.length) lines.push(...fillLines(fill.result, tr.slot, label));
       lines.push(...timingLines(tr)); // DB-25
       const puck = puckLine(tr); // DB-23
       if (puck) lines.push(puck);
@@ -209,18 +217,18 @@ export function trackStatus(flight, fill = null) {
         const s = Math.round(cut.beforeS + cut.afterS);
         lines.push(`${formatDuration(s)} outside the shared time isn't played`);
       }
-      return { slot: tr.slot, name: tr.name || `Track #${tr.slot}`, lines };
+      return { slot: tr.slot, name: tr.name || `Track ${label(tr.slot)}`, lines };
     });
 }
 
 // One ship's gap-fill lines for the status details: the count filled (and what pinned them), each gap not filled with
 // its reason, and each fill over the T-6's +7 G (a reference, flagged, not refused).
-function fillLines(result, slot) {
+function fillLines(result, slot, label = NUMBER) {
   const own = result.fills[slot] ?? [];
   const when = (g) => `${formatZuluSeconds(g.fromT)} (${formatDuration(g.toT - g.fromT)})`;
   const lines = [];
   if (own.length) {
-    const pinned = [...new Set(own.filter((f) => f.method === 'formation').map((f) => `#${f.refSlot}`))];
+    const pinned = [...new Set(own.filter((f) => f.method === 'formation').map((f) => label(f.refSlot)))];
     const wind = own.some((f) => f.method !== 'ground' && f.method !== 'formation' && !f.windUsed) ? ' (no wind)' : '';
     lines.push(`${plural(own.length, 'gap')} filled as estimates${pinned.length ? `, ${own.filter((f) => f.method === 'formation').length} from ${pinned.join(' and ')}'s track` : ''}${wind}`);
   }
@@ -264,11 +272,12 @@ export function trackRuns(fixes) {
 }
 
 /**
- * Chosen files in the order picked, given ships #1 upward. Refused (null) past
- * MAX_TRACKS, so nothing is quietly left out.
+ * Chosen files in the order picked, given ships #1 upward: four or fewer are #1 to #4 as always; more are an exercise,
+ * four to a flight (slots 5 to 8 are flight 2's, and so on; DB-37). Refused (null) past MAX_SHIPS, so nothing is
+ * quietly left out.
  */
 export function assignShips(names) {
-  if (names.length > MAX_TRACKS) return null;
+  if (names.length > MAX_SHIPS) return null;
   return names.map((name, i) => ({ name, slot: i + 1 }));
 }
 
@@ -287,12 +296,12 @@ export function setShip(assignments, index, slot) {
 
 /**
  * Checks the files picked for "Load tracks" before any is read: 1 to
- * MAX_TRACKS files, none bigger than a track log can be. Returns the message
+ * MAX_SHIPS files (16, an exercise past four, DB-37), none bigger than a track log can be. Returns the message
  * to show, or null. Reading a huge file just to refuse it would freeze the page.
  */
 export function checkPicked(files) {
   if (!files.length) return 'No files were chosen.';
-  if (files.length > MAX_TRACKS) return `Choose up to ${MAX_TRACKS} track files at once (${files.length} were chosen). Nothing was loaded.`;
+  if (files.length > MAX_SHIPS) return `Choose up to ${MAX_SHIPS} track files at once (${files.length} were chosen). Nothing was loaded.`;
   const big = files.find((f) => f.size > MAX_FILE_BYTES);
   if (big) return `"${String(big.name).slice(0, 80)}" is larger than ${MAX_FILE_BYTES / 1024 / 1024} MB, too big for one track log. Nothing was loaded.`;
   return null;

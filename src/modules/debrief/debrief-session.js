@@ -8,6 +8,7 @@ import { MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
 import { weatherForFile } from './weather/saved-radar.js';
 import { SHIFT_LIMITS, readTimings } from './gps-timing.js';
 import { readAltitudes } from './altitude.js';
+import { MAX_SHIPS } from '../../flight-data/load.js';
 
 const PREFIX = 'standards.';
 /** The playback time, seconds since 1970 (the debrief file's DFP time limit). */
@@ -21,7 +22,7 @@ const TIME_RULE = { type: 'number', min: 0, max: 1e11 };
  * field of its own, only this key and the two places that use it move.
  */
 export const WEATHER_KEY = 'savedWeather';
-/** Each ship's GPS puck seat in the file (DB-23): "puck.1" to "puck.4", "front" or "rear"; a ship with none set has no key. */
+/** Each ship's GPS puck seat in the file (DB-23): "puck.1" to "puck.4" (to "puck.16" in an exercise, DB-37), "front" or "rear"; a ship with none set has no key. */
 const PUCK_PREFIX = 'puck.';
 const PUCK_RULE = { type: 'string', oneOf: ['front', 'rear'] };
 /**
@@ -47,7 +48,7 @@ const ALTITUDE_RULE = { type: 'string', oneOf: ['recorded'] };
 export function settingsRules(limits, { weather = false, pucks = false } = {}) {
   const rules = { [TIME_KEY]: TIME_RULE };
   if (pucks) {
-    for (let slot = 1; slot <= 4; slot++) {
+    for (let slot = 1; slot <= MAX_SHIPS; slot++) {
       rules[`${PUCK_PREFIX}${slot}`] = PUCK_RULE;
       rules[`${STAMPS_PREFIX}${slot}`] = STAMPS_RULE;
       rules[`${SHIFT_PREFIX}${slot}`] = SHIFT_RULE;
@@ -107,7 +108,7 @@ export function sessionSettings(standards, t, weather = '', pucks = {}, timings 
 /** The file's altitude choices as { slot: { recorded: true } }, or null when the file names none (DB-28). */
 export function altitudesFromSettings(settings) {
   const raw = {};
-  for (let slot = 1; slot <= 4; slot++) if (settings[`${ALTITUDE_PREFIX}${slot}`] === 'recorded') raw[slot] = { recorded: true };
+  for (let slot = 1; slot <= MAX_SHIPS; slot++) if (settings[`${ALTITUDE_PREFIX}${slot}`] === 'recorded') raw[slot] = { recorded: true };
   const out = readAltitudes(raw);
   return Object.keys(out).length ? out : null;
 }
@@ -115,7 +116,7 @@ export function altitudesFromSettings(settings) {
 /** The file's timestamp choices as { slot: { recorded?, shiftS? } }, or null when the file names none (DB-25). */
 export function timingsFromSettings(settings) {
   const raw = {};
-  for (let slot = 1; slot <= 4; slot++) {
+  for (let slot = 1; slot <= MAX_SHIPS; slot++) {
     if (settings[`${STAMPS_PREFIX}${slot}`] === 'recorded') (raw[slot] ??= {}).recorded = true;
     if (Number.isFinite(settings[`${SHIFT_PREFIX}${slot}`])) (raw[slot] ??= {}).shiftS = settings[`${SHIFT_PREFIX}${slot}`];
   }
@@ -126,7 +127,7 @@ export function timingsFromSettings(settings) {
 /** The file's GPS puck seats as { slot: seat }, or null when the file names none (DB-23). Checked by settingsRules already. */
 export function pucksFromSettings(settings) {
   const out = {};
-  for (let slot = 1; slot <= 4; slot++) {
+  for (let slot = 1; slot <= MAX_SHIPS; slot++) {
     const seat = settings[`${PUCK_PREFIX}${slot}`];
     if (seat) out[slot] = seat;
   }

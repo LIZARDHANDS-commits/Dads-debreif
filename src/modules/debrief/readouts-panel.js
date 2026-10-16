@@ -9,16 +9,17 @@ import { shipName } from './state.js';
 
 /**
  * layout: the remembered layout settings (moreDetail). swatch(slot): a ship's
- * colour dot. Returns { element, render(readouts, flight) }.
+ * colour dot. label(slot): a ship's name on the card ("#2"; in an exercise the flight's call sign and number,
+ * "Viper 2", DB-37). Returns { element, render(readouts, flight) }.
  */
-export function createReadoutsPanel({ layout, swatch }) {
+export function createReadoutsPanel({ layout, swatch, label = (slot) => `#${slot}` }) {
   const card = h('ul', { class: 'formation-card', 'aria-label': 'Formation' });
   const more = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (collapsed) => layout.update({ moreDetail: !collapsed }) });
   more.element.classList.add('more-detail');
   const element = h('div', { class: 'readouts' }, card, more.element);
 
   const line = (slot, { text, tone }) =>
-    h('li', { class: `tone-${tone}` }, swatch(slot), h('strong', {}, `#${slot}`), ' ', h('span', {}, text));
+    h('li', { class: `tone-${tone}` }, swatch(slot), h('strong', {}, label(slot)), ' ', h('span', {}, text));
 
   /** leadWind: the winds-aloft words for the line under Lead's, or null. */
   function render(r, flight, { leadWind = null } = {}) {
@@ -42,14 +43,14 @@ export function createReadoutsPanel({ layout, swatch }) {
     more.body.append(h('h3', {}, 'Live data'));
     for (const ship of r.ships) {
       more.body.append(
-        h('h4', {}, swatch(ship.slot), `#${ship.slot} `, h('span', { class: 'ship-name' }, names[ship.slot])),
+        h('h4', {}, swatch(ship.slot), `${label(ship.slot)} `, h('span', { class: 'ship-name' }, names[ship.slot])),
         h('ul', { class: 'detail-lines' }, shipDetailText(ship).map((text) => h('li', {}, text))),
       );
     }
     if (r.vsLead.length) {
       more.body.append(
         h('h3', {}, 'From Lead'),
-        h('ul', { class: 'detail-lines' }, r.vsLead.map((row) => h('li', {}, h('strong', {}, `#${row.slot} `), vsLeadText(row)))),
+        h('ul', { class: 'detail-lines' }, r.vsLead.map((row) => h('li', {}, h('strong', {}, `${label(row.slot)} `), vsLeadText(row)))),
       );
     }
     if (r.pairs.length) {
