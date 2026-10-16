@@ -47,14 +47,19 @@ export const DEFAULTS = Object.freeze({
   run: 'bombFlat',
   target: 'range',
   targetSizeFt: TARGETS.range.sizeFt,
-  targetTurnByHand: false,
-  targetHeadingDegM: 320,
+  // The target's own heading (RS-12): 050°M puts the bridge and the stadium square to the default 320°M run-in (an
+  // estimate). The run-in heading never turns it.
+  targetHeadingDegM: 50,
   placeLat: DEFAULT_PLACE.lat,
   placeLon: DEFAULT_PLACE.lon,
   placeIsDefault: true,
   magVarDegE: MAG_VARIATION_DEG_E,
   totSec: 360,
-  // Orbit
+  // Orbit (RS-11): a holding pattern (the default), a figure 8 or the circle of the first version. The holding pattern's
+  // legs are 1 minute (the standard holding leg below 14,000 ft, a reference; an estimate here) and its turns, like the
+  // figure 8's, at 30° bank (an estimate). orbitBankDeg is also the circle's steady bank when flown as Bank.
+  orbitPattern: 'hold',
+  holdLegSec: 60,
   orbitHeightFt: 3000,
   orbitMode: 'radius',
   orbitRadiusNm: 2,
@@ -106,6 +111,10 @@ export const DEFAULTS = Object.freeze({
   showCarp: true,
   showTrails: true,
   showFlags: true,
+  // The view (RS-13): the 3D view, or the 2D plan and profile; the profile shows the release to the impact (near), close
+  // round the target (target) or the whole run-in (whole).
+  viewMode: '3d',
+  profileZoom: 'near',
   // The bar
   camera: 'chase',
   playSpeed: 4,
@@ -123,12 +132,15 @@ export const PLAY_SPEEDS = Object.freeze([1, 2, 4, 8]);
 export const ALLOWED = Object.freeze({
   run: [...RUN_IDS],
   target: Object.keys(TARGETS),
+  orbitPattern: ['hold', 'eight', 'circle'],
   orbitMode: ['radius', 'bank'],
   orbitDir: ['left', 'right'],
   releaseMode: ['carp', 'distance'],
   escapeDir: ['left', 'right', 'straight'],
   camera: CAMERAS.map((c) => c.id),
   playSpeed: [...PLAY_SPEEDS],
+  viewMode: ['3d', '2d'],
+  profileZoom: ['target', 'near', 'whole'],
 });
 
 /** The number boxes' ranges: room for any sensible pass, not limits on the flying (estimates for the boxes). */
@@ -137,6 +149,7 @@ export const RANGES = Object.freeze({
   orbitHeightFt: { min: 200, max: 25000, step: 100 },
   orbitRadiusNm: { min: 0.5, max: 10, step: 0.1 },
   orbitBankDeg: { min: 5, max: 75, step: 1 },
+  holdLegSec: { min: 15, max: 300, step: 5 },
   orbitKias: { min: 100, max: 316, step: 5 },
   orbitBackNm: { min: 0, max: 20, step: 0.1 },
   runInDegM: { min: 0, max: 360, step: 1 },
@@ -184,10 +197,11 @@ export function setupFrom(v) {
     run: run.id,
     aircraftId: run.aircraft,
     loadId: run.load,
-    target: { id: v.target, sizeFt: v.targetSizeFt, headingDegT: t(v.targetTurnByHand ? v.targetHeadingDegM : v.runInDegM) },
+    target: { id: v.target, sizeFt: v.targetSizeFt, headingDegT: t(v.targetHeadingDegM) },
     trackDegT: t(v.runInDegM),
     totSec: v.totSec,
     orbit: {
+      pattern: v.orbitPattern, legSec: v.holdLegSec,
       heightFt: v.orbitHeightFt, mode: v.orbitMode, radiusNm: v.orbitRadiusNm, bankDeg: v.orbitBankDeg,
       dir: v.orbitDir === 'left' ? -1 : 1, kias: v.orbitKias, backNm: v.orbitBackNm,
     },

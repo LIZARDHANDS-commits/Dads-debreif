@@ -1,12 +1,13 @@
 // The Setup column (spec, "Left: Setup"; house rules): showing from the start the Run, the Aircraft (filled in from the
-// run), the Target, the Place and the Time over target; below them closed boxes, each with its settings in one line:
-// Orbit, Run-in, Release, Escape, Wind and Display. Each box shows only the few settings the user sets for that run
+// run), the Target with its own heading (RS-12), the Place and the Time over target; below them closed boxes, each with
+// its settings in one line:
+// Orbit (a holding pattern, a figure 8 or a circle, RS-11), Run-in, Release, Escape, Wind and Display. Each box shows only the few settings the user sets for that run
 // (RS-9); the numbers the computer works out show greyed with "set to hit", and More sets one by hand. Every setting
 // starts at a default, and each box says its defaults are estimates. The main button is "Fly the pass".
 import { h } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { RUNS, RANGES, runOf } from './defaults.js';
-import { TARGETS } from './targets.js';
+import { TARGETS, HAS_HEADING } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { clock } from './pass.js';
 
@@ -41,33 +42,38 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   const totWords = h('span', { class: 'rs-faint' });
   const mapButton = h('button', { type: 'button', class: 'rs-btn' }, 'Tap the map');
   mapButton.addEventListener('click', onOpenMap);
-  const targetHeadingBox = num('targetHeadingDegM', 'Its heading', '°M');
-  const targetMore = more(
-    num('targetSizeFt', 'Size, its main dimension', 'ft'),
-    controls.checkbox('targetTurnByHand', { label: 'Turn it to a heading of its own (else the run-in heading)' }),
-    targetHeadingBox);
+  const targetHeadingBox = num('targetHeadingDegM', 'Target heading (its long side; the run-in never turns it)', '°M');
+  const targetMore = more(num('targetSizeFt', 'Size, its main dimension', 'ft'));
   const top = h('div', { class: 'rs-top' },
     controls.select('run', { label: 'Run', options: RUNS.map((r) => [r.id, r.label]) }),
     h('div', { class: 'control rs-fixed' }, h('span', { class: 'rs-fixed-label' }, 'Aircraft'), aircraftName),
     controls.select('target', { label: 'Target', options: Object.values(TARGETS).map((t) => [t.id, t.label]) }),
+    targetHeadingBox,
     targetMore,
     h('div', { class: 'control rs-place' }, h('span', { class: 'rs-fixed-label' }, 'Place'), mapButton, placeWords),
     h('div', { class: 'rs-tot' }, num('totSec', 'Time over target, seconds after the start', 's'), totWords));
 
   // ---- Orbit ----
   const orbit = box('Orbit');
+  const modeBox = controls.choice('orbitMode', { label: 'Flown as', options: [['radius', 'Radius'], ['bank', 'Bank']] });
   const radiusBox = num('orbitRadiusNm', 'Radius (a circle over the ground)', 'NM');
   const bankBox = num('orbitBankDeg', 'Bank (a steady bank, drifting with the wind)', '°');
+  const bankLabel = bankBox.querySelector('label');
+  const legBox = num('holdLegSec', 'Leg time (1 minute, the standard holding leg; an estimate here)', 's');
+  const backBox = num('orbitBackNm', 'Centre, miles back from the target along the run-in', 'NM');
   const exitHit = hit('Leave the orbit');
+  const lastHit = hit('Last outbound leg');
+  const lastLabel = lastHit.el.querySelector('span');
   const exitBox = num('exitSec', 'Leave at, seconds after the start', 's');
+  const exitLabel = exitBox.querySelector('label');
   orbit.panel.body.append(
+    controls.select('orbitPattern', { label: 'Pattern', options: [['hold', 'Holding pattern'], ['eight', 'Figure 8'], ['circle', 'Circle']] }),
     num('orbitHeightFt', 'Height above the target\'s ground', 'ft AGL'),
-    controls.choice('orbitMode', { label: 'Flown as', options: [['radius', 'Radius'], ['bank', 'Bank']] }),
-    radiusBox, bankBox,
+    modeBox, radiusBox, legBox, bankBox,
     controls.choice('orbitDir', { label: 'Direction', options: [['left', 'Left'], ['right', 'Right']] }),
     num('orbitKias', 'Orbit speed', 'KIAS'),
-    num('orbitBackNm', 'Centre, miles back from the target along the run-in', 'NM'),
-    exitHit.el,
+    backBox,
+    exitHit.el, lastHit.el,
     more(controls.checkbox('exitByHand', { label: 'Leave the orbit at a time set by hand' }), exitBox),
     note());
 
@@ -154,14 +160,29 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     aircraftName.textContent = AIRCRAFT[run.aircraft].name;
     placeWords.textContent = v.placeIsDefault ? 'Moose Jaw area' : `${v.placeLat.toFixed(3)}, ${v.placeLon.toFixed(3)}`;
     totWords.textContent = `+${clock(v.totSec)}`;
-    show(targetHeadingBox, v.targetTurnByHand);
+    show(targetHeadingBox, HAS_HEADING.includes(v.target));
 
-    orbit.sum.textContent = `${ft10(v.orbitHeightFt)} AGL · ${v.orbitMode === 'radius' ? `${v.orbitRadiusNm.toFixed(1)} NM` : `${v.orbitBankDeg}° bank`} · ${v.orbitDir}`;
-    show(radiusBox, v.orbitMode === 'radius');
-    show(bankBox, v.orbitMode === 'bank');
+    const circle = v.orbitPattern === 'circle';
+    const hold = v.orbitPattern === 'hold';
+    orbit.sum.textContent = circle
+      ? `Circle · ${ft10(v.orbitHeightFt)} AGL · ${v.orbitMode === 'radius' ? `${v.orbitRadiusNm.toFixed(1)} NM` : `${v.orbitBankDeg}° bank`} · ${v.orbitDir}`
+      : `${hold ? 'Holding' : 'Figure 8'} · ${ft10(v.orbitHeightFt)} AGL · ${v.orbitDir}${hold ? ` · ${clock(v.holdLegSec)} legs` : ''}`;
+    for (const el of [modeBox, backBox]) show(el, circle);
+    show(radiusBox, circle && v.orbitMode === 'radius');
+    show(bankBox, !circle || v.orbitMode === 'bank');
+    bankLabel.textContent = circle ? 'Bank (a steady bank, drifting with the wind)' : 'Bank in the turns (still air; the wind steepens the downwind side)';
+    show(legBox, hold);
     show(exitBox, v.exitByHand);
+    exitLabel.textContent = circle ? 'Leave at, seconds after the start' : 'Leave at the IP, at the first pass after this many seconds';
     show(exitHit.el, !v.exitByHand);
-    exitHit.value.textContent = exit && !exit.byHand ? `+${clock(exit.sec)}` : 'when the pass is flown';
+    const fresh = exit && !exit.byHand;
+    exitHit.value.textContent = fresh ? `+${clock(exit.sec)}${exit.pattern ? ' at the IP' : ''}` : 'when the pass is flown';
+    const pat = fresh && exit.pattern && !exit.pattern.none ? exit.pattern : null;
+    show(lastHit.el, Boolean(pat) && !circle);
+    if (pat) {
+      lastLabel.firstChild.textContent = pat.legSec !== undefined ? 'Last outbound leg' : 'Last loop';
+      lastHit.value.textContent = pat.legSec !== undefined ? `${clock(pat.legSec)}${pat.k ? ` after ${pat.k} lap${pat.k > 1 ? 's' : ''}` : ''}` : `${Math.round(pat.bankDeg)}° bank${pat.k ? ` after ${pat.k} loop${pat.k > 1 ? 's' : ''}` : ''}`;
+    }
 
     runIn.sum.textContent = `${deg3(v.runInDegM)} · IP ${v.ipNm.toFixed(1)} NM · ${v.kias} KIAS`;
     speedLabel.textContent = dive ? (v.diveSpeedAtRelease ? 'Speed at release' : 'Roll-in speed') : 'Speed';

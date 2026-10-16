@@ -8,11 +8,16 @@
 //    dive line (carp with the release's vertical part, RS-5), the aim-off point, the roll-in height (so the dive is steady
 //    for STEADY.needSec before release, an estimate) and the roll-in speed (so the dive at idle arrives at the speed set
 //    for release). Any of them can be set by hand instead (setup.byHand); the pass then flies as set.
-// 2. The orbit exit (solveExit): the moment to leave the orbit so the time over target is made (RS-8), found by flying the
-//    rest of the pass from candidate exits; when no exit can make it, the soonest, and the card says how late.
+// 2. The orbit exit: the moment to leave the orbit so the time over target is made (RS-8). On the circle (solveExit), found
+//    by flying the rest of the pass from candidate exits; when no exit can make it, the soonest, and the card says how late.
+//    On the holding pattern and the figure 8 (RS-11; solvePattern, flyPattern), the pilot always leaves at the IP heading
+//    inbound, and the time is made by the last lap: the holding pattern's last outbound leg stretched or shortened, or the
+//    figure 8's last loop flown wider or tighter (PATTERN's limits, estimates). The pattern is a path of legs and arcs over
+//    the ground (ground-path.js) held by the same L1 follower as the run-in line and the circle.
 // 3. The flight (fly): the pilot (pilot.js) on core's point mass, stepped at PASS_STEP_SEC through every leg, each step
 //    stored. The aircraft meets the actual wind; the load falls through it (core flyDrop) from the aircraft's state at
-//    release.
+//    release; over the bridge, it stops on the deck only if it meets the deck from above or its edge (RS-12; targets.js
+//    deckHit), and one that misses falls on past it to the ground.
 // 4. The result: the miss (core missClock), the time over target, the release against the plan, the escape's lowest
 //    height, peak G, closest distance and lowest airspeed, each flagged against its reference (RS-6), the leg times, and
 //    plain words for anything the pass could not do as set.
@@ -29,7 +34,8 @@ import { unitVectorFromCompassDeg, compassDegFromVector, compassDegToHeadingRad,
 import { FT_PER_NM, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { dropWind } from '../debrief/drop.js';
 import { AIRCRAFT } from './aircraft.js';
-import { targetSizes, targetSurfaceFt, TARGETS } from './targets.js';
+import { targetSizes, deckOf, deckHit, deckMiss, TARGETS } from './targets.js';
+import { makePath, pointOnPath, nearestOnPath, samplePath, holdLap, eightLoop } from './ground-path.js';
 import { PILOT, pilotAt, pilotStep, wantedLift, airData } from './pilot.js';
 
 /** The flight's step, s: the shared point mass's (core drop.js uses the same 0.05 s). */
@@ -54,7 +60,16 @@ const MIN_ROLL_IN_KIAS = 140;
  * anywhere; the flyover's 1,000 ft above the target's top inside 2,000 ft of it (the CARs 602.14 built-up-area
  * reference, to be checked).
  */
-export const REFERENCES = Object.freeze({ lowestAglFt: 500, overTopFt: 1000, overTopInsideFt: 2000 });
+export const REFERENCES = Object.freeze({ lowestAglFt: 500, overTopFt: 1000, overTopInsideFt: 2000, orbitBankDeg: 45 });
+/**
+ * The holding pattern and the figure 8 (RS-11), ESTIMATES: the last outbound leg is shortened to no less than
+ * holdMinLegSec (so the pilot is wings level inbound before the IP), and the figure 8's last loop is flown between
+ * eightBankDeg's banks (15° to 45°, the spec's estimates), its radius worked out at the orbit's true airspeed.
+ */
+export const PATTERN = Object.freeze({ holdMinLegSec: 15, eightBankDeg: Object.freeze([15, 45]) });
+/** The patterns flown as a path over the ground (the circle keeps the first version's way). */
+const PATH_PATTERNS = Object.freeze(['hold', 'eight']);
+const TAU = Math.PI * 2;
 
 /** The legs as stored in the timeline. */
 export const PHASE = Object.freeze({ ORBIT: 0, TO_IP: 1, RUN_IN: 2, DIVE: 3, RECOVER: 4, TURN: 5, CLIMB: 6 });
@@ -111,7 +126,12 @@ export function buildPlan(setup, world) {
   const typed = (w) => ({ topDeg: w.topDegT, topKt: w.topKt, groundDeg: w.groundDegT, groundKt: w.groundKt });
   const windAt = dropWind({ mode: 'typed', typed: typed(setup.wind), releaseFt: windTopMsl, groundFt }).at;
   const planWindAt = setup.planWind ? dropWind({ mode: 'typed', typed: typed(setup.planWind), releaseFt: windTopMsl, groundFt }).at : windAt;
-  const loadGroundAt = (x, y) => groundAt(x, y) + targetSurfaceFt(setup.target.id, setup.target.sizeFt, setup.target.headingDegT, x, y);
+  // The surface the release point is worked out on (core carp): the ground, or for the bridge a level plane at its deck's
+  // height, so the load is aimed to come down through the deck's height at its middle (the aim point). A plane rather
+  // than the deck alone: the deck's 150 ft step at its edge would leave carp's search no smooth miss to close on. Where
+  // the load really stops (the deck, or past it to the ground) is dropFrom's.
+  const deckMsl = setup.target.id === 'bridge' ? groundFt + sizes.aimFt : null;
+  const loadGroundAt = deckMsl === null ? groundAt : () => deckMsl;
 
   const plan = {
     setup, run, ac, load, u, r, groundFt, groundAt, loadGroundAt, known: world.known ?? (() => false), sizes,
@@ -163,11 +183,25 @@ export function buildPlan(setup, world) {
   const runInWind = windWords(planWindAt(plan.runInMsl));
   plan.crabDeg = windTriangle(setup.trackDegT, tasFt(plan.runInKias, plan.runInMsl) / KT_TO_FTPS, runInWind.fromDeg, runInWind.kt).crabDeg;
 
-  // The orbit: centred over the target or back along the run-in, a ground circle (radius) or a steady bank.
   const o = setup.orbit;
+  const msl = groundFt + o.heightFt;
+  if (PATH_PATTERNS.includes(o.pattern)) {
+    // The holding pattern or the figure 8 (RS-11), on the IP, its turns at the set bank's radius at the orbit's true
+    // airspeed (over the ground, so the bank flown changes with the wind), the holding legs the set time at that speed.
+    // lap: one lap as drawn before the pass is worked out; path: the whole pattern flown, set by flyPattern.
+    const tasFtps = tasFt(o.kias, msl);
+    const radiusFt = turnRadiusFromBankFt(tasFtps, o.bankDeg);
+    const legFt = tasFtps * o.legSec;
+    const lap = o.pattern === 'hold'
+      ? holdLap({ ip: plan.ip, u, dir: o.dir, r: radiusFt, legFt })
+      : [...eightLoop({ ip: plan.ip, u, dir: o.dir, r: radiusFt }), ...eightLoop({ ip: plan.ip, u, dir: -o.dir, r: radiusFt })];
+    plan.orbit = { ...o, msl, ccw: o.dir < 0, tasFtps, radiusFt, legFt, centre: { ...plan.ip }, lap: makePath(lap), path: null, prepFrom: 0 };
+    return plan;
+  }
+  // The circle: centred over the target or back along the run-in, a ground circle (radius) or a steady bank.
   const centre = { x: -u.x * o.backNm * FT_PER_NM, y: -u.y * o.backNm * FT_PER_NM };
-  const radiusFt = o.mode === 'radius' ? o.radiusNm * FT_PER_NM : turnRadiusFromBankFt(tasFt(o.kias, groundFt + o.heightFt), o.bankDeg);
-  plan.orbit = { ...o, centre, radiusFt, msl: groundFt + o.heightFt, ccw: o.dir < 0 };
+  const radiusFt = o.mode === 'radius' ? o.radiusNm * FT_PER_NM : turnRadiusFromBankFt(tasFt(o.kias, msl), o.bankDeg);
+  plan.orbit = { ...o, centre, radiusFt, msl, ccw: o.dir < 0 };
   return plan;
 }
 
@@ -343,6 +377,21 @@ function orbitStart(plan) {
   return pilotAt(s, { aircraft: plan.ac, sigmaAt: plan.sigmaAt, bankDeg, g: 1 / Math.cos(degToRad(bankDeg)) });
 }
 
+/**
+ * The holding pattern's or the figure 8's start (RS-11): at the IP on the inbound track (crabbed for the wind), at the
+ * orbit's height and speed, banked into the pattern's first turn (or wings level when there is no pattern to fly).
+ */
+function patternStart(plan) {
+  const o = plan.orbit;
+  const V = o.tasFtps;
+  const w = windWords(plan.windAt(o.msl));
+  const tri = windTriangle(plan.setup.trackDegT, V / KT_TO_FTPS, w.fromDeg, w.kt);
+  const s = pointMassState({ x: plan.ip.x, y: plan.ip.y, altFt: o.msl, ktas: V / KT_TO_FTPS, headingRad: compassDegToHeadingRad(tri.headingDeg) });
+  const first = o.path?.segs[0];
+  const bankDeg = first?.kind === 'arc' ? Math.sign(-first.sweep) * radToDeg(Math.atan((V * V) / (G_FTPS2 * first.r))) : 0;
+  return pilotAt(s, { aircraft: plan.ac, sigmaAt: plan.sigmaAt, bankDeg, g: 1 / Math.cos(degToRad(bankDeg)) });
+}
+
 /** The flight-path angle (over the ground) that takes the aircraft to height zWant over about PILOT.heightTimeSec, within maxDeg. */
 function climbToward(s, wind, zWant, maxDeg) {
   const gh = Math.max(50, Math.hypot(s.vx + wind.x, s.vy + wind.y));
@@ -365,6 +414,14 @@ function control(plan, p, phase, esc) {
   switch (phase) {
     case PHASE.ORBIT: {
       const o = plan.orbit;
+      if (o.path) {
+        // The holding pattern or the figure 8 (RS-11): the point `look` ahead on the path, as the run-in line and the circle.
+        // From the last lap's start (prepFrom) he goes to the run-in's height and speed, so he is established at the IP.
+        const prep = esc.pathS >= o.prepFrom;
+        const climbCmdRad = climbToward(s, wind, prep ? plan.runInMsl : o.msl, PILOT.maxClimbDeg);
+        const aim = pointOnPath(o.path, esc.pathS + look);
+        return { lift: wantedLift(p, { ...env, climbCmdRad, aim, maxBankDeg: PILOT.patternBankDeg }), kias: prep ? plan.runInKias : o.kias, gMax: PILOT.manoeuvreG };
+      }
       const climbCmdRad = climbToward(s, wind, o.msl, PILOT.maxClimbDeg);
       if (o.mode === 'bank') return { lift: wantedLift(p, { ...env, climbCmdRad, bankDeg: o.dir * o.bankDeg, maxBankDeg: 89 }), kias: o.kias, gMax: PILOT.manoeuvreG };
       const phi = Math.atan2(s.y - o.centre.y, s.x - o.centre.x) + (o.ccw ? 1 : -1) * Math.min(1, look / o.radiusFt);
@@ -425,7 +482,8 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
   let release = null;
   let ground = null;
   let stallHeld = 0;
-  const esc = { turned: 0, lastHdg: null, holdFrom: null, from: null };
+  const esc = { turned: 0, lastHdg: null, holdFrom: null, from: null, pathS: 0 };
+  const path = plan.orbit?.path; // none while the plan is still being worked out (the dive's trials)
   const escMsl = plan.groundFt + plan.setup.escape.heightFt;
   const startEscape = () => {
     esc.from = t;
@@ -451,7 +509,19 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
   while (t - t0 < MAX_PASS_SEC) {
     const s = p.s;
     // Leg changes at the start of the step.
-    if (ph === PHASE.ORBIT && t >= exitSec - 1e-9) {
+    if (ph === PHASE.ORBIT && path) {
+      // The pattern (RS-11): where he is along it, looked for just round where he was (the figure 8 crosses itself at the
+      // IP); at its end, at the IP heading inbound, he leaves it straight onto the run-in.
+      const w = plan.windAt(s.z);
+      const look = Math.max(500, Math.hypot(s.vx + w.x, s.vy + w.y) * PILOT.lookaheadSec);
+      if (path.total > 0) esc.pathS = nearestOnPath(path, s, esc.pathS - 300, esc.pathS + 3 * look + 300);
+      const pastIp = (s.x - plan.ip.x) * u.x + (s.y - plan.ip.y) * u.y >= 0;
+      if (path.total <= 0 || (esc.pathS >= path.total - 3000 && pastIp)) {
+        ph = PHASE.RUN_IN;
+        events.exit = t;
+        events.ip = t;
+      }
+    } else if (ph === PHASE.ORBIT && t >= exitSec - 1e-9) {
       ph = PHASE.TO_IP;
       events.exit = t;
     }
@@ -598,6 +668,125 @@ export function solveExit(plan) {
   return { sec: near.te, arrivalSec: near.te + near.leg, lateSec: 0, soonestSec, slope: 1 };
 }
 
+/**
+ * The pattern's times over the ground (RS-11) at the orbit's true airspeed in the wind at its height: K, the seconds per
+ * foot of radius of a full turn (∫ dθ ÷ ground speed, the same either way round, and the same for a holding pattern's
+ * two half turns together), and perLegFt, the seconds per foot of the holding legs (one out, one in).
+ */
+function patternTimes(plan) {
+  const o = plan.orbit;
+  const w = plan.windAt(o.msl);
+  const gs = (x, y) => Math.max(1, speedAlong({ x, y, z: 0 }, w, o.tasFtps));
+  const N = 180;
+  let K = 0;
+  for (let i = 0; i < N; i++) {
+    const th = ((i + 0.5) / N) * TAU;
+    K += TAU / N / gs(Math.cos(th), Math.sin(th));
+  }
+  return { K, perLegFt: 1 / gs(-plan.u.x, -plan.u.y) + 1 / gs(plan.u.x, plan.u.y) };
+}
+
+/** The radius of a turn at bankDeg at the orbit's true airspeed, ft. */
+const radiusAtBank = (plan, bankDeg) => turnRadiusFromBankFt(plan.orbit.tasFtps, bankDeg);
+
+/**
+ * How the pattern makes the time over target (RS-8, RS-9, RS-11): k standard laps (holding pattern) or loops (figure 8),
+ * then a last one whose outbound leg (feet) or radius (feet) is `param`. The time from the IP on is the run-in flown from
+ * the IP, established at its height and speed, to the release (and the load's fall). When even the shortest last lap is
+ * too long, the nearer of leaving at once (param null: no pattern, the run-in starts at the IP) and the shortest lap.
+ * Returns { k, param, range, slope (s per foot of param), byHand }.
+ */
+export function solvePattern(plan) {
+  const o = plan.orbit;
+  const setup = plan.setup;
+  const hold = o.pattern === 'hold';
+  const { K, perLegFt } = patternTimes(plan);
+  const timeOf = (param) => (hold ? o.radiusFt * K + param * perLegFt : param * K);
+  const nominal = hold ? o.legFt : o.radiusFt;
+  const lapSec = timeOf(nominal);
+  const range = hold ? [o.tasFtps * PATTERN.holdMinLegSec, Infinity] : [radiusAtBank(plan, PATTERN.eightBankDeg[1]), radiusAtBank(plan, PATTERN.eightBankDeg[0])];
+  const slope = hold ? perLegFt : K;
+  if (setup.byHand.exitSec !== null) {
+    // Left by hand: standard laps, leaving at the IP at the first pass at or after the time set.
+    return { k: Math.max(0, Math.ceil((setup.byHand.exitSec - 0.5) / lapSec)), param: null, standard: true, range, slope, byHand: true };
+  }
+  const start = runInStart(plan, plan.runInMsl, plan.runInKias, -plan.ipFt);
+  const f = fly(plan, { pilot: start, phase: PHASE.RUN_IN, dt: SOLVE_STEP_SEC, stopAt: 'release' });
+  if (!f.release) return { k: 0, param: nominal, range, slope };
+  const fromIp = f.release.t + (plan.run === 'flyover' ? 0 : plan.fallSec);
+  const need = setup.totSec - fromIp; // the time to be at the IP
+  const tMin = timeOf(range[0]);
+  if (need < tMin) return need < tMin - need ? { k: 0, param: null, range, slope } : { k: 0, param: range[0], range, slope };
+  const k = Math.floor((need - tMin) / lapSec);
+  const rest = need - k * lapSec;
+  return { k, param: clamp(hold ? (rest - o.radiusFt * K) / perLegFt : rest / K, range[0], range[1]), range, slope };
+}
+
+/**
+ * The pattern's whole path (RS-11): k standard laps, then the last one (param: its outbound leg or radius, ft; null with
+ * `standard` false: no pattern at all). prepFrom: how far along it the last lap's run-in preparation starts (the last
+ * outbound leg, or the last loop).
+ */
+function patternPath(plan, k, param, standard = false) {
+  const o = plan.orbit;
+  const base = { ip: plan.ip, u: plan.u };
+  if (param === null && !standard) return { path: makePath([]), prepFrom: 0 };
+  const segs = [];
+  const lapOf = (i, size) => (o.pattern === 'hold'
+    ? holdLap({ ...base, dir: o.dir, r: o.radiusFt, legFt: size })
+    : eightLoop({ ...base, dir: i % 2 === 0 ? o.dir : -o.dir, r: size }));
+  const nominal = o.pattern === 'hold' ? o.legFt : o.radiusFt;
+  const n = standard ? k - 1 : k;
+  for (let i = 0; i < n; i++) segs.push(...lapOf(i, nominal));
+  const before = makePath(segs).total;
+  if (n >= 0) segs.push(...lapOf(Math.max(n, 0), standard ? nominal : param));
+  const path = makePath(segs);
+  return { path, prepFrom: o.pattern === 'hold' ? before + Math.PI * o.radiusFt : before };
+}
+
+/**
+ * The holding pattern or the figure 8 flown (RS-11): the path from solvePattern, then flown and its last lap nudged
+ * (four times at most) so the flight's own arrival meets the time over target, a secant step on the time each foot of the
+ * last leg or radius gives. The nearest try is kept. Returns { exit, flight, fall }.
+ */
+function flyPattern(plan) {
+  const o = plan.orbit;
+  const tot = plan.setup.totSec;
+  const sol = solvePattern(plan);
+  let param = sol.param;
+  let best = null;
+  let last = null;
+  for (let n = 0; n < 5; n++) {
+    Object.assign(o, patternPath(plan, sol.k, param, sol.standard));
+    const flight = fly(plan, { pilot: patternStart(plan), record: true });
+    const fall = flight.release && plan.load ? dropFrom(plan, flight.release) : null;
+    const arrival = arrivalOf(plan, flight, fall);
+    const err = arrival === null ? Infinity : tot - arrival; // + early: more time wanted
+    if (!best || Math.abs(err) < Math.abs(best.err)) best = { flight, fall, param, err, path: o.path, prepFrom: o.prepFrom };
+    if (sol.byHand || param === null || !Number.isFinite(err) || Math.abs(err) < 0.5) break;
+    let slope = sol.slope;
+    if (last && Math.abs(param - last.param) > 1) slope = clamp((last.err - err) / (param - last.param), sol.slope / 3, sol.slope * 3);
+    last = { param, err };
+    const next = clamp(param + err / slope, sol.range[0], sol.range[1]);
+    if (Math.abs(next - param) < 1) break;
+    param = next;
+  }
+  o.path = best.path;
+  o.prepFrom = best.prepFrom;
+  const ev = best.flight.events;
+  const exit = { sec: ev.exit ?? 0, byHand: Boolean(sol.byHand), pattern: { k: sol.k, none: o.path.total <= 0 } };
+  const size = best.param ?? (o.pattern === 'hold' ? o.legFt : o.radiusFt);
+  if (o.pattern === 'hold') exit.pattern.legSec = size / o.tasFtps;
+  else exit.pattern.bankDeg = radToDeg(Math.atan((o.tasFtps * o.tasFtps) / (G_FTPS2 * size)));
+  if (!sol.byHand && Number.isFinite(best.err) && Math.abs(best.err) >= 2) {
+    const words = o.pattern === 'hold' ? 'the shortest last outbound leg' : 'the tightest last loop';
+    exit.note = best.err < 0
+      ? `The time over target can't be made from the ${o.pattern === 'hold' ? 'holding pattern' : 'figure 8'}: ${exit.pattern.none ? 'leaving at once' : words} arrives ${Math.round(-best.err)} s late. A later time over target would work.`
+      : `The time over target can't be made from the ${o.pattern === 'hold' ? 'holding pattern' : 'figure 8'}: ${exit.pattern.none ? `leaving at once arrives ${Math.round(best.err)} s early, and even ${words} takes longer than that` : `it arrives ${Math.round(best.err)} s early`}. A later time over target would work.`;
+  }
+  return { exit, flight: best.flight, fall: best.fall };
+}
+
 /** The miss (or the flypast) and the time over target from a flight; the time over target is the flypast for a flyover, the load's impact for a drop. */
 function arrivalOf(plan, flight, fall) {
   if (plan.run === 'flyover') return flight.release ? flight.release.t : null;
@@ -611,6 +800,11 @@ function arrivalOf(plan, flight, fall) {
 export function flyPass(setup, world) {
   const started = globalThis.performance?.now?.() ?? Date.now();
   const plan = buildPlan(setup, world);
+  if (plan.orbit.lap) {
+    const { exit, flight, fall } = flyPattern(plan);
+    const result = resultOf(plan, exit, flight, fall);
+    return { plan, exit, flight, fall, result, computeMs: (globalThis.performance?.now?.() ?? Date.now()) - started };
+  }
   const exit = solveExit(plan);
   // The stored flight, its exit nudged (four times at most) so its own arrival meets the time over target: a secant step
   // on the slope the candidates or the flights gave, kept inside the bracket of an early and a late try (halved when it
@@ -648,13 +842,27 @@ export function flyPass(setup, world) {
   return { plan, exit, flight, fall, result, computeMs };
 }
 
-/** The load's fall from the aircraft's state at release, through the wind met and onto the ground (or the bridge's deck). */
+/**
+ * The load's fall from the aircraft's state at release, through the wind met and onto the ground. Over the bridge (RS-12)
+ * the fall is followed at every step to the ground, then stopped where it first meets the deck (from above, or into its
+ * edge); one that goes past the deck, or under it, falls on to the ground and the miss of the deck is kept (deckMiss).
+ */
 function dropFrom(plan, release) {
   const st = release.state;
-  return flyDrop({
+  const bridge = plan.setup.target.id === 'bridge';
+  const fall = flyDrop({
     release: { x: st.x, y: st.y, z: st.z, vx: release.ground.x, vy: release.ground.y, vz: release.ground.z },
-    load: plan.load, windAt: plan.windAt, groundAt: plan.loadGroundAt, deviationC: plan.setup.tempDevC,
+    load: plan.load, windAt: plan.windAt, groundAt: plan.groundAt, deviationC: plan.setup.tempDevC, every: bridge ? 1 : 4,
   });
+  if (!bridge || !fall.landed) return fall;
+  const deck = deckOf(plan.setup.target.sizeFt, plan.setup.target.headingDegT, plan.groundFt);
+  const hit = deckHit(fall.path, deck);
+  if (hit) {
+    const path = fall.path.filter((q) => q.t < hit.t);
+    path.push({ t: hit.t, x: hit.x, y: hit.y, z: hit.z });
+    return { ...fall, path, impact: { ...fall.impact, t: hit.t, x: hit.x, y: hit.y, z: hit.z }, deck: { on: true, edge: hit.edge } };
+  }
+  return { ...fall, deck: { on: false, miss: deckMiss(fall.path, deck, plan.u, plan.r) } };
 }
 
 /** The result card's numbers, flags and words. */
@@ -671,9 +879,13 @@ function resultOf(plan, exit, flight, fall) {
   let lowestKias = Infinity;
   let overVmo = 0;
   let overTop = null; // the flyover's lowest height over the target's top inside the reference distance
+  // The steepest bank in the orbit's turns (RS-11: the wind steepens the pattern's downwind side), counted only while the
+  // lift carries the weight (G × cos bank within 0.15 of 1, an estimate), so a push over to descend doesn't read as a turn.
+  let orbitBank = 0;
   for (let i = 0; i < n; i++) {
     const x = tl.x[i], y = tl.y[i], z = tl.z[i];
     peakG = Math.max(peakG, tl.g[i]);
+    if (tl.phase[i] === PHASE.ORBIT && Math.abs(tl.g[i] * Math.cos(degToRad(tl.bank[i])) - 1) < 0.15) orbitBank = Math.max(orbitBank, Math.abs(tl.bank[i]));
     overVmo = Math.max(overVmo, tl.kias[i] - ac.maxKias(z));
     if (tl.t[i] < tAfterIp) continue;
     const agl = z - plan.groundAt(x, y);
@@ -696,6 +908,7 @@ function resultOf(plan, exit, flight, fall) {
   flag('peakG', `Peak G against the ${ac.gLimit} G limit`, peakG > ac.gLimit);
   flag('vmo', 'Fastest against VMO', overVmo > 0);
   flag('slow', `Lowest airspeed against the stick shaker (${Math.round(ac.shakerKias)} KIAS)`, lowestKias < ac.shakerKias);
+  if (plan.orbit.lap) flag('orbitBank', `Steepest bank in the orbit against ${REFERENCES.orbitBankDeg}° (an estimate)`, Math.round(orbitBank) > REFERENCES.orbitBankDeg);
   if (plan.run === 'flyover') flag('overTop', `Over the top inside ${REFERENCES.overTopInsideFt.toLocaleString('en-CA')} ft against ${REFERENCES.overTopFt.toLocaleString('en-CA')} ft`, overTop !== null && shown(overTop) < REFERENCES.overTopFt);
 
   const notes = [...plan.notes];
@@ -707,6 +920,7 @@ function resultOf(plan, exit, flight, fall) {
     notes.push(`Hit the ground ${when}: the aircraft couldn't make the pass as set over this ground. ${fix}`);
   }
   if (!flight.release && !flight.ground) notes.push(plan.run === 'flyover' ? 'It never passed the target.' : 'It never reached the release point.');
+  if (exit.note) notes.push(exit.note);
   if (exit.lateSec > 0 && Number.isFinite(exit.lateSec)) notes.push(`The time over target can't be made from the orbit: the soonest is +${clock(exit.soonestSec)}, ${Math.round(exit.lateSec)} s late. A later time over target would work.`);
   if (flight.stallHeld > 0.5) notes.push(`The stall line held the G below what was asked for ${flight.stallHeld.toFixed(1)} s: flown at the most the wing gives.`);
   if (flight.events.release && !flight.events.safe && !flight.ground) notes.push('The escape did not settle at its height within the time followed.');
@@ -728,6 +942,8 @@ function resultOf(plan, exit, flight, fall) {
       atCarp: setup.release.mode === 'carp' && setup.byHand.aimOffFt === null,
     },
     lowest, peakG, closestFt: closest, lowestKias, overTop, overVmo, flags, notes, legs,
+    orbitBankDeg: plan.orbit.lap ? orbitBank : null,
+    deck: fall?.deck ?? null,
     steadySec: plan.run === 'bombDive' ? flight.steadySec : null,
   };
 }
@@ -738,7 +954,7 @@ function legTimes(plan, ev, flight, arrival) {
   const out = [];
   const add = (label, a, b) => { if (Number.isFinite(a) && Number.isFinite(b) && b >= a) out.push({ label, sec: b - a }); };
   add('Orbit', 0, ev.exit);
-  add('To the IP', ev.exit, ev.ip);
+  if (!(ev.ip - ev.exit < 0.5)) add('To the IP', ev.exit, ev.ip); // none when the pattern leaves at the IP (RS-11)
   if (plan.run === 'bombDive') {
     add('IP to roll-in', ev.ip, ev.rollIn);
     add('Roll-in to release', ev.rollIn, ev.release);
@@ -748,6 +964,22 @@ function legTimes(plan, ev, flight, arrival) {
   add(flight.ground ? 'Escape, to the ground' : 'Escape to safe height', ev.release, ev.safe ?? end);
   if (plan.run !== 'flyover' && arrival !== null) add('Load\'s fall', ev.release, arrival);
   return out;
+}
+
+/**
+ * The orbit as lines to draw over the ground, [[{ x, y }]]: the pattern flown (or one lap of it before the pass is worked
+ * out), or the circle.
+ */
+export function orbitOutline(plan) {
+  const o = plan?.orbit;
+  if (!o) return [];
+  if (o.lap) return [samplePath(o.path && o.path.total > 0 ? o.path : o.lap, 300)];
+  const pts = [];
+  for (let i = 0; i <= 128; i++) {
+    const a = (i / 128) * TAU;
+    pts.push({ x: o.centre.x + o.radiusFt * Math.cos(a), y: o.centre.y + o.radiusFt * Math.sin(a) });
+  }
+  return [pts];
 }
 
 /** "6:00" from seconds. */

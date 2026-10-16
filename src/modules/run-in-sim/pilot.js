@@ -3,8 +3,8 @@
 // its performance set (aircraft.js), and the pilot only chooses the G, the bank and the throttle each step.
 //
 //  - What he wants: a lift vector (in G, world axes) from two parts. Up and down, the G that brings the flight path onto
-//    a climb or dive angle (core dampedClimbG). Side to side, the pull of a pursuit of a point ahead on the line or the
-//    circle he is holding (core liftTowardAim, with the gain 2 × ground speed ÷ distance that makes it the L1 path
+//    a climb or dive angle (core dampedClimbG). Side to side, the pull of a pursuit of a point ahead on the line, the
+//    circle or the pattern's path of legs and arcs (ground-path.js) he is holding (core liftTowardAim, with the gain 2 × ground speed ÷ distance that makes it the L1 path
 //    follower, which holds a circle exactly: Park, Deyst and How 2004), worked out over the ground so the crab for the
 //    wind comes by itself; the run-in's heading also comes from core windTriangle where a leg starts.
 //  - What he does with it: core gAndBankForLift turns the lift into a G and a bank; the bank is flown with core easeRoll
@@ -29,6 +29,11 @@ export const PILOT = Object.freeze({
   manoeuvreBankDeg: 45,
   /** The most G on those legs. */
   manoeuvreG: 3,
+  /**
+   * The most bank holding the holding pattern or the figure 8 over the ground (RS-11): the downwind side of a turn needs
+   * more than the set bank, so he may steepen to this to stay on the path. The card flags past REFERENCES.orbitBankDeg.
+   */
+  patternBankDeg: 60,
   /** The most G pulling onto the dive line (the roll-in), and the most "push" the roll-in asks for before rolling inverted. */
   rollInG: 3,
   /** The point he aims at sits this many seconds ahead on the line or circle (the L1 follower's distance). */

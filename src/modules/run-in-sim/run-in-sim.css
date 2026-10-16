@@ -90,6 +90,18 @@
   border-radius: var(--radius); background: rgba(5, 10, 18, 0.75); color: #ffd27a; font-size: var(--text-sm);
 }
 
+/* The 3D | 2D switch above the view, and the 2D view (RS-13): the plan on the satellite map over the profile. */
+.rs-viewbar { display: flex; align-items: center; gap: var(--space-2); }
+.rs-2d { position: absolute; inset: 0; display: grid; grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); gap: 2px; background: var(--border); }
+.rs-2d-plan, .rs-2d-profile { position: relative; min-height: 0; display: flex; flex-direction: column; background: #0d1822; }
+.rs-2d-canvas { display: block; flex: 1; width: 100%; min-height: 0; touch-action: none; }
+.rs-2d-plan .rs-2d-canvas { cursor: grab; }
+.rs-2d-plan .rs-2d-canvas.is-dragging { cursor: grabbing; }
+.rs-2d-canvas:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.rs-2d-fit { position: absolute; right: 52px; top: var(--space-2); }
+.rs-2d-bar { display: flex; align-items: center; gap: var(--space-2); padding: 4px var(--space-2); flex-wrap: wrap; }
+.rs-2d-title { flex: 1; color: var(--text-muted); font-size: var(--text-sm); }
+
 .rs-map { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); z-index: 5; }
 .rs-map-bar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); flex-wrap: wrap; }
 .rs-map-bar .rs-btn-main { margin-left: auto; }

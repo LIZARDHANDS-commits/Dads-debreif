@@ -1,5 +1,6 @@
 // The Run-in Simulator (docs/modules/run-in-sim/spec.md; RS-1): one screen. Setup on the left (setup-panel.js), the 3D view
-// in the middle (world3d.js) with the plan view (plan-view.js) and the map to tap a place (map-picker.js), the bar under
+// in the middle (world3d.js) with the plan view (plan-view.js) and the map to tap a place (map-picker.js), or behind the
+// 3D | 2D switch above it the 2D plan and profile (view2d.js, RS-13), the bar under
 // the view (the time line with the legs marked, play and pause, ×1 to ×8 and the cameras), and the result cards on the
 // right (card.js). "Fly the pass" works the whole pass out first (pass.js) into a stored timeline; playing and scrubbing
 // only read it. "Training only" always shows (RS-2). Everything mount() starts runs on the shell's scheduler and
@@ -22,6 +23,7 @@ import { cardFor } from './card.js';
 import { createPlanView } from './plan-view.js';
 import { createMapPicker } from './map-picker.js';
 import { createRunInWorld } from './world3d.js';
+import { createView2d } from './view2d.js';
 
 const STYLESHEET = new URL('./run-in-sim.css', import.meta.url).href;
 /** The working-out of the planned lines waits this long after the last change, ms (an estimate that keeps typing smooth). */
@@ -78,7 +80,11 @@ function mount(root, app) {
     onDefault: () => settings.update({ placeLat: DEFAULT_PLACE.lat, placeLon: DEFAULT_PLACE.lon, placeIsDefault: true }),
     onClose: () => planCanvas.focus(),
   });
-  const viewWrap = h('div', { class: 'rs-view-wrap' }, view, planCanvas, groundNote, map.element);
+  // The 2D view (RS-13) and the 3D | 2D switch above the view, in the shared button look with aria-pressed.
+  const view2d = createView2d({ timers: app.scheduler, getProjection: () => area.projection, onZoom: (z) => settings.update({ profileZoom: z }) });
+  const viewPills = createPillGroup({ prefix: 'rs', label: 'View', items: [{ id: '3d', label: '3D' }, { id: '2d', label: '2D' }], onPick: (m) => settings.update({ viewMode: m }) });
+  const viewBar = h('div', { class: 'rs-viewbar' }, viewPills.element);
+  const viewWrap = h('div', { class: 'rs-view-wrap' }, view, planCanvas, view2d.element, groundNote, map.element);
 
   // The bar: the time line with the legs marked, play and pause, the speeds and the cameras.
   const scrub = h('input', { type: 'range', class: 'rs-scrub', min: 0, max: 1, step: 0.05, value: 0, 'aria-label': 'Time in the pass' });
@@ -103,7 +109,7 @@ function mount(root, app) {
       h('span', { class: 'rs-training' }, 'Training only · inert loads · generic targets'),
       status,
       h('span', { class: 'rs-version' }, TRAFFIC_VERSION)),
-    h('div', { class: 'rs-main' }, setup.element, h('div', { class: 'rs-centre' }, viewWrap, bar), result)));
+    h('div', { class: 'rs-main' }, setup.element, h('div', { class: 'rs-centre' }, viewBar, viewWrap, bar), result)));
 
   const planView = createPlanView(planCanvas, { timers: app.scheduler, onOpen: () => openMap() });
 
@@ -154,6 +160,17 @@ function mount(root, app) {
     const shown = current()?.stale === false ? current().plan : plan;
     world?.setPlan(shown, display());
     planView.set({ plan: shown, windWords: magWind(values()) });
+    view2d.set({ plan: shown, windWords: magWind(values()) });
+  }
+  /** The 3D view with its corner plan and cameras, or the 2D plan and profile (RS-13). */
+  function syncView() {
+    const two = values().viewMode === '2d';
+    view.hidden = two;
+    planCanvas.hidden = two;
+    cams.element.hidden = two;
+    viewPills.set(values().viewMode);
+    view2d.show(two);
+    view2d.set({ zoom: values().profileZoom });
   }
   function syncPass() {
     world?.setPass(current(), display());
@@ -207,8 +224,9 @@ function mount(root, app) {
   }
   function render() {
     const pass = current();
-    world?.show(pass, t, values().camera);
+    if (values().viewMode !== '2d') world?.show(pass, t, values().camera);
     planView.set({ pass, t });
+    view2d.set({ pass, t });
     scrub.value = String(t);
     timeWords.textContent = pass ? `+${clock(t)}` : '0:00';
   }
@@ -304,7 +322,7 @@ function mount(root, app) {
 
   // ---- Settings ----
   let before = values();
-  const ON_SCREEN_ONLY = new Set(['camera', 'playSpeed', 'showLines', 'showCarp', 'showTrails', 'showFlags']);
+  const ON_SCREEN_ONLY = new Set(['camera', 'playSpeed', 'showLines', 'showCarp', 'showTrails', 'showFlags', 'viewMode', 'profileZoom']);
   settings.subscribe((v) => {
     const was = before;
     before = v;
@@ -331,6 +349,7 @@ function mount(root, app) {
       terrain.setView(area.projection, FALLBACK_FT);
       world?.setArea(area.projection, FALLBACK_FT);
       map.refresh();
+      view2d.refit();
     }
     const changed = Object.keys(v).filter((k) => v[k] !== was[k]);
     const flying = changed.filter((k) => !ON_SCREEN_ONLY.has(k));
@@ -339,6 +358,7 @@ function mount(root, app) {
       scheduleReplan();
       renderCards();
     }
+    if (v.viewMode !== was.viewMode || v.profileZoom !== was.profileZoom) syncView();
     if (changed.some((k) => k.startsWith('show'))) {
       syncPlan();
       syncPass();
@@ -352,6 +372,7 @@ function mount(root, app) {
 
   speeds.set(values().playSpeed);
   cams.set(values().camera);
+  syncView();
   setup.update(values(), null, null);
   renderCards();
   showGround();
@@ -364,6 +385,7 @@ function mount(root, app) {
     world?.dispose();
     map.dispose();
     planView.dispose();
+    view2d.dispose();
     terrain.dispose();
     controls.dispose();
     stylesheet.remove();
