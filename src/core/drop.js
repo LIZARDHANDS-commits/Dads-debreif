@@ -84,7 +84,7 @@ export function stepDrop(s, load, wind, dt, deviationC = 0) {
  * Returns { landed, path: [{ t, x, y, z }], impact: { t, x, y, z, vx, vy, vz } | null, chuteOpenSec | null }.
  * The impact is where the path crosses the ground, found between the last two steps.
  */
-export function flyDrop({ release, load, windAt = null, groundAt = () => 0, dt = DROP_STEP_SEC, deviationC = 0, every = 4 }) {
+export function flyDrop({ release, load, windAt = null, groundAt = /** @type {(x: number, y: number) => number} */ (() => 0), dt = DROP_STEP_SEC, deviationC = 0, every = 4 }) {
   let s = { t: 0, ...release };
   const path = [{ t: 0, x: s.x, y: s.y, z: s.z }];
   let n = 0;
@@ -115,7 +115,7 @@ export function flyDrop({ release, load, windAt = null, groundAt = () => 0, dt =
  * target: { x, y } the point of impact; heightFt: release height MSL; ground: { vx, vy } the ship's velocity over the
  * ground (ft/s; the load leaves with it, level). Returns { x, y, missFt, passes, fall } or null if it never lands.
  */
-export function carp({ target, heightFt, ground, load, windAt = null, groundAt = () => 0, deviationC = 0, toleranceFt = 10, maxPasses = 8 }) {
+export function carp({ target, heightFt, ground, load, windAt = null, groundAt = /** @type {(x: number, y: number) => number} */ (() => 0), deviationC = 0, toleranceFt = 10, maxPasses = 8 }) {
   let rx = target.x;
   let ry = target.y;
   for (let pass = 1; pass <= maxPasses; pass++) {
