@@ -156,7 +156,7 @@ Dad, 14 Oct 2026: "see if the moosejawweather tests for the weather over mooseja
 - **Right over Bethune:** MRMS reads "no coverage" at 2 to 4 km straight over CASBE, the cone above a radar that it can't scan. This suggests MRMS uses Bethune itself. It is a guess: MRMS's list of Canadian radars was not reached.
 - **The SOF's 3D view** (V2.453, headless Chromium with software graphics, live MRMS at 2252Z, airspace off, tilted):
   - **High** draws the band over Moose Jaw as thin shells hanging well above the ground, with clear air under them, as the data says.
-  - **Performance** draws each cell as a column from the ground up to its 18 dBZ top. On a virga day it therefore shows echo reaching the ground at Moose Jaw where none does. This is how Performance was specified (SOF-67: it has only the tops and the composite, not where the echo starts). Dad picked "Add one low height" (SOF-70, V2.476): a cell with no echo at 2 km now starts there. 2 km was chosen because MRMS covered it over nearly all of 150 NM round CYMJ, where 1 km had no coverage over about 70 % of the area beyond 50 NM.
+  - **Performance** draws each cell as a column from the ground up to its 18 dBZ top. On a virga day it therefore shows echo reaching the ground at Moose Jaw where none does. This is how Performance was specified (SOF-67: it has only the tops and the composite, not where the echo starts). Dad picked "Add one low height" (SOF-70, V2.495): a cell with no echo at 2 km now starts there. 2 km was chosen because MRMS covered it over nearly all of 150 NM round CYMJ, where 1 km had no coverage over about 70 % of the area beyond 50 NM.
 - **Not checked:**
   - another day, or convective weather (today's echo was weaker than 40 dBZ);
   - ECCC's own dBZ conversion;
