@@ -114,7 +114,7 @@ export const MODULES = [
         'The miss in feet and clock, the time over target, and the escape flagged against its references',
       ],
     },
-    media: { still: 'media/cards/traffic.jpg' }, // a stand-in picture until the module has its own card picture
+    media: { still: 'media/cards/run-in-sim.jpg' },
     load: () => import('../modules/run-in-sim/index.js'),
     prototype: true,
   },
