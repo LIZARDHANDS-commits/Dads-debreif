@@ -29,7 +29,7 @@ import { buildAstraCircuit, ASTRA_FEWEST_POINTS } from './astra-circuit.js';
  * found by its id, as it always has been (below), so a setup saved before this keeps flying as before.
  */
 const FLOWN_BUILDERS = Object.freeze({
-  // The inner pattern's seven points fly (a setup saved before V2.471); with the outer pattern's too, the lap has its outer legs (astra-circuit.js).
+  // The inner pattern's seven points fly (a setup saved before V2.490); with the outer pattern's too, the lap has its outer legs (astra-circuit.js).
   'ct102b-overhead': Object.freeze({ fewestPoints: ASTRA_FEWEST_POINTS, build: (route, fromDeg, kt) => buildAstraCircuit(route.points, fromDeg, kt) }),
 });
 
