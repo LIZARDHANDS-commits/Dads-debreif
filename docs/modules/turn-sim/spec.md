@@ -4,7 +4,7 @@ This file has two parts. **Part 1** is how Pat's Formation Simulator works now (
 
 Patrick approved the first version's spec on 4 Oct 2026 at 10:03Z (decision card "Approve the Turn Sim first-version spec and screen as drafted?"). Everything since grew from his rulings. **Nothing since V2.91 has been flown by Patrick yet (true as of 6 Oct 2026), and the sign-off in `testing.md` is still open.** Where a later decision changed an earlier rule, Part 1 states the later one.
 
-Reading notes. Numbers with no manual page or ruling beside them are **estimates**. Speeds are indicated (KIAS) unless they say otherwise. Page references only: manual text never goes in the repo. Every number and its source is also in the numbers register (section 15, `numbers.md`).
+Reading notes. Numbers with no manual page or ruling beside them are **estimates**. Speeds are indicated (KIAS) unless they say otherwise. Manual text and figures are quoted with their page where they help; the CFAFM never goes in the repo (ALL-41). Every number and its source is also in the numbers register (section 15, `numbers.md`).
 
 # Part 1. The Formation Simulator now
 
@@ -86,7 +86,7 @@ Pictures: `turn-sim-review/first-version/screen-mockup.png` in the project files
 
 ### 3.2 Speed, power and energy
 
-- **Slowing down** (TS-61; Patrick 4 Oct 23:29Z-23:58Z and 5 Oct 00:11Z-00:48Z; `live/slow-down.js`): in Patrick's order of use (23:37Z-23:38Z; SMM 12.26 para 63, 12.27 paras 64-66): geometry (the planners), then power (core `excessFnFor`, its slowest the power floor at throttle 0), then the speed brake (drag ÷ weight about 0.095 at 200 KIAS, about +1.7 kt/s; its size is a guess), then idle (idle prop drag ÷ weight 0.16 at 200 KIAS, about 5 kt/s level at 200, Patrick 00:11Z), then idle and the brake. The fixed 1.5 kt/s slow-down is gone. Speeding up uses the T-6's full-power figure from the core.
+- **Slowing down** (TS-61; Patrick 4 Oct 23:29Z-23:58Z and 5 Oct 00:11Z-00:48Z; `live/slow-down.js`): in Patrick's order of use (23:37Z-23:38Z; SMM 12.26 para 63, 12.27 paras 64-66): geometry (the planners), then power (core `excessFnFor`, its slowest the power floor at throttle 0), then the speed brake (drag ÷ weight about 0.095 at 200 KIAS, about +1.7 kt/s; its size is a guess), then idle (idle prop drag ÷ weight 0.16 at 200 KIAS, about 5 kt/s level at 200, Patrick 00:11Z), then idle and the brake. The fixed 1.5 kt/s slow-down is gone. Speeding up uses the T-6's full-power figure from the core. **The engine** (TS-218, V2.424, `live/power.js` engineStep): from 5% torque up the power follows the PCL quickly (full travel in 0.25 s); once it has sat below 5% (idle) for 1 s, the first 3.5 s after the PCL is advanced give no rise; every pilot steps it (the tracker, fluid Lead, both live laws), so formation pilots avoid idle. **Lead's power** (TS-216): 20% to 80% torque in formation except fluid manoeuvring (MAX) and line abreast; his slow-downs and descents never idle.
 - **Held to full power** (TS-63; Patrick 5 Oct 02:48Z: "If they get stretched they just have to show it in their tag and fix it as best as they can once the maneuver ever finishes"; narrowed 03:46Z): a planned line never asks #2 to speed up faster than full power gives at his speed, height and G (core `excessThrustPerWeight`, a climb paid from it). He flies the same line at the speed he can reach, the range opens, his tag and the card say **STRETCHED** while he is more than 10 ft or 5% of the range behind (estimate), and he closes with power at up to 15 KIAS overtake (EFIG p.374), easing off at about 1 ft/s² (estimate). Over the stall line or just under 7 G he slows instead (Patrick 03:05Z). Code: `live/full-power.js`. Since refactor step 1 (V2.305) no planned line uses the hold; it lived on in the planned fluid wingman's energy governor (TS-74) until he was retired (TS-199, V2.384): the live wingman flies at MAX by geometry (section 10.11).
 - **The G rule** (Patrick 5 Oct 03:04Z: "4 g is just leads limit for fluid maneuvering. 5 g The wirc wrt can pull what they need to to make it work up to stall , up to seven in extreme cases"; 03:05Z: "Yeah over 5 g is a last resort and must stay below 7 in all cases"; TS-63): 5 G is the normal aim (SMM 16.17 para 44a; Gen Book p.11), more only as a last resort and never 7. A wingman's G stops at the stall line or 6.95 G (estimate of "below 7"), whichever is less. Flagged on screen, never a wall. No bank cap in a rejoin or a move around a station (a kick-out, or a move in the fighting wing or line abreast band) (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; 04:07:49Z: "no bank cap on rejoins or movements around a station"; TS-107): the bank goes as far as a level 7 G turn, about 82°, the aircraft's G limit (T6A_LIMITS.maxG). Close legs keep their 60°. Formation moves pull at most 4.5 G, the same as the rejoin, about 77° level: what moves plan to, not a wall; if no move works within it, #2 pulls more, up to the aircraft's own limits, flagged on screen (TS-205).
 - **Height as energy** (TS-82; Patrick 5 Oct 17:44Z "we can use the vertical too", 19:51Z "if it scores high enough in our model"): a smooth height leg's vertical acceleration is charged as G in `flight.js` (wings-level share 1 + a/g, with the turn's tan(bank): standard mechanics), so it shows in G, power, drag and the nose attitude. A climb costs speed and a descent gives it (dV/dt = g(T - D)/W - g sin(climb)).
@@ -95,7 +95,7 @@ Pictures: `turn-sim-review/first-version/screen-mockup.png` in the project files
 ### 3.3 Two rate sets (TS-84)
 
 Every move flies one of two sets of rates, with one home (`rates.js` `RATE_SETS`; Patrick 5 Oct 21:06Z, 21:11Z: "near lead throttle is only when holding close formation. as soon as a tactical formation is selected, unrestricted attitude changes and power"; 20:50Z: "Fighting wing, rejoins, tactical formations, line abreast etc is unrestricted (realistic) roll rates & aircraft handling"):
-- **Close:** holding close formation and moving near Lead. Lead's close turn roll (6 to 12°/s, built and eased over 1.5 s; TS-209), and the rates and accelerations of a line in Lead's frame. Slow and smooth so #2 can stay in place.
+- **Close:** holding close formation and moving near Lead. Lead's close turn roll (4.8 to 9.6°/s, built and eased over 2 s; TS-209 as slowed 14 Oct 2026), and the rates and accelerations of a line in Lead's frame. Slow and smooth so #2 can stay in place.
 - **Tactical:** everything else, the aircraft's own handling: roll 180°/s building at 720°/s² (then gated by 3.1), the opening out's rates and accelerations (full power along, 1 g across, 0.3 g up or down; TS-78).
 
 ### 3.4 Rates setting, lines then tracker
@@ -113,8 +113,8 @@ One slot table (`live/slots.js`), one classifier and one judge (`live/judge.js`)
 |---|---|---|
 | Line abreast | anywhere in the SMM's band: 4,000-6,000 ft abeam, 0-10° sweep, up to 2,000 ft above or below Lead; the spacing setting is the aim, a setting outside the band is judged within 100 ft of itself | SMM 16.18 para 49; Patrick 5 Oct 21:38Z; TS-80 |
 | Fighting wing | anywhere in the cone: 500-1,000 ft, 30-60° sweep measured back from Lead's wing line (0° abeam), up to 200 ft above or below Lead, judged only with Lead straight and level (within 5° of bank and 300 ft/min, estimate); default place 750 ft and 45° (estimate; a setting, section 8) | SMM 12.29 para 69, Fig 12.19; Patrick 5 Oct 21:26Z; TS-80 |
-| Route | On the spinner-to-wingtip line, the slot 3 wingspans down it from echelon (about 116 ft out, 96 ft back, 5 ft low; judged from 1 to 3 wingspans; TS-181, Patrick 11 Oct 2026 00:03Z, 00:15Z: the SMM reference, Fig 12.7; 5 wingspans from TS-103 until V2.232, 25 ft back until V2.107). Within 5 ft of the place and 5 kt | SMM 12.6 para 15, Fig 12.7; Patrick 5 Oct 06:11Z, 21:26Z, 6 Oct 02:11Z, 11 Oct 00:15Z; TS-65, TS-80, TS-103, TS-181 |
-| Echelon | about 45 ft out, 25 ft back, 5 ft down (estimate; the manual gives sight references, not feet). Within 5 ft of the place and 5 kt (±15 ft until V2.80) | SMM 12.4 paras 11-12; Patrick 21:26Z; TS-80 |
+| Route | On the spinner-to-wingtip line, the slot 3 wingspans down it from echelon (about 121 ft out, 75 ft back, 3 ft low since TS-230 moved echelon up the line; it was 116 out, 96 back, 5 low; judged from 1 to 3 wingspans; TS-181, Patrick 11 Oct 2026 00:03Z, 00:15Z: the SMM reference, Fig 12.7; 5 wingspans from TS-103 until V2.232, 25 ft back until V2.107). Within 5 ft of the place and 5 kt | SMM 12.6 para 15, Fig 12.7; Patrick 5 Oct 06:11Z, 21:26Z, 6 Oct 02:11Z, 11 Oct 00:15Z; TS-65, TS-80, TS-103, TS-181 |
+| Echelon | about 15.9 ft back, 40.2 ft out, 3 ft down, origin to origin (TS-230, Patrick 14 Oct 2026: 2.5 ft further up the spinner-to-wingtip line than TS-182's 18 back, 43 out, then 1 ft more, "lets make -1 the default"; the "Echelon on the line" control moves it 1 ft a step, 5 ft up to 10 ft down): the SMM's sight references worked through the CT-156 model's geometry (TS-182, `live/slots.js`; 45 out, 25 back, 5 down was the older estimate, corrected here 13 Oct 2026). Within 5 ft of the place and 5 kt (±15 ft until V2.80) | SMM 12.4 paras 11-12; Patrick 21:26Z; TS-80; TS-182 |
 | Line astern | directly behind and below, about 10 ft nose to tail (43 ft centre to centre, 8 ft low; estimates). Within 5 ft of the place and 5 kt | SMM 12.5 para 13; Patrick 21:26Z; TS-80 |
 
 - **Judged at roll-out only** after a manoeuvre, in words with the numbers: on spacing, wide, tight, fore, aft; an in-place turn is judged in trail (TS-R23). A change of formation is judged against the table above. A Spacing outside the SMM band ends "TOO FAR" or the like.
@@ -185,7 +185,7 @@ Patrick 5 Oct 18:11Z ("What if we dynamically hand off between lines, tracker, a
 - **The vertical (TS-82), the 4-ship's #2 only since TS-170** (the 2-ship's ride flies its own height, the line 50 ft low): also tried: #2 going 500 or 1,000 ft higher early, then down onto the line, each at no more than 1,800 ft/min within the G rule's 5 G with the pull charged (`TURNING_REJOIN.verticalUpFt`, estimates); flown only when quicker by more than half a second. Pop-ups of about 700 ft in 6 s are not used (they would need roughly 3 G more pull than the model charges for).
 - **A rejoining wingman at or above Lead's height** comes down below him before he is close (SMM 12.27 para 65; Patrick 4 Oct 19:11Z). The 4-ship's rule (step down to 60 ft below Lead) is section 14.
 - **Into or Away (TS-174, V2.217):** TRJ has an Into/Away switch, default Into. Into: Lead turns toward #2's side. Away: Lead turns away from #2's side. From trail after a break and rejoin, #2's side is the echelon side the pair broke from.
-- **Break and rejoin (TS-175, V2.217):** A 2-ship button, shown only in echelon. Lead rolls into a level 60° bank, 2 G, 180° turn away from #2. #2 starts the same turn 5 s later (a setting under More, default 5 s). Both hold their speed with power and roll out on the reverse heading in trail, at whatever spacing that gives. The pair then holds trail until TRJ or SARJ is pressed. Sources: SMM 16.20 para 65b(1), Fig 16.24; SMM 12.25 paras 60-61. As built: the switch sits under the Rejoin row (TRJ: Into, Away); on Away #2 crosses behind Lead to the inside of the turn, and only the turning rejoin flies it (the tracker and the roll stand aside). The break's trail comes out at about twice the delay's distance (about 3,800 ft at 200 KIAS and 5 s), as a 180° delayed turn gives; the delay choices are 3, 4, 5, 6 and 8 s (estimates around Patrick's 5 s).
+- **Break and rejoin (TS-175, V2.217):** A 2-ship button, shown only in echelon. Lead rolls into a level 60° bank, 2 G, 180° turn away from #2. #2 starts the same turn 3 s later (a setting under More, default 3 s; TS-217, was 5 s). Both hold their speed with power and roll out on the reverse heading in trail, at whatever spacing that gives. The pair then holds trail until TRJ or SARJ is pressed. Sources: SMM 16.20 para 65b(1), Fig 16.24; SMM 12.25 paras 60-61. As built: the switch sits under the Rejoin row (TRJ: Into, Away); on Away #2 crosses behind Lead to the inside of the turn, and only the turning rejoin flies it (the tracker and the roll stand aside). The break's trail comes out at about twice the delay's distance (about 3,800 ft at 200 KIAS and 5 s), as a 180° delayed turn gives; the delay choices are 3, 4, 5, 6 and 8 s (estimates around Patrick's 5 s).
 
 **Straight-ahead rejoin** (SARJ; TS-72, TS-75; Patrick 5 Oct 08:40Z: "SARJ should start at full power until it gets back on leads six, then set an overtake. The geometry of moving makes it fall back."; SMM 12.26 paras 62-63, Fig 12.17; EFIG p.371). The 2-ship, from line abreast or fighting wing to echelon, route or line astern (line astern from fighting wing is always straight ahead). Lead flies straight on at 200 KIAS. #2 goes to full power and cuts toward Lead's six, falling back as he turns. Since V2.310 (TS-192, refactor step 5; Patrick's yes 11 Oct 2026 16:27Z) he flies the six as the turning rejoin's ride with Lead not turning (`live/ride.js`): at full power until he is on it, the rest of his speed along it. From line abreast he closes across it no faster than he could stop on it at half the sideways pull of his 60° bank (an estimate), rolling at the turning rejoin's start rate (90°/s at most), aiming for it about 1,000 ft back (Fig 12.17 point 1) and joining it about 700 ft back. From a close start (behind Lead's 3/9 line, inside 1,250 ft, as from fighting wing) he joins it where he is, 500-1,000 ft back, with the close-formation rule's bank, about 1.5° per degree of cut, and a stop at 15° of bank's pull (estimates). Until then he cut at up to 30, 45 or 60°, the quickest picked, on the older line law. On the six, just below Lead's wake, he holds at least the Rates choice's line speed up it (210, 220 or 235 KIAS, TS-133; from line abreast the full-power cut already gives 233-240 KIAS), takes it off to 10-20 KIAS over Lead by 250-100 ft behind him (the window; since V2.122, TS-110: Patrick 6 Oct 03:45Z, card wording "A rejoin plans only to the window: #2 arrives 250-100 ft from Lead, measured along the rejoin line, 10-20 KIAS faster than Lead (Lead at 200)"; until then at idle to about 8 kt by 100 ft behind route) and never goes below 200. From about 500 ft he takes the small vector to the side wanted, and from the first point in the window with no more than 20 KIAS of overtake the tracker flows him through route into the slot. Not in the window by its near edge, the plan gives way to the other planners (the overshoot, the last resort). Passing more than 20 ft ahead of the slot on the way in is a warning on the card, not a refusal (turning and straight-ahead rejoins alike, TS-110). Into echelon (V2.105; Patrick 6 Oct 02:01Z: "SARJ shuold hit 'The line' (drawn between the prop spinner and wingtip, as per smm) and fluildly transition their motion up that line in to position"; "a rejoin should never stagnate (stop) until it's in position"): the vector aims for the spinner-to-wingtip line two echelon distances out (90 ft) and he joins it closing at about 8 kt, then flows up the line into the slot without stopping (`moves.js` STRAIGHT_REJOIN lineJoinEchelons, lineArriveKt, lineFlowFt, estimates); fighting wing to echelon about 22 s (was 29 s, overshooting nearly abreast and wide, then sliding back). If the ride cannot reach the slot without passing ahead of Lead's 3/9 line at any Rates overtake, the tracker's planner flies it.
 
@@ -209,6 +209,925 @@ Lead flies the button's turn and each wingman keeps his place in Lead's wing pla
 - **Not changed:** the moves into a close place while Lead is banked (a rejoin's capture, the station changes, the hand-over's run-in) still follow Lead's wing plane 3 s late (`KINEMATIC.planeLagSec`; `future.md`).
 - **A turn into a 4-ship echelon** is flown and flagged: the Orders and SMM 16.36 para 101 normally turn echelon away only.
 
+## 7a. How the live flying is built (TS-234, approved by Patrick 14 Oct 2026)
+
+Every aircraft the sim flies (#2 to #4, Lead, the rejoins, the tracker, the 4-ship) is built to three rules (Patrick 14 Oct 2026, on the thread's summary: "So one of the main concepts in this control-system-based-design is that switches have phased strengths and handoffs, and we have to clean up with inputs and outputs and control system design of the overall project, right?"; card "Rule now, models later"):
+
+1. **Phased hand-overs:** no on/off switches in the flying. A change of technique, job, phase or owner blends in smoothly, over a stated time or by how near a limit is. A safety protection (the guard) is a barrier: it does nothing far from its limit, firms up as the limit nears, and only limits what the loops ask for; it never steers or sets power itself. Real physical steps (the speed brake) stay switches, with a band and a hold time so they don't flick.
+2. **One owner per control:** turn, height and power each have one writer at a time, or a stated rule for sharing. Every signal is in the control map's master list with who writes and reads it. Controllers may pass each other physics (the drag of his G, the power for his climb), never a decision or a switch state.
+3. **Techniques plan; the same loops fly:** a technique (the miss, a rejoin, a yo-yo) plans its path, energy intent, height and urgency once from a predicted cue, and the normal loops fly it with feedback. It writes only the reference and its limits, and hands back by sliding the reference home (TS-233, "How a technique works").
+
+Fighting wing is first (round 5). The others come onto these rules in their turn, each with its own control model then: TRJ and SARJ at B4 (spec 7d), then Lead, the tracker and the 4-ship. What already flies well (close formation, TRJ) keeps flying as it does until its replacement flies at least as well. These are design rules checked by gates C1-C11, never tests and never walls in the flight code. The control-systems words for these patterns (phased authority in its constraint and blend forms, physics cross-feeds) are in `control-model.md` sections 9 and 10; the gates are in `Pat's claude work/formation-review-12oct/control-systems-analysis-plan.md` section 7.
+
+## 7b. The close-formation wingman (approved 13 Oct 2026, TS-226; B1 built and flown, V2.426 on #1018; B2 built, V2.427, not flown)
+
+**B2 in progress (13 Oct 2026, late night, branch `formation-close-wingman-b2`, stacked on #1018):** T9 the gauge flies the close turns in echelon with Live (60° and 45°, into and away, Reversal and Wings level mid-turn); T10 offline: perception reads the whole turning of the aircraft he flies off (its frame's angular velocity and its change, from its velocity and body up only, TS-211), so his place's motion in the roll and the turn is fed forward to pitch, roll and power; Lead's G is dead-reckoned 0.3 s ahead as his bank is (it builds as he rolls, TS-227); the power lead is the rate his place's speed must change (more outside the turn, less inside). Probe, telegraphed turns from 200 KIAS: 45° within 1.7 ft, 60° within 3.2 ft, back on his references about 4 s after Lead's roll-out, the steady turn within 0.1 ft at 80% torque outside and 77-78% inside; straight and level unchanged. The trim (the "golden power setting") is not needed so far: switched on it wound up in the turn and settled slower. A further 1.5 s telegraph read for the power, tried six ways, made the 60° turn away worse (3.9-4.9 ft against 2.8) and is left out until the plot page shows it is needed. Patrick, 13 Oct 2026: "There would be no power anticipation until we see a telegraph, and that telegraph would scale the anticipation ... wing doesnt do anything until he starts to see movement": every lead he makes comes from Lead's movement as he sees it, 0.3 s late, and scales with it; nothing from Lead's plan or button (TS-211). T11-T13 since: B2 built (V2.427, branch `formation-close-wingman-b2`, stacked on #1018): with Live, the close turns in echelon, Wings level and Reversal fly #2 on the live wingman; Lead flies his plan, #2's drawn path is flown ahead at the press with the same law (drawn = flown); the turn ends when Lead's plan is done and #2 is settled. Gauge: 60° turns both ways, a Reversal and a Wings level mid-turn within 2.6 ft of his place, 45° within 1.5 ft, the steady turn within about 0.1 ft; Held unchanged. One test (`close-wingman.test.js`, the 60° turn into #2 and away). Not flown. Found wiring it in: his power corrections are sized around the setting the turn needs (the holding power and the power lead), not the holding power alone, and while he sees Lead rolling his hand moves the throttle at the telegraph's 20%/s (7b.6d item 6): before, the lead was clipped to the on-station 10% and the jobs cycled into a 6 s fore-aft hunt, seen on the plot page. Patrick, 13 Oct 2026: "once we use g and roll to catch up with lead, we just want to match his roll rate and stay on plane with a nice steady G": the steady turn already does (within about 0.1 ft, his G on Lead's). The 0.3-0.4 G step at the start and end of Lead's roll is his 0.3 s reaction to his place moving; easing his pull over Lead's G at a steady hand's rate did not remove it at 1 G/s and at 0.5 G/s let him drop 24 ft below the plane at 60°, so it is left out; looked at with Patrick on the plot page when he flies B2. Patrick, 13 Oct 2026: "As soon as the telegraph starts 2 can anticipate needing to roll, pull up, and add power ... once you catch up to the reference in the middle of the turn ... there is basically a 'golden G' (just like the golden power setting) that will hold you in position as you climb and roll with lead": built so. In a 60° roll-in his anticipation starts 0.25 s after Lead moves, and from about 30° to 53° his correction is about zero, Lead's G 0.3 s ahead plus his place's motion holding him on the reference. Left as they are: his bank lags Lead's by 3-5° early in the roll (his 0.3 s plus the T-6A's roll onset; leading his bank 0.45-0.8 s cut the roll-start lag to 0.2 s but overshot Lead's bank by 4-5° at the roll-out and drifted him 5-10 ft); and about 2.6 ft low as a 60° roll-in ends (Lead's G climbs faster than a straight-line read toward 60°; capping the read by the G Lead's coming bank calls for changed nothing). Patrick, 13 Oct 2026: "you usually have to roll a bit faster than lead to catch up to his bank then stabilize at his roll rate as you come on to plane with pitch ... so you actually translate a little 'towards' lead ... pivoting around them": built as a catch-up in his roll, toward the bank his lift asks for (Lead's bank 0.3 s ahead and his in-and-out correction), 0.6 of the gap past it (CLOSE_WING.rollCatchUp, estimate), so he rolls faster than Lead until caught up and then at Lead's rate; the pivot is his place's arc about Lead, already fed forward. At 60° it cut the fore-aft error from about 2-2.3 ft to 1.4-1.6 ft; built first toward Lead's own bank it fought his in-and-out correction (4.2 ft at 60°) and was rebuilt. Lead's telegraph slowed 14 Oct 2026 (TS-209; Patrick 14 Oct 2026: "Slow leads roll rate down about 20 percent, make his telegraph start even slower and last a bit longer that should help with our power"): the steady roll rate 20% slower (bank / 6.25 s) and the build-up and ease 2.0 s (an estimate for "a bit longer"), about 8.25 s wings level to bank. Probe, 60°: worst 1.75 ft (was 2.7), his torque 36-86% (was 19-100%, MAX), G off Lead's 0.23 (was 0.42), G reversals 5 (was 10), never more than 1 ft out after Lead's roll-out; 45° under 1 ft. The audit's worked numbers below (0.14 G and 0.19 G of place acceleration, 6.8 and 9 ft/s) are for the old telegraph and smaller now. Changed 14 Oct 2026 (7b.6d item 9): "#2 in close formation" switched while nothing is being flown takes effect at once (Live starts the live wingman in echelon from where #2 is; Held hands him back), during a press at the next one; Patrick found the echelon line control (TS-230) did nothing with Live chosen after reaching echelon.
+
+**Status (13 Oct 2026, night):** Built for B1 on #1029 (V2.426, stacked on #1018): `live/wingman/` (perception, supervisor, close-formation, shaper, wingman), core `pilotAxis`, the "#2 in close formation: Held / Live" switch (default Held), one test (`tests/unit/turn-sim/close-wingman.test.js`). With Held every gauge trace is identical to the run before B1; headless with Live the 60 s echelon hold stays within 0.04 ft of his place. Patrick flew it 13 Oct 2026 ("Itlooks great. merge it here"); merged into #1018 as V2.426. No turns yet (B2). Where the build differs from the text below: no threshold, he corrects any drift (TS-228, replacing 7b.6d item 11's soft threshold); the pace near his place tapers with his 0.3 s reaction allowed for, and the power's walk to the floor, not the bare sqrt(2 x braking x distance) (which overshot 2.8 ft); a change into echelon hands him to the live wingman only once he can stop on his place (`events.js` liveHandOver, wing-moves.js CLOSE_WING.handOverBrakeKtps and handOverReactSec); the loops are built by control (pitch on up and down, roll on in and out, power on fore and aft), and plane, line, hinge is the order he reads and corrects the picture in (7b.3), so the audit's "line axis" gains in 7b.6d item 7 are the roll loop's.
+
+Patrick approved this spec and TS-226's wording on 13 Oct 2026 ("approved as written"). Plan: `plan.md` step 12.4, rungs B1 (echelon, straight and level) and B2 (Lead's telegraphed turns in echelon). Not built yet: until it is, section 7 describes what flies. It replaces the held poses only once Patrick has flown it.
+
+#### 1. Objective
+
+#2 holds echelon the way a pilot does: eyes on Lead, fingertip pressures, a small correction as soon as he moves off his references, and power added before it is needed when he sees Lead start to turn.
+
+Patrick, 13 Oct 2026:
+- "As soon as we move off the references we make small corrections."
+- "When we see lead starts to turn, we anticipate what is happening based on what we see and add power BEFORE its needed, ideally only moving 2-3 feet out of position, depending on what happens."
+- "A good pilot can stay in almost perfect echelon up to 45 degrees, with small deviations up to 60 or more."
+- "In close form the control movements are pressures. you fly with your fingertips almost."
+
+Done means Patrick flies it from the default start and it looks and feels like close formation (AGENTS.md lesson 2).
+
+#### 2. The loop, every step
+
+Lead flies (one Lead, TS-225) → **perception**: what #2 sees and feels, about 0.3 s late → **supervisor**: picks the job (B1 and B2: on station, a small move or a large move back to it, and one safety rule: under Lead he moves out before he comes up) → **close-formation technique**: the correction on each axis → **command shaper**: pressure-sized, smooth inputs → **#2's aircraft**: the same point mass as Lead → his new position goes back into what he sees.
+
+#### 3. Sensors: what #2 knows
+
+| Sense | What he takes from it | Source |
+|---|---|---|
+| Eyes: his references | The echelon picture: Lead's wingtip leading edge on Lead's spinner (lateral, and vertical), and abeam Lead's rudder hinge line (longitudinal). Read as three deviations, in the SMM's words for them: up or down, in or out, forward or back | SMM 12.4 paras 11-12, Figs 12.3-12.4; 12.18 para 39; the place those references give through the CT-156 model's geometry, about 18 ft back, 43 ft out, 3 ft down (TS-182, `live/slots.js`; section 4's table, corrected 13 Oct 2026 from the older estimate of 45 out, 25 back, 5 down) |
+| Eyes: the picture moving | How fast each deviation is growing | Patrick 13 Oct 2026 |
+| Memory | How long a deviation has been there, and which way | Patrick 13 Oct 2026 |
+| Eyes: Lead's attitude | Lead's bank and nose, and a roll starting: the wing moving against his references | TS-211 |
+| Eyes: Lead's telegraph | How fast Lead's roll is building. Lead's close-formation roll builds over 2 s to a rate set by the bank he is going to (TS-209 as slowed 14 Oct 2026: 30° at 4.8°/s, 45° at 7.2°/s, 60° at 9.6°/s; it was 1.5 s and 6, 9 and 12°/s), so the build-up tells #2 how fast Lead will roll and roughly how far | Patrick 13 Oct 2026 ("we also know about how fast lead will roll based on the acceleration of his 'telegraph'"); TS-209 |
+| Body and hands | The G he feels, where his throttle sits, the pressure in his hand | Patrick 13 Oct 2026 |
+| Not used | His own instruments: no look inside at all; Lead's plan, Lead's speed or power | Patrick 13 Oct 2026 ("we dont look inside at all"); TS-211 |
+
+Everything he sees reaches his hands about 0.3 s late (TS-211, estimate; the same 0.3 s that Tohidi and Yildiz (2020) measured as a pilot's total delay, decision plus neuromuscular).
+
+**The SMM's words** (SMM, Aug 2024; Patrick asked for them in the spec, 13 Oct 2026; ALL-41):
+
+![SMM Figure 12.3: Front Seat Echelon References](../../references/figures/smm-fig-12-3-front-seat-echelon.jpg)
+
+*SMM Figure 12.3, Front Seat Echelon References (p.197): Lead's spinner circled, his rudder hinge line boxed; the inset shows the line from Lead's spinner through his wingtip to #2, and #2 abeam the hinge.*
+
+> **12.4 Echelon left and right.** 11. In the echelon left position, number two (also referred to in this publication as the wingman) is on the left wing of the lead aircraft. The proper position for echelon left is illustrated in Figures 12.3 and 12.4 and the references are as follows:
+> a. Lateral. The wingman lines up the leading edge of the lead's wing tip with the propeller spinner of the lead's aircraft.
+> b. Longitudinal. The wingman aligns abeam the rudder hinge line of the lead's aircraft.
+> c. Vertical. The wing-tip on the spinner provides a good vertical reference.
+>
+> 12. In the echelon right position, number two is on the right wing of the lead aircraft. The references are the same as echelon left.
+
+> **12.6 Route.** 15. Route formation is flown on the extended wing-tip reference line at a distance of one to three wingspans (Figures 12.7 and 12.8).
+
+> **12.18 Station keeping.** 39. To help you maintain station, standard terms to correct errors in position will be used. They are:
+> a. Longitudinal: "Forward" or "Back"
+> b. Vertical: "Up" or "Down"
+> c. Lateral: "In" or "Out"
+> d. Line Astern: "Right" or "Left"
+>
+> 40. In essence, formation flying is station keeping. As you know, the Harvard II is a stable aircraft which, when properly trimmed, will remain in a given attitude without deviation. (Note: due to wing tip vortices, a lateral trim change will be felt when moving in or out of echelon. Also, longitudinal trim will vary when in line astern.) Remember that there is a slight lag between a PCL movement and the corresponding aircraft response; therefore, you must anticipate this lag. Initially, you will likely find that you will be making almost continuous torque changes to maintain position on the lead. As you become more experienced, you will be able to anticipate many of the lead's movements and you will find yourself making small adjustments to maintain position. Make all adjustments as soon as you detect the need, so that the change will be small; the longer the delay, the greater the amount of adjustment, thus the longer the time to regain position. Once you are in the correct position, no control movements are necessary, and with experience the control movements will become control pressures. Pay close attention to the tips your instructor will give you regarding station keeping. If you are in doubt about any point, ask questions.
+
+> **12.19 Turns.** 41. When the lead turns away from the wingman while in echelon formation, the turn is "stepped up". When the direction of turn is into the wingman, the turn is "stepped down". While maintaining position relative to the lead, the wingman initially climbs or descends slightly as bank is changed.
+>
+> 42. When your aircraft is on the outside of a turn (stepped up), an increase in torque is required on the entry, and a decrease in torque will be necessary on the rollout. Conversely, on the inside of a turn (stepped down) you must decrease torque on the roll-in and increase it on the rollout. These PCL changes are normally quite small, and as your proficiency increases, you will be able to anticipate both the rate and amount of adjustment required.
+>
+> 43. The most common error during a turn is failing to match the lead's rate of roll. In almost all cases, the wingman lags behind the lead's rate of roll, and therefore tends to slide wide during a stepped up turn, and to slide towards the lead during a stepped down turn.
+
+**The crosscheck: plane, then line, then hinge** (Patrick, 13 Oct 2026: "In close formation, we correct PLANE-LINE-HINGE"; "you get on plane first, then you move forward to the line (or back), then power and bank moves you up and down the line. it helps make the corrections more 1/2 dimensional, and its safer"). The words are not in the SMM text, which gives the references themselves (12.4 para 11).
+1. **Plane:** up or down into Lead's wing plane, with pitch.
+2. **Line:** forward or back onto the spinner-to-wingtip line, with power.
+3. **Hinge:** along the line, in toward Lead or out away from him, with power and bank together, until abeam the rudder hinge line. Route sits on the same line further out (section 4's table, TS-181).
+
+So #2 reads his deviation in the line's own frame (off the plane, off the line, along the line), not as Lead's fore, aft and side. **Plane, line, hinge is the order for correcting an error**, a move back onto his place, one or two at a time. **Staying in position is different:** all the controls together, coordinated, all the time (Patrick, 13 Oct 2026: "PLH is the order we correct errors. you stay in position by using coordination of all of the controls at once"). **Exception (Patrick):** "if you are underneath lead, you wouldn't correct plane first": under Lead, coming up into his plane is the collision risk, so the supervisor moves #2 out first (7b.2). Fighting wing and rejoins use a different crosscheck; those come at rungs B4 and B5.
+
+#### 4. Inputs: his controls
+
+| Control | What it does | Close-formation size (estimates; today's values in `wing-moves.js` in brackets) |
+|---|---|---|
+| Pitch pressure | G a little more or less than he sees Lead pulling: up or down | about ±0.3 G, eased in (followG 0.5 G, onset 4 G/s) |
+| Roll pressure | Bank a few degrees off Lead's: slides in or out | about ±5° off Lead's (sideBankDeg 15°) |
+| Power | Torque a few percent: closes or opens fore and aft | about ±5-10% torque (powerG 0.1, about 2 kt/s) |
+| Rudder | Not modelled: the point mass flies balanced | - |
+| Speed brakes and idle | Only for too much closure, and very rarely needed in close formation or on moves to and from route: the boards are a large step in drag, so not ideal. They belong to rejoins, fighting wing and tactical moves | Patrick 13 Oct 2026 ("if i have too much closure I'll use boards, but very rarely would that be required in movements to and from route or in close formation ... same with idle"; "it's a very large step change in drag so its not ideal"); TS-218 (idle's spool-up lag) |
+
+Pressures are small, continuous and smooth, never the full-stick moves of tactical flying (the technique share, C1). Patrick, 13 Oct 2026: "When station keeping in S+L or once steady in a turn, the roll pressure and power are extremely small. tenths of a degree to start, but as required." So on station a correction starts at tenths of a degree of bank off Lead's, and grows only as the deviation needs it. The throttle above 5% torque answers in about 0.25 s (TS-218).
+
+#### 5. Outputs: what the aircraft does
+
+#2's point mass (Lead's, TS-225: thrust, drag, G, roll, G onset, engine) gives his speed, height, heading, bank and G, and from them his position and how fast it is changing against his place in Lead's wing plane. That is what his eyes read next step. For us it is measured and drawn: the error in feet on each axis, his G, bank and torque against Lead's (the gauge and the plot page).
+
+#### 6. How he moves the controls
+
+Patrick, 13 Oct 2026: "My input size would be driven based on how big the error is, how quickly its propogating, and how long its been there (to a lesser degree ... most of the time its mainly how big and how fast its changing). it's not an error, par say, because like i said before, formation is all about seeing lead do something, reacting to it smoothly, and staying 'in position', whatever that position is."
+
+So each input has two parts:
+1. **Reacting to Lead (the main part):** what he sees Lead do, matched smoothly: Lead's bank, Lead's pull, and a roll starting, met with power before it is needed. In control terms this is feed-forward: acting on the cause before the deviation appears.
+2. **Staying in position:** all the controls together, coordinated, on the deviation from his place, sized mainly by how big it is and how fast it is growing, and to a lesser degree by how long it has been there. In control terms this is feedback, mostly proportional and rate (PD), with a weak integral.
+
+| Axis | Corrected with | What he sees Lead do first |
+|---|---|---|
+| Up and down | Pitch pressure: G | Lead's wing rising or falling against his references: he starts pitching then catches up (TS-211) |
+| In and out | Roll pressure: bank off Lead's | Lead's bank: he matches it |
+| Fore and aft | Power | Lead's roll starting: power before it is needed, on when he will be on the outside of the turn, off on the inside |
+
+On each axis the staying-in-position part weighs the deviation (how far off), how fast it is growing, and, less, how long it has been there (a slow trim, held still while a control is at its limit so it doesn't build up and overshoot).
+
+```js
+// close-formation.js, each step (a sketch, not final code); seen = what he saw 0.3 s ago
+g      = seen.leadG    + kUp.p * dev.up  + kUp.d * rate.up  + trim.up;      // pitch pressure
+bank   = seen.leadBank + kIn.p * dev.in  + kIn.d * rate.in;                 // roll pressure
+torque = holding(seen.leadBank, seen.telegraph)                            // the setting for what Lead is doing, ahead of need
+       + kPace * (paceWanted(dist) - seen.closure);                         // a little on or off to move, walked back as he arrives
+```
+
+The gains come from two pilot numbers per axis: how firm a pressure a 1 ft deviation gets, and how fast he settles back without overshooting. The 0.3 s reaction limits how firm he can be before he starts to chase (7b.6b).
+
+**The SMM agrees** (12.18 para 40; 12.19 paras 42-43): adjustments are made as soon as the need is seen, so they stay small; with experience they become pressures; the PCL's lag is anticipated; on the outside of a turn torque goes up on the roll-in and down on the roll-out, and the opposite on the inside, small changes whose rate and amount a proficient wingman anticipates; the commonest fault is lagging Lead's roll rate, which slides him wide stepped up and toward Lead stepped down.
+
+**How big the first inputs are** (Patrick, 13 Oct 2026: "my initial pitch/roll/power addition is based on the telegraph I see. if I can see a rapid acceleration or I know we're doing something dynamic, I will increase my inputs accordingly"). The reacting-to-Lead part is sized by what the telegraph shows: a faster build-up means a faster, bigger roll is coming, so bigger first inputs. "Something dynamic" he knows is coming (a briefed or called manoeuvre) raises them the same way.
+
+**Power: one law, re-evaluated all the time** (Patrick, 13 Oct 2026: "We are almost constantly readjusting power based on what we see, so for either the small moves or large moves technique, i will constantly re-evaluate my closure/position and make corrections to rates and inputs, as required"):
+- **The holding setting** is the base: the power that keeps him in place for what the formation is doing now (below).
+- **To move:** he sets a little power off the holding setting and watches the closure. For a small move (up to about 10 ft) he leaves that little bit in until he gets where he wants, then walks the power back until he stops ("you don't really need a set and a catch for both start and stop"). For a large move it is a set and a catch at both ends (Patrick, 13 Oct 2026: "for LARGE moves you do a set and a catch for both starting and stopping, walking it up until you see what you need"): he walks the power on until he sees the pace he wants and catches it there; as the spot comes up he walks it back until he sees the closure dying as he needs, catches that, and ends on the holding setting. When he knows he needs a lot more energy he may give it a few seconds of MAX (Patrick, 13 Oct 2026: "If I know I need a lot more energy I might give it a few seconds of MAX power").
+- **The pace** is picked from how far he has to go: a gentle drift for a few feet, up to a jogging pace, about 8 ft/s (about 5 kt), or a running pace, about 13 ft/s (about 8 kt), relative to Lead (Patrick, 13 Oct 2026: "yes 8 ft/s and 13 ft/s works"), and it tapers to zero at the spot.
+
+In code that is a single continuous law, not phases: each step the distance picks the pace he wants, and the power is the holding setting plus a share of the difference between the pace he wants and the closure he sees. The walk up, the catch, the walk back and the stop all come out of it, and it re-evaluates every step as he does. On a large move the power may go as far as MAX for a few seconds when the pace he wants is far above the closure he sees; on station and on small moves it stays a pressure.
+
+**Rates to start** (Patrick, 13 Oct 2026: "Instructors will 'run' from route to echelon. but I think we should start with slower rates until we figure out how to tune the PID"): B1 starts at the jogging pace, 8 ft/s, as its most. The running pace comes once the tuning holds. The Rates setting's route-to-echelon times (10, 5 and 2.5 s, TS-65) average about 6, 12 and 24 kt over about 100 ft, faster than running for the instructor and AI; they are reconciled at B3 (route and station changes).
+
+**The holding setting moves with the turn** (Patrick, 13 Oct 2026: "The holding setting will change depending on what's happening ... as soon as I see that lead is turning, i will pitch back to stay on plane with him, roll my wings to match his bank, and walk power up to stay in position. Once established in the 30 degree turn, our bank angle is matched, and I need more power (due to larger turn circle, and maybe some other aerodynamics) ... its proportionally more the more the formation is turning. Less power than lead when stepped down (lead turning in to you)."). So the holding setting is worked out, not just remembered:
+- **The straight-and-level setting** for the speed, as he knows the aircraft;
+- **plus the turn's share:** the G of the turn (both aircraft pay it), and his bigger or smaller circle. In echelon, about 43 ft out along Lead's wing, he flies the same turn rate on a circle wider or tighter by 43 ft × cos(bank), so he needs g × 43 ft × sin(bank) ÷ speed more or less: at 200 KIAS and 8,000 ft about 1.1 kt at 30°, 1.5 kt at 45°, 1.9 kt at 60° (back of the envelope). Proportional to sin(bank), so more the steeper the turn, and on the inside the same amount less. A percent or two of torque: "quite small" (SMM 12.19 para 42);
+- **plus the roll-in's share, while it lasts** (Patrick, 13 Oct 2026: "You usually need more power while pitching up than you do once established in the new turn ... at least you need more initially to catch up to lead and establish your movement. your aircraft also has to travel thru the air (climb)"). Stepped up, his place rises about 43 ft × sin(bank) during the roll-in: about 22 ft to 30°, 30 ft to 45°, 37 ft to 60°. Climbing 30 ft over a roll-in of about 6.5 s (TS-209) peaks near 7 ft/s, which for a 5,168 lb aircraft is about 66 hp, about 6% of the engine's 1,100 shp, on top of the speed he has to gain. So the roll-in takes several times the steady turn's extra power, as Patrick thought; stepped down it is the reverse (he descends into the plane, less power). Back of the envelope;
+- **plus the remembered trim** on top, updated when he is steady.
+
+When he sees Lead's telegraph, he walks the power toward the holding setting for the roll-in and the bank Lead is going to, before it is needed. The aircraft's power required comes from the code's existing maths (`powerFor` in `live/power.js`: the power for an acceleration, a speed, a G and a climb), not a new formula; his estimate need not be perfect, as the trim and the staying-in-position part take up the rest. "Other aerodynamics": a little more G on the wider circle is in the point mass; Lead's wingtip vortex (the lateral trim change in echelon, SMM 12.18 para 40) is not modelled.
+
+**How it is tuned** (the thread's proposal): one axis at a time in the order he corrects them, plane, then line, then hinge. For each, start #2 a few feet off his place, straight and level, and watch him settle on the plot page: no overshoot, no hunting, settled in the time in 7b.6b. Then Lead's telegraphed 30°, 45° and 60° turns, both ways. The gauge measures each run; Patrick flies the result.
+
+#### 6b. The pilot model behind the numbers
+
+Sources (Patrick found them, 13 Oct 2026): MIT OpenCourseWare 16.400 Human Factors Engineering, Fall 2011, lecture 10 "Manual Control II"; McRuer and Krendel, *Mathematical Models of Human Pilot Behavior*, AGARDograph 188 (1974), as described by MathWorks' Crossover Pilot Model block; Tohidi and Yildiz, "A Control Theoretical Adaptive Human Pilot Model", arXiv 2007.10216 (2020). Ideas and published formulas only; no code copied, no new library. Added 13 Oct 2026, from Patrick: Bhandari and Csurcsia, "Digital implementation of the PID controller", *Software Impacts* 13 (2022) 100306; Toochinda, "Digital PID Controllers" (2011); scanned lecture notes "The Digital PID Controller Design" (author unknown); Claude A, a beginner's PID guide on note.com (2025). All are listed with their licences and what each gives in `Pat's claude work/formation-review-12oct/research/pilot-model-sources/README.md`; the openly licensed ones are in that folder.
+
+- **The crossover model.** A trained pilot shapes himself so that he and the aircraft together act like a gain, a delay and an integrator near the crossover frequency: Yp·Yc = ωc·e^(−τs)/s. Typical crossover 1 to 10 rad/s (MathWorks' default 3); delay 0.1 to 0.25 s (MIT), 0.3 s with decision time included (Tohidi and Yildiz).
+- **Why rate matters.** Height and fore-and-aft position answer the controls through two integrations (G or thrust gives acceleration, then speed, then position). On that kind of aircraft response the pilot must supply lead: he acts on how fast the deviation is changing, not just on its size (MIT; McRuer). That is Patrick's "how big and how fast it's changing". Pilots rate this as work, which is why seeing Lead's roll and acting first (feed-forward) matters so much.
+- **How firm he can be.** With 0.3 s of delay, the delay costs about 43° of phase at 2.5 rad/s and about 52° at 3 rad/s. A crossover of about 2 to 2.5 rad/s keeps a healthy margin, so the pitch and roll axes settle in about 2 s. The power axis adds the engine's 0.25 s, so about 1 rad/s and about 4 s. Above that he chases (a pilot-induced oscillation). These are the starting values, estimates to be tuned by eye.
+- **Prediction.** The optimal-control pilot model adds a predictor and trades control effort against precision (MIT: minimise effort squared plus error squared). For #2 the predictor is Lead's telegraph (7b.3); the trade is the "pressures, not movements" of close formation.
+- **From the PID sources** (how to run it step by step without jolts): the rate term acts on the motion he sees, not on the error, so a jump in where he wants to be (a new place, the next step of plane, line, hinge) never jolts the stick (the "derivative kick"); the rate he reads is lightly smoothed, as an eye judges motion over a moment, not one step; the trim is held still while a control is at its limit (anti-windup); a new job or technique starts from the controls he already has, so a change of job never steps them (bumpless transfer, rungs B3 to B5); and the gains are tuned one at a time in widening steps. In their words this is two-degree-of-freedom control (react to Lead, stay in position) with a cascade for big moves (pace, then power).
+- **What the sources don't cover.** None of them models formation flying: they are single-axis tracking tasks. The structure and the ranges carry over; the numbers for echelon are ours, tuned against Patrick's flying. He notices any drift from his references and corrects it, with no dead band, until he settles at the golden power setting and the pressures that hold him still, which is rare (TS-228). Each axis settles without overshoot; settle times are estimates to be tuned (up and down, in and out about 2 s; fore and aft about 4 s).
+
+#### 6c. How we use PID (13 Oct 2026)
+
+Three small loops, one per control, run every step in Lead's wing frame: pitch (G) on up and down, roll (bank off Lead's) on in and out, power (torque) on forward and back. Each is what he sees Lead do (feed-forward) plus P (how far off), D (how fast it is changing) and a weak I (how long it has been there).
+
+| Part | What it does | Where it lives |
+|---|---|---|
+| Feed-forward | Lead's bank and G as he sees them; the telegraph sizes the first inputs; the holding power for what Lead is doing | close-formation.js, from perception.js |
+| P | Pressure in proportion to how far off he is | close-formation.js (core PID function `pilotAxis`, not one of the old helper laws) |
+| D | Pressure in proportion to how fast it is changing, on the motion he sees (never the error, so a new target never jolts the stick), lightly smoothed as an eye judges motion | rate from perception.js, used in close-formation.js |
+| I (weak) | A slow trim for an offset that stays; held still while a control is at its limit (anti-windup); starts at zero, added only if an offset remains | close-formation.js |
+| Limits | The pilot's hand only: pressure sizes per job and how fast his torque may change; the T-6A's roll and G onsets stay in stepLead alone, never applied twice (6d); his bank may change as quickly as the aircraft rolls, small and quick when he needs it; a new job starts from the inputs he already has (bumpless transfer) | shaper.js |
+
+- **Plane, line, hinge with three loops.** On station all three hold together, coordinated. Correcting an error, the supervisor hands the loops a moving target: the plane's share of the error first, then the line's, then the rest along the line, so the loops see one or two dimensions of error at a time. Under Lead, out comes before up.
+- **Power is a cascade.** The distance to go picks the pace (gentle, jogging 8 ft/s, running 13 ft/s; B1 tops out at 8); the power loop closes the gap between that pace and the closure he sees, around the holding setting.
+- **The PID function** (not the old "helper laws", fw-pursuit, ride and the rest, which retire). About 10 lines of plain JavaScript in `src/core/` beside `dampedClimbG` (already a PD: it holds Lead's climb angle): `pilotAxis(memory, deviation, rate, dt, gains)` returns the pressure and the new memory, never changing the old in place. From the textbook difference equation (Bhandari and Csurcsia 2022; Toochinda 2011); no library.
+- **Starting gains (estimates).** Plane axis: P 0.04 G per foot, D 0.06 G per foot per second: with the 0.3 s reaction it crosses over near 2 rad/s with about 37° of phase margin, settling in about 2 s without chasing; a few feet off is about a tenth of a G. Line and hinge are worked out in `tools/flight-design` during B1 with their own lags (the roll's onset, the engine's 0.25 s); expected softer, hinge near 1 rad/s and about 4 s.
+- **Tuning.** One axis at a time in Patrick's order, one gain at a time in widening steps; margins checked offline in `tools/flight-design` (python-control 0.10.2, already pinned) with the real delay; tuned by eye on the plot page; each run measured by the gauge; then Patrick flies it.
+- **Looked at, not used.** The mcpmarket "Systematic PID Loop Tuning" skill (jamestjsp/control-skills, commit 099120c2591c): no licence, needs Python libraries we don't have, built for industrial process loops. Nirnay (a PID bench in the browser, MIT): safe to open, but it has no time delay, so on its own it gives gains too firm for a 0.3 s reaction.
+
+#### 6d. Changes from the Fable audit (approved 13 Oct 2026)
+
+A one-off Fable audit of this design (13 Oct 2026, report in `Pat's claude work/formation-review-12oct/research/wingman-audit-fable-13oct.md`) found the structure and the law right and asked for these changes before B1; Patrick approved all 13 (Patrick 13 Oct 2026: "Yes all 13, default 60, sure 10% tq for boards, and the wingman can have very un-smooth bank (if he needs to). sometimes the bank changes are very quick/small as required for wing man").
+
+1. **TS-227**, Lead pulls as he rolls and never rolls and pulls past 4.7 G (built 13 Oct, `lead-pilot.js`, `fluid-lead.js`).
+2. **Starting from the tracker.** The live hold starts from the motion the rejoin leaves him (bank, roll rate, climb, G, power, closure: the fields `kinematic.js` handOverAt and `holdInPlane`'s hand-over read), its loops, trims and 0.3 s memory filled from that motion, so the first second never lurches (bumpless transfer applied to the tracker too).
+3. **Done for a change into echelon:** in band, closure under 5 kt, bank within 10° of Lead's (bands.js STEADY); the old 0.5 kt speed gate is dropped for a live #2.
+4. **The pitch feed-forward is his place's motion, not Lead's G.** In a telegraphed 45° roll-in his place 43 ft out accelerates along Lead's lift line at about 0.14 G (0.19 G at 60°) while Lead's own G barely moves; without it he lags about 5.5 ft. Perception works it out from the bank it sees changing (place offset × seen roll acceleration along the lift line, plus offset × seen roll rate² across the wing line), never from Lead's state or plan (TS-211): perception reads only Lead's position, velocity and body-up over the last 0.3 s.
+5. **Predict across the 0.3 s.** He dead-reckons Lead's bank 0.3 s ahead from what he saw (seen bank + rate × 0.3 + half the acceleration × 0.3²); the telegraph's longer read (1.5 s × the seen build-up) sizes only his power lead ("#2 knows how a telegraphed roll is flown, not which turn was pressed"). Power, worked by the audit with powerFor at 200 KIAS and 8,000 ft: level 57% torque; Lead at 45° 64%, #2 outside 65%; the roll-in's peak about 77%; at 60° Lead 79%, #2 80%, the roll-in about 87%.
+6. **No double limits.** stepLead already eases G and roll at the T-6A's onsets; the shaper limits the pilot's hand only: pressure sizes per job and torque's rate (about 10%/s on station, 15-20%/s in a telegraph, estimates). His bank is not smoothed: a wingman's bank changes may be quick and small as required (Patrick), so bank-off moves as fast as the aircraft rolls.
+7. **Rate smoothing 0.1 s at most** (the plane axis has little phase to spare: 37° alone, about 26° with a 0.1 s filter, less with the G onset). Plane gains start at 0.04 G/ft and 0.06 G per ft/s, falling back to 0.03 and 0.06 (about 3.6 s, no overshoot). Line axis (estimates, total lag about 0.55 s): about 0.5° of bank per foot and 1.7 to 2.1° per ft/s, crossover 1.0 to 1.2 rad/s, settling in 3 to 4 s. Hinge: 1% torque is about 0.036 kt/s at 200 KIAS and 8,000 ft; the pace loop about 10 to 13% torque per ft/s of pace error (estimate). The engine's 0.25 s is a travel rate, so in the sim the hinge's lag is the pilot's. All checked in `tools/flight-design` before tuning.
+8. **One lift vector.** The correction is one vector in Lead's wing frame added to the feed-forward lift and handed to stepLead as `lift` (core gAndBankForLift), as `fluid-wing-live.js` does: it separates the axes and removes sign bookkeeping. Lead's frame comes from his velocity and body-up, not heading and bank, so his climbs and descents (TS-225) are exact.
+9. **Integration.** `wingman.js` steps #2 every step whenever the pair is in a close formation and the setting is Live (as `fluid.js` steps its live #2); the drawn path ahead comes from flying Lead's plan and the wingman's law ahead together at the press (`fw-live.js` planFwMoveLive's pattern); a close turn is done when Lead's plan is done and #2 is steady; the idle nudge between presses (`formation.js` holdStationIdle) skips a live #2; switching the setting takes effect at the next press, said on screen.
+10. **B1's one test is straight and level** (section 10), the turn test moves to B2, and the gauge adds per wingman: the largest and typical deviation on each axis (plane, line, along the line), the settle time after Lead's wings come level, the most bank-off and G-off Lead's, torque's range and reversals, and the lag of #2's roll start behind Lead's (about 0.3 s; SMM 12.19 para 43's commonest error).
+11. **No randomness in B1.** His human shape is the 0.3 s reaction and the pressure sizes. The audit's soft threshold (P reading the error less 0.5 ft, D ignoring drift under 0.5 ft/s) is replaced by TS-228: he notices any drift and corrects it, no dead band (Patrick 13 Oct 2026); with D's threshold he coasted 0.85 ft past his place. Later, a seeded drift behind a setting if Patrick wants one; the Rates profile can scale gains and delay at B3.
+12. **Room left now:** the supervisor's job is a list from B1 (on station, small move, large move, out before up; later off station, deconfliction, collision), each with a dead band; the technique exposes its current inputs so B5's fighting wing starts from them; perception is written for "the aircraft he flies off", not Lead, for the 4-ship; "under Lead" means below Lead's wing plane and inside his wingtip.
+13. **Gaps, with these answers:** the pace tapers as pace = √(2 × braking × distance), braking from the power floor (at 20% torque about 1.3 kt/s), so a 10 ft move at jogging pace never overshoots; out of power (outside a climbing turn at Lead's 80%, inside a 20% descent) is flagged on the card, and below 10% torque he uses the boards before idle (Patrick, 13 Oct 2026; TS-61's order); speeds name their kind (the "1.5 kt more" is indicated, same height); the speed he holds is the formation's briefed speed (echelon 200 KIAS, `slots.js`), not an instrument he looks at; the 5,168 lb (core) and 6,000 lb (`power.js` TORQUE) weights are noted for one later clean-up; the checklist's "from the default start" uses the default close bank, 60° (Patrick).
+
+#### 7. Success criteria: what Patrick checks, from the default start
+
+1. Straight and level: on his references, within about 1 ft (estimate), with no visible hunting.
+2. Lead's telegraphed turns (TS-209) up to 45° of bank, both ways, into and away from #2: almost perfect, 2 to 3 ft out at worst, then back on his references.
+3. To 60° and beyond: small deviations, a few feet, back on his references after the roll.
+4. Always within TS-80's close-formation band (5 ft and 5 kt).
+5. The controls look like pressures: G within a few tenths of Lead's, bank within a few degrees of Lead's, torque moving a few percent.
+
+**Feasibility (back of the envelope, estimates):**
+- From the echelon place, about 43 ft out, Lead's 9°/s roll at 45° moves #2's place up or down at about 7 ft/s. Seeing it 0.3 s late costs about 2 ft. At 60° (12°/s) it moves at about 9 ft/s, about 3 ft.
+- In the turn, at 200 KIAS and 8,000 ft, he needs about 1.5 kt more on the outside (45°) or about 1.9 kt (60°), or as much less on the inside: a percent or two of torque once established, more during the roll-in (7b.6).
+- So 2 to 3 ft is reachable and tight, and it needs the 0.3 s reaction and the power anticipation both.
+
+#### 8. Code structure
+
+`src/modules/turn-sim/live/wingman/`:
+
+| File | Job |
+|---|---|
+| `wingman.js` | Runs the loop each step |
+| `perception.js` | What he sees and feels, delayed |
+| `supervisor.js` | Picks the job; on station only in B1 and B2 |
+| `close-formation.js` | The correction on each axis |
+| `shaper.js` | Pressure-sized, smooth inputs |
+
+`fighting-wing.js` joins at B5, from `fw-live.js`. The aircraft is Lead's point mass (`fluid-lead.js` stepLead, TS-225). Numbers go in the tuning sheet (`wing-moves.js`), each with its source or marked as an estimate. Existing maths is used first: `holdInPlane` (`formation-turns.js`) already holds this place with error and rate on Lead's plan; `easeValue`, `softMin` and `softMax` (`src/core/flight-math.js`). Plain JavaScript, a header on each file in the repo's style. Behind a setting: the held poses stay until Patrick has flown the new wingman.
+
+**The pattern to follow: `fluid-wing-live.js`** (TS-194). It is already a live #2 on the same point mass: each step a pilot law reads the picture and asks `stepLead` for a lift, a roll and a power, as a pilot does. The close-formation wingman is wired the same way; what is new is what he reads (his references, 0.3 s late), the supervisor and the PID loops. `fw-live.js` (fighting wing's live law, TS-208) becomes B5's second technique.
+
+**Inputs and outputs** (13 Oct 2026; the drawn code map is in the working doc "Close-In Wingman Spec"). Every step is 0.05 s; feet, feet per second, degrees, G, torque percent. Signs: off the plane + above Lead's wing plane, off the line + ahead of it, along the line + out away from Lead; bank + left wing down.
+
+| File | New? | In | Out |
+|---|---|---|---|
+| lead-pilot.js (Lead) | exists | His plan from the planners | Lead's state: position and height, heading, KIAS and true speed, bank, roll rate, roll build-up (the telegraph), G, flight-path angle |
+| slots.js | exists | The formation and his side | His place in Lead's wing plane (15.9 ft back, 40.2 ft out, 3 ft down, TS-230); the spinner-to-wingtip line (12.3 ft back for every 16.7 ft out) |
+| perception.js | new | Lead's state and his own over the last 0.3 s, his place | What he sees as it was 0.3 s ago: off the plane, off the line, along the line, and their rates (lightly smoothed); Lead's bank, G, roll rate and build-up; the bank and rate Lead is rolling to. What he feels now: his G and throttle |
+| supervisor.js | new | What he sees; the job he is in and for how long | The job (on station, small move, large move, out before up; a dead band so it never flickers); the plane-line-hinge step; the pace limit (8 ft/s in B1) |
+| close-formation.js | new | What he sees, the job, his memory (trims, holding power); tuning (wing-moves.js); holding power (power.js powerFor) | The G, bank and torque he wants; his memory updated (never changed in place) |
+| shaper.js | new | What he wants; his last inputs; the job's pressure sizes; the T-6A's onsets | This step's G, bank and throttle: pressure-sized, smooth, starting from his last inputs when the job changes |
+| wingman.js | new | Lead's state, #2's aircraft, the setting Held / Live | #2's aircraft fields as lead-pilot.js writes Lead's, so the 3D view, judge and card read him as today; a trace for the gauge |
+| fluid-lead.js stepLead (#2's aircraft) | exists | His state; G, bank, throttle, his roll | His next state |
+| formation.js, 3D view, judge, card, gauge | exist | #2's aircraft fields; the gauge also reads the trace | The picture, "in position", the card, the gauge's deviation per axis, G, bank and torque against Lead |
+
+**Kept and still used:** `holdInPlane` and the held poses (what B1 replaces behind the setting, and the start of the new hold: it holds the same place with P and D on Lead's plan); `tracker.js` (station changes and rejoins until B3 and B4); `fw-live.js` and `fluid-wing-live.js` (unchanged in B1); `lead-pilot.js` and `stepLead` (the aircraft); `power.js` powerFor; `slots.js`; `judge.js` and `bands.js` (in position); the gauge.
+
+#### 9. Commands
+
+- Build check: `npm run build`
+- Measure: `node tools/formation-gauge.mjs --only "<press>"`. Never `--save` without restoring the baseline afterwards.
+- Plot: the dev page `/tools/flight-plot/`
+- Tests: CI on the pull request only (AGENTS.md).
+
+#### 10. Testing
+
+One test for each rung (AGENTS.md), changed by the audit (6d, item 10). **B1:** from the default start, change to echelon, then hold straight and level for 60 s (long enough to show any hunting; the SMM's picture is a steady one): from the end of the change he never leaves TS-80's 5 ft of his place, his closure stays under 5 kt, he is never within a wingspan of Lead (the existing always-true check), and his bank and G stay within the shared table's 5° and 0.5 G of Lead's. **B2:** Lead's telegraphed turns both ways at the default 60° (and 45°): 2 to 3 ft out at worst, back on his references after the roll. Both check what a pilot would recognise, with no tight time gate.
+
+#### 11. Boundaries
+
+- **Always:** keep the old pilot behind a setting until Patrick flies the new one; source every number or mark it an estimate; run the gauge before and after.
+- **Ask Patrick first:** any change to the aircraft's physics, the echelon place, TS-80's band, or Lead's roll.
+- **Never:** feed #2 Lead's plan (TS-211); change the physics to make a test pass; delete the held poses before listing what they do.
+
+#### 12. Open questions for Patrick (all answered at approval but the pressure sizes, which are tuned)
+
+1. ~~The sensors in 7b.3~~: answered (no look inside; the telegraph's build-up is read; plane, then line, then hinge, with the exception under Lead).
+1b. ~~The jogging and running pace~~: answered, 8 and 13 ft/s; B1 starts at 8.
+2. The size of the pressures (7b.4): on station answered (tenths of a degree, as required); the larger sizes are estimates to tune.
+3. ~~How much power he leads with~~: answered (the holding setting for what Lead is doing, walked toward from the telegraph, bigger for a faster build-up).
+4. ~~The speed brakes~~: answered (very rarely, for too much closure; not ideal).
+5. ~~The echelon place~~: settled by TS-182 (18 back, 43 out, 3 down from the SMM references); section 4's table corrected.
+
+## 7c. Route and the station changes on the live wingman (B3; approved by Patrick 14 Oct 2026, TS-231: "Once you fix the route trhing, Approve spec 7c and TS-231")
+
+**Objective.** With "#2 in close formation: Live", the live close-in wingman of 7b also holds route and line astern, follows Lead's telegraphed turns in them, and flies the changes between the close formations himself: echelon to route and back along the line, echelon to line astern and back, and the station change to echelon on the other side through the corner (the crossunder). The tracker and the held poses keep flying them with Held. Patrick's order (14 Oct 2026): B3 now; then fighting wing, its TRJ and SARJ, the line abreast manoeuvres and the hot turning rejoin, the 4-ship, the training errors.
+
+**What carries over from 7b unchanged.** Perception (0.3 s late, only Lead's position, velocity and body up, TS-211), the feed-forward of his place's motion in Lead's roll and turn, Lead's G and bank 0.3 s ahead, the power lead from his place's speed change, the roll catch-up, no dead band (TS-228), anticipation only from what he sees (TS-229), the three loops and the shaper. What changes is where his place is and how he gets from one place to another.
+
+**1. The places** (`slots.js`, origin to origin, in Lead's wing plane):
+
+| Formation | Place | Source |
+|---|---|---|
+| Echelon | 15.9 back, 40.2 out, 3 down, on the spinner-to-wingtip line | TS-182, TS-230 |
+| Route | 75 back, 121 out, 3 down: 3 wingspans further out along the same line; judged in from 1 to 3 wingspans | SMM 12.6 para 15, Fig 12.7; TS-181 |
+| Line astern | 43 back (nose to tail about 10 ft), on Lead's centreline, 17 down, below the prop wash | SMM 12.5 para 13; 8 ft (an estimate) until Patrick 14 Oct 2026, flying the corner: "both have to go deep enough to get the references ... start by moving it (and LAS) down three feet" (11 ft), then "set corner and LAB [line astern] to -6 feet for now and note to polish once the model is done" (17 ft; future.md) |
+| Corner (new, a button: Patrick 14 Oct 2026) | Straight sideways from line astern, straight back and down from echelon: about 43 back, 40 out (echelon's own), 8 down, line astern's fore and aft and height, his nose about 10 ft behind Lead's tail below the wash (`recipes.js` cornerBehind; Patrick 14 Oct 2026: "The corner should be if you move straight right from Line Astern, and down and back from echelon ... if the refs dont line up perfectly or the numbers arent perfect yet thats fine. we can fine tune it later."; it was 55 back and 13 down, wake margins of 12 and 5 ft, estimates; the station change flows through it, Held and Live). His references: Lead's tie-down in the middle of the exhaust stack, and the belly antenna just touching the far wing (Patrick 14 Oct 2026: "The corner is found by moving straight back and down from echelon. IRL, you know you're in it because the tiedown is in the middle of the exhaust stack (some of it is hidden by the wing), which defines a line, and the other line is defined by the antenna just barely touching the other wing ... our model may not be perfect right now, so if that doesn't work, we can try to use the aspect ratio of the lead aircraft along with the distances from the SMM. Future feature to make the references work perfectly when I'm done redoing the 3d model"). The model has the stacks and the antenna (TS-156) but not the tie-down, so the SMM distances place it for now; the references worked through the model are a future feature | SMM 12.20 para 45, Figs 12.12-12.13; TS-117; Patrick 14 Oct 2026 |
+
+**2. Holding route and line astern.** The same law as echelon at the new place. Route sits three times further out, so Lead's roll moves his place about three times as much: at the slowed telegraph (TS-209) a 60° roll-in swings route's place at about 0.3 G and some 20 ft/s at its quickest (121 ft out x 4.8°/s² and 9.6°/s; to be measured), so route is flown looser and its picture is allowed to move more in the roll: **answered** (Patrick 14 Oct 2026, "About 3x echelon"): roughly 5-10 ft out of his picture during Lead's roll, back in it as the turn steadies; B3's checks keep route's judged band (1 to 3 wingspans) rather than echelon's 5 ft. Lead still rolls no faster than the wingman furthest out can follow (TS-209). Line astern's place is on Lead's centreline, so Lead's roll barely moves it; there the job is height (below the wash) and fore and aft.
+
+**3. The changes between close formations** (SMM 12.20 paras 44-47, Figs 12.12-12.13; TS-117 for the corner). The supervisor gains two jobs: off station (flying from one place to another) and deconfliction (never within a wingspan of Lead, never ahead of Lead's 3/9 line, no wings overlapping, under Lead out before up as in B1). A change is flown as a short list of places in Lead's frame that he moves through at a pace, not a planned track:
+- Echelon to route and back: straight along the spinner-to-wingtip line, bank and power together ("power and bank together", 7b.3), the pace cascade of B1 tapering to stop on the new place.
+- Echelon to line astern: back and down into the corner, nose at least 10 ft behind Lead's tail and at line astern's height, below the wash, where he stabilizes (flows through within 5 ft and 5 kt, not stopped, TS-117); then across, slightly aft of line astern, to Lead's centreline.
+- Line astern to echelon: across to directly behind the new slot, stabilized, then forward and up into it, at about 5 ft/s (SMM 12.20).
+- The station change, echelon to echelon on the other side: the first half then the second half, through the corner and across behind Lead.
+- Route to route on the other side (Patrick 14 Oct 2026: "route to route would go to echelon then station change then to othr route"): in along the line to echelon, the station change through the corner to echelon on the other side, then out along that side's line to route. Route to line astern: in to echelon, then the corner.
+
+**4. Paces.** B1 and B2 move him at most at a jogging 8 ft/s (Patrick 13 Oct 2026). Patrick: "Instructors will 'run' from route to echelon", 13 ft/s. The Rates setting (TS-65) times route to echelon at 10, 5 and 2.5 s (Student, Instructor, AI): about 10, 20 and 40 ft/s on average over route's 100 ft, past both paces. **Answered** (Patrick 14 Oct 2026, "Jogging only for now"): every close move on the live wingman at most 8 ft/s, tapering to stop on the place; running (13 ft/s) and the Rates choice come later. The Rates times stay for Held.
+
+**5. Done and judged.** As 7b: in band, closing under 5 kt, bank within 10°, and on the live wingman settled on his place. The judge's bands (`judge.js`) unchanged.
+
+**6. Tasks (plan 12.4 B3, T14-T19).** T14 this section approved; T15 the gauge's route hold and turns, the crossunder both ways, echelon to route and back, echelon to line astern and back, with the pre-B3 run saved and a known-bad case; T16 route and line astern held and turned live; T17 the changes on the live wingman; T18 B3's one test (the crossunder, echelon to echelon the other side, live: never within a wingspan, never ahead of the 3/9 line, in position at the end); T19 docs and the pages; Checkpoint E, Patrick flies B3.
+
+**7. Boundaries.** Held flies as today, checked on the gauge against the run saved before B3. Fighting wing, the rejoins, opening out to line abreast and the 4-ship stay on today's flying until their rungs. No number without its source or "estimate". Opening out from a close formation to line abreast stays on today's flying until the line abreast rung (Patrick 14 Oct 2026, "Leave it for the LAB rung").
+
+**8. Open questions for Patrick** (one at a time):
+1. ~~Paces~~: answered, jogging only for now (section 4).
+2. ~~Route's tolerance in a turn~~: answered, about 3x echelon (section 2).
+3. ~~The corner~~: answered, as today (Patrick 14 Oct 2026, "Yes, as today"): TS-117 unchanged.
+4. ~~Opening out to line abreast~~: answered, left for the line abreast rung (section 7).
+5. ~~Route to route~~: answered, through echelon and the station change (section 3).
+
+**9. Built (14 Oct 2026, V2.428, on `formation-close-wingman-b2`; Checkpoint E passed 14 Oct 2026: Patrick set the corner with its buttons; made perfect once the graphics are done).** T15-T17 by the B3 agent (72e9d90c, 1c2769ce, 2be8bf0d), checked and merged by the thread; T18 the test (6af15463); the thread's fix that a live change is done only once he has settled on his place (5 above; in band alone ended the station change about 5 ft short, still closing), the Corner button and T19 these docs. Measured on the gauge from the default start, Live:
+- Holds: route 60 s within 0.02 ft (torque 56.5-56.8%); line astern within 0.03 ft.
+- Turns at 60°: route into #2 2.8 ft worst (off his plane), away 3.1 ft (along the line), inside "about 3x echelon"; line astern 0.8 ft; the corner within 1.7 ft (offline probe). Echelon unchanged: B1 and B2's probes byte-identical, 60° turns within 1.7 ft.
+- Changes, never within 40 ft of Lead (a wingspan is 33.4 ft), never ahead of his 3/9 line (furthest forward 15.9 ft behind it, at echelon), at most 8.5 ft/s: echelon to route 13 s, route to echelon 13 s, echelon to line astern 12 s, line astern to echelon 13 s, the station change 26 s (Held 25 s), ending 0.4 ft off the new place; route to route 51 s. Every change into and out of the corner, Held and Live, ends IN POSITION.
+- Held: every pre-B3 gauge trace byte-identical (one Live measure corrected: at a Reversal the classifier read line astern, so the gauge now reads #2's last side).
+
+How it was built, beyond 1-8 (each an estimate until Patrick says otherwise):
+- **His throttle hand in route.** A place flown exactly in route needs 97-101% torque through a 60° roll-in away from him (`power.js` powerFor along the place's flight). At the telegraph's 20%/s he fell 15.7 ft behind, so while he sees Lead roll his hand moves at 20%/s times how much further out than echelon his place is (about 3.3 in route, so about 66%/s; echelon unchanged). Basis: standard kinematics, Patrick 13 Oct 2026 ("If I know I need a lot more energy I might give it a few seconds of MAX power"), the engine's 0.2 s response (TS-108, TS-218). **For Patrick to confirm** at Checkpoint E.
+- **"Under Lead"** is below his wing plane, inside his wingtip and not behind his tail: line astern and the corner sit behind Lead, not under him.
+- **Stabilized in the corner** is flowing through within 5 ft and 5 kt (TS-117), not stopping; a press of Corner stops there.
+- **Stopping a move back** counts the throttle's walk up to MAX from his torque now (a first cut passed the corner by 9 ft).
+- **The new numbers** (`wing-moves.js` CLOSE_WING offStation and deconflict): jogging 8 ft/s (Patrick); into echelon from the corner 5 ft/s (7c.3, an estimate); flow 5 ft and 5 kt (TS-117); the list's end 1.5 ft and 1.5 ft/s; the deconfliction dead bands 2 ft, 1 s, 2 ft and 5 ft (estimates).
+- **Rough spots, for Checkpoint E:** in route turns the torque swings 10-100% with up to 17 reversals; on corner and station-change legs his roll reaches 86°/s with up to 17° of bank off Lead's; route to route swings 10-100% with 14 reversals. Fixed 14 Oct 2026: after a Held change #2 drifted when the tracker ended 2 kt or more off Lead (once 232 ft in a minute, through Lead); Held #2 idle in a close formation now holds his place fore and aft (0.1 kt a foot, at most 2 kt) and sideways (a fraction of a degree of heading), within 30 ft of it (estimates).
+- **After Patrick's first look (14 Oct 2026):** line astern and the corner 3 ft lower (11 ft below Lead), then 6 ft more (17 ft, his setting on the Corner buttons; to polish with the redone model, future.md); Corner Fwd / Back and Up / Down buttons, 1 ft a step, 10 ft each way, for him to set the corner by its references (the station change's corner moves with it); the seat's lean now shows Lead's spinner, exhaust stacks and wingtips, not only his middle, so it moves whenever the bow hides them; route turns: Lead would rarely turn 60° in route, so its larger out-of-picture is accepted (Patrick: "thats fine").
+
+## 7d. The rejoins from fighting wing on the live wingman (B4's first part; draft 1, 14 Oct 2026, not approved)
+
+**To be rewritten after 7e draft 4** (Patrick 14 Oct 2026, card "Keep it; move at B4 only if as good"): TRJ keeps flying as it does today through B5; this section becomes TRJ (and SARJ) as techniques in 7e's new structure, with the same plan, numbers and windows, and TRJ moves onto the live wingman only if it flies at least as well (plan B4).
+
+Patrick's order (14 Oct 2026): fighting wing first (B5), then "TRJ and SARJ from fighting wing", then line abreast and HTRJ. This section is that middle rung. The rejoins from line abreast, and HTRJ, are the next rung's.
+
+**1. The goal.** From fighting wing, #2 gets into echelon or route (or, on SARJ, line astern) quickly and safely, and never hits Lead. Lead never waits. With a predicted collision, #2 overshoots behind and below; he never tries to save the rejoin.
+
+**2. How a pilot does it (SMM 12.24-12.27, 16.20; spec 6.3 as flown today).**
+- **TRJ.** Lead turns at 30° and 200 KIAS. #2 sets the rejoin line, Lead fixed on the X about 35° off Lead's tail and 4° up, just below Lead's plane. He comes down the line at 10-20 KIAS over Lead (SMM 12.24 para 56). Anywhere between 250 and 100 ft, once his closure is stable, he moves out to route and up the spinner-to-wingtip line to echelon in one movement. If his closure isn't stable by 100 ft, he overshoots (Patrick's window, TS-110; the five SMM rules, 6.3).
+- **SARJ.** About 500 ft behind, he turns slightly toward the echelon side so his vector points slightly away from Lead. Overtake is 20-30 KIAS (EFIG p.371). Lead grows, then "blooms" at route (SMM 12.26 paras 62-63).
+- **From fighting wing he is cold.** He turns hotter to reach the line (6.3). He is already 600-650 ft back in the cone, so the line is close.
+
+**3. The design: one wingman, three jobs.** From fighting wing #2 is already flying live (7e). The rejoin needs no tracker: the supervisor changes his job.
+- *Fighting wing* (7e).
+- *Down the line*:
+  - The aim is the X on the rejoin line: TRJ on Lead's turn circle, 35° off his tail; SARJ behind and to the echelon side.
+  - The power loop sets the overtake: 15 KIAS over Lead on TRJ, 25 on SARJ (the middles of the manuals' ranges).
+  - The vertical loop holds the line's height (4° up, never shallower than 50 ft below; TS-181).
+  - Steering is 7e's pursuit law aimed at the X.
+- *The capture*:
+  - Inside the 250-100 ft window, with closure stable (under 20 kt, TS-110), he hands over to close formation's technique (7b/7c) at its place.
+  - He starts from his own motion, as B1 does from the tracker, so there is no jump.
+  - Route first, then up the line to echelon.
+- **The guard stays on throughout, as the supervisor's top job.**
+  - Far out it is 7e's, with its 500 ft minimum, while he is still in the cone (released once he commits to the line).
+  - On the line it is the overshoot. If the pass is predicted inside the close minimum, or closure isn't stable by 100 ft, he flies the overshoot: wings level, power back, behind and below Lead, never at or above his height. He stabilizes outside, then crosses back with no overtake (rule 5, SMM 12.27 para 65, Fig 12.18).
+
+**4. Numbers (estimates unless a source is given).**
+- Overtake: TRJ 10-20 KIAS (SMM 12.24 para 56); SARJ 20-30 KIAS (EFIG p.371).
+- The line: 35° off Lead's tail (TS-181), Lead 4° up (estimate, TS-181).
+- The window: 250-100 ft, closure under 20 kt (TS-110).
+- **The close minimum** (Patrick 14 Oct 2026, 8(b)): never predicted closer than one wingspan (33.4 ft, `slots.js`) to Lead with more than 10 kt of closure, an estimate.
+- The capture's hand-over: the close-formation technique's own numbers (7b, 7c).
+- Lead's TRJ turn: 30° at 200 KIAS until #2 is in (6.3, TS-87).
+
+**5. What goes.** For a rejoin from fighting wing: the tracker's ride (`ride.js`) and the estimated windows `ROLLED_MAX_SEC` and `ROLLED_BLEND_SEC` (`tuning.js`, used by `formation-turns.js`). They retire only once nothing uses them. Each one's job is listed first, per `AGENTS.md`. The rejoins from line abreast keep today's code until their own rung.
+
+**6. Gauge set and acceptance.**
+- The set: TRJ and SARJ from fighting wing to echelon and route, both sides, into and away; SARJ to line astern; one known-bad case, a rejoin aimed straight at Lead.
+- What a pilot would recognise:
+  - Every rejoin ends in its place, settled.
+  - Overtake stays inside the manuals' figures.
+  - He is never inside the close minimum.
+  - The known-bad case overshoots behind and below.
+  - No lurch at the capture: roll and G reversals no worse than today's.
+  - Lead never waits.
+- Keep unchanged: the close-formation traces and probes, fighting wing's b5 set, the 4-ship.
+
+**7. Tasks (plan 12.4 B4, renumbered from fighting wing).**
+- T20: this section approved.
+- T21: the gauge set.
+- T22: the jobs and the capture.
+- T23: the overshoot guard.
+- T24: retire what nothing uses.
+- T25: B4's one test (a TRJ from fighting wing to echelon, live) and docs.
+- Checkpoint F: Patrick flies them.
+
+**8. Questions for Patrick.**
+(a) **Answered** (Patrick 14 Oct 2026, card "All live, no tracker"): from fighting wing the live wingman flies the whole rejoin, with no tracker.
+(b) **Answered** (Patrick 14 Oct 2026, card "1 span, >10 kt"): he overshoots when the pass is predicted closer than one wingspan (33.4 ft) with more than 10 kt of closure, or his closure isn't stable (under 20 kt) by 100 ft (TS-110). An estimate he picked.
+(c) **Answered** (Patrick 14 Oct 2026, "Agree with your questions"): he aims for 15 KIAS of overtake on TRJ and 25 on SARJ, the middles of the manuals' ranges.
+
+## 7e. Fighting wing on the live wingman (B5; draft 4 approved 14 Oct 2026, TS-233, TS-234; Fable 3a D1-D20, 3b D21-D26 and Patrick's rulings folded in)
+
+Sources: SMM 12.29-12.30 paras 68-74 and Figs 12.19-12.25 (Patrick's pages, 14 Oct 2026, kept in `docs/references/figures/smm-12-29-*` and `smm-12-30-*`), and Patrick's own technique (14 Oct 2026, quoted). The manual's words are paraphrased with their paragraph; Patrick's are quoted. Numbers marked "estimate" or "guess" wait for his ruling.
+
+**1. What fighting wing is for (para 68).** An offensive formation, fluid and manoeuvrable, giving mutual support; also used en route because each pilot can relax and keep a good lookout while the formation holds together.
+
+**1b. Its purpose here (Patrick 14 Oct 2026):** "The purpose of fighting wing is tactical maneuverability and 2 makes it work then gets in position on roll out". Lead manoeuvres as he needs; #2's job is to make that work, staying safe behind him through it, and to be back in position once Lead rolls out.
+
+**1c. How hard it is flown (Patrick 14 Oct 2026):** "Fighting wing can be chill or agressive depending on what's happening - if its academic practice it can be smooth 60/2s (like the track logs), but if you're fighting wing to maneouver through clouds or respond to a threat it can be agressive ... the point of that formation is for lead to basically make the formation very manouverable." So the technique holds up at both ends. At the academic end Lead flies smooth 60°/2 G turns (the default, TS-65, and what B5's gauge flies so far). At the aggressive end Lead manoeuvres hard, with harder and quicker turns and reversals, and #2 is still in the cone, with the 500 ft rule and what counts as a failure unchanged (TS-233). A four-ship is flown more gently than a two-ship, being more complex (Patrick; SMM 16.36 para 100 limits Lead's hard turns into a wingman in the 3- and 4-ship). **The aggressive Lead** (Patrick 14 Oct 2026, card "Up to 4 G, in B5"): Lead's harder turns up to 4 G (the training rules' Lead line, already flagged on screen), roll-ins at his 90°/s (TS-222) and back-to-back reversals; B5's gauge flies it as a second set once the academic set passes, before Checkpoint G. Recorded formation flying (the Debrief's example four-ship, academic) is a reference beside the gauge, never a test (plan 12.4, "Recorded formation flying").
+
+**2. The goal (para 69).** #2 sits 500-1,000 ft from Lead with 30-60° of sweep (measured back from Lead's wing line, Fig 12.19). Once Lead manoeuvres, #2 is free to manoeuvre as he needs to **stay behind Lead and keep separation**: collapsing to Lead's 6 o'clock, flowing to the other side, using the vertical, adjusting power, or any mix. When Lead stops manoeuvring, #2 goes back to the swept position, on either side. To do this he uses lead, lag and pure pursuit, so Lead can manoeuvre in any plane with little effect on #2's position. Para 74: the prime objective is to keep separation, by flying on or around the preceding aircraft's turn circle, using lead or lag as needed.
+
+**3. Pursuit (paras 71-74, Figs 12.24-12.25).** Separation in a dynamic fight is not exact; the tools are lead, lag and pure pursuit, and how much of each depends only on how hard Lead is manoeuvring.
+- **Lead pursuit** (para 72): his flight path ahead of Lead, Lead low in the windscreen. Builds closure; keeps or cuts the range; raises aspect angle and moves the line of sight.
+- **Pure pursuit** (para 73): his flight path on Lead, Lead in the middle of the windscreen. Builds closure, less than lead; zero line-of-sight rate; aspect rises.
+- **Lag pursuit** (para 74): his flight path behind Lead, Lead high in the windscreen. Cuts closure, opens the range, and brings down the aspect that lead and pure build.
+
+**3b. The visual cues (SMM 12.2 paras 4-9; Patrick's paste, 14 Oct 2026).** The cues a formation pilot cross-checks, close, tactical or rejoining, in the manual's terms:
+- **Closure** (para 5): how fast the range is shrinking or growing, judged in pursuit by how fast the other aircraft grows in size; the change from low to high closure is subtle, so it is watched all the time.
+- **Aspect angle** (para 6): where he is relative to the line through the other aircraft's long axis, independent of his own heading; low when the other is heading away, high when heading toward him; in rejoins a little high is "hot", a little low "cold".
+- **Range** (para 7): the distance, judged by the other aircraft's size in the canopy against features in the cockpit (for example the spacing of the warning lights) at known distances. This is the rough range gauge below.
+- **Line of sight** (para 8): how fast the other aircraft moves across the windscreen; zero when holding a constant range on the other's turn circle.
+- **Heading crossing angle** (para 9): the angle between the two headings (the paste stops at its start).
+
+**Design note (Patrick 14 Oct 2026: "We may use visual cues as inputs/outputs for the PID? maybe not").** These are the quantities a pilot actually reads, so they are the natural outputs of perception and the measured inputs of the fighting wing technique's loops: range (Lead's apparent size), closure (its rate of change), line of sight (Lead's drift across the windscreen), aspect angle and heading crossing angle; the loops' outputs stay what a pilot moves (the aim point, so G and bank; the vertical; power). Whether the loops close on these cues, or on positions worked out from them, is for the Fable audit before building (section 11).
+
+**3c. From the manual sweep (14 Oct 2026, `docs/references/smm-fighting-wing-and-pursuit.md`, about 105 items with references; the points 7e lacked):**
+- **Pursuit by the turn circle** (EFIG p.391): lead pursuit is the path ahead of Lead and inside his turn circle, lag behind him and outside it; "go to where lead was and do what lead did"; power if required.
+- **Cockpit references** (EFIG p.391): the sweep by two pictures, "nose wingtip" and "nose mid wing" (which is 30° and which 60° inferred from Fig 12.19); range against the flat part of the instrument panel and the fire lights (as SMM 12.2 para 7's warning lights). These are the candidates for the range gauge above, whose own figure is still to confirm.
+- **Why the sweep** (EFIG p.391): after the roll-out he sweeps out far enough for Lead to turn hard into him.
+- **Aspect and HCA in numbers** (SMM 16.16 para 40b, Fig 16.10): aspect 0° at Lead's tail, 180° in front, left or right; on Lead's turn circle line of sight is zero, closure zero and HCA about twice the aspect. HCA (SMM 12.2 para 9) is the angle between the two headings.
+- **Line of sight as a trigger** (SMM 16.20 para 65b(2)): joining fighting wing with Lead turning into him, a definite increase in line of sight is the cue to reverse.
+- **The miss costs energy** (SMM 16.19 para 64, a cross-turn lesson; applying it here is inferred): a climb to make the miss is paid back by descending once across.
+- **Moving out from close formation** (SMM 16.32 para 92; 16.38 para 105; EFIG p.390): drop back first, then move out sideways; #2 goes to the side he held in close formation; keep sight of Lead through it.
+- **Lead's turn circle as seen**: Lead's lift points at its centre (SMM 14.12, 16.16); a sudden change in his turn rate or plane makes the seen circle stale, which perception has to allow for.
+- **Terminate** (SMM 16.39 para 107, 3- and 4-ship): any member may call it and Lead goes to a level turn. 7e has no "can't hold" outcome; one would need Patrick's yes (for the Fable audit).
+- **References, not walls**: the wingman's +5 G (Gen Book table, SMM Table 16.1); the stack "level or slightly below" (SMM 16.15 para 38, 12.24 para 58), with no number in any manual, so the 50 ft is Patrick's; no manual number for stretched, tight or a quick fix; the 500 ft minimum here is Patrick's TS-208 (the SMM's 500 ft bubble is a fluid-manoeuvring and high-aspect rule).
+- **Not in the manuals**: S-turns, weaving, yo-yos or scissors appear nowhere in the SMM, EFIG or Gen Book; the cone S-turns are Patrick's technique.
+- **For other rungs**: SMM 16.36 para 100 limits Lead's hard turns into a wingman in the 3- and 4-ship, and 16.38 gives the 4-ship 60° of sweep (the 4-ship rung); the formation climb at about 85% torque (SMM 16.31) against the spec's 80% (TS-203, TS-204), to put to Patrick.
+
+**4. Turn entry (Figs 12.20-12.22).** How #2 answers Lead's roll-in depends on where he is (in position, stretched, or tight) and on whether Lead turns into him or away:
+
+| Where #2 is | Lead turns away | Lead turns into him |
+|---|---|---|
+| In position (12.20) | Promptly aim inside the turn circle (lead pursuit) and collapse to Lead's 6: stops the range growing | Collapse to the 6 by turning slightly toward Lead (lag), make the miss (lag or height), then reverse and promptly capture the turn circle by matching Lead's turn (pure) |
+| Stretched / aft (12.21) | The range will grow: immediately aim well inside the turn circle (lead), which stops the range growing and starts closure | An opportunity: delay the turn to collapse slowly (lead), then progressively capture the turn circle (pure) |
+| Tight / forward (12.22) | An opportunity: promptly aim at Lead's tail (pure) and capture the turn circle; the extra distance fixes the close range | Closure and angle problems: first make the miss (a climbing turn above Lead or a descending turn below him), which likely leaves him outside the turn circle; then recapture it with geometry (pure) |
+
+**5. Turn exit (Fig 12.23).** When Lead rolls out: tight or closing fast, flow to the outside of the turn (the longer path) to control range and closure; stretched or the range growing, flow to the inside (the shortest way); good range and no closure, pick the side he wants. Then back to the swept position.
+
+**6. How Patrick flies it (14 Oct 2026).**
+- What today's #2 gets wrong: he "kind of cuts off the circle in straight lines and overbanks and overshoots desired spacing".
+- The technique: "smoothly set the G and aimpoint to either lead, lag, or pure, depending on what we need (lead if more than 700, lag if near 500 (? numbers are a guess)), then smoothly reset to pure once we're happy". "We also use geometry on turn ENTRY and turn EXIT to fix/maintain our spacing" (sections 4 and 5).
+- His aim point in a turn: "I personally fly at the 'route position' instead of directly at lead in turns", on "whichever makes sense. sometimes his wing down, sometimes his wing up route for spacing/energy". Wing down (inside Lead's turn) is a built-in lead, wing up (outside it) a built-in lag; Lead himself is pure. So in his picture Lead sits further left or right in the windscreen than in Fig 12.25, whose pictures fly toward Lead's own turn circle.
+- Range by eye: "stretched or tight is visual - how big his wings are in my wind screen and how much detail i can see". Lead's 33.4 ft span fills about 3.8° at 500 ft, 2.7° at 700 ft and 1.9° at 1,000 ft (standard geometry).
+- A rough range gauge (Patrick 14 Oct 2026, "this is a rough gauge, although im not sure if our model works for it yet"; a manual figure from the straight-ahead rejoin, its page to confirm): two cockpit pictures with Lead's wingspan bracketed by two lines over the glareshield, "Approximately 1000ft" (his span about two thirds of the bracket) and "Approximately 500ft" (filling it), beside the rejoin's steps (closure on overtake to about 500 ft, a small vector toward echelon, capture the nose-wingtip line and stabilise in route, then up the line to echelon: for the rejoin rung, B4). In the figure the span at 500 ft is about 1.6 times that at 1,000 ft against the geometry's 2, so it is a rough picture, not to scale; the bracket sits over the centre instrument column, which in our cockpit spans about 10.6° from the front seat's eye, so the pictures look zoomed against the true view. The sight-picture renders (section 11) will show our true picture at 500, 625 and 1,000 ft beside it.
+- Height: "most people fly fighting wing stacked slightly high or low in case lead turns hard in front of them"; "stacking below is nice because you see more of lead".
+- The order of his controls: the aim point for ordinary spacing; "vertical when i need to fix my spacing quickly or bleed energy quickly or deconflict with lead, power as a last resort but as required to stay in position" (as TS-96).
+- Inverted: "2 can also go inverted in fighting wing of course, only if required" (Patrick 14 Oct 2026): his bank is not capped; he rolls past 90° (his lift pointed where he needs it, as in fluid manoeuvring) only when the geometry needs it, never as the normal way. "So can lead and 2 follows" (Patrick 14 Oct 2026): Lead may go inverted in fighting wing too, and #2 follows him in any plane (SMM 12.29 para 69: Lead free to manoeuvre in any plane), so the technique works in Lead's lift plane, not the horizontal. Lead's own inverted moves in fighting wing (beyond today's Level turn, Wings level, Reversal, Climb, Descend) are not in this rung: `future.md`.
+- Too tight: "IF we're getting too tight we also make S turns back and forth from sides of the cone as well" (as his 5 Oct 23:02Z "in fighting wing a common way to bleed energy is to S turn left and right if required", until now in `future.md`): S-turns across the cone, side to side, add path and bleed closure.
+- Reaction: 0.4 s after he sees Lead's bank and nose start (his pick, 14 Oct 2026; TS-211's 0.3-0.5 s).
+
+### 7. The design: a normal flyer, a few techniques, one set of loops
+
+#### 7.1 The picture
+
+```mermaid
+flowchart TB
+  L["Lead: flies his plan, never reads the wingman"] --> P["Perception: Lead 0.4 s late and dead-reckoned; his own state now"]
+  P --> S["Supervisor: the phase from Lead's roll; picks one technique by priority"]
+  P --> N["Normal flyer: Lead's circle, or the swept line when Lead is level"]
+  S --> T["Technique: a plan sized once at entry"]
+  N --> R["The reference: path, approach limits, height, speed offset, energy intent, urgency"]
+  T --> R
+  R --> LO["One set of loops: steering, arc, vertical, power"]
+  LO --> G["Guard: a barrier from 600 down to 500 ft; limits turn and height, asks to bleed"]
+  G --> SH["Shaper: G onset by urgency, roll"]
+  SH --> A["T-6A point mass"]
+  A --> P
+```
+
+In words: the **normal flyer** makes the reference nearly all the time. A **technique** takes over the reference only when the picture is well outside what the normal flyer can fix gently, and slides it back home when done. The **loops** never change: they fly whatever reference they are given, with feedback. The **guard** sits after them and only limits. The **shaper** is the pilot's hand (roll, G onset); the T-6A's own limits stay in the point mass.
+
+**Level 1: Reconciled block diagram (`B01–B15`, Fable 3b §6):**
+
+```mermaid
+flowchart TB
+  subgraph L1["1 Lead"]
+    B01["B01 Lead, scripted"]
+  end
+  subgraph L2["2 Perception"]
+    B02["B02 Perception: Lead 0.4 s late, position and bank run forward; own state now; slant, closure, LOS rate, aspect, HCA, sweep, height v Lead, arc s, offset d, arc closure"]
+  end
+  subgraph L3["3 Supervisor"]
+    B03["B03 Phase and case: level, entry, turning, exit from Lead's seen roll, blended 1.5 s; case read once per phase"]
+    B04["B04 Technique picker: priority, one at a time, no-restart 3 s, longest run; blend weight 0 to 1 to 0"]
+  end
+  subgraph L4["4 Planners"]
+    B05["B05 Normal follower: path = Lead's circle offset d, or the swept line; caps 20 deg out, 12 deg in; height target stack minus planned drop; intent 0"]
+    B07["B07 Arc loop: d = d_ss + w/omega + kc(w - c)/omega, w = (s - 650)/10 s, soft 25 to 60 ft/s, d within 250 ft; unmet closure S29b"]
+    B06["B06 Techniques T1-T8: cue, plan once, monitor, done; write a reference only"]
+  end
+  subgraph L5["5 Reference"]
+    B08["B08 Blender: wanted course, path turn rate, height target and rate, speed offset, intent, urgency, cap change"]
+  end
+  subgraph L6["6 Loops"]
+    B09["B09 Steering: omega_cmd = omega_FF + 0.5 (chi_w - chi)"]
+    B10["B10 Vertical: dGv = 0.005 (hT - h) + 0.02 (hTdot - hdot)"]
+    B11["B11 Power: drag of G asked, climb and speed-brake + roll-in lead + 0.3 (VL + dV_ref - V) + intent bias; speed brake under bleed"]
+  end
+  subgraph L7["7 Guard"]
+    B12["B12 Guard: one predictor, closing part up to 10 s; silent at 600 ft; cubic taper to 500; least-change bounds on turn and height; bleed request; cap opening; side held 3 s"]
+  end
+  subgraph L8["8 Lift"]
+    B13["B13 Lift composer: turn + 1 G hold + vertical within cap = min(stall warning, Lead G + 1.5 + opening); order: height demand, level hold, turn; minG 0.5 G floor"]
+  end
+  subgraph L9["9 Shaper"]
+    B14["B14 Shaper: G onset 1 + 3u G/s; roll to 60 deg/s; unload, roll, pull past 20 deg"]
+  end
+  subgraph L10["10 Aircraft"]
+    B15["B15 #2 aircraft and engine: point mass, G build 4 G/s, stall warning, engine 0.25 s, spool 3.5 s"]
+  end
+  B01 -->|"Lead's true state"| B02
+  B15 -->|"own state now"| B02
+  B02 -->|"Lead's bank and roll rate; slant, arc s, sweep"| B03
+  B02 -->|"Lead's circle, turn rate, phase inputs"| B05
+  B02 -->|"geometry for cues and plans"| B06
+  B02 -->|"arc s, arc closure, speeds, Lead's turn"| B07
+  B02 -->|"height v Lead"| B10
+  B02 -->|"Lead's roll seen; slant closure; speeds"| B11
+  B02 -->|"Lead's state run forward; own state"| B12
+  B02 -->|"Lead's G (S05b)"| B13
+  B03 -->|"phase weights"| B05
+  B03 ==>|"case label: exit side, abeam gating"| B05
+  B03 ==>|"phase, case gating of cues"| B06
+  B04 ==>|"start, stop, abort"| B06
+  B06 ==>|"cue strength, done, abort"| B04
+  B04 -->|"blend weight"| B08
+  B07 -->|"offset d; unmet closure S29b"| B05
+  B05 -->|"normal reference"| B08
+  B06 -->|"technique reference"| B08
+  B08 -->|"wanted course, path turn rate"| B09
+  B08 -->|"height target and rate"| B10
+  B08 -->|"speed offset S27g, intent, climb rate"| B11
+  B08 -->|"cap change"| B13
+  B08 -->|"urgency"| B14
+  B09 -->|"turn demand"| B12
+  B10 -->|"vertical demand"| B12
+  B09 -->|"turn demand"| B13
+  B10 -->|"vertical demand"| B13
+  B12 -.->|"turn and height bounds; cap opening"| B13
+  B12 -.->|"graded bleed request"| B11
+  B12 -->|"guard urgency, merged by max"| B08
+  B12 -->|"predicted pass, time to pass"| B06
+  B13 -->|"drag of the commanded G and climb"| B11
+  B13 -->|"lift vector"| B14
+  B14 -->|"G and roll rate"| B15
+  B11 -->|"throttle; speed brake"| B15
+```
+
+**Level 2: The loops alone (Fable 3b §6):**
+
+```mermaid
+flowchart LR
+  subgraph S["Steering, crossover 0.52 rad/s"]
+    S1["path tangent at his place"] --> S2["+ approach angle (2/pi) chi_max atan(k e), chi_max 20 out / 12 in, Ke 0.026 deg/ft"]
+    S2 --> S3["chi_w"]
+    S3 --> S4["0.5 /s x (chi_w - chi)"]
+    S5["path turn rate at his radius, Lead's bank run forward"] --> S6["omega_cmd = omega_FF + gain term"]
+    S4 --> S6
+  end
+  subgraph A["Arc loop, crossover 0.108 rad/s"]
+    A1["s - 650 ft"] --> A2["w = error / 10 s, soft limit 25 to 60 ft/s"]
+    A2 --> A3["d = d_ss + w/omega + 0.5 (w - c)/omega"]
+    A4["d_ss = R (1 - V2/VL)"] --> A3
+    A5["arc closure c"] --> A3
+    A3 --> A6["d within 250 ft, slew 60 ft/s"]
+    A3 --> A7["unmet closure S29b = w - omega d_cmd, to speed offset S27g, within 15 kt"]
+  end
+  subgraph Vv["Vertical, crossover 0.68 rad/s"]
+    V1["hT, hTdot from the reference"] --> V2["dGv = 0.005 (hT - h) + 0.02 (hTdot - hdot)"]
+    V3["h, hdot own"] --> V2
+  end
+  subgraph P["Power: speed loop 0.3 rad/s, level range cascade 0.091 rad/s"]
+    P1["drag of commanded G and climb, speed-brake drag"] --> P5["throttle = FF + lead + 0.3 (VL + dV_ref - V) + bias, 0 to 1"]
+    P2["roll-in lead from Lead's seen roll"] --> P5
+    P3["VL + speed offset dV_ref (unmet closure S29b, technique ask), within 15 kt"] --> P5
+    P4["bias = min(intent, -bleed request)"] --> P5
+  end
+```
+
+#### 7.2 The three rules here (TS-234)
+
+1. **Phased hand-overs.** No on/off line in the flying. Phases, techniques and height owners blend in and out over a stated time or by how near a limit is (the "phased authority" of control model section 9). The guard is the constraint form: silent far from its limit, firmer as it nears, and only a limit on what the loops ask. The speed brake stays a switch (a real step in drag, Patrick), with a band at least twice the wobble of what triggers it and a hold time.
+2. **One owner per control.** The loops own the turn, the height and the power. The normal flyer and the techniques write only the reference; the guard writes only limits and a request to bleed. Cross-feeds carry physics only: the drag of the G he asks for, the power for his climb, speed-brake drag, Lead's seen roll as a lead on power (control model section 10).
+3. **Techniques plan; the same loops fly** (TS-233, "How a technique works"): section 7.9.
+
+#### 7.3 What changes from draft 3 and from today's code
+
+| Draft 3 and today's code (rounds 1-4, tidied) | Draft 4 | Why |
+|---|---|---|
+| Supervisor jobs with hysteresis: swept, entry (Lead's bank past 10° for 1 s), in the turn, exit, quick fix, stretch | Phases read from Lead's seen roll with no hold, blended over about 1.5 s; the quick fix becomes the exit vertical technique; the stretch is Technique 8 built with T30 | TS-233 three phases; TS-234 rule 1; review F8 (switches under delay) |
+| The guard engages under 600 ft predicted, releases over 700 ft held 3 s, owns pitch, cuts power, aims at where Lead was | A barrier from 600 down to 500 ft: the least change to his turn or height, a graded request to bleed; never power, never an aim | TS-233 "the guard tapers"; review F3 (the rail flew him at the ideal); part 2: the filter flew 8-48% of a turn |
+| One pitch owner at a time by priority; commands never added | The height target blended between owners over at least 4.3 s; the guard's height is a constraint, not an owner | TS-234 rules 1 and 2; review F6 (300 ft-low finishes); Fable D1, D5 |
+| An aim point between the route positions; the offset = wanted closure ÷ Lead's turn rate; a pursuit law steering at the point | A path follower on Lead's circle (or the swept line) with a bounded approach angle; the arc loop sets the circle's offset with its feed-forward and hands any unmet closure to the speed loop's set-point | Review 2.2 (vector-field path following); research §1 item 4 (the half-gain trap); Fable D21; part 2: up to 137 aim jumps a turn |
+| Power: a slow PI on speed; the filter's power cut; MAX and −300 ft on "low inside" | Power = the drag of the G he asks plus his climb and speed-brake drag (fed forward) + Lead's roll-in lead + 0.3 /s proportional speed loop on (Lead's speed + unmet-closure offset) + the energy intent bias; no integrator, no cut; continuous drop-low height term in the normal follower | TS-233 "power with G"; Fable D21, D23, D24; review F5; part 2: the throttle's owner changed up to 37 times a turn |
+| G onset: whatever the loops ask, through the roll limit | G onset by urgency, about 1 to 4 G/s, through the shaper | TS-233 "G onset by urgency"; part 2: 1.7-3.3 G/s in every turn |
+| Lag first, the nose behind, the aim-turn cap, the always-on aim blend, the low-inside relay | All go | Review 2.9; control model R3, R9, R11 |
+| The lift at the G cap: the 1 G hold and the vertical kept, the turn cut | The turn keeps its share; positive climb demand from the height loop gives way first, then the level-flight hold, the turn last, with a 0.2 G soft knee | TS-233 "at the G cap, in the lift" (Patrick 14 Oct 2026); Fable D20; control model R6 |
+| The arc loop's offset within ±400 ft (`arcOffsetMaxFt`) | Within ±250 ft, with unmet closure passed to the speed offset | TS-233 "the arc loop's offset limit" (Patrick 14 Oct 2026); Fable D9, D21 |
+
+What stays: perception and its 0.4 s rule, the predictor (one, the guard's), unload, roll, pull, idle and the boards, the stack 50 ft below, the yo-yo and the S-turns (as techniques), close formation untouched.
+
+#### 7.4 Perception (the 0.4 s rule)
+
+As draft 3's perception, with TS-233's "where #2's 0.4 s sits": he sees Lead 0.4 s late (`FW_SEE.delaySec`, Patrick) and carries him forward (dead-reckoned round his seen turn), and runs Lead's seen bank forward by the roll rate he sees across the 0.4 s, capped at a plausible end bank (TS-233 "Lead's roll carried on", Fable D3: it cuts the guard's prediction error at a roll-in from 84-337 ft to about 20-30 ft); he knows his own position, speed, G and roll at once. From that, each quantity continuous and lightly smoothed as an eye judges it: slant range, and closure worked from the dead-reckoned Lead velocity and his own with no 1 s smoothing (Fable D11), line of sight (about 0.5 s), aspect and HCA, sweep, height against Lead, Lead's bank, roll and turn circle (from his seen bank and true airspeed). Round 5 brings today's whole-picture signals (slant range, closure, the guard and the jobs; control model R1) onto this rule, slice by slice, with the whole-picture case measured beside it (the method plan's two delay sweeps). Close formation keeps its 0.3 s (TS-211).
+
+#### 7.5 The phase
+
+Four phases, one at a time, read from what he sees of Lead's roll. The path's geometry is continuous in Lead's seen bank (the circle becomes the line as his radius grows), so a phase change never moves the path by itself; only the case and side choice is blended, over at least 6 s (Fable's blend rule: at least 3 ÷ the slowest crossover it feeds, the steering's 0.52 rad/s):
+- **Level:** Lead's wings level, flying straight, climbing or descending.
+- **Entry:** from Lead's roll-in (his seen bank past about 10° *and* rolling toward the turn, no hold) until #2 is captured on the circle he wants (within about 100 ft, approach angle under about 5°; guesses) or about 8 s.
+- **Turning:** on or around Lead's circle until Lead rolls out.
+- **Exit:** from Lead's roll-out (seen bank under about 5° and rolling toward level) until settled in the cone (in the cone, closure under 10 ft/s for 5 s), then Level.
+- **A reversal** is an exit followed at once by an entry the other way, the case read again.
+
+The **case** is read once at the start of entry and exit, from what he sees: where he is against Lead's new circle (the arc behind and the offset), closure, sweep and aspect, with a ±50 ft dead band (Fable D17; estimate) so the read never flickers. Stretched is beyond about 700 ft, tight under about 560 ft (Patrick's "lead if more than 700, lag if near 500", spec 7e.6; the 560 ft edge is the review's estimate). Since stretched and tight placement during the turn is already continuous through the arc loop, the case label decides only the exit line's side (`SMM Fig 12.23`), turn-entry case placement, and abeam gating.
+
+#### 7.6 The normal flyer
+
+One law in every phase: **follow a reference path with a bounded approach angle** (review 2.2; Nelson et al. 2007, research §2.1).
+- **The path:** with Lead turning, a circle concentric with Lead's, offset d inside it (negative d outside); with Lead level, a straight line parallel to Lead's track at the swept place's offset. As Lead's radius grows (clipped near 20,000 ft, Fable 3b note; estimate) the circle becomes the line smoothly, so a roll-out never steps the path.
+- **His wanted course:** the path's tangent at his place, plus an approach angle that grows smoothly with his distance e off the path: approach = (2/π) × χmax × atan(k × e), toward the path. χmax is 20° when he is inside and drifts out, 12° when outside and closing in (Patrick's caps, TS-233, Fable's second review); k about 1 per 420 ft under the 20° cap and 1 per 250 ft under the 12° cap, so the small-signal slope (0.026° per ft) is the same inside and out and only the cap differs (TS-233 "the gentler steering", Fable D2; estimates). 150 ft off he points about 5° at the path; the 20° cap is reached only beyond about 500 ft.
+- **His turn:** the path's own turn rate at his radius (fed forward: on the circle he flies Lead's G, with Lead's bank run forward across 0.4 s per Fable D3) plus a course gain of 0.5 per second on (wanted course − his course): crossover about 0.52 rad/s, 48-65° of phase margin at every trim under both delay kinds (Fable 1b; estimates until the rig measures the turn-rate lag). As drafted (1 per 150 ft, 0.3 per second) it had 18-29° and would bounce at capture. If the rig's turn-rate lag is over 0.52 s, the softer option (0.4 per second, slope 0.13 /s) applies.
+
+What falls out of it, in Patrick's words:
+
+| Where he is | What the law does | Patrick |
+|---|---|---|
+| Inside Lead's circle at Lead's speed | Turns less than the circle and drifts out at up to V sin 20°, about 130 ft/s, then tightens to Lead's G as the angle closes | "relax some g/bank, and re-capture the pure turn circle" (TS-233; cone drift while relaxing confirmed) |
+| On the circle | Approach zero: Lead's G and turn | pure |
+| Outside | Inward up to 12°: a little more G than Lead | lead |
+| Lead turning into him from in position, not tight | His heading starts inside the new circle's tangent, so he holds it while Lead's turn comes to him, then captures pure, or with a slight lead or lag | "fly straight ahead until I'm on the turn circle I want then capture pure" (TS-233, SMM 12.29 Fig 12.20) |
+| Lead level | Converges on the swept line and holds it; fore and aft by the speed offset from unmet closure | swept, 625 ft at 45°, 50 ft below (Patrick) |
+
+**Where the path sits, by phase and case.** Patrick's turn-entry reaction rule (14 Oct 2026, TS-233): *"when a turn starts the objective is to follow lead on either a lead lag or pure. so if you're stetched and he turns in toyou, you can just fly ahead, if you're tight and he turns away, you can fly ahead a bit (or probaly just pull some lag to not get too stretched). you have to react fastest when you're tight and he turns in to you, or stretched and he turns away."* Specifically: when stretched with Lead turning into him, #2 delays the turn (flies straight ahead) until he is on the circle he wants, then captures a lead or pure circle; when tight with Lead turning away, #2 can fly ahead a bit or ease onto a gentle lag circle (`d` slightly outside) so he falls back into band without getting too stretched; the two urgent entry cases requiring the fastest reaction are **tight with Lead turning in** (the miss: vertical first below, or immediate guard/turn-away bound) and **stretched with Lead turning away** (roll in promptly onto an inside lead circle with gain intent, or cut across if beyond 1,000 ft). The manual's tables (sections 4 and 5) and the rulings, as paths for the normal flyer, except where the right answer is a different kind of move, which is a technique (7.9):
+
+| Phase and case | Lead turns away | Lead turns into him |
+|---|---|---|
+| Entry, in position | Lead's circle, he is outside: inward up to 12° (Fig 12.20: aim inside the circle) | Straight ahead to the circle he wants, then capture (above); the turn toward Lead only for the bubble (the miss) or when high on energy |
+| Entry, stretched | **Fast reaction:** roll in promptly onto Lead's circle with d well inside, intent gain (Fig 12.21); beyond about 1,000 ft: **the very-stretched cut-across** (technique 5) | Delay the turn (fly straight ahead until on the circle wanted), d inside, intent gain, capture (Fig 12.21; Patrick 14 Oct 2026) |
+| Entry, tight | Fly ahead a bit or pull gentle lag on Lead's circle, d slightly outside, so he falls back without getting too stretched (Fig 12.22: aim at Lead's tail; Patrick 14 Oct 2026) | **Fast reaction — The miss** (technique 1): vertical first, below (TS-233) |
+| Entry, abeam (behind the 3/9 line, ahead of the cone) | As in position | **Lag pursuit from abeam** (technique 3; confirmed, TS-233) |
+| Turning | Lead's circle, d from the arc loop (7.7); the route positions' ±120 ft are the comfortable range, not limits | Same; inside and gaining with no room to drift: **the high yo-yo** (technique 4); ahead of the 3/9 line: **back behind the 3/9 line** (technique 2) |
+| Exit | The swept line on the side Fig 12.23 gives: tight or closing fast, the outside; stretched, the inside; in position, his own side. A spacing error to fix: **the exit vertical** (technique 6) or **S-turns** (technique 7) | Same |
+| Level | The swept line, his side; range held by the unmet-closure speed offset (7.7); too close: **S-turns** (technique 7) | — |
+
+#### 7.7 The arc loop and level range hold (one 10 s range constant)
+
+In Turning and Level alike, one `10 s` range time constant ($\tau_s = \tau_r = 10\text{ s}$, TS-233, Fable D21) governs spacing:
+- In a turn, the arc loop (`B07`) sets the circle's offset $d$ from the arc behind Lead $s$ and its closure (review 2.2, research §1 item 4, control model's arc loop):
+  $d = d_{\text{ss}} + \text{wanted} \div \omega + k_c \times (\text{wanted} - \text{closure}) \div \omega$, where $\omega$ is Lead's turn rate (radius clipped near `20,000 ft` as $\omega \to 0$ so quantities stay finite, Fable 3b note), $\text{wanted} = (s - 650\text{ ft}) \div 10\text{ s}$ (`650 ft` the top of his happy `600-650 ft`, Patrick; `10 s` an estimate), and $d_{\text{ss}} = R(1 - V_2/V_L)$, his speed handed to the offset;
+- the wanted closure is limited smoothly from `25 ft/s` near the ideal to `60 ft/s` far from it (a soft limit over about `200-400 ft` of error, `softMin`; estimates), not by a step;
+- $d$ is slewed at `60 ft/s`, and kept within `±250 ft` (Patrick 14 Oct 2026, card "±250 ft, tighter": a deliberate change from today's `±400 ft`), its comfortable range the route positions' `±120 ft`. In Lead's `60°` turn that caps how hard he leads or lags at about `40 ft/s` of closure at equal speed ($V \times d \div (R - d)$). Being slow uses part of it just to hold position ($d_{\text{ss}}$: about `115 ft` at `10 kt` slow, `230 ft` at `20 kt`), so the speed loop and energy intent keep him near Lead's speed; the review's sketches assumed `±400 ft`, so slice 2 checks they still capture inside `±250 ft`.
+
+The feed-forward term ($\text{wanted} \div \omega$) is what makes the steady closure all of what is asked rather than half (the research's half-gain trap). The range time constant stays `10 s` for both turns and level flight (TS-233, Fable D21) and $k_c = 0.5$ or less (Fable D10: `88-90°` of phase margin, `24/12 dB` gain margin; $k_c$ only trims model error).
+
+**Unmet closure hand-off (`S29b` → `S27g`, Fable D9 & D21).** Any wanted closure that the offset $d_{\text{cmd}}$ cannot supply — $\text{unmet closure} = w - \omega \cdot d_{\text{cmd}}$ (`S29b`, clipped to `±15 kt`) — passes through the reference blender (`S27g`, $\Delta v_{\text{ref}}$) to the speed loop's set-point (`B11`). In a 2 G turn while $|d| < 250\text{ ft}$, that hand-off is zero (geometry owns closure, so there is no contest between arc and speed); when $d$ saturates at `±250 ft` (Fable D9) or as Lead rolls wings level ($\omega \to 0$, radius clipped near `20,000 ft`, Fable D21), the unmet closure smoothly becomes the speed set-point offset $\Delta v_{\text{ref}}$, holding `650 ft` in level flight with the same `10 s` time constant (crossover `0.091 rad/s`, phase margin `74° / 72°`, speed-to-range bandwidth ratio `3.3`, passing gate C4).
+
+#### 7.8 Energy, power, the vertical and G
+
+**The energy intent.** Patrick's model (TS-233, 14 Oct 2026): "the PCL ADDS energy or SUBTRACTS enemrgy to the system, the stick TRANSFORMS energy, G EATS energy, altitude/speed trade energy". Each phase, case and technique sets one intent from the picture: keep, gain or bleed, carried as a number from `−1` (bleed) to `+1` (gain) so it blends. Fighting wing turns are usually `90-180°` of heading, not sustained, and the T-6 model holds Lead's `2 G` at `200 KIAS` and `8,000 ft` with `+0.93 kt/s` spare acceleration (`+1.85 kt/s` at `1 G`, `+0.24 kt/s` at `2.5 G`, sustained about `2.7 G`; Fable D14 is withdrawn at `2 G` and stands only above `2.7 G`, losing `-0.60 kt/s` at `3 G` and `-2.75 kt/s` at `4 G`), so energy runs short only when #2 pulls well past Lead's G. In `90-180°` turns (`11-21 s` at `8.4°/s`) only `10-20 kt` can be regained during the turn itself, so the `±15 KIAS` speed check is judged at the end of the `30 s` wings-level exit settle for `90-180°` turns, and at roll-out for `30 s` turns (Fable D26, TS-233). Energy is spent in Patrick's order: geometry first (the path), then the vertical, then power (TS-96; TS-233 "power with G": "when I pull G I need power to maintain energy (unless I WANT to lose energy right now)").
+
+**Power, one owner (`B11`, proportional speed loop, Fable D21 & D23).** Throttle = the drag of the commanded G (`S44` from `B13`, before the shaper), the power for his planned climb rate (`S27c`), and speed-brake drag while the boards are out, all fed forward (`dragPerWeight`, `power.js` `powerFor`, as close formation's `holdingTorque`), plus a roll-in lead from Lead's seen roll (`S03` run forward by `S04`, started when Lead's seen roll rate passes about `10°/s`, estimate), plus a `0.3 /s` proportional speed loop on $(V_L + \Delta v_{\text{ref}} - V)$ (`S27g` clipped within `±15 kt`, Patrick 4 Oct 19:12Z), plus the intent bias $\min(\text{intent `S27d`}, -\text{bleed request `S39`})$, clipped `0-1`. Following close formation's pattern, there is **no integrator** in the speed loop (Fable D23, superseding D12's 45 s PI): the physics feed-forwards do the steady work, a proportional `0.3 /s` gain gives `89° / 82°` of phase margin and `5 s` of extra-delay margin while saturating at full power past `~3.1 kt` of deficit at `2 G` (`~6.2 kt` at `1 G`), and dropping the integrator eliminates wind-up against the intent bias and any integrator-freeze switch. Idle is reached by a phased reduction, not a step. The speed brake (`S34`) is used only when bleeding on purpose (TS-233, card; Fable D8, D25): out when closing over about `60 ft/s` for `1 s` with effective bleed intent $\le -0.5$, in under about `20 ft/s` (or `10 ft/s` if Slice 0's un-smoothed dead-reckoned slant closure ripple exceeds `20 ft/s`, Fable D25) or when intent $> -0.2$, held at least `3 s` (estimates), with its drag fed forward into the throttle law while out. The guard never sets the throttle: it sends a graded request to bleed (`S39`).
+
+**Continuous drop low inside (`D24`, TS-233 card "Drop low inside, MAX" & "Energy intent, counted").** On the inside of Lead's turn, when #2 is slow despite full power, dropping low on the inside is a continuous height-target term in the normal follower (`B05`, `S25`), not a relay or a separate technique:
+$h_T = \text{stack} - 20\text{ ft/kt} \times \max(0, \text{speed deficit} - 5\text{ kt})$, capped at `-300 ft` (`100 ft` low at `10 kt` slow, `-300 ft` cap at `20 kt` slow; estimates), blended over `4.3 s`, and climbing back to the `-50 ft` stack as speed recovers or on roll-out. Every foot past `100 ft` below the `50 ft` stack counts in the gauge as a fault to justify (TS-233, Patrick 14 Oct 2026).
+
+**The vertical, one loop, blended owners (`B10`).** One height loop: `0.005 G` per foot on the height error $(h_T - h)$ and `0.02 G` per ft/s on the height-rate error $(\dot{h}_T - \dot{h})$ (`S32`, crossover `0.68 rad/s`, the rig confirmed the gains, C11). The reference (`S27c`) carries both a height target $h_T$ and a height-rate target $\dot{h}_T$, so a planned climb or descent profile is not fought by the damping term (Fable D1: today's D acted on own $\dot{h}$ alone, so a `100 ft/s` planned descent met `2 G` of opposing demand). Its target is the stack (`50 ft` below, Patrick) minus any continuous low-inside drop (`D24`) unless a technique plans another profile; blends of the height target take at least `4.3 s` (Fable's blend rule, $3 \div 0.68\text{ rad/s}$); a technique's return to the stack takes about `15 s` (estimate). **Near the stack, low only when needed** (TS-233 "smooth, planned corrections": he sat too low too often; part 2: `8-25 s` a turn more than `100 ft` below the stack). The guard's height bound (`S38`) is a constraint on this loop's command, not a target. Inverted only if required (Patrick): the lift's composition points the lift where the geometry needs it.
+
+**G onset by urgency (`B14`, TS-233).** Every G change goes through the shaper at an onset set by an urgency $u$ from `0` to `1`, smoothly: $\text{onset} \approx 1 + 3u\text{ G/s}$, so about `1 G/s` for ordinary flying ($u = 0$), about `2.2-2.5 G/s` for assertive corrections and reversals to capture a line ($u$ about `0.4-0.5`), and up to about `4 G/s`, the T-6A's onset, when about to hit something ($u = 1$). The urgency (`S27e`) is the larger of the guard's (`S36`) and the technique's (7.9). The guard's urgency is cubic: $u = x^3$ with $x = \text{clip}((600 - \text{predicted pass}) \div 100\text{ ft}, 0, 1)$ (Fable; TS-233 "Fable's other fixes"): `575 ft` asks about `1.05 G/s`, `550 ft` about `1.4 G/s` (Patrick's gentle: "if its gonna be 550 feet i dont want/need a violent cvorrection"), `525 ft` about `2.3 G/s`, `510 ft` `3.2 G/s`, `500 ft` `4 G/s`. It rises at once and decays over about `2 s` (no switch). The $1 + 3u$ shape is an estimate; the ends are Patrick's.
+
+**The G cap and `minG = 0.5 G` floor (`B13`).** Cap = `Lead G + 1.5 G` (estimate, using Lead's seen G `S05b`, Fable D22; the wingman's `+5 G` of SMM Table 16.1 is the reference, flagged, not a wall). The guard opens it smoothly (`S40`) as the predicted pass goes from about `550` to `500 ft` (estimate), up to what the aircraft gives, flagged on screen; it stops at the stick shaker (a physical limit). At the cap (TS-233): airspeed gives way first (he holds a smooth, steady G and lets the speed bleed), then the vertical, then the turn; reaching the cap should be rare (gate C8). In the lift composer (`B13`) that means the turn keeps its share; positive climb demand ($\Delta G_v > 0$) from the height loop gives way first, then the `1 G` level-flight hold (he lets the nose drop a little), and the turn last; during the miss the guard opens the cap anyway, flagged (TS-233, card "Your order, checked"). Built as a continuous allocation with a soft knee about `0.2 G` below the cap, it is smooth, not a switch; a descent demand ($\Delta G_v < 0$) never binds at the cap, so the order only ever cuts climb demands (Fable D20). Seat load factor never pushes below `minG = 0.5 G` (Patrick 14 Oct 2026: *"In the vast majority of cases you would roll and pull instad of pushing to 0 or neg g"*; when downward acceleration beyond a `0.5 G` unload is needed, `B13` and `B14` unload, roll — overbanking past `90°` if required — and pull positive G).
+
+#### 7.8b The guard (a barrier)
+
+The guard (`B12`) is a backstop for the `500 ft` bubble only; keeping position is the normal flyer's job (TS-233, "the guard tapers"; Patrick: "2 just needs to stay in position and try not to bust the bubble and if he does he corrects").
+- **One predictor (`S35`):** the least slant range over the closing part of the relative motion up to `10 s` from the achieved state (`B15`), evaluated on the loops' raw demands (`S31` turn and `S32` vertical, Fable 3b §3), with Lead dead-reckoned across the `0.4 s` and his bank run forward by his seen roll rate (`S03`, Fable D3). The miss's cue (7.9.1) reads the same predictor.
+- **The barrier:** silent while the predicted pass is at or over `600 ft`; between `600` and `500 ft`, the closing speed it allows toward the pass is $c_{\max} \times (1 - x^3)$, $x = \text{clip}((600 - \text{pass}) \div 100\text{ ft}, 0, 1)$: `87%` at `550 ft`, `58%` at `525 ft`, none at `500 ft` (Fable's cubic; TS-233). So a pass coming out near `550 ft` gets a gentle correction, never a violent one (Patrick 14 Oct 2026: "if its gonna be 550 feet i dont want/need a violent cvorrection"). Its correction is the least change to his turn (`S37`) or height (`S38`) that keeps within it, solved as a bound each step, never iterated through the aircraft (Fable: that loop's gain would be about `6`). The guard's vertical bound (`S38`), when it sits below the height loop's demand, is in effect the writer of a vertical escape; that is the stated rule (Fable D16, C1).
+- **Its choices:** turn changes and vertical escapes, below by default, above only if he is already more than `100 ft` above Lead (Patrick). Separation is hard; staying behind the wing line is soft, with a wing-line overshoot costed far above crossing behind Lead (research §3.4, §8). When the two want opposite turns, one manoeuvre serves both, usually the vertical. A change of side (`S41`) is charged its roll time and, once taken, held at least about `3 s` (estimate), so the choice doesn't flip under the delay.
+- **Its outputs:** bounds on his turn (`S37`) and height (`S38`) commands, a smooth cap opening (`S40`), guard urgency (`S36`), and a graded request to bleed (`S39`). Never a throttle setting, never an aim, never a pitch owner.
+- **Inside 500 ft** he corrects out firmly (the miss below, G past the estimate, flagged); a brief, shallow kiss while already correcting firmly is acceptable (TS-233, "the bubble"). No Terminate; Lead never waits for #2 (Patrick).
+- **Gate C7:** in the academic set the guard acts under about `10%` of a turn and not at all in steady turning.
+
+#### 7.9 Techniques
+
+**Why techniques, and when one is needed.** The normal flyer fixes small errors gently, the way a pilot makes small continuous corrections, and flies nearly all of the time. A technique is used only when the picture is well outside what gentle feedback can fix in the time Lead allows: either the error is too big (the feedback would run into a limit, such as the G cap, the `20°` and `12°` approach caps, MAX or idle, and be slow or overshoot), or the right answer is a different kind of move (go vertical, reverse, cut across the circle) that feedback, which only nudges toward the target, will never find on its own. It is a pilot's named manoeuvre for that picture, planned once and then flown by the same loops.
+
+**How a technique works** (TS-233, Patrick 14 Oct 2026, card "Plans; same loops fly it"):
+- It starts from a **predicted cue**: left alone, the normal flyer would pass inside `600 ft`, need more than the cap, or still be stretched at roll-out.
+- It **plans once**, from the error and his energy: the path, the speed offset, the energy intent, the height profile and the urgency.
+- **The same loops fly it** with feedback. It writes only the reference (`S26`) and cue/done/abort (`S24`), never the stick or throttle.
+- **Monitor:** small errors are the loops' to correct; a plan that drifts past its bound is re-planned from where he is; an unsafe one goes to the miss.
+- **Hand back:** by sliding the reference home over a blend time (`S23`), only once well inside the normal flyer's envelope; no restart for about `3 s` (estimate) unless a fresher, more urgent cue fires. Blends work on the scalar loop inputs (`wanted course`, `path turn rate fed forward`, `height target and rate`, `speed offset`, `intent`, `urgency`, `cap`), never on the path shapes, and take at least `6 s` for the path fields and `4.3 s` for the height fields; the normal flyer re-starts from where he is at hand-back, its arc loop running on the measured arc and offset throughout (Fable D5).
+- **Bands and holds on every cue** (Fable D6; TS-233): the miss on under `600 ft` and closing for `2 steps` (`0.1 s`) with `3 s ≤ t_pass ≤ 10 s`, done over `650 ft` and opening for `2 s` and past bottom; the high yo-yo on over `15 ft/s` for `2 s`, off under `5 ft/s` for `5 s`; the cut-across a `100 ft` band (`1,000 / 900 ft`) and a `3 s` hold; the exit vertical on at `150 ft` of error or `20 ft/s` closure, off at `50 ft` and `10 ft/s` for `5 s`; S-turns on under `575 ft` or `15 ft/s` closure, off over `650 ft` and `5 ft/s` for `5 s`; back behind the 3/9 line on ahead or within `3 s`, off `15°` behind for `2 s` (all estimates).
+- **One at a time, by priority;** a new move by Lead means re-assess. Each has a longest run, after which the supervisor re-assesses.
+- **Rare:** in ordinary flying techniques should seldom run; one that fires often means the normal flyer is wrong. The gauge counts how often each runs (gate beside C7).
+- **The guard is not a technique.**
+
+**Approved technique list (Patrick 14 Oct 2026, TS-233 — all 8 approved in priority order):**
+
+| Priority | ID | Technique | From | Slice | Status |
+|---|---|---|---|---|---|
+| 1 | `T1` | The miss (vertical first, below) | SMM 12.29 Fig 12.22; Patrick "Vertical first, below", "roll and pull instead of pushing to 0 or neg g" | `S3b` | Approved |
+| 2 | `T2` | Back behind the 3/9 line | Patrick: "rolls over Lead or flies it hot turning rejoin style" | `S7` | Approved |
+| 3 | `T3` | Lag pursuit from abeam | Patrick's abeam ruling (confirmed); SMM 12.29 Fig 12.20 | `S6` | Approved |
+| 4 | `T4` | The high yo-yo (ending stacked low) | Patrick, card "High yo-yo, then back down" | `S7` | Approved |
+| 5 | `T5` | The very-stretched cut-across | Patrick: beyond about 1,000 ft, cut across the turn | `S7` | Approved |
+| 6 | `T6` | The exit vertical (dive or climb) | Patrick: "Assertive use of the vertical on turn exit" | `S5` | Approved |
+| 7 | `T7` | S-turns | Patrick (5 Oct 23:02Z; 14 Oct) | `S5` | Approved |
+| 8 | `T8` | Moving out from close formation | Draft 3's stretch job; SMM 16.32 para 92, 16.38 para 105 | `T30` | Approved |
+
+Not techniques, because the normal flyer's paths already do them: the turns away, into from in position (straight ahead, then capture), into stretched, relaxing to recapture the circle from inside (with cone drift allowed while relaxing, confirmed), the swept place, the exit sides, and dropping low inside (`D24` continuous height term in the normal follower).
+
+**The cards.** All numbers are estimates unless a source is named; "e" is the error, "V" his true airspeed (`381 ft/s` here), "g" `32.2 ft/s²`. "About `12 ft` of height per ft/s" is standard energy at `381 ft/s` ($h \approx V \times \Delta v \div g$).
+
+##### 1. The miss (`T1`, `techniques/miss.js`)
+
+| | |
+|---|---|
+| Source | SMM 12.29 para 70 and Fig 12.22 (from tight, "first make the miss", a climbing turn above or descending turn below, then recapture with geometry); Patrick 14 Oct 2026 card "Vertical first, below" and ruling *"In the vast majority of cases you would roll and pull instad of pushing to 0 or neg g, approve otherwise"* (TS-233, Fable 3b §7); below by default, above only if already more than `100 ft` above Lead (Patrick) |
+| Assess | The guard's predictor (`S35`): predicted pass $p < 600\text{ ft}$ slant and closing for `2 steps` (`0.1 s`), with $3\text{ s} \le t_{\text{pass}} \le 10\text{ s}$ (Fable D4, 3b §7) |
+| Plan | **Urgency:** $u = \text{clip}((8 - t_{\text{pass}}) \div 5, 0, 1)$ (`1` at `≤ 3 s`, `0.4` at `6 s`, `0` at `≥ 8 s`). **Depth:** $h = \sqrt{D^2 - p^2}$ below Lead's plane (above if already `> 100 ft` above Lead), where $p$ is the predicted in-plane pass and $D = 625\text{ ft}$, the middle of his happy `600-650 ft`, so the guard (silent at `600 ft` and over) stays quiet despite the `0.4 s` prediction error (Patrick 14 Oct 2026). From tight (`560 ft`, $p \approx 355\text{ ft}$), $h \approx 515\text{ ft}$. **Vertical profile — roll and pull positive G, never push to 0 or negative G:** planned vertical load factor $n_p = 0.5(1 - u)$ (`0.5 G` ordinary drop at $u = 0$, more downward acceleration when $u > 0$), arrested symmetrically at $n_p' = 1 + (1 - n_p)$ to bottom at $h$. **In the seat, `#2` never pushes to `0 G` or negative G (`minG = 0.5 G` floor stands):** for an ordinary drop he unloads to about `0.5 G` (or relaxes G in the turn so he drifts out and sinks), and when an urgent drop requires more downward acceleration along the profile ($n_p < 0.5\text{ G}$), he **rolls (overbanking past `90°` if required, via unload-roll-pull) and pulls positive G** (`B13`/`B14`). **Least turn mix (`D4`):** hold roughly his heading ($\omega_{\text{FF}}$ held at its cue value); only when the vertical alone will not reach `625 ft` of slant by $t_{\text{pass}}$, add the least turn away $\Delta\omega \approx 2\Delta q \div (V t_{\text{pass}}^2)$, where $\Delta q$ is the in-plane shortfall (`~1°/s` at `8 s`, `~2.1°/s` at `6 s`, `~5°/s` at `4 s`). **Energy intent from the picture at planning:** `-0.5` (bleed; speed brake if closure `> 60 ft/s` for `1 s`) if closing `> 20 ft/s` or predicted `< 600 ft` of arc at hand-back; `+0.5` (gain) if predicted stretched `> 750 ft` at hand-back; `0` otherwise (Fable 3b §7, Patrick's energy model) |
+| Execute | `B10` flies the $(h_T, \dot{h}_T)$ profile at the urgency's G onset (`1 + 3u G/s`) with `minG = 0.5 G` unload-roll-pull; `B09` holds the heading line plus any least turn mix |
+| Monitor | Re-plan if $p$ falls `50 ft` under plan or $t_{\text{pass}}$ shortens by `2 s`; inside `500 ft` the guard's firm correction (G past the estimate, flagged) |
+| Hand back | Predicted pass $p > 650\text{ ft}$ and opening for `2 s`, and height profile at or past its bottom: path slides to Lead's circle from outside (inward up to `12°`) over `6 s` (`D5`); height climbs back to the `-50 ft` stack over `15 s` |
+| Writes | Reference (`S26`: heading path + least turn mix, $(h_T, \dot{h}_T)$ profile, intent, urgency) and cue/done (`S24`) |
+| Interrupted by | Nothing; a reversal by Lead re-plans it |
+| Longest run | About `15 s` |
+| Numbers | `D = 625 ft`, `minG = 0.5 G`, `100 ft` "already high" (Patrick); $t_{\text{pass}}$ window `3-10 s`, $u = (8 - t_{\text{pass}})/5$, $n_p = 0.5(1 - u)$, `50 ft` / `2 s` re-plan, `650 ft` / `2 s` done, `15 s` max run, `6 s` path / `15 s` height hand-back, intent thresholds `20 ft/s, 600 ft, 750 ft` (estimates in `FW_MISS`) |
+| Gauge case | `b5-into-tight` (`560 ft`, `45°` sweep, Lead rolls in at `30°/s` to `60°`): vertical first and below, seat G stays `≥ 0.5 G` (unloads to ~`0.5 G` or rolls and pulls positive G if urgent), least slant `≥ 500 ft`, pass at `625 ± 100 ft`, ends outside Lead's circle and recaptures within `30 s` |
+
+##### 2. Back behind the 3/9 line (`T2`, `techniques/behind-39.js`)
+
+| | |
+|---|---|
+| Source | Patrick 14 Oct 2026 (TS-233, "never ahead of Lead's 3/9 line", approved): "to get back behind he either rolls over Lead or flies it hot turning rejoin style, nose pointed behind Lead, banking steeply in and down" |
+| Assess | Ahead of Lead's 3/9 line ($\text{sweep} < 0^\circ$), or predicted to be within about `3 s` |
+| Plan | Hot turning rejoin style: a path with his nose pointed behind Lead, steep bank in and down (the lift below the horizon), intent bleed (`-0.5`); the vertical sized as the miss's so the pass behind stays over `D = 625 ft`. Rolling over Lead is not planned in this rung |
+| Execute | The loops; urgency about `0.5` |
+| Monitor | The miss pre-empts if the pass threatens |
+| Hand back | Behind the 3/9 line by at least about `15°` of sweep for `2 s` (`D6`) and in the cone's range: slides to the normal flyer's circle over `6 s` (`D5`) |
+| Writes | Reference (`S26`: path, height target, intent, urgency) and cue/done (`S24`) |
+| Interrupted by | The miss |
+| Longest run | About `15 s` |
+| Numbers | `3 s` look, `15°` behind, `2 s` dwell, `6 s` hand-back (estimates in `FW_BEHIND39`); `D = 625 ft` shared with the miss |
+| Gauge case | `T29d`'s reversals; the abeam case if he ends ahead (part 2: today he ends `49°` ahead) |
+
+##### 3. Lag pursuit from abeam (`T3`, `techniques/lag-abeam.js`)
+
+| | |
+|---|---|
+| Source | Patrick 14 Oct 2026, flying V2.433 Live (confirmed, TS-233): "if h's abeam 1 and lead turns towards him h just matches his bank? instead of going out to a lag prusuit... which is wrong as well" — lag pursuit toward Lead's tail, the miss, then reverse and capture; SMM 12.29 Fig 12.20; reversal cue SMM 16.20 para 65b(2) |
+| Assess | Lead turning into him (seen bank and roll toward him) with #2 near abeam: behind the 3/9 line with `0° ≤ sweep < 20°`, within the cone's `500-1,000 ft` range (TS-233 "Lead may manoeuvre with #2 abeam") |
+| Plan | A path toward a point on Lead's predicted track about `650 ft` behind him (lag pursuit: his nose behind Lead), so the crossing is behind Lead; the pass height sized as the miss's (`D = 625 ft`, below); then the reversal onto Lead's circle from outside on crossing Lead's track behind him (primary geometric cue, Fable D18), with a definite rise in line-of-sight rate (`S15`) banded at `≥ 2×` its ripple as the backup cue. Intent keep (`0`); urgency about `0.5` |
+| Execute | The loops |
+| Monitor | The miss pre-empts if the pass threatens; ahead of the 3/9 line, technique 2 |
+| Hand back | On Lead's circle within about `100 ft`, approach under about `5°`, behind the 3/9 line: slides to the normal flyer over `6 s` (`D5`) |
+| Writes | Reference (`S26`: path, height target, intent, urgency) and cue/done (`S24`) |
+| Interrupted by | The miss; back behind the 3/9 line |
+| Longest run | About `20 s` |
+| Numbers | `0-20°` abeam band, `650 ft` tail aim point, capture `100 ft` and `5°`, `6 s` hand-back (estimates in `FW_ABEAM`); `D = 625 ft` shared |
+| Gauge case | `b5-into-abeam`, moved to truly abeam (`5-10°` sweep) once the band counts abeam as fighting wing (slice 6): `0 s` banking with Lead into him; never ahead of the 3/9 line; never inside `500 ft` beyond a kiss; captured behind Lead within about `30 s` |
+
+##### 4. The high yo-yo (`T4`, `techniques/yo-yo.js`)
+
+| | |
+|---|---|
+| Source | Patrick 14 Oct 2026, card "High yo-yo, then back down" (TS-233): inside Lead's circle after the miss and gaining, he pulls up out of Lead's plane in a climbing turn to kill the horizontal closure and bleed speed, then comes back down onto Lead's circle behind him, **ending stacked low**; it overrides "below by default" for this case only. Its size: no cap, "as long as wg stays in the cone anything is permissable". Not in the manuals (spec 7e.3c) |
+| Assess | Turning, inside Lead's circle and gaining (arc closure `> 15 ft/s` for `2 s`, `D6`) where the normal flyer's drift-out is predicted not to stop it before `600 ft` or the 3/9 line |
+| Plan | A climb sized from the closure to kill, as energy: about `12 ft per ft/s` (`30 ft/s` → about `355 ft`), bounded by the cone (`500-1,000 ft` slant, behind the wing line); the turn kept with Lead's, a little less; intent bleed going up, keep coming down; then down onto Lead's circle behind him, **ending stacked low** (`-50 ft`). Urgency about `0.4` |
+| Execute | `B10` flies the climb-then-descend $(h_T, \dot{h}_T)$ profile; `B09` keeps the circle's offset |
+| Monitor | Closure under about `5 ft/s` for `5 s` (`D6`) at the top: start down; the slant reaching `1,000 ft` caps the climb; the miss pre-empts |
+| Hand back | On Lead's circle behind him, closure under `10 ft/s`, near the low stack: path slides over `6 s`, height to the `-50 ft` stack over `15 s` |
+| Writes | Reference (`S26`: $(h_T, \dot{h}_T)$ profile, intent, urgency) and cue/done (`S24`) |
+| Interrupted by | The miss; back behind the 3/9 line; Lead's roll-out (the exit re-assesses) |
+| Longest run | About `20 s` |
+| Numbers | `15 ft/s` (`2 s` dwell) cue, `5 ft/s` (`5 s` dwell) top, `15 s` descent to stack (estimates in `FW_YOYO`); `12 ft per ft/s` (physics); `500-1,000 ft` (Patrick) |
+| Gauge case | `b5-into-in-position` and the turns where he gains inside: never ahead of the 3/9 line; ends behind on the circle, stacked low; within `15 KIAS` of Lead |
+
+##### 5. The very-stretched cut-across (`T5`, `techniques/cut-across.js`)
+
+| | |
+|---|---|
+| Source | Patrick 14 Oct 2026 (TS-233, Fable's second review): "Very stretched (outside about 1,000 ft) he may cut across the turn, then reset onto a lead, lag or pure turn circle" |
+| Assess | In a turn (`Entry` or `Turning`), slant range `> 1,000 ft` and not closing for `3 s` (`D6`) |
+| Plan | The inward approach cap opened from `12°` to about `45°` toward a point inside Lead's circle (across the chord), intent gain (`MAX`, a dive allowed); aiming to arrive about `800 ft` behind on a lead circle. Urgency about `0.2` |
+| Execute | The path follower with the opened cap |
+| Monitor | Never ahead of the 3/9 line (predicted); the miss pre-empts |
+| Hand back | Inside about `900 ft` and closure under `30 ft/s` (`100 ft` band, `D6`): the cap slides back to `12°` and the normal flyer over `6 s` (`D5`) |
+| Writes | Reference (`S26`: approach limit, path offset, speed offset, intent, urgency) and cue/done (`S24`) |
+| Interrupted by | The miss; back behind the 3/9 line |
+| Longest run | About `40 s` |
+| Numbers | `1,000 ft` (Patrick); `45°`, `800 ft`, `900 ft`, `30 ft/s`, `3 s` dwell, `6 s` hand-back (estimates in `FW_CUT`) |
+| Gauge case | `b5-away-very-stretched` (`> 1,000 ft`, Lead turning away): back inside `1,000 ft` and in the cone within about `40 s`; never ahead of the 3/9 line |
+
+##### 6. The exit vertical (dive or climb) (`T6`, `techniques/exit-vertical.js`)
+
+| | |
+|---|---|
+| Source | Patrick 14 Oct 2026 (TS-233): "Assertive use of the vertical on turn exit to fix spacing, staying within the cone. if stretched, dive. if tight, climb/s turns"; card "Any height inside the cone's range" (any height while the slant stays `500-1,000 ft` behind the wing line; TS-80's `200 ft` band is where he settles). The sides from SMM 12.30 Fig 12.23 |
+| Assess | `Exit` (Lead rolling out) with spacing error $|s - 650| > 150\text{ ft}$ or closure `> 20 ft/s` (`D6`) |
+| Plan | The closure needed $\Delta v = \Delta s \div T$ ($T = 10\text{ s}$, the range constant); the height $h \approx 12\text{ ft per ft/s}$: `300 ft` stretched → `30 ft/s` → about `355 ft` of dive (about $0.85 h\text{ ft}$ of range made up in `10 s`, TS-233). Tight: the same as a climb, or S-turns (technique 7) when a climb would leave the cone. The path: the exit line on Fig 12.23's side. Intent gain for a dive, bleed for a climb. Urgency about `0.4` |
+| Execute | `B10` flies the $(h_T, \dot{h}_T)$ profile; `B11` sets power by the intent and climb feed-forward |
+| Monitor | Re-plan if the spacing error changes sign; capped by the `500-1,000 ft` cone |
+| Hand back | Spacing within `50 ft` of `650 ft` and closure under `10 ft/s` for `5 s` (`D6`): slides to the normal flyer; height returns into the `200 ft` band (TS-80) and to the `-50 ft` stack over `15 s` |
+| Writes | Reference (`S26`: $(h_T, \dot{h}_T)$ profile, exit line side, intent, urgency) and cue/done (`S24`) |
+| Interrupted by | The miss; a new turn by Lead (`Entry` re-assesses) |
+| Longest run | About `25 s` |
+| Numbers | `150 ft` and `20 ft/s` cue, `10 s`, `50 ft` and `10 ft/s` (`5 s` dwell) hand-back, `15 s` return (estimates in `FW_EXIT_VERT`); `12 ft per ft/s` (physics); `500-1,000 ft` and `200 ft` (Patrick) |
+| Gauge case | The wings-level settles: settled in the cone within about `30 s` of wings level; within `200 ft` of Lead's height at the end; fewer than `5` torque swings |
+
+##### 7. S-turns (`T7`, `techniques/s-turns.js`)
+
+| | |
+|---|---|
+| Source | Patrick 5 Oct 23:02Z "in fighting wing a common way to bleed energy is to S turn left and right if required"; 14 Oct 2026 "IF we're getting too tight we also make S turns back and forth from sides of the cone as well". Not in the manuals (spec 7e.3c) |
+| Assess | `Level` or `Exit`, too tight or closing (slant `< 575 ft` or closure `> 15 ft/s`, `D6`), where a climb would leave the cone or the `200 ft` band |
+| Plan | A heading swing $\psi$ off the line sized from the range to give up over $T$: $1 - \cos\psi = \Delta s \div (V \times T)$ (`150 ft` over `10 s` → about `16°`); legs across the cone between its sides (`30-60°` of sweep, Fig 12.19), the swept line swapping sides each leg; intent bleed. Urgency `0` (gentle) |
+| Execute | The path follower on the alternating line |
+| Monitor | Stop when range `> 650 ft` and closure `< 5 ft/s` for `5 s` (`D6`) |
+| Hand back | On the swept line on the side he ends: slides to the normal flyer over `6 s` |
+| Writes | Reference (`S26`: line side and offset, intent) and cue/done (`S24`) |
+| Interrupted by | The miss; a turn by Lead (`Entry`) |
+| Longest run | About `30 s` |
+| Numbers | `575 ft` and `15 ft/s` cue, `650 ft` and `5 ft/s` (`5 s` dwell) stop, `6 s` hand-back (estimates in `FW_STURN`; `625 ft` Patrick's swept range); the cone's sides (manual) |
+| Gauge case | `b5-level-tight`: back to the swept range without leaving the cone; no climb out of the band |
+
+##### 8. Moving out from close formation (`T8`, `techniques/moving-out.js`, built with `T30`)
+
+Approved (Patrick 14 Oct 2026, TS-233): Draft 3's stretch job as Technique 8 (`T8`), built in task `T30`. Straight back to about `500 ft` at about `10 ft/s` by power (close formation's guard still on), then out sideways to the swept place (`625 ft at 45°`, `50 ft` below) on the side he held (SMM 16.32 para 92, 16.38 para 105; EFIG p.390). The hand-over between close formation and fighting wing is phased by range: close formation full under about `100 ft`, fighting wing full past about `250 ft` (control model section 9; estimates), both initialized bumplessly from his bank, G and throttle.
+
+#### 7.10 How it is programmed (approved with this draft, TS-234)
+
+The files, in `src/modules/turn-sim/live/wingman/` (the folder exists; `techniques/` is new):
+
+| File | Job |
+|---|---|
+| `perception.js` | As now, brought onto the 0.4 s rule with Lead's bank run forward by his seen roll rate (7.4) |
+| `supervisor.js` | The phase (7.5) and the technique picker (`B03`, `B04`): priority, one at a time, the 3 s no-restart time, each technique's longest run |
+| `fw-reference.js` (new) | The reference and the scalar loop-input blender (`B08`): mixes the normal flyer's reference and the technique's by a weight that slides `0 → 1 → 0` |
+| `fighting-wing.js` | The normal flyer (`B05`, 7.6), the arc loop (`B07`, 7.7), the one set of loops (`B09`, `B10`, `B11`), and the lift composer (`B13`, 7.8), reading only the reference |
+| `separation.js` | The guard (`B12`, 7.8b): the one predictor, the cubic barrier, its turn/height bounds, cap opening, urgency, and bleed request |
+| `techniques/<name>.js` (new) | One file per technique (`T1–T8`), its card as code |
+| `shaper.js` | G onset by urgency (`1 + 3u G/s`) and the roll (`≤ 60°/s`), with unload-roll-pull (`B14`) |
+
+**The reference (`B08`)** blends scalar loop inputs (`wanted course`, `path turn rate fed forward`, `height target and rate`, `speed offset`, `energy intent` `−1` to `+1`, `urgency` `0` to `1`, and `cap change`), so a hand-over is a slide, not a step; a circle of growing radius (clipped near `20,000 ft`) becomes the line smoothly (review 2.6, Fable D5, D21).
+
+**A technique file** holds its card in its header (source, numbers, gauge case) and exports the same four functions:
+- `cue(view)`: whether it is wanted now, and how urgently, from a prediction;
+- `plan(view)`: the reference and limits, sized once;
+- `monitor(view, plan)`: keep, re-plan or abort to the miss;
+- `done(view, plan)`: true once well inside the normal flyer's envelope.
+
+Its numbers live in one table in `wing-moves.js` (for example `FW_MISS`, `FW_YOYO`), so `tools/turn-sim-numbers.mjs` lists them in `numbers.md` with their sources and the control map's ledger finds them.
+
+**The control map enforces the rules.** Each technique is a block in `tools/control-map/signals.mjs` (`B06`) that writes only `S24` (cue/done/abort to `B04`) and `S26` (candidate reference to `B08`); `check.mjs` fails automatically if `B06` writes any loop demand or control (`S31–S45`). So "one owner per control" (`C1`, `TS-234`) is enforced by the tool on every slice.
+
+**Measured, and shown.** The gauge traces carry the active technique, its weight, its plan, and why it started and ended; the gauge counts how often each runs (the "rare" check). `T29r`'s HUD readout shows the phase and the technique.
+
+**Adding or changing a technique** is one file, one table and one gauge case; no other technique changes.
+
+### 8. Numbers
+
+Patrick's: `0.4 s`; happy `600-650 ft`; lead beyond about `700`, lag near `500`; swept `625 ft` at `45°`, `50 ft` below (`replacing TS-195's 750 ft for the 2-ship`); `500 ft` slant; the guard silent at `600 ft` and over, gentle near `550 ft`; the planned pass `625 ft`; `minG = 0.5 G` floor in the seat (roll and pull positive G rather than pushing to `0` or negative G); the arc loop's offset within `±250 ft`; at the cap positive climb vertical gives way before level hold, turn last; dropping low inside counted against the `100 ft` line; below by default, above if more than `100 ft` above Lead; the caps `20°` out and `12°` in; very stretched beyond about `1,000 ft`; the exit vertical anywhere inside `500-1,000 ft`; the `200 ft` band (`TS-80`); G onset about `1`, the middle and about `4 G/s`; at the cap airspeed, then the vertical, then the turn; within `15 KIAS` of Lead (at end of `30 s` exit settle for `90-180°` turns, at roll-out for `30 s` turns); no Terminate.
+
+Manual: the cone `500-1,000 ft` and `30-60°` (SMM 12.29 Fig 12.19); the entry and exit cases (Figs 12.20-12.23); the reversal cue (SMM 16.20 para 65b(2)); the wingman's `+5 G` as a reference (SMM Table 16.1); moving out from close formation (SMM 16.32 para 92, 16.38 para 105; EFIG p.390).
+
+Physics: `381 ft/s` true at `200 KIAS` and `8,000 ft`; `8.4°/s` and `2,600 ft` in Lead's `60°` turn; about `12 ft` of height per ft/s of speed; $V \sin 20^\circ$ about `130 ft/s`; trainer excess acceleration `+1.85 kt/s` at `1 G`, `+0.93 kt/s` at `2 G`, `+0.24 kt/s` at `2.5 G`, `-0.60 kt/s` at `3 G`, `-2.75 kt/s` at `4 G` (sustained `~2.7 G`); the S-turn, least-turn-mix, and pass-height formulas.
+
+Estimates (every other number in this section): the blend times (`6 s` path, `4.3 s` height, `1.5 s` phase weights) and the entry's `10°` and `5°`; the capture `100 ft` and `5°`; the `560 ft` tight edge and `±50 ft` case dead band (`D17`); $k$ (`1 per 420 ft` under `20°`, `1 per 250 ft` under `12°`, slope `0.026°/ft`) and the course gain `0.5 /s` (Fable `D2`, Patrick's card); the bank carry-on's end-bank cap `~70°` and roll-rate filter `~0.2 s`; the cue bands and holds (`D6`); the miss's vertical profile $n_p = 0.5(1 - u)$ and its `3-10 s` cue window (`D4`); the proportional speed loop gain `Kv = 0.3 /s` (no integrator, `D21`, `D23`) and `±15 kt` speed offset clip; the one range time constant $\tau_s = \tau_r = 10\text{ s}$, `kc = 0.5`, `25 → 60 ft/s` soft closure limit, `60 ft/s` offset slew, and `20,000 ft` radius clip; the onset shape `1 + 3u` and the guard's cubic urgency curve $x^3$; `Lead + 1.5 G`, the `0.2 G` soft knee (`D20`), and the cap's opening from `550 → 500 ft`; the side-change hold `3 s`; the return-to-stack `15 s`; the continuous drop-low-inside term (`20 ft/kt` past `5 kt` slow, cap `-300 ft`, `D24`); speed brake `60 / 20 (or 10) ft/s`, `1 s` on-dwell, `3 s` hold (`D8`, `D25`); every technique's cue, plan, hand-back and longest run numbers; the no-restart `3 s`.
+
+### 9. Boundaries
+
+The 4-ship's fighting wing stays on today's law until the 4-ship rung, which comes onto `TS-234` with its own control model first. Fluid manoeuvring and the lag roll are unchanged. The rejoins from fighting wing (`TRJ`, `SARJ`) are `B4`: spec 7d is rewritten as techniques under `TS-234` after `B5`, and `TRJ` moves only if the live one flies at least as well. Close formation (`7b`, `7c`) unchanged, checked on the gauge against the run before each slice (its `0.3 s` and gains untouched). Lead's speed changes are not in this rung's gauge set (future list, `F12`). Lead's own inverted moves in fighting wing are in `future.md`.
+
+### 10. Done
+
+As draft 3 (Patrick 14 Oct 2026: "Lead can maneuver as required in fighting wing and once straight and level 2 settles in the cone. Lead does not wait for 2 at all"). A fighting wing move is over when Lead's is; once Lead is wings level, #2 settles in the cone and the card judges him there (`500-1,000 ft`, `30-60°`, within `200 ft` of Lead's height, `TS-80`). What counts as a failure (`TS-233`): not getting stretched or nipping inside `500 ft` while avoiding, as long as he corrects back toward the ideal.
+
+### 11. Round 5, re-cut into slices (`S0` – `T31`)
+
+**Re-ordered by Fable's `D7` and `3b` §8 (approved, `TS-233`, 14 Oct 2026).** Every slice sits behind `"#2 in fighting wing: Live"` with `Old` the default; keeps the default gauge traces (close formations, fluid, rejoins, Old) byte-identical and the four-ship probe's hashes (`2d5b5a8020839796`) the same; updates `tools/control-map/signals.mjs` model-first (`TARGET_BLOCKS` `B01-B15`, `TARGET_SIGNALS` `S01-S45`); and reports what it removed as well as added (observation `0080`).
+
+**Intermediate slice policy ("close enough for tuning"):** Intermediate build slices (`S2–S7`) verify clean compilation (`npm run build`), control-map integrity (`check.mjs`, `draw.mjs --check`), rig step checks (`fw-rig.mjs`), and default/close-formation/4-ship non-regression so each piece lands "close enough for tuning", while full-sim fighting-wing trace tuning and gate sign-off run once the full loop and technique system is assembled (`S8a–S8b`).
+
+| Slice | Builds | Removes | Acceptance & Gate Focus |
+|---|---|---|---|
+| **S0** Perception on one delay rule & rig lags | Lead `0.4 s` late and dead-reckoned with seen bank run forward by seen roll rate (`D3`, `S03`); own state now; slant closure (`S14`) from velocities; rig steps (`fw-rig.mjs`) measuring turn-rate lag, G lag (`D13`), engine step, and arc/slant closure ripples (`D25`) | `1 s` slant closure smoother (`D11`); unused `historySec`/`wasAt`; whole-picture delays in fighting wing (`R1`) | Default traces unchanged; Live `b5-` within shared margins; lags and ripples recorded (`C11`) |
+| **S1** Reference plumbing, lift cap & shaper | `fw-reference.js` scalar blender (`B08`, `D1`, `D5`); `B13` lift composer reading `S05b` Lead G (`D22`), `minG = 0.5 G` unload-roll-pull, `0.2 G` soft knee (`D20`), trimming positive climb $\Delta G_v$ first, `1 G` hold second, turn last (`TS-233`); `B14` shaper G onset `1 + 3u G/s` (`u = 0` for now); today's law wired to `S25` | Today's `liftWithin` rule that keeps vertical and cuts turn (`R6`); pitch-owner priority as a direct loop switch | Pure refactor on academic/close traces; forced `3.5 G` Lead rig case proves climb vertical gives way before turn (`C1, C8, C11`) |
+| **S2** Normal follower, arc loop & level range hold | `B05` circle/line follower (`20°` out / `12°` in, `Ke = 0.026°/ft`, radius clip `20,000 ft`); `B09` steering (`Kχ = 0.5 /s`, `D2`); `B07` arc loop ($\tau_s = 10\text{ s}, k_c = 0.5$, `±250 ft`, unmet closure `S29b` → `S27g` $\Delta v_{\text{ref}}$, `D9/D21`); `0.3 /s` proportional speed loop (`D21/D23`); add `90°` and `180°` turns (`D26`) | Moving aim point & look-ahead; `lagFirst`; `noseBehind`; `aimTurnSec/Cap` (`R3`); `1.5 s` world aim blend (`R11`); `powerArcSec` (`R5`); swept power term; idle-by-closure switch | Close enough for tuning on `b5-` (`sweep ≥ 30°`) + level stretched release; rig/sketch capture within `±250 ft` with `≤ 1` overshoot (`C2, C3, C4, C5, C11`) |
+| **S3** The guard as a barrier | `B12` single predictor on raw demands (`S31, S32`) up to `10 s`; cubic barrier `600 → 500 ft` ($x^3$); least-change turn/height bounds (`S37, S38`, below by default, `D16`); side hold `3 s` (`S41`); smooth cap opening (`S40`); graded bleed request (`S39`) | `600/700 ft` engage/release lines & `3 s` hold; second predictor (`missSlantFt`, `R8`); `20%` throttle power cut (`R9`); guard owning pitch | Guard active `< 10%` of academic turns, `0%` in steady turn; `550 ft` pass gets `~1.4 G/s` onset (`C1, C3, C6, C7`) |
+| **S3a** Phases & case from Lead's seen roll | `B03` phases (`Level, Entry, Turning, Exit`) from Lead's seen roll with no `1 s` hold, blended `1.5 s`; reversal = `Exit → Entry`; case label (`S22`, `±50 ft` dead band, `D17`) setting exit side, Patrick's turn-entry case placement, and abeam gating, blended `≥ 6 s` (`D5`) | Legacy `fwJob` state machine & `1 s` `turnHoldSec` (`R7`); level `quickFix` height switch | Phase transitions clean across turns and reversals, zero phase flicker (`C3, C6`) |
+| **S3b** Technique picker, vertical profile & the miss | `B04` picker (priority, `3 s` no-restart, max run, blend `S23`); `B10` height-rate target term ($\dot{h}_T - \dot{h}$, `D1`); `techniques/miss.js` (`T1`: $p < 600\text{ ft}$ in `3-10 s`, depth $h = \sqrt{625^2 - p^2}$, profile $n_p = 0.5(1 - u)$ flown via `minG = 0.5 G` unload-roll-pull — roll and pull positive G, never 0/neg G — least turn mix `D4`, picture intent); `check.mjs` `B06` rule | Legacy `pass-clear` / `in-and-down` pitch-owner relays (`guard.missFt`, `ownerHold`) | `b5-into-tight`: vertical first below, seat G `≥ 0.5 G`, pass `~625 ft`, recaptures from outside; `check.mjs` enforces `B06` writes only `S24/S26` (`C1, C3, C6, C7`) |
+| **A1** Structure audit 1 | Read-only audit after `S3b`: single-writer `C1`, line-by-line removal check (`0080`), `B08` reversal continuity | — | Audit report filed before `S4` |
+| **S4** Energy intent, power feed-forwards & drop-low | Complete `B11` power law (drag of commanded G `S44`, climb `S27c`, speed-brake drag, roll-in lead, `0.3 /s` speed loop on $V_L + \Delta v_{\text{ref}} - V$, intent/bleed bias, `D21/D23`); speed brake `S34` only under bleed (`D8/D25`); continuous drop-low-inside height term in `B05` (`20 ft/kt` past `5 kt` slow, cap `-300 ft`, counted past `100 ft`, `D24`) | Low-inside MAX/`-300 ft` relay; `downPower` 20% relay; `ac.speedHold` separate wanted-speed chain in FW (`R4`) | All `15/15` blocks & `53/53` signals built; within `15 KIAS` at roll-out (`30 s` turns) or end of `30 s` settle (`90-180°` turns, `D26`) (`C1, C3, C6, C9, C11`) |
+| **S5** Exit vertical & S-turns | `techniques/exit-vertical.js` (`T6`: dive/climb inside `500-1,000 ft` cone, `12 ft per ft/s`) and `techniques/s-turns.js` (`T7`: alternating cone weave); `b5-level-tight` case | Legacy `sTurn` switch in `fighting-wing.js` and remaining `300 ft`-low exit holds | Settles within `200 ft` height band (`TS-80`) and cone within `30 s` (`C1, C3, C6`) |
+| **S6** Abeam band & lag pursuit from abeam | Widen FW manoeuvre gate to `sweep ≥ 0°` within `500-1,000 ft` (`TS-233`, `R14`); `techniques/lag-abeam.js` (`T3`: lag pursuit to `650 ft` behind Lead, pass height $D = 625\text{ ft}$, geometric track-crossing reversal cue first + LOS-rate backup `D18`); move `b5-into-abeam` to truly abeam (`5-10°`) | Refusal of Lead's turn presses at `0-15°` sweep (`R14`) | `b5-into-abeam`: `0 s` banking with Lead into him, never ahead of 3/9 line, captured behind Lead (`C1, C3, C6, C7`) |
+| **S7** High yo-yo, cut-across & back behind 3/9 line | `techniques/yo-yo.js` (`T4`: climb in turn, ends on circle behind Lead **stacked low**), `techniques/cut-across.js` (`T5`: `> 1,000 ft` opens inward cap to `45°`), `techniques/behind-39.js` (`T2`: hot-rejoin-style steep bank in and down behind Lead); `b5-away-very-stretched` case | Legacy `fwYoYo` block in `fighting-wing.js` | All 7 in-flight techniques (`T1–T7`) built and rare in academic set (`C1, C3, C6, C7, C10`) |
+| **A2** Structure audit 2 | Read-only audit after `S7`: `C10` number/switch count (`D15`), technique rarity, removal ledger, `numbers.md` sources | — | Audit report filed before `S8a` |
+| **S8a** `T29b`: Climbs and descents | Tilt reference path and `-50 ft` stack with Lead's seen flight-path plane (`B02, B05, B10`) | Level-plane-only height assumptions during Lead climbs/descents | Full-sim `b5-climb` and `b5-descent` pass under `Lead G + 1.5 G`, in cone throughout (`C1–C9`) |
+| **S8b** `T29d`: Aggressive Lead (to 4 G, 90°/s, reversals) | `b5-hard-*` gauge set (`3-4 G`, `90°/s` roll-ins, back-to-back reversals) and full-system tuning across academic and aggressive sets (`D14, D26`) | — | Full academic `b5-` and aggressive `b5-hard-*` sets pass all gates (`C1–C11`), accounting for physical `3-4 G` bleed |
+| **T29r** Controller HUD readout | Closed-by-default HUD drop-down (phase, active technique, loop shares) + `tools/flight-plot/` turn-centre phase-plane (`D3b`) | — | Seen in 2D/3D (closed by default); traces byte-identical |
+| **T30** Blended hand-over close ↔ FW & `T8` | Range-phased authority blend (`100 → 250 ft`, bumpless) + `techniques/moving-out.js` (`T8`); fix hand-over pitch-rate/roll flicks | Hard step switches at close-to-FW hand-overs | Zero pitch-rate or roll jumps on echelon/route ↔ FW; red pitch-rate test passes (`C1, C6`) |
+| **CR** Whole-B5 code review | Read-only review of complete B5 diff against `AGENTS.md`, `spec.md`, `TS-233`, `TS-234`, `control-model.md`, `numbers.md` | — | All findings resolved before `T31` |
+| **T31** B5's one test, docs & Checkpoint G | One end-picture unit test (`tests/unit/turn-sim/`), 2 Jun 2026 4-ship Lead replay comparison, final docs & **Checkpoint G** with Patrick | — | Patrick flies Fighting Wing Live at Checkpoint G and signs off B5 |
+
+### 12. Questions for Patrick, all answered and resolved (14 Oct 2026)
+
+1. ~~**The technique list:**~~ **Answered and resolved (14 Oct 2026, TS-233):** All eight techniques (`T1` the miss, `T2` back behind the 3/9 line, `T3` lag pursuit from abeam, `T4` the high yo-yo ending stacked low, `T5` the very-stretched cut-across, `T6` the exit vertical, `T7` S-turns, and `T8` moving out from close formation at `T30`) and their priority order are approved.
+2. ~~**Two readings from 14 Oct, plus Fable 3b's three questions:**~~ **Answered and resolved (14 Oct 2026, TS-233):**
+   - Cone drift is allowed while relaxing to recapture Lead's circle.
+   - From abeam with Lead turning in, `#2` flies lag pursuit toward Lead's tail, makes the miss, then reverses onto Lead's circle as he crosses behind Lead's track (`D18`).
+   - Turn-entry reaction by case: stretched with Lead turning in flies straight ahead until on the circle wanted; tight with Lead turning away flies ahead a bit or pulls gentle lag (`d` slightly outside); fastest reaction when tight with Lead turning in (the miss) or stretched with Lead turning away (inside lead circle with gain intent, or cut across past `1,000 ft`).
+   - The miss never pushes to `0 G` or negative G (`minG = 0.5 G` floor stands): ordinary drop unloads to `~0.5 G` (or relaxes G in the turn), urgent drop **rolls (overbanking if required) and pulls positive G** along the vertical profile (`D4`, `3b` §7).
+   - One `10 s` range constant ($\tau_s = \tau_r = 10\text{ s}$) with unmet closure feeding a `0.3 /s` proportional speed loop (no integrator, `D21`, `D23`); continuous drop-low-inside height term (`20 ft/kt` past `5 kt` slow, cap `-300 ft`, counted past `100 ft`, `D24`); `90°` and `180°` turns added from Slice 2 with `±15 KIAS` judged at the end of the `30 s` exit settle (`D26`).
+   - Earlier 14 Oct answers: reaction `0.4 s`; happy `600-650 ft`; swept `625 ft` at `45°`, `50 ft` below; moving out from close formation in this rung (`T30`); opening check turn with the line abreast rung; `500 ft` is slant range; the miss below, above only if already `> 100 ft` high; the guard may pull past the estimate, flagged; no Terminate (correct out firmly); done: Lead never waits, `#2` settles in the cone once Lead is level.
+
+#### Untested, unseen and unsure (entering Slice 0)
+
+- The linear loop margins hang on two lags `Slice 0` measures on the rig (`tools/fw-rig.mjs`, Fable `3b` §9): the turn-rate lag (if `> 0.52 s`, steering falls back from `0.5 /s, 0.026°/ft` to `0.4 /s, 0.13 /s`) and the vertical G lag (`D13`), plus the un-smoothed dead-reckoned slant closure ripple (`D25`, which sets the speed brake's in-level to `10 ft/s` if ripple `> 20 ft/s`, else `20 ft/s`).
+- Nothing in Round 5 (`S0–S8b`) is built or flown yet; intermediate slices (`S2–S7`) target "close enough for tuning" and full-sim trace tuning runs once the full system is assembled.
+- The blender's behaviour across a mid-turn reversal (`circle → line → opposite circle`) is verified in `S3a` and Structure Audit `A1`.
+
 ## 8. Fighting wing
 
 **The cone** (SMM 12.29 para 69, Fig 12.19): 500-1,000 ft and 30-60° of sweep from Lead's wing line, 0° abeam. Fighting wing may use the whole cone, high or low, in every move (Patrick 5 Oct 08:54Z, 08:58Z: "the whole cone can be used"; in position up to 200 ft above or below Lead, TS-80). The tracker's last leg into fighting wing aims for the nearest point of the cone and, once inside, holds where #2 arrives (`fwGoal`), instead of the one slot (TS-83). The place is a default, a setting (below) and a reference: the sim flies outside the SMM band and flags it.
@@ -226,7 +1145,7 @@ Lead flies the button's turn and each wingman keeps his place in Lead's wing pla
 - #2 collapses toward Lead's six on Lead's turn circle while Lead's bank is past about 32-42° (estimates), but only in turns of 45° or more, so the 20° check turn keeps his side and sweep (AFM7 brief p.14 item 5a; Patrick 06:44Z agreed "the fighting wing collapse tied to turn size, not bank"). He uses the turn in and the turn out to fix tight or stretched; whatever is left is judged against the band. He climbs and descends with Lead.
 - A following wingman has no bank cap but the G rule (Patrick 06:16Z item 11: "No, unlimitedf"); his speed stays within 15 KIAS of Lead's (power only a little: geometry does the rest, Patrick 19:12Z). These apply to the 4-ship's fighting wing turns too (section 14).
 
-- **#2 can fly the fighting wing moves live** (TS-202; Patrick 12 Oct 2026 08:15Z, card "FW on live law"). Since TS-212 (Patrick flew it, 12 Oct 2026) the live law is the only one for these moves and the "#2 in fighting wing: Tracker / Live" setting is gone; for now the 4-ship's fighting wing keeps both as two separate sets of buttons, the turn buttons on the tracker and Lead's moves on the live law. In Lead's fighting wing moves (level turn, reversal, wings level, climb, descend), in the 2-ship and the 4-ship, **every wingman flies Lead's turn circle** (TS-208, Patrick's yes 12 Oct 2026 17:22Z): the path Lead flew, worked out from Lead's bank and speed where he flew it, so a wingman further back reverses and rolls out where Lead did. He aims about 650 ft of arc behind the one ahead (#2 behind Lead, #3 behind #2, #4 behind #3; SMM 16.38 para 104) and never closer than 500 ft (Patrick 16:49Z; 17:32Z "Yes 500 and stack is a technique that works"). He holds it with lead, lag and pure first (where he sits across Lead's circle), then height in the cone, then power within 15 KIAS of Lead (SMM 12.29 para 69; EFIG p.391). In a turn into him, if lag and height can't hold 500 ft, the lag carries him across the tail of the one ahead and he takes the other side; nothing commands a side, it comes from the flying. Once Lead is level he settles in the cone off the one ahead (500-1,000 ft, 30-60° of sweep, SMM 12.29 para 69), where he is if inside it, else its nearest point, on whichever side he is, 50 to 100 ft below the one ahead (estimate; Patrick 17:16Z). Range to the other aircraft is shown on screen (card and tags), not steered on; each misses the one ahead (SMM 16.39 para 107). The move is run ahead at the press against Lead's planned flight and replayed, so the drawn path is the path flown. Lead's flying is unchanged, and so is fluid manoeuvring. Changes into and out of fighting wing stay on the tracker, so the 4-ship's change into fighting wing still ends anywhere in the cone on the altitude stack, not yet at 650 ft and 50-100 ft below (`future.md`). (TS-202, TS-208; `live/fw-live.js`.)
+- **#2 can fly the fighting wing moves live** (TS-202; Patrick 12 Oct 2026 08:15Z, card "FW on live law"). Since TS-212 (Patrick flew it, 12 Oct 2026) the live law is the only one for these moves and the "#2 in fighting wing: Tracker / Live" setting is gone; for now the 4-ship's fighting wing keeps both as two separate sets of buttons, the turn buttons on the tracker and Lead's moves on the live law. In Lead's fighting wing moves (level turn, reversal, wings level, climb, descend), in the 2-ship and the 4-ship, **every wingman flies Lead's turn circle** (TS-208, Patrick's yes 12 Oct 2026 17:22Z): the path Lead flew, worked out from Lead's bank and speed where he flew it, so a wingman further back reverses and rolls out where Lead did. He aims about 650 ft of arc behind the one ahead (#2 behind Lead, #3 behind #2, #4 behind #3: the order from SMM 16.38 para 104, which gives no distance; the 650 ft is Patrick's, 4 Oct 11:44Z, slots.js FW4) and never closer than 500 ft (Patrick 16:49Z; 17:32Z "Yes 500 and stack is a technique that works"). He holds it with lead, lag and pure first (where he sits across Lead's circle), then height in the cone, then power within 15 KIAS of Lead (SMM 12.29 para 69; EFIG p.391). In a turn into him, if lag and height can't hold 500 ft, the lag carries him across the tail of the one ahead and he takes the other side; nothing commands a side, it comes from the flying. Once Lead is level he settles in the cone off the one ahead (500-1,000 ft, 30-60° of sweep, SMM 12.29 para 69), where he is if inside it, else its nearest point, on whichever side he is, 50 to 100 ft below the one ahead (estimate; Patrick 17:16Z). Range to the other aircraft is shown on screen (card and tags), not steered on; each misses the one ahead (SMM 16.39 para 107). The move is run ahead at the press against Lead's planned flight and replayed, so the drawn path is the path flown. Lead's flying is unchanged, and so is fluid manoeuvring. Changes into and out of fighting wing stay on the tracker, so the 4-ship's change into fighting wing still ends anywhere in the cone on the altitude stack, not yet at 650 ft and 50-100 ft below (`future.md`). (TS-202, TS-208; `live/fw-live.js`.)
 
 **Energy with the cone** (TS-96; Patrick 5 Oct 22:45Z: "energy can be managed with the cone"; 23:02Z: "Use the cone as required, power as a last resort"; also 23:02Z "in fighting wing a common way to bleed energy is to S turn left and right if required", not built: `future.md`): on the power profile in fighting wing the tracker takes a slowing first as a climb and a speeding up as a descent, inside the cone's height (up to 150 ft above or below Lead, 50 ft inside the in-position band; climb no faster than 30 ft/s, eased at about a quarter G, charged as G; estimates in `moves.js` `FW_ENERGY`), so the throttle moves only for what the height can't give. The power on the tags counts the climb's cost.
 
@@ -258,10 +1177,10 @@ Patrick 4 Oct 21:44Z: "lets get a working baseline thats simplified, if required
 - **Wings level:** Lead rolls out and holds height.
 - **Reversal** (Patrick's list; not a manual manoeuvre): Lead rolls through to the same bank the other way. With Lead wings level it is refused with the reason ("press a level turn first").
 - **Climb and Descend** (TS-59; Patrick's list, design 5.1; not FM manoeuvres in the manuals): Lead changes only his pitch, 15° up or down (estimate) through 2,000 ft (estimate), then levels off and holds the new height, keeping the bank he had. PCL stays MAX (SMM 16.17 para 43): the speed bleeds in the climb and builds in the descent. The nose moves at no more than 3°/s and the push over keeps 0.5 G (estimates; Lead keeps positive G, 2 CFFTS Orders B2 ch 8 para 1a). Cut short by the next press.
-- **Loop** (TS-59; SMM 7.5 paras 10-13, Fig 7.2, Table 7.1; EFIG p.170-171): Lead rolls wings level on the heading he has and gets to 230 KIAS at MAX by lowering or raising the nose up to 10° (the SMM says to attain 230, not how: estimate), then pulls 3.5 G wings level (EFIG p.171, inside the SMM's 3-4 G) until near the vertical (80°, estimate), then keeps the nose moving at a constant rate: the G bleeds off with the speed, slight positive G over the top (0.5 G at least, estimate; about 100-120 KIAS there, EFIG p.171), up to 4 G coming down (the Orders' 4 G), and the pull-out to level at about 230 KIAS (para 12). About 2,500 ft of height (SMM 7.1 para 6: about 3,000). A press during the loop waits for its end.
-- **Wingovers** (TS-60; SMM 16.17 para 47, the only text: no figure in the SMM or the EFIG): the speed set-up to about 230 KIAS as for the loop, then the pull up at about 3 G (para 47 gives a pitch rate like the cloverleaf's; SMM Table 7.1 2.5-3.5 G, EFIG p.137 about 3 G), the nose to about 45° above the horizon, over the top at the most bank (about 120°, the most para 47 allows) and the highest point 90° round, about 45° below, then the pull up to level on a heading 180° from the entry. The second wingover rolls the other way and ends level on the entry heading (para 47: ideally rolled the opposite way). Lead flies it as a planned nose path with the nose rate set for about 3 G, a little less near the stick shaker (90% of it, estimate); the bank and the 3 G come out of the path. PCL MAX. About 40 s for the two; the exit speed is shown but the SMM gives none (about 215-220 KIAS in the sim). L or R is the first wingover's roll.
-- **Barrel roll** (TS-60; SMM 14.8 paras 18-19, Fig 14.1, Table 14.1; Patrick's picks 19:20Z rows 5 and 6): the speed set-up to 230 KIAS on the heading Lead has, PCL MAX, a 3 G wings-level pull with the roll blended in, the nose round a 45° circle about a point on the horizon 45° off the line toward the roll (para 18): 45° pitch up at 45° off the line, **level and inverted at 90° off** (para 19; row 5), 45° pitch down at 45° off, then level on the line. The back pressure comes off over the top to 2.25 G (estimate, brings the exit back to about 230 KIAS; Fig 14.1 has the rate adjusted for a 230 KIAS exit) and goes back to 3 G coming down. The bank at the 45° points comes out at about 75° (the SMM says 90°): a coordinated aircraft whose nose follows the circle needs some of its lift upward there. Lead's pitch over 60° is flagged during the roll (AFM7 brief p.17, Exercise 4; row 6), never held; the roll peaks at about 48° of pitch attitude. About 20 s.
-- **Standard sequence** (TS-60; SMM 16.17 para 42, as written there): a level turn, a loop, two wingovers and a barrel roll, each with its own speed set-up into the next. Before the loop's pull Lead holds wings level for 5 s after the 360, so #2 has rolled out and is set for the pull (TS-198; 3 s until V2.382). The level turn is at the chosen bank (60/2 by default; AFM7 brief p.17, Exercise 1) for 360° (Patrick card 5 Oct 01:03Z: "360°", and "360 and the wingman uses it to set their spacing"). #2 sets his spacing in it: a new distance setting, or a place he is not yet on, is eased in over the rest of the turn (never quicker than the usual 6 s). L or R is the turn's way and the roll direction of the wingovers and the barrel roll. The card names each part; a press waits for the whole sequence (about two and a half minutes).
+- **Loop** (TS-59, TS-213, TS-221, TS-224; SMM 7.5 paras 10-13, Fig 7.2, Table 7.1; EFIG p.170-171; V2.424): PCL MAX, so no speed set-up. Lead rolls wings level, holds level, and pulls at whatever speed he has; under 200 KIAS he refuses the press (TS-221). The pull is 3.5 G (EFIG p.171) but no more than 17 units AOA (Patrick 12 Oct 2026: the shaker at 15 units, ease on to 17; the 18-unit stall, SMM 14.14 para 33; 17 units taken as about 95% of the stall line's G, an estimate): from 230-240 KIAS 3.5 G holds to about 80-85° nose up, then he rides 17 units to the vertical. At 90° he holds the nose rate he has, its change carried on, so nothing steps (TS-221). From there, every 0.25 s, he predicts his exit speed for a nose rate and eases toward the rate that gives his entry speed (SMM 7.5 para 12: adjust back pressure for the exit), under 4 G (Lead's limit, Gen Book p.11), never under 0.5 G over the top (it flies about 1 G there by itself). Alone he eases from 4 G onto 1 G on the horizon over about 3 s. Flown at 8,000 and 12,000 ft from 200 to 250 KIAS: out within 4 kt of the entry, about 90-120 KIAS over the top, about 160 KIAS and 3.3 G at the vertical from 240, about 24-29 s. The card shows the entry and exit, and a note if the exit is more than 5 kt off (estimate). EFIG p.171's "30 kt short at 30° nose down" cannot be met under 4 G (about a 2 G pull-out); Patrick's recorded loop is the check (Pat's claude work/formation-review-12oct/research/loop-design.md). A press during the loop waits for its end.
+- **Wingovers** (TS-60; SMM 16.17 para 47, the only text: no figure in the SMM or the EFIG): PCL MAX and no speed set-up: from the speed Lead has (TS-215), the pull up at about 3 G (para 47 gives a pitch rate like the cloverleaf's; SMM Table 7.1 2.5-3.5 G, EFIG p.137 about 3 G), the nose to about 45° above the horizon, over the top at the most bank (about 120°, the most para 47 allows) and the highest point 90° round, about 45° below, then the pull up to level on a heading 180° from the entry. The second wingover rolls the other way and ends level on the entry heading (para 47: ideally rolled the opposite way). Lead flies it as a planned nose path: each climbing half with the nose rate set for about 3 G, a little less near the stick shaker (90% of it, estimate); each descending half at the nose rate the exit predictor picks for the entry speed, as the loop's (TS-215, V2.424), so each wingover ends at the speed it began (within 1 kt in the runs). The bank and the 3 G come out of the path. About 40 s for the two. L or R is the first wingover's roll.
+- **Barrel roll** (TS-60; SMM 14.8 paras 18-19, Fig 14.1, Table 14.1; Patrick's picks 19:20Z rows 5 and 6): PCL MAX, from the heading and the speed Lead has (TS-215, no speed set-up), a 3 G wings-level pull with the roll blended in, the nose round a 45° circle about a point on the horizon 45° off the line toward the roll (para 18): 45° pitch up at 45° off the line, **level and inverted at 90° off** (para 19; row 5), 45° pitch down at 45° off, then level on the line. The back pressure comes off over the top to 2.25 G (estimate) and the descending half flies the nose rate the exit predictor picks for the entry speed (TS-215; Fig 14.1 has the rate adjusted for the exit). The bank at the 45° points comes out at about 75° (the SMM says 90°): a coordinated aircraft whose nose follows the circle needs some of its lift upward there. Lead's pitch over 60° is flagged during the roll (AFM7 brief p.17, Exercise 4; row 6), never held; the roll peaks at about 48° of pitch attitude. About 20 s.
+- **Standard sequence** (TS-60; SMM 16.17 para 42, as written there): a level turn, a loop, two wingovers and a barrel roll. The loop flows into the wingovers and they into the barrel roll, still pulling, with no unload or 1 G pause between them: each part starts at the speed and nose rate the last one handed it and ends at that speed (TS-215, V2.424), so the sequence ends within a few knots of the loop's entry. If Lead is under 200 KIAS after the 360 he holds wings level at MAX until he has it (an estimate; he always has so far). Before the loop's pull Lead holds wings level for 5 s after the 360, so #2 has rolled out and is set for the pull (TS-198; 3 s until V2.382). The level turn is at the chosen bank (60/2 by default; AFM7 brief p.17, Exercise 1) for 360° (Patrick card 5 Oct 01:03Z: "360°", and "360 and the wingman uses it to set their spacing"). #2 sets his spacing in it: a new distance setting, or a place he is not yet on, is eased in over the rest of the turn (never quicker than the usual 6 s). L or R is the turn's way and the roll direction of the wingovers and the barrel roll. The card names each part; a press waits for the whole sequence (about two and a half minutes).
 - **Terminate** (SMM 16.17 paras 45-46, 48; AFM7 brief p.17; Patrick's pick row 7; Patrick 12 Oct 2026 04:33Z: "as soon as the aircraft are back in fighting wing position its roll out and move on, not 'finish a turn'"): Lead flies a gentle, predictable 30° turn (estimate), the way he is already turning or away from #2 if wings level, with the power back to fighting wing's 200 KIAS. He rolls out as soon as #2 is due back in fighting wing (his time back at the close-in rate, about 12 s, at least 3 s), or after 90° (estimate) if that comes first, never at the end of a set turn. #2 goes back to his fighting wing place on the side he is on. Then the pair is in fighting wing and the card judges it. Rejoin to a close formation is its own Change formation button (row 7).
 
 **#2, the planned wingman (retired, TS-199, V2.384; what follows is how he flew until then, kept as the record of TS-57, TS-59, TS-60 and TS-74; today's #2 is the live wingman below).** ("go where Lead was and do what Lead did", EFIG p.391). He flies along Lead's own path a few seconds behind him at the set straight-line distance (Patrick's pick row 4: range is the straight line), with two offsets, and his speed comes from energy (below).

@@ -13,7 +13,7 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, easeValue, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
-import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL, thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, rollLimitsAtKtasT6A, rollWithinT6A, stallLimitG, T6A_G_ONSET, T6A_ROLL, thrustPerWeight, dragPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
@@ -28,6 +28,8 @@ export { ROLL };
  * gentler rate) and the T-6A's own at that speed (core rollWithinT6A, estimates; TS-85).
  */
 export const rollLimitAt = (tasFtps, roll = ROLL) => rollWithinT6A(roll, tasFtps / KT_TO_FTPS);
+/** A planned roll's limits with its firm-up brake: the hardest the T-6A rolls at this speed, never less than the roll's own (core easeRoll brakeAccelDps2). */
+const plannedLimits = (limits, tasFtps) => ({ ...limits, brakeAccelDps2: Math.max(limits.maxAccelDps2, rollLimitsAtKtasT6A(tasFtps / KT_TO_FTPS).maxAccelDps2) });
 
 /**
  * The roll acceleration an aircraft carries into this step (degrees per second²), or undefined for one whose roll does not
@@ -61,11 +63,13 @@ export { G_ONSET_CEILING };
  *   - stall: never steeper than the bank whose G the speed can give (core stallLimitG; 86 KIAS 1 G stall, Patrick's).
  * A planner may ask for anything; the aircraft flies only this. tasFtps and kias are the aircraft's now. accelDps2: the
  * roll acceleration the aircraft carries (carriedRollAccel), built over the T-6A's onset (core T6A_ROLL.onsetSec,
- * Patrick's 0.2 s, TS-196); undefined rolls without it (every aircraft but the wingmen the pilot flies). Returns easeRoll's
- * { bankDeg, rollRateDps, rollAccelDps2 }.
+ * Patrick's 0.2 s, TS-196); undefined rolls without it (every aircraft but Lead and the wingmen the pilot flies). plannedStop:
+ * the roll-out planned so it never rolls past (core easeRoll; Lead's, a.plannedRoll). Returns easeRoll's { bankDeg,
+ * rollRateDps, rollAccelDps2 }.
  */
-export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, accelDps2 = undefined) {
-  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2 };
+export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias, accelDps2 = undefined, plannedStop = false) {
+  const base = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, accelDps2, plannedStop };
+  const limits = plannedStop ? plannedLimits(base, tasFtps) : base;
   // A rate handed in faster than the aircraft rolls (a replayed pose's own) is taken at the aircraft's.
   const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps ?? 0));
   let target = targetDeg;
@@ -267,10 +271,11 @@ function stepTurnRad(tasFtps, fromDeg, toDeg) {
 /**
  * How much the heading still changes (radians, signed) if the wings are rolled level from here, at the roll limits `roll`
  * (under the T-6A's, rollLimitAt). accelDps2: the roll acceleration carried (carriedRollAccel), so the roll-out is the one
- * the gate flies, built over the same onset; undefined for a roll without it.
+ * the gate flies, built over the same onset; undefined for a roll without it. plannedStop: as gateRoll's.
  */
-export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL, accelDps2 = undefined) {
-  const limits = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec };
+export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL, accelDps2 = undefined, plannedStop = false) {
+  const base = accelDps2 === undefined ? rollLimitAt(tasFtps, roll) : { ...rollLimitAt(tasFtps, roll), onsetSec: T6A_ROLL.onsetSec, plannedStop };
+  const limits = plannedStop ? plannedLimits(base, tasFtps) : base;
   let bank = bankDeg;
   let rate = rollRateDps;
   let acc = accelDps2 ?? 0;
@@ -461,9 +466,25 @@ export function speedAt(leg, t) {
 
 /**
  * A turn's gentler roll-out (seg.rollOutRoll: Lead's, with a close wingman in his wing plane; TS-126), once his roll-in has
- * settled to no faster than it: until then his own roll, so the gentle stop is never planned from a quick roll-in.
+ * settled to no faster than it, in rate and in the roll acceleration he carries (13 Oct 2026: a brisk roll-in's 150°/s²
+ * planned against the echelon roll-out's 12°/s² ran away): until then his own roll, so the gentle stop is never planned
+ * from a quick roll-in.
  */
-const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <= seg.rollOutRoll.maxRateDps + 1e-9 ? seg.rollOutRoll : null);
+export const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <= seg.rollOutRoll.maxRateDps + 1e-9
+  && Math.abs(carriedRollAccel(a) ?? 0) <= seg.rollOutRoll.maxAccelDps2 + 1e-9 ? seg.rollOutRoll : null);
+
+/**
+ * One Lead aircraft (TS-225, Patrick 12 Oct 2026): Lead's programme flown on the point mass by his pilot step
+ * (lead-pilot.js), which registers itself here so this file needs no import of it. It is called for an aircraft marked
+ * pointMassLead (formation.js's 2-ship Lead) and returns true when it flew the step; false (the switch off,
+ * lead-moves.js LEAD_PILOT.onePointMass) leaves the step to the programme below, unchanged.
+ */
+/** @type {((a: any, plan: any, t: number) => boolean) | null} */
+let leadPilot = null;
+/** @param {(a: any, plan: any, t: number) => boolean} fn */
+export function setLeadPilot(fn) {
+  leadPilot = fn;
+}
 
 /**
  * Flies one step. `plan` is the aircraft's { segments, profile } and is used up as
@@ -491,6 +512,7 @@ const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <=
  * With no segments left the aircraft flies straight and level.
  */
 export function stepAircraft(a, plan, t) {
+  if (a.pointMassLead && leadPilot && leadPilot(a, plan, t)) return; // TS-225: Lead on the point mass when the switch is on
   const dt = STEP_SEC;
   const seg = plan.segments[0];
   let targetBank = 0;
@@ -526,7 +548,7 @@ export function stepAircraft(a, plan, t) {
         }
       } else {
         // Roll out early enough that the wings come level on the target heading.
-        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll, carriedRollAccel(a)));
+        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll ?? plan.roll ?? a.techRoll, carriedRollAccel(a), a.plannedRoll));
         const thisStep = Math.abs(turnRateFromBankRadPerSec(a.tasFtps, a.bankDeg)) * dt;
         if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
       }
@@ -600,7 +622,7 @@ export function stepAircraft(a, plan, t) {
   // A turn segment may roll gentler (a close formation Lead); never past the envelope gate (gateRoll: the T-6A's roll at
   // this speed, TS-85; G onset and stall, TS-93).
   const accel0 = carriedRollAccel(a);
-  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || ROLL, tasBefore, a.kias, accel0);
+  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || plan.roll || a.techRoll || ROLL, tasBefore, a.kias, accel0, a.plannedRoll);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   if (accel0 !== undefined) keepRollAccel(a, rolled.rollAccelDps2);
@@ -640,7 +662,7 @@ export function stepAircraft(a, plan, t) {
  * that share (1 in a level turn, where G = 1 / cos(bank)). Shown as the pilot's picture, less the fuselage datum (core
  * attitudeDegFromClimb; Patrick 6 Oct 06:20Z, "Both modules", TR-91): about -0.5 to -1° level at 220 KIAS.
  */
-function pitchAboveHorizonDeg(a) {
+export function pitchAboveHorizonDeg(a) {
   return attitudeDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
 }
 
