@@ -1,12 +1,13 @@
 // The Debrief Viewer (specs/SPEC-debrief.md): load up to four ForeFlight
-// tracks or the example flight, see them on the map, and play them back.
+// tracks or the example flight, see them on the map, and play them back. Five to 16 tracks load as an exercise of up to
+// four flights (DB-37, exercise.js), each judged as a four-ship on its own.
 // mount() builds the screen and wires the flight, the clock and the map
 // together; everything it starts is stopped by the shell when it closes (R4).
 import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { loadFlight } from '../../flight-data/load.js';
+import { loadFlight, MAX_SHIPS } from '../../flight-data/load.js';
 import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
 import { sampleAt, headingAt } from '../../flight-data/flight.js';
@@ -15,7 +16,7 @@ import { fillGapsInSteps } from '../../flight-data/gap-fill.js';
 import { windVectorFtps } from '../../core/wind.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { LAYOUT_DEFAULTS, checkPicked } from './state.js';
-import { readoutsAt, formationAt, mapLabel } from './readouts.js';
+import { readoutsAt, mapLabel } from './readouts.js';
 import { createStandardsPanel } from './standards-panel.js';
 import { createLayout, shipSwatch } from './layout.js';
 import { createPuckPanel } from './puck-panel.js';
@@ -60,6 +61,10 @@ import {
   dropStorageKey, readDropPlace, dropForFile, dropFromFile, runInFor, zoneShape,
 } from './drop.js';
 import { TERRAIN_ZOOM } from './terrain-heights.js';
+import {
+  SHIPS_PER_FLIGHT, isExercise, perFlight, choicesOf, fillPerFlight, readoutsByFlight, formationByFlight, shipLook, readCrew, crewStorageKey,
+  CREW_FILE_RULES, crewForFile, crewFromFile, flightOf, flightGroups,
+} from './exercise.js';
 import { latLonToLocalFt, localFtToLatLon, lonLatToTile } from '../../core/geo.js';
 import { headingRadToCompassDeg } from '../../core/angles.js';
 import { formatZuluSeconds } from '../../core/time.js';
@@ -88,7 +93,7 @@ function mount(root, app) {
   const tennisPanel = createTennisPanel({ controls, layout });
   const dropPanel = createDropPanel({ controls, layout, on: dropActions() });
   const puckPanel = createPuckPanel({
-    layout, swatch: shipSwatch,
+    layout, swatch: (slot) => shipSwatch(slot, look), label: (slot) => look.label(slot),
     on: {
       set: (slot, seat) => setPuck(slot, seat),
       setTimestamps: (slot, value) => setTiming(slot, { recorded: value === 'recorded' }),
@@ -105,6 +110,20 @@ function mount(root, app) {
   root.append(ui.element);
 
   let flight = null;
+  // A large exercise (DB-37): the flights' call signs and aircraft ({ f: { callSign?, type? } }), where they are kept in
+  // this browser, and how the shown flight's ships look and are named (exercise.js shipLook; #1 to #4 for four or fewer).
+  let crew = {};
+  let crewKey = null;
+  let look = shipLook(null);
+  const refreshLook = () => {
+    look = shipLook(flight, crew);
+  };
+  /** The watched flight (DB-37): the flight of the ship the 3D camera rides, if it has ships; else the first. 1 for four or fewer. */
+  function watchedFlight() {
+    if (!look.exercise) return 1;
+    const f = flightOf(layout.get().cockpitShip3d);
+    return look.flights.some((g) => g.f === f) ? f : look.flights[0]?.f ?? 1;
+  }
   // The GPS puck (DB-23): the flight as loaded, each ship's puck seat ({ slot: 'front' | 'rear' }), and where they are
   // kept in this browser. `flight` is baseFlight with each ship moved from its puck (the same object when none is set).
   let baseFlight = null;
@@ -132,7 +151,13 @@ function mount(root, app) {
     } catch (err) {
       if (err?.name !== 'KmlError') throw err; // shifted so far the tracks no longer overlap: as recorded
     }
-    return withAltitudes(withPucks(timed, p), a, terrainNow());
+    // The altitude check is worked out within each flight of an exercise (its mean height stays as recorded, DB-37).
+    const terr = terrainNow();
+    const moved = withPucks(timed, p);
+    if (!isExercise(moved)) return withAltitudes(moved, a, terr);
+    return perFlight(moved, (sub, f) => withAltitudes(sub, choicesOf(a, f), terr), (results) => ({
+      altitudeCheck: { ...results[0].out.altitudeCheck, perFlight: true },
+    }));
   };
   /** The terrain heights under the shown flight's ground fixes; a landing (or a failure) checks the flight again. */
   function loadTerrain(shown) {
@@ -311,9 +336,12 @@ function mount(root, app) {
       ui.setWeatherNote(!on.wxSatellite || !flight || !clock ? ''
         : satelliteNote({ kept: satelliteKept(flight.endT, Date.now() / 1000), state, frameT: source?.frameT, t: clock.t }));
     },
+    look: () => look,
+    watched: () => watchedFlight(),
     labels: (shown, t) => {
       const out = {};
-      for (const row of formationAt(shown, t, currentStandards())) {
+      // Each flight judged on its own ships (DB-37); a four-ship load is formationAt itself.
+      for (const row of formationByFlight(shown, t, currentStandards())) {
         const label = mapLabel(row);
         if (label) out[row.slot] = label;
       }
@@ -322,6 +350,8 @@ function mount(root, app) {
   });
 
   const view3d = createView3d(ui.canvas3d, {
+    look: () => look,
+    watched: () => watchedFlight(),
     tennis: tennisNow,
     space: () => spaceNow(),
     fills: shownFills,
@@ -396,9 +426,10 @@ function mount(root, app) {
     const s = lead && sampleAt(lead, (shown.startT + shown.endT) / 2);
     return s && Number.isFinite(s.lat) && Number.isFinite(s.lon) ? { lat: s.lat, lon: s.lon } : null;
   }
-  function leadWind() {
+  // leadTrack: whose altitude the words are for (a flight's Lead in an exercise, DB-37); Lead's by default.
+  function leadWind(leadTrack = flight?.tracks[1]) {
     const on = layout.get();
-    if (!on.wxWinds || !flight || !clock || !flight.tracks[1]) return null;
+    if (!on.wxWinds || !flight || !clock || !leadTrack) return null;
     const model = windModelFor(on.wxWindModel, flight.startT);
     if (!model) return 'no model winds go back this far';
     const { label } = WIND_MODELS[model];
@@ -408,7 +439,7 @@ function mount(root, app) {
     if (entry.state === 'busy' && entry.daily) return `${label} winds: this browser has used Open-Meteo's free daily allowance, try tomorrow`;
     if (entry.state === 'busy') return `${label} winds: Open-Meteo is busy. Turn Winds aloft off and on to try again.`;
     if (entry.state === 'failed') return windFailureText(label, entry.failure);
-    const lead = sampleAt(flight.tracks[1], clock.t);
+    const lead = sampleAt(leadTrack, clock.t);
     // Levels under the ground are not blended in (W4). The reply's own ground height decides; the home field's elevation, or Moose Jaw's until one is set, is for a reply without one.
     const fieldFt = homeFieldFt();
     return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label, { fieldFt }) : null;
@@ -444,7 +475,8 @@ function mount(root, app) {
       const w = leadWindVector(t, altFt);
       return w ? windVectorFtps(w.dirDeg, w.kt) : null;
     } : null;
-    const run = fillGapsInSteps(flight, { windFtps });
+    // In an exercise each flight's gaps are pinned from its own ships only (DB-37); four or fewer: fillGapsInSteps itself.
+    const run = fillPerFlight(flight, (shown) => fillGapsInSteps(shown, { windFtps }));
     gapFill = { result: gapFill.key.startsWith(`${flightCount}|`) ? gapFill.result : null, running: true, key };
     const pump = () => {
       stopFill = null;
@@ -468,6 +500,14 @@ function mount(root, app) {
   }
   function readoutsNow() {
     if (!flight || !clock) return null;
+    // Each flight of an exercise is judged on its own ships with the four-ship code, its Lead taking the wind (DB-37).
+    if (look.exercise) {
+      const flights = readoutsByFlight(flight, clock.t, (f, sub) => {
+        const lead = sub.tracks[1] ? sampleAt(sub.tracks[1], clock.t) : null;
+        return { standards: currentStandards(), leadWind: lead ? leadWindVector(clock.t, lead.altFt) : null, smoothG: layout.get().smoothG };
+      });
+      return { flights: flights.map((g) => ({ ...g, leadWind: g.readouts.lead ? leadWind(flight.tracks[g.slots[0]]) : null })) };
+    }
     const lead = flight.tracks[1] ? sampleAt(flight.tracks[1], clock.t) : null;
     return readoutsAt(flight, clock.t, { standards: currentStandards(), leadWind: lead ? leadWindVector(clock.t, lead.altFt) : null, smoothG: layout.get().smoothG });
   }
@@ -579,14 +619,14 @@ function mount(root, app) {
     if (!on.dropOpen || !flight) return null;
     const point = dropPoint();
     const slot = on.dropShip;
-    const release = Number.isFinite(dropPlace.releaseT) ? releaseAt(flight.tracks[slot], dropPlace.releaseT, slot) : null;
+    const release = Number.isFinite(dropPlace.releaseT) ? releaseAt(flight.tracks[slot], dropPlace.releaseT, slot, look.label(slot)) : null;
     const from = release && !release.reason ? release : null;
     const model = from && on.dropWind === 'model' ? dropModelWind(dropPlace.releaseT) : { at: null, why: '', label: 'model', key: 'off' };
     const terrainNowDrop = from || point ? dropTerrainFor(from, point) : { at: null, state: 'none', key: 'none' };
     const g = groundNow();
     const trackFt = g?.groundFt ?? homeFieldFt();
     const settingsKey = Object.keys(on).filter((k) => k.startsWith('drop')).map((k) => on[k]).join('|');
-    const key = [flightCount, dropPlace.releaseT, dropPlace.point?.lat, dropPlace.point?.lon, settingsKey, model.key, terrainNowDrop.key, trackFt].join('#');
+    const key = [flightCount, dropPlace.releaseT, dropPlace.point?.lat, dropPlace.point?.lon, settingsKey, model.key, terrainNowDrop.key, trackFt, look.label(slot)].join('#');
     if (key === dropHeld.key) return dropHeld.result;
     const ground = dropGround({
       trackFt, trackWords: g?.source === 'tracks' ? "the tracks' ground" : "the home field's elevation", terrainAt: terrainNowDrop.at, terrain: terrainNowDrop.state,
@@ -706,7 +746,7 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    ui.renderReadouts(readoutsNow(), { leadWind: leadWind() });
+    ui.renderReadouts(readoutsNow(), { leadWind: leadWind() }, watchedFlight());
     if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
     renderMetar();
     renderWindArrows();
@@ -732,7 +772,8 @@ function mount(root, app) {
   }
 
   // Swaps in a new flight only once it has loaded completely (D54). A
-  // session is { flight, dfps?, t?, pucks?, timings?, altitudes? }: DFPs, a time, GPS puck seats, timestamp and altitude choices from a debrief file.
+  // session is { flight, dfps?, t?, pucks?, timings?, altitudes?, crew? }: DFPs, a time, GPS puck seats, timestamp and altitude choices from a debrief file,
+  // and an exercise's call signs and aircraft from the picker or the file (DB-37).
   function show(session) {
     stopFrames?.();
     stopFrames = null;
@@ -748,9 +789,14 @@ function mount(root, app) {
     altitudeKey = altitudeStorageKey(fingerprint);
     altitudes = readAltitudes(session.altitudes ?? app.storage.get(altitudeKey, {}));
     if (session.altitudes) app.storage.set(altitudeKey, altitudes);
+    crewKey = crewStorageKey(fingerprint);
+    crew = readCrew(session.crew ?? app.storage.get(crewKey, {}));
+    if (session.crew) app.storage.set(crewKey, crew); // the picker's or an opened file's names win, as its DFPs do
     terrain?.dispose();
     terrain = null;
     flight = sourceFlight(baseFlight, timings, pucks);
+    refreshLook();
+    showDropShips();
     loadTerrain(flight);
     puckPanel.render(flight, pucks, timings, altitudes);
     clock = createClock({ startT: flight.startT, endT: flight.endT });
@@ -774,7 +820,7 @@ function mount(root, app) {
     bar.setClock(clock);
     space.setFlight(flight);
     map.setFlight(flight);
-    ui.showFlight(flight);
+    ui.showFlight(flight, look, crew, crewKey);
     filePanel.setFlight(true);
     renderSpace();
     flightCount++;
@@ -833,8 +879,9 @@ function mount(root, app) {
       bar.setClock(clock);
       if (old.playing) clock.play();
     }
+    refreshLook();
     map.setFlight(flight, { keepView: true });
-    ui.showFlight(flight);
+    ui.showFlight(flight, look, crew, crewKey);
     puckPanel.setChecks(flight);
     renderSpace(); // the 3D ground reads the corrected heights (DB-26, DB-28)
     flightCount++;
@@ -862,6 +909,8 @@ function mount(root, app) {
     timingKey = null;
     altitudes = {};
     altitudeKey = null;
+    crew = {};
+    crewKey = null;
     terrain?.dispose();
     terrain = null;
     puckPanel.render(null);
@@ -885,6 +934,8 @@ function mount(root, app) {
     bar.setClock(null);
     space.setFlight(null);
     map.setFlight(null);
+    refreshLook();
+    showDropShips();
     ui.showFlight(null);
     ui.setGapFill(null);
     renderSpace();
@@ -941,11 +992,20 @@ function mount(root, app) {
           const kept = savedRadar.state().saved;
           // The drop goes in only when one is set (DB-36), so a debrief without one doesn't change the Drop box when opened.
           const dropSettings = Number.isFinite(dropPlace.releaseT) || dropPlace.point ? dropForFile(dropPlace, layout.get()) : {};
-          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), { ...sessionSettings(currentStandards(), clock.t, weather, pucks, timings, altitudes), ...dropSettings });
+          // An exercise's call signs and aircraft (DB-37); a four-ship load writes none, as before.
+          const crewSettings = look.exercise ? crewForFile(crew) : {};
+          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), {
+            ...sessionSettings(currentStandards(), clock.t, weather, pucks, timings, altitudes), ...dropSettings, ...crewSettings,
+          }, { maxTracks: MAX_SHIPS });
           // The opener refuses a file over MAX_DEBRIEF_BYTES (counted in bytes), so a save that would be is made without the radar.
           const built = buildDebriefFile({
             write, weather: kept, window: { startT: flight.startT, endT: flight.endT }, maxBytes: MAX_DEBRIEF_BYTES, sizeOf: (text) => new Blob([text]).size,
           });
+          // 16 big tracks could pass the size the opener takes (DB-37): said, instead of a file that wouldn't open.
+          if (new Blob([built.text]).size > MAX_DEBRIEF_BYTES) {
+            ui.setMessage(`This debrief would be over the size this tool opens (${Math.round(MAX_DEBRIEF_BYTES / 1024 / 1024)} MB), so it wasn't saved. Load fewer or shorter tracks to save it.`);
+            return;
+          }
           downloadText(built.text, debriefFileName(flight.startT), { type: 'application/json' });
           unsaved = false;
           // Only pictures that went into the file count as saved; a debrief saved without them still asks on close.
@@ -964,8 +1024,12 @@ function mount(root, app) {
         }
         run('Opening the debrief', async () => {
           const text = await file.text();
-          const opened = readDebriefFile(text, { settings: { ...settingsRules(app.standards?.limits ?? {}, { weather: true, pucks: true }), ...DROP_FILE_RULES } });
-          const next = loadFlight(opened.files);
+          const opened = readDebriefFile(text, {
+            settings: { ...settingsRules(app.standards?.limits ?? {}, { weather: true, pucks: true }), ...DROP_FILE_RULES, ...CREW_FILE_RULES }, maxTracks: MAX_SHIPS,
+          });
+          // An exercise (a ship past #4, DB-37) leaves out a track that can't be read and opens the rest; four or fewer stay all or nothing.
+          const exercise = opened.files.some((f) => f.slot > SHIPS_PER_FLIGHT);
+          const next = loadFlight(opened.files, { maxTracks: MAX_SHIPS, skipBad: exercise });
           return { flight: next, opened, text };
         }, ({ flight: next, opened, text }) => {
           const filePucks = pucksFromSettings(opened.settings); // null when the file names none: the browser's choice stands
@@ -984,12 +1048,17 @@ function mount(root, app) {
             lastDropLoad = fileDrop.patch.dropLoad ?? lastDropLoad; // the file's load numbers stand, not the preset's
             layout.update(fileDrop.patch);
           }
-          return { drop: fileDrop?.place, flight: next, pucks: filePucks, timings: fileTimings, altitudes: fileAltitudes, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
+          const left = leftOutWords(next.failed);
+          return {
+            drop: fileDrop?.place, flight: next, pucks: filePucks, timings: fileTimings, altitudes: fileAltitudes, crew: crewFromFile(opened.settings) ?? undefined,
+            dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved,
+            notice: [left, wx.problem ?? (droppedNotice(wx.dropped) || '')].filter(Boolean).join(' ') || undefined,
+          };
         });
       },
       csv() {
         if (!flight) return;
-        downloadText(toCsv(flight, { leadWindAt: leadWindVector }), csvFileName(flight.startT), { type: 'text/csv' });
+        downloadText(toCsv(flight, { leadWindAt: leadWindVector, label: look.label }), csvFileName(flight.startT), { type: 'text/csv' });
       },
       close() {
         if (!flight) return;
@@ -1008,6 +1077,24 @@ function mount(root, app) {
           .catch(() => ui.setMessage("That example file couldn't be downloaded. Check the connection and try again."));
       },
     };
+  }
+
+  // The words for the track files an exercise left out because they couldn't be read (DB-37), or ''.
+  function leftOutWords(failed) {
+    if (!failed?.length) return '';
+    const each = failed.map((x) => `Flight ${flightOf(x.slot)} #${((x.slot - 1) % SHIPS_PER_FLIGHT) + 1}: ${x.message}`);
+    return `Left out, couldn't be read: ${each.join(' ')} The rest loaded.`;
+  }
+
+  // The Drop box's Ship list: #1 Lead to #4 as always, or every loaded ship of an exercise by its label (DB-37).
+  function showDropShips() {
+    if (!look.exercise) {
+      dropPanel.setShips(null);
+      return;
+    }
+    const slots = Object.keys(flight.tracks).map(Number).sort((a, b) => a - b);
+    dropPanel.setShips(slots.map((slot) => ({ value: slot, label: look.label(slot) })));
+    if (!slots.includes(layout.get().dropShip)) layout.update({ dropShip: slots[0] });
   }
 
   // Runs a load; `work` returns what `prepare` turns into a session for show().
@@ -1043,12 +1130,32 @@ function mount(root, app) {
     if (problem) ui.setMessage(problem);
     else ui.showPicker(files);
   });
-  ui.onLoad((picked) =>
+  ui.onLoad((picked, pickedCrew = null) =>
     run('Loading the tracks', async () => {
       const texts = await Promise.all(picked.map((p) => p.file.text()));
-      return loadFlight(picked.map((p, i) => ({ slot: p.slot, name: p.file.name, text: texts[i] })));
-    }),
+      // Five or more files are an exercise (DB-37): a file that can't be read is left out with its reason, the rest load.
+      const exercise = picked.length > SHIPS_PER_FLIGHT;
+      return loadFlight(picked.map((p, i) => ({ slot: p.slot, name: p.file.name, text: texts[i] })), { maxTracks: MAX_SHIPS, skipBad: exercise });
+    }, (next) => ({ flight: next, crew: pickedCrew ?? undefined, notice: leftOutWords(next.failed) || undefined })),
   );
+  // A flight's call sign or aircraft changed in the flights table (DB-37): kept for this flight, and every view shows it.
+  ui.onCrew((f, patch) => {
+    if (!flight) return;
+    crew = readCrew({ ...crew, [f]: { ...crew[f], ...patch } });
+    if (crewKey) app.storage.set(crewKey, crew);
+    refreshLook();
+    showDropShips();
+    ui.showFlight(flight, look, crew, crewKey);
+    puckPanel.render(flight, pucks, timings, altitudes);
+    renderReadouts();
+    redraw();
+  });
+  // Opening a flight's block in the Formation column makes it the watched flight: the camera rides that flight (DB-37).
+  ui.onWatch((f) => {
+    if (!flight || watchedFlight() === f) return;
+    const g = flightGroups(flight).find((x) => x.f === f);
+    if (g) layout.update({ cockpitShip3d: g.slots[0] });
+  });
   ui.onExample(() =>
     run('Loading the example flight', () =>
       loadExampleFlight(app.exampleText).catch((err) => {
@@ -1076,6 +1183,7 @@ function mount(root, app) {
 
   let lastWindKey = '';
   let lastSmoothG = layout.get().smoothG;
+  let lastWatched = watchedFlight();
   const stopLayout = layout.subscribe((values) => {
     // The Drop box (DB-36): a new load takes its preset's numbers; opening it asks again for winds that failed; a set run-in
     // starts from the release's track; shutting it stops the placing.
@@ -1112,6 +1220,11 @@ function mount(root, app) {
       if (values.smoothG !== lastSmoothG) renderReadouts();
     }
     lastSmoothG = values.smoothG;
+    // A new watched flight (the camera's flight, DB-37) opens its block in the Formation column.
+    if (watchedFlight() !== lastWatched) {
+      lastWatched = watchedFlight();
+      if (clock) renderReadouts();
+    }
     renderSavedWeather();
     renderSpace();
     redraw();

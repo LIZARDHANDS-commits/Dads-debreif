@@ -1,6 +1,6 @@
 # Debrief Viewer
 
-Load up to four ForeFlight tracks (or the example flight), see them on the map and play them back. The spec is [`docs/modules/debrief/spec.md`](../../../docs/modules/debrief/spec.md); the plan is [`docs/modules/debrief/plan.md`](../../../docs/modules/debrief/plan.md).
+Load up to four ForeFlight tracks (or the example flight), see them on the map and play them back. Five to 16 tracks load as an exercise of up to four flights (DB-37). The spec is [`docs/modules/debrief/spec.md`](../../../docs/modules/debrief/spec.md); the plan is [`docs/modules/debrief/plan.md`](../../../docs/modules/debrief/plan.md).
 
 | File | What's in it |
 |---|---|
@@ -51,6 +51,8 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
 | `standards-panel.js` | The Debrief settings menu (ui-kit's settings menu, closed at first): the standards editor, which edits `app.standards`, the one copy the Turn Sim reads too. |
+| `exercise.js` | Large exercises (DB-37): a ship's flight and number (slots 1 to 16, four to a flight), `subFlight` (one flight numbered 1 to 4, as the four-ship code knows it), `perFlight` and `fillPerFlight` (the altitude check and the gap fill run one flight at a time), `readoutsByFlight` and `formationByFlight` (the four-ship judging once per flight), the call signs and aircraft (`readCrew`, file rules), and `shipLook` (each flight's colour family and "<call sign> <n>" labels; #1 to #4 for four or fewer). No page access. |
+| `flights-panel.js` | The Formation column's readouts: today's card for four or fewer, or one block per flight in an exercise, only the watched flight's open (DB-37). |
 | `debrief-session.js` | What a saved debrief carries besides the tracks (DFPs, standards, time), flattened for flight-data's debrief file and read back. Tested in Node. |
 | `file-panel.js` | "Save, open, CSV": Save debrief, Open debrief, Export CSV, Close flight, and the example track files as downloads. |
 | `data/cymj.js` | Moose Jaw values the debrief still needs: field elevation and the VNC chart anchor. |

@@ -73,11 +73,11 @@ The plan, Dad's picks and the math: [drop-plan.md](drop-plan.md). Built after th
 
 The plan and Dad's picks (flights of four, each flight its own type and call sign): [exercise-plan.md](exercise-plan.md).
 
-- [ ] 1. Spec, requirements and decisions (DB-37 onward) with a screen picture.
-- [ ] 2. Flights as a level above the four slots (loading, playback window, debrief file); a four-file load unchanged.
-- [ ] 3. Colours, labels, the Formation panel, the camera pills and the 3D types per flight.
-- [ ] 4. The CSV and the drop per ship and flight.
-- [ ] 5. One light test: a 16-file load gives four flights, each judged as a four-ship would be alone.
+- [x] 1. Spec, requirements and decisions (DB-37 onward) with a screen picture. **Written 16 Oct 2026 (spec section "Large exercises, up to 16 ships", DB-37, DB-R30), with working answers: a flight has one to four ships; no closest-approach readout across flights (stays on `future.md`); call signs "Flight 1" to "Flight 4" until typed; each flight takes 3D settings' Aircraft until set. The screen pictures go with the V2.464 hand-over; first pass, not yet seen by Patrick or Dad.**
+- [x] 2. Flights as a level above the four slots (loading, playback window, debrief file); a four-file load unchanged. **Built 16 Oct 2026 (V2.464; `exercise.js`, the picker in `layout.js`, `flight-data/load.js` and `debrief-file.js` taking up to 16 when asked); a three-file load checked pixel for pixel against V2.463 in headless Chromium (picker, 2D and 3D the same); first pass, not yet seen by Patrick or Dad.**
+- [x] 3. Colours, labels, the Formation panel, the camera pills and the 3D types per flight. **Built 16 Oct 2026 (V2.464; `flights-panel.js`, `view3d/camera-bar.js`, `view3d/view.js`, `map2d/`); the flights' table sits under "More" in the picker and in the Flight column; first pass, not yet seen by Patrick or Dad.**
+- [x] 4. The CSV and the drop per ship and flight. **Built 16 Oct 2026 (V2.464; `export-csv.js`, `drop-panel.js`, `drop.js`); first pass, not yet seen by Patrick or Dad.**
+- [x] 5. One light test: a 16-file load gives four flights, each judged as a four-ship would be alone. **`tests/unit/debrief/exercise.test.js` (run once locally, passes; CI has not run it); first pass, not yet seen by Patrick or Dad.**
 - [ ] 6. Sign-off checklist on a real large exercise's tracks.
 
 ## Step 4. Check the Debrief's tests match the new rules

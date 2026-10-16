@@ -2,6 +2,7 @@
 // with touch down, so that should help with the altitude error"): per ship, whether its GPS heights are corrected from its ground fixes
 // (flight-data altitude.js), the flight corrected that way, and what the screen says about it. Plain values, no page access.
 import { altitudeCheck, correctAltitudes, ALTITUDE_CHECK } from '../../flight-data/altitude.js';
+import { MAX_SHIPS } from '../../flight-data/load.js';
 
 /** The Altitude choices; 'auto' (the default) corrects every ship that has ground fixes. */
 export const ALTITUDE_CHOICES = Object.freeze([
@@ -13,7 +14,7 @@ export const ALTITUDE_CHOICES = Object.freeze([
 export function readAltitudes(value) {
   const out = {};
   if (!value || typeof value !== 'object') return out;
-  for (let slot = 1; slot <= 4; slot++) if (value[slot]?.recorded === true) out[slot] = { recorded: true };
+  for (let slot = 1; slot <= MAX_SHIPS; slot++) if (value[slot]?.recorded === true) out[slot] = { recorded: true };
   return out;
 }
 
@@ -46,7 +47,7 @@ export function altitudeSourceWords(flight) {
   if (!c) return '';
   const why = c.terrain === 'loading' ? 'terrain heights still loading' : c.terrain === 'failed' ? "terrain heights didn't load" : 'no terrain heights';
   if (c.source === 'terrain') return 'Each ship against the terrain under its ground fixes (Mapzen/AWS terrain tiles) and the other ships';
-  if (c.source === 'spots') return `Each ship against #${c.leadSlot} at the same spots on the ground (${why})`;
+  if (c.source === 'spots') return `Each ship against ${c.perFlight ? "its flight's Lead" : `#${c.leadSlot}`} at the same spots on the ground (${why})`;
   if (c.source === 'level') return `Each ship against the others on one flat ground level (${why}; slopes not allowed for)`;
   return '';
 }
@@ -55,10 +56,10 @@ export function altitudeSourceWords(flight) {
  * The box's check line for a ship, e.g. "#3 altitude: +7 ft at taxi out, −1 ft at taxi in, corrected (drift −8 ft)"; + is a ship that
  * read higher than the others on the same ground. Says low confidence and why, or why nothing was corrected.
  */
-export function altitudeLine(track) {
+export function altitudeLine(track, label = (slot) => `#${slot}`) {
   const a = track?.altitude;
   if (!a) return '';
-  const head = `#${track.slot} altitude:`;
+  const head = `${label(track.slot)} altitude:`;
   if (a.confidence === 'none') return `${head} as recorded (${a.why})`;
   const parts = [];
   if (a.used === 'all') parts.push(`${signedFt(a.startFt)} on the ground`);
@@ -76,16 +77,17 @@ export function altitudeLine(track) {
 export function altitudeStatusLine(track) {
   const a = track?.altitude;
   if (!a || a.confidence === 'none') return null;
-  return `Altitude check: ${altitudeLine(track).replace(/^#\d altitude: /, '')}`;
+  return `Altitude check: ${altitudeLine(track, () => '').replace(/^ altitude: /, '')}`;
 }
 
 /** The status line's words for the ships corrected, e.g. "#2, #3, #4 altitudes corrected from the ground", or ''. */
-export function altitudeSummary(flight) {
+export function altitudeSummary(flight, label = (slot) => `#${slot}`) {
   if (!flight) return '';
   const done = Object.values(flight.tracks).filter((tr) => tr.altitude?.corrected).sort((a, b) => a.slot - b.slot);
   if (!done.length) return '';
   const low = done.some((tr) => tr.altitude.confidence === 'low') ? ' (low confidence for some)' : '';
-  return `${done.map((tr) => `#${tr.slot}`).join(', ')} ${done.length === 1 ? 'altitude' : 'altitudes'} corrected from the ground${low}`;
+  if (done.length > 4) return `${done.length} ships' altitudes corrected from the ground${low}`; // an exercise (DB-37): a count, not 16 names
+  return `${done.map((tr) => label(tr.slot)).join(', ')} ${done.length === 1 ? 'altitude' : 'altitudes'} corrected from the ground${low}`;
 }
 
 /** The CSV's note after a corrected ship's altitude header, e.g. " (corrected from the ground +7 to −1 ft)", or ''. */

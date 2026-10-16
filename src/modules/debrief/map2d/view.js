@@ -47,10 +47,14 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * space(): the airspace and airfields round the flight (DB-24; debrief/airspace.js), { key, toXY, airspace, airfields }, or null.
  * drop(): the simulated drop to draw (DB-36; index.js dropDrawing, map2d/drop-layer.js), or null. placing(): true while the
  * Drop box waits for a tap on the map; onTap(x, y) then gets the tapped point in map feet (a press that didn't move).
+ * look(): how the ships look and are named (exercise.js shipLook), or null for #1 to #4. watched(): the watched flight.
+ * In an exercise (DB-37) each flight's ships take its colours and labels, the spacing lines stay inside each flight,
+ * each flight's Lead and #3 get the 3/9 lines and cone, and Follow Lead follows the watched flight's Lead.
  */
 export function createMapView(canvas, {
   timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null, fills = () => null, space = () => null,
   drop = () => null, placing = () => false, onTap = /** @type {(x: number, y: number) => void} */ (() => {}),
+  look = () => null, watched = () => 1,
   savedWeather = /** @type {() => any[]} */ (() => []),
   labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
   onImagery = /** @type {(state: any) => void} */ (() => {}),
@@ -158,7 +162,17 @@ export function createMapView(canvas, {
       const t = time();
       const filled = flight ? fills() : null;
       const ships = shipsAt(flight, t, filled);
-      const lead = ships.find((s) => s.slot === 1);
+      const lk = flight ? look() : null;
+      const exercise = Boolean(lk?.exercise);
+      const drawLook = exercise ? lk : undefined; // layers.js's #1 to #4 look unless an exercise
+      // Each flight's ships, Lead and #3 (one flight, #1 to #4, for a four-ship load).
+      const groups = exercise
+        ? lk.flights.map((g) => ({
+          f: g.f, name: `${g.callSign} `, ships: ships.filter((s) => Math.ceil(s.slot / 4) === g.f),
+          lead: ships.find((s) => s.slot === (g.f - 1) * 4 + 1), three: ships.find((s) => s.slot === (g.f - 1) * 4 + 3),
+        }))
+        : [{ f: 1, name: '', ships, lead: ships.find((s) => s.slot === 1), three: ships.find((s) => s.slot === 3) }];
+      const lead = exercise ? groups.find((g) => g.f === watched())?.lead : groups[0].lead;
       // "Follow Lead" keeps Lead in the middle (V6 line 3017); zoom still works.
       // Drawing goes on with the new centre; the extra draw it asks for finds nothing changed.
       if (on.followLead && lead && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
@@ -192,23 +206,62 @@ export function createMapView(canvas, {
       }
       const arrows = windArrows();
       if (arrows?.length) drawWindArrows(ctx, map, projectArrows(arrows, mapRef()));
-      if (on.lead39 && lead) draw39Line(ctx, map, lead, 'Lead 3/9');
-      const three = ships.find((s) => s.slot === 3);
-      if (on.three39 && three) draw39Line(ctx, map, three, '#3 3/9');
-      if (on.cone && lead) drawCone(ctx, map, lead);
-      if (filled) drawFills(ctx, map, shapesOf(filled), { mode: on.trail, t });
-      drawTracks(ctx, map, paths, { flight, mode: on.trail, t });
-      if (on.spacingLines) drawSpacingLines(ctx, map, ships);
+      for (const g of groups) {
+        if (on.lead39 && g.lead) draw39Line(ctx, map, g.lead, `${g.name}Lead 3/9`, drawLook);
+        if (on.three39 && g.three) draw39Line(ctx, map, g.three, `${g.name}#3 3/9`, drawLook);
+        if (on.cone && g.lead) drawCone(ctx, map, g.lead);
+      }
+      if (exercise && on.trail === 'full') drawFullTracksKept(ctx, filled, lk);
+      else {
+        if (filled) drawFills(ctx, map, shapesOf(filled), { mode: on.trail, t, look: drawLook });
+        drawTracks(ctx, map, paths, { flight, mode: on.trail, t, look: drawLook });
+      }
+      if (on.spacingLines) for (const g of groups) drawSpacingLines(ctx, map, g.ships);
       drawDfpFlags(ctx, map, dfps());
-      if (on.bubble) drawBubbles(ctx, map, ships, on.bubbleFt);
-      if (on.clockMarks) drawClockMarks(ctx, map, ships);
+      if (on.bubble) drawBubbles(ctx, map, ships, on.bubbleFt, drawLook);
+      if (on.clockMarks) drawClockMarks(ctx, map, ships, drawLook);
       const ball = tennis();
       if (ball?.points) drawTennis(ctx, map, ball);
       const dropped = drop();
       if (dropped) drawDrop(ctx, map, dropped);
-      drawShips(ctx, map, ships, labels(flight, t));
+      drawShips(ctx, map, ships, labels(flight, t), drawLook);
     },
   });
+
+  // An exercise's full tracks (DB-37): 16 whole sorties stroked every frame halved the frame rate in headless Chromium
+  // (median 33 ms against 17 ms for four ships), so with Trail "Full tracks" they and their filled gaps are drawn once
+  // into a picture a margin larger than the map, and that picture is laid down each frame, slid with the view when it
+  // only moves (Follow Lead), until the view moves past the margin or the zoom, the size, the tracks, the fills or the
+  // colours change. A four-ship load draws as before.
+  const KEPT_MARGIN = 0.35; // of the map's longer side, each way (device pixels)
+  let kept = null;
+  function drawFullTracksKept(ctx, filled, lk) {
+    const { width, height } = ctx.canvas;
+    const { cx, cy, scale } = map.view;
+    const ratio = width / Math.max(map.size.width, 1);
+    const shift = kept ? { x: Math.round((kept.cx - cx) * scale * ratio), y: Math.round((cy - kept.cy) * scale * ratio) } : null;
+    const same = kept && kept.paths === paths && kept.filled === filled && kept.look === lk && kept.scale === scale
+      && kept.width === width && kept.height === height && Math.abs(shift.x) <= kept.margin && Math.abs(shift.y) <= kept.margin;
+    if (!same) {
+      const margin = Math.round(KEPT_MARGIN * Math.max(width, height));
+      const picture = kept?.picture ?? document.createElement('canvas');
+      picture.width = width + 2 * margin;
+      picture.height = height + 2 * margin;
+      const pctx = picture.getContext('2d');
+      pctx.setTransform(1, 0, 0, 1, 0, 0);
+      pctx.clearRect(0, 0, picture.width, picture.height);
+      pctx.setTransform(ratio, 0, 0, ratio, margin, margin);
+      if (filled) drawFills(pctx, map, shapesOf(filled), { mode: 'full', look: lk });
+      drawTracks(pctx, map, paths, { mode: 'full', look: lk });
+      kept = { picture, paths, filled, look: lk, cx, cy, scale, width, height, margin };
+    }
+    const dx = same ? shift.x : 0;
+    const dy = same ? shift.y : 0;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(kept.picture, dx - kept.margin, dy - kept.margin);
+    ctx.restore();
+  }
 
   // A tap on the map while the Drop box is placing its point of impact (DB-36): a press and release that moved under
   // TAP_PX, so a drag still pans the map as before.
