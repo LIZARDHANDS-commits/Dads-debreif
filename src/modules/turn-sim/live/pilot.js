@@ -7,6 +7,10 @@
 //    he flies (full power to idle and the boards, slow-down.js; standard aerodynamics, dV/dt = g (T - D) / W - g sin(climb
 //    angle)), built up at one jerk limit (moves.js POWER, the torque's travel, times the Rates profile's lever share). A
 //    planner no longer writes a speed: it asks for an acceleration and gets what the aircraft can give;
+//  - the engine (TS-218, power.js engineStep, the one model every aircraft flies): the power his lever asks rises no faster
+//    than the engine's quick response, and not at all for the first 3.5 s after the PCL comes off a settled idle (below 5%
+//    torque for 1 s or more); what the engine gives caps his acceleration. A reduction is his hand's (the jerk limit), never
+//    lagged. The engine rides on the power he records, so the next pilot of the aircraft carries it on;
 //  - power with hysteresis: once the boards are out they stay out at least RATE_SET_SEC (rates.js; the throttle makes up
 //    the difference), so the power word on the tag changes at a pilot's pace instead of flicking between steps;
 //  - shaped roll: the bank asked for is rolled to at the Rates profile's share of the roll rate (the onset is the
@@ -20,7 +24,7 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, rollLimitAt, carriedRollAccel, keepRollAccel } from './flight.js';
 import { T6A_ROLL } from '../../../core/t6-performance.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { powerFor, powerFrom, throttleFor } from './power.js';
+import { powerFor, powerFrom, throttleFor, engineFrom, engineStep, ktpsAtThrottle, withEngine } from './power.js';
 import { POWER, FW_ENERGY, RATE_SET_SEC, experienceNow, POWER_MAX_FROM, GATE_G_MAX_BANK_DEG, PILOT_SLOW_CAP_KTPS } from './tuning.js';
 
 const dt = STEP_SEC;
@@ -64,7 +68,7 @@ export function coneUpFtNow() {
  * bank and roll rate, and the acceleration it already has (accelKtps, a hand-over's; 0 when not known).
  */
 export function createPilot(W, { accelKtps = 0 } = {}) {
-  return { accel: accelKtps, bank: W.bankDeg ?? 0, rate: W.rollRateDps ?? 0, rollAcc: carriedRollAccel(W) ?? 0, stage: W.slowStage ?? null, stageSince: -Infinity, aMax: 0, top: 'power', floorThr: 0, climb: 0 };
+  return { accel: accelKtps, bank: W.bankDeg ?? 0, rate: W.rollRateDps ?? 0, rollAcc: carriedRollAccel(W) ?? 0, stage: W.slowStage ?? null, stageSince: -Infinity, aMax: 0, top: 'power', floorThr: 0, climb: 0, eng: engineFrom(W.power) };
 }
 
 /**
@@ -90,6 +94,13 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
   const aMinBare = floorThr > 0 ? Math.min(PILOT_SLOW_CAP_KTPS, slowKtps(top ?? 'power', W.kias, blockFt, g, 0) + climb + extraSlowKtps) : aMin;
   if (p.accel < -aMinBare && want <= -aMin) p.accel = -aMinBare;
   if (p.accel > aMax && want >= aMax) p.accel = aMax;
+  // The engine (TS-218): the throttle this acceleration needs on power, given no faster than the engine answers, and not
+  // at all through its lag from a settled idle; a reduction is taken as his hand flies it (the jerk limit above).
+  const climbFtps = W.climbFtps ?? 0;
+  const thrWant = throttleFor(p.accel, W.kias, blockFt, g, climbFtps);
+  const eng = engineStep(p.eng, thrWant, W.kias, blockFt, dt);
+  if (thrWant > eng.thr + 1e-9) p.accel = Math.min(p.accel, ktpsAtThrottle(eng.thr, W.kias, blockFt, g, climbFtps));
+  p.eng = thrWant < eng.thr ? { ...eng, thr: Math.max(0, thrWant) } : eng;
   let kias = W.kias + p.accel * dt;
   if (snapKias != null && Math.abs(snapKias - kias) < snapTol) {
     p.accel = (snapKias - W.kias) / dt;
@@ -158,7 +169,8 @@ export function pilotPower(p, W, blockFt, t) {
   return note(p, power, t);
 }
 
-function note(p, power, t) {
+function note(p, power0, t) {
+  const power = withEngine(power0, p.eng);
   const stage = power?.stage ?? null;
   if (stage !== p.stage) {
     p.stage = stage;

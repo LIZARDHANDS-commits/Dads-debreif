@@ -39,6 +39,9 @@ export const FORMATIONS = Object.freeze({
   echelon: { label: 'Echelon', sided: true },
   route: { label: 'Route', sided: true },
   astern: { label: 'Line astern', sided: false },
+  // The corner as a close position of its own (TS-231; Patrick 14 Oct 2026: "I want to add 'CORNER' as a position in close
+  // formation (just like echelon and route) so if we want to stop in the corner we hit corner"): link('corner') below.
+  corner: { label: 'Corner', sided: true },
 });
 
 /** The 4-ship's formations, their words and the speed they are flown at (KIAS: 200 outside line abreast, 220 in it, Patrick 4 Oct 11:08Z). */
@@ -74,6 +77,45 @@ export const ROUTE_SPANS = Object.freeze({ slot: 3, min: 1, max: 3 });
  * Until V2.248 it ran a length back per span out (45°).
  */
 export const LINE_BACK_PER_OUT = 12.3 / 16.7;
+
+/** TS-230: echelon sits this far along the line from TS-182's place (negative: up the line, toward Lead). */
+const ECHELON_UP_LINE_FT = -3.5; // 2.5 ft (TS-230), then the control's -1 made the default (Patrick 14 Oct 2026: "lets make -1 the default")
+/**
+ * "Echelon on the line" (Patrick 14 Oct 2026: "a little toggle that moves us up and down the line 1 foot at a time? so i can
+ * play with it"): feet down the line (+, away from Lead) or up it (-) from TS-230's place, 1 ft a step, from 5 ft up (his
+ * wingtip about 3.5 ft outside Lead's) to 10 ft down (estimates). 0 by default; the session's own, not remembered.
+ */
+export const ECHELON_SHIFT = Object.freeze({ stepFt: 1, upMostFt: -5, downMostFt: 10 });
+let echelonShift = 0;
+/** Sets the echelon setting (feet along the line, + down it), clamped to ECHELON_SHIFT's range and whole feet. */
+export function setEchelonShift(ft) {
+  const n = Math.round(Number(ft) || 0);
+  echelonShift = Math.max(ECHELON_SHIFT.upMostFt, Math.min(ECHELON_SHIFT.downMostFt, n));
+  return echelonShift;
+}
+/** The echelon setting now, feet along the line (+ down it, away from Lead). */
+export function echelonShiftNow() {
+  return echelonShift;
+}
+
+/**
+ * "Corner" Forward / Back and Up / Down (Patrick 14 Oct 2026: "Add a 'forward/back' and 'up/down' button in the corner and
+ * I'll adjust"): feet forward (+) or back (-) of line astern's fore and aft, and up (+) or down (-) from its height, 1 ft a
+ * step, 10 ft each way (estimates); the station change's corner moves with it (recipes.js cornerBehind). 0 by default; the
+ * session's own, not remembered.
+ */
+export const CORNER_SHIFT = Object.freeze({ stepFt: 1, mostFt: 10 });
+let cornerShift = { fwd: 0, up: 0 };
+/** Sets the corner setting { fwd, up } (feet), each clamped to CORNER_SHIFT's range and whole feet. */
+export function setCornerShift({ fwd = cornerShift.fwd, up = cornerShift.up } = {}) {
+  const c = (n) => Math.max(-CORNER_SHIFT.mostFt, Math.min(CORNER_SHIFT.mostFt, Math.round(Number(n) || 0)));
+  cornerShift = { fwd: c(fwd), up: c(up) };
+  return { ...cornerShift };
+}
+/** The corner setting now, { fwd, up } feet (+ forward, + up). */
+export function cornerShiftNow() {
+  return { ...cornerShift };
+}
 
 /** The place alongFt further out along the spinner-to-wingtip line from `from` (a place on it), on side s. */
 function downTheLine(from, s, alongFt) {
@@ -112,8 +154,11 @@ const widen = (marginFt, marginDeg) => Object.freeze({
 });
 /** What the sim will fly at all (450-1,250 ft, 25-65°): 50 ft and 5° inside FW_REGION, so the fighting wing buttons keep working. */
 export const FW_LIMITS = widen(FW_BAND.flyMarginFt, FW_BAND.flyMarginDeg);
-/** Where the pair is still recognised as fighting wing (400-1,300 ft, 20-70°; judge.js classifier). */
-export const FW_REGION = widen(FW_BAND.seeMarginFt, FW_BAND.seeMarginDeg);
+/** Where the pair is still recognised as fighting wing (400-1,300 ft, 0-70° behind the 3/9 line so Lead may manoeuvre with #2 abeam; TS-233, R14; judge.js classifier). */
+export const FW_REGION = Object.freeze({
+  rangeFt: Object.freeze([FW_BAND.rangeFt[0] - FW_BAND.seeMarginFt[0], FW_BAND.rangeFt[1] + FW_BAND.seeMarginFt[1]]),
+  sweepDeg: Object.freeze([0, FW_BAND.sweepDeg[1] + FW_BAND.seeMarginDeg]),
+});
 /**
  * The judge's other regions, where a pair is recognised as nearest to line abreast or a close formation (judge.js
  * classifier; generous on purpose, estimates; TS-142). In position is judged separately, on the bands and IN_POSITION.
@@ -187,12 +232,27 @@ function link(key, s, spacingFt) {
     // back, 43 ft out, 3 ft down, origin to origin (TS-182; Patrick 11 Oct 03:38Z "make the numbers work for that"; 05:31Z
     // "echelon is sitting slightly too low": 4 ft down until V2.255). It was 25 back, 45 out, 5 down, an estimate that put
     // Lead's wingtip ahead of the spinner.
-    case 'echelon': return { fwd: -18, left: s * 43, alt: -3 };
+    // TS-230 (Patrick 14 Oct 2026, "a hair further up the line ... maybe 2-3 feet", then "lets make -1 the default"): 3.5 ft
+    // further up the line than TS-182's place, about 15.9 back and 40.2 out, plus the setting that moves it along the line a foot at a time (echelonShiftFt).
+    case 'echelon': return downTheLine({ fwd: -18, left: s * 43, alt: -3 }, s, ECHELON_UP_LINE_FT + echelonShift);
     // on the spinner-to-wingtip line, three wingspans further out along it than echelon (SMM 12.6 para 15, Fig 12.7;
     // ROUTE_SPANS, TS-181; it was 5, TS-103): about 124 ft out and 77 ft back, level or slightly low (TS-182)
     case 'route': return downTheLine(link('echelon', s, spacingFt), s, ROUTE_SPANS.slot * WINGSPAN_FT);
-    // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash (estimate)
-    case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -8 };
+    // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash, 17 ft
+    // (an estimate of 8 ft until Patrick 14 Oct 2026, flying the corner: "this corner position is definitely too high ... our
+    // LAS is too high too ... start by moving it (and LAS) down three feet", 11 ft; then with the Corner buttons: "set corner
+    // and LAB [line astern] to -6 feet for now and note to polish once the model is done", 17 ft; future.md)
+    case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -17 };
+    // the corner (SMM 12.20 para 45, Figs 12.12-12.13; TS-231, Patrick 14 Oct 2026: "The corner should be if you move straight
+    // right from Line Astern, and down and back from echelon"): line astern's fore and aft and height (his nose about 10 ft
+    // behind Lead's tail, below the prop wash) at echelon's own lateral, about 43 back, 40 out, 17 down (8, then 11, then
+    // 17 with Patrick's -6 on the Corner buttons, 14 Oct 2026; to polish with the redone model, future.md), plus the Corner setting (CORNER_SHIFT); it moves with the echelon setting (TS-230).
+    // The station change flows through it (recipes.js cornerBehind, the same place).
+    case 'corner': {
+      const e = link('echelon', s, spacingFt);
+      const a = link('astern', 0, spacingFt);
+      return { fwd: a.fwd + cornerShift.fwd, left: e.left, alt: a.alt + cornerShift.up };
+    }
     default: throw new Error(`No formation called ${key}`);
   }
 }
