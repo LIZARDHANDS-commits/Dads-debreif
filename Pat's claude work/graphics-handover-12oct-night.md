@@ -5,7 +5,126 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (13 Oct 2026, later): station-change references first; pictures wanted listed
+## Latest (15 Oct 2026, late night): increment 4 and 3.2 merged (V2.465), polish V2.466
+- **Merged to main** (Patrick: "After that, merge and finish the phase and any of phase 5 that is critical"): #1049
+  (V2.460), #1051 (V2.464), #1053 (V2.465), tags `v2.460-ct156-increment2-details`, `v2.464-ct156-pictures-glass-cockpit`,
+  `v2.465-ct156-graphics-level-switch`; 3d-work #111 to #115 (delivery `ct156-2026-10-15-6b02eca`).
+- **Weathering fixed before the merge** (Patrick: "Fix the weathering"): each mark at its picture's value x 3.5 x
+  strength, soot a dull matte grey; light, medium and heavy now differ by eye.
+- **Level on close** (Patrick: "Back to high on close unless the app is in 'performance' mode, in which case its never
+  high"): the CT-156 stays at the closing view's Graphics setting.
+- **V2.466 (this branch):** model files that fail to load are logged; a disposed ship's nav ovals freed; a shader name
+  that hid the wear uniform renamed. W6 (prop blades carry the outside's pictures) is obsolete since 4.1: the blades have
+  their own place in the outside's layout (76.5 px/ft).
+- **Later** (Patrick): the EFIS control panel, the engine display's look, the wingtip strobe hardware.
+
+## Latest (15 Oct 2026, night): slice 3.2, the Graphics switch picks the CT-156's files (V2.465, branch `shared-3d-ct156-level-switch`, draft PR stacked on #1051)
+
+- Formation and Traffic call `setCt156Level` when their 3D view starts (Performance files at Performance) and set High
+  when it goes. `ct156-blender.js` keeps a level, a generation count (`ct156Generation`) and `onCt156Level`; a real change
+  frees the old level's pictures. `ct156-model.js` `unshadeKit` puts every ship back to plain paint, disposes the shaded
+  copies and the sheen picture, then re-attaches the shapes and pictures at the new level; a load that began under an
+  earlier generation is dropped. `ct156-cockpit-model.js` does the same for each live cockpit (`detachCockpitModel` on
+  its dispose). The look sliders are separate (shared uniforms) and keep working across a switch.
+- Open: the first High holds 14 geometries more than any later level (the first frame draws the fine detail once, 140
+  draw calls then 29), so "back to the first High's counts" is met as "back to Performance's count, not above the first".
+  Formation's overview shows the same draw calls and triangles at both levels (61, 30,780).
+
+## Earlier (15 Oct 2026, late): 4.5B and 4.5C built on the same draft (#1051, V2.464; was V2.462, which #1050 also claimed)
+
+- Fix delivery `ct156-2026-10-15-6b02eca` imported. `ct156-cockpit.js` `attachScreens` draws a face into each of the 53
+  rectangles in `ct156-points.json` (`loadCt156Points`), glass over the openings, the striped handles from the delivery's
+  `handle-stripes` face; the old `PANEL_INSTRUMENTS` layout, `drawStaticPanel`, `drawLowerPanel` and the code body's
+  layout bezels are gone; placards lettered (`PLACARD_WORDS`). The cockpit render page takes `night`, `hud`, `engine`,
+  `hideFaces`, and `window.placement()` checks each quad against its delivered corners.
+- **Open:** the VO / VLO speeds (dashes: which source?); the gear placard's and engine label's words are estimates; the
+  delivery's `handle-stripes` puts a striped T on the rear panel, which row E1 says the rear doesn't have (the master's).
+
+## Earlier (15 Oct 2026, evening): increment 4.2 and 4.4 built here, draft PR, V2.464 (was V2.462)
+
+- **Branch `shared-3d-ct156-increment4`** (stacked on #1049), draft PR "V2.464 Shared 3D: the CT-156's baked pictures,
+  glass, reflections and lights (increment 4.2 + 4.4)". Delivery `ct156-2026-10-15-117020e` (layout 3) imported.
+- **What changed:** relief, mask and painted weathering drawn with MikkTSpace tangents (`ct156-blender.js` `loadParts`
+  `tangents`, `aoShaded`), pictures loaded per level at checked sizes and switched in only when all are in
+  (`shadeWhenLoaded`, the one test); panel sheen per real panel (`ct156PanelSheen`); the look sliders
+  (`ct156-look-settings.js`, a "Look (3D)" menu beside Graphics in Formation and Traffic); canopy glass edges, mirror
+  and paint reflections, nav and tail lenses (`ct156-model.js`, `ct156-cockpit.js`). The render pages take `?level=`,
+  `look`, `envRot`, `env`, `hideGlass`, `dusk`, `sun`, `gearDown`.
+- **Not done:** 4.5B/C (part 2 of the same run, next); the mirror brackets' colour (W2: the bracket is in the
+  master's `grey` slot, a 3d-work change); the lamps can't be seen lit from a seat (under the wing); item 8 (the
+  Graphics switch picking the files) waits, as Patrick moved it after increment 4. Run notes and pictures:
+  `3d-work/scratch/increment-4/app-run/`.
+
+## Earlier (15 Oct 2026, afternoon): increments 3.1, 4.1 and 4.5A built in `3d-work`, not yet imported here
+
+- **Built in `3d-work`, each a draft PR stacked on the one before (#111, then #112, #113, #115), nothing merged:**
+  3.1 the hand-cut Performance outside (#112; the weld fix keeps every part's triangles, delivery
+  `ct156-2026-10-15-1315ace`); 4.1 the baked pictures with the painted weathering (soot, oil streaks, edge wear,
+  scuffs), the wingtips and tail in high detail and real nav-light lenses (#113, delivery `ct156-2026-10-15-f3207b6`,
+  verified); 4.5A the cockpit panels' hardware in the master (bezels, handles, the TAS panel, the rear VO/VLO plate) and
+  53 screen rectangles in `ct156-points.json` for the app to draw into (#115, delivery `ct156-2026-10-15-117020e`).
+- **4.5A's verifier failed it:** the panel plate lay in the sun-shade veil's plane and baked black. The fix (veil cut
+  where the plates are) is running; it re-delivers, naming `117020e` as previous.
+- **Patrick's rulings today:** Performance outside budget 25,000 triangles (was 15,000; now 25,268, logged, tweaked at
+  the end); 3.2 (the Graphics switch) moved after increment 4; spend stop raised to $290.
+- **Next, here:** one Opus run in this worktree, stacked on #1049, imports the 4.5A delivery (it carries 4.1's
+  pictures): 4.2 + 4.4 (materials, glass, reflections, sheen, markings, lit lights), then 4.5B/C (live instrument faces
+  in the delivered rectangles, the flat panel drawing retired, placards); then 4.3 look sheets (Sonnet) for Patrick's
+  wear and relief picks; one fresh verifier. State: `3d-work` `ct156/increments.md` and `scratch/next-steps.md`.
+
+## Earlier (15 Oct 2026, night): increment 2 imported, draft #1049 (V2.460)
+
+- **Built:** `3d-work` increment 2 (draft #111 there, both audits PASS) delivered as `ct156-2026-10-15-5f132cb` and
+  imported here on branch `shared-3d-ct156-increment2`, draft #1049. The app now reads layout 2: the master's stacks,
+  coamings, floor, speed brake and well, flap and gear wells, tub and pilots take the code's shapes in place (the code
+  shapes stay only as the no-delivery fallback, so nothing draws twice); `no_picture` parts skip the shadow picture;
+  the wicks and the speed brake's slot floors are dark (slots `aileron|1`, `elevator|1`, `rudder|1`, `speedBrake|1`).
+  The importer refuses paths outside the delivery and a second picture layout.
+- **Pictures** (render kit, before and after, noise floor 0.000 %): `3d-work` `scratch/increment-2/run-b/`.
+- **Waiting on Patrick:** merging #1049 (and `3d-work` #111). Every open PR with a version label will clash on that
+  one line once it lands; #1040 (the donor) and #1032 also share the model files.
+- **Next:** increment 3 (the Graphics switch picks High or Performance).
+
+## Earlier (15 Oct 2026): round 3 on main in both repos
+
+- **Landed.** The CT-156 Blender model through round 3 is on the app's main through #1044 (V2.441, merge commit
+  91f6001) and on `3d-work` main through #104 (b00e242), after Patrick's look ("All looks good"). #1034, #1035 and
+  #1036 closed as landed; #1040 (chunk 9 as Antigravity built it) kept open as the donor for increments 2 to 4.
+- **#1032 still open:** eight of its commits never reached the stack (seven handover and plan updates of 13 and 14 Oct,
+  and fcf5152, the delivery sheet asked for only after the model file loads). Patrick decides whether it merges.
+- **Still open:** shared plan Step 3 gear item 3, the landing and taxi lights (Patrick's look had no lights view), and
+  Step 3b items 6 to 8. #1030 (the Traffic CT-102) brings main in itself with `git merge -X renormalize origin/main`.
+- **Next:** increment 2 of `3d-work` `ct156/increments.md`, in a fresh session.
+
+## Earlier (13 Oct 2026, evening): the rebuild under way; read `3d-work` `ct156/plan.md` "Resume here" first
+
+- **How it runs:** one Opus orchestrator session talks to Patrick and verifies every agent result itself; one agent per
+  lane, reused for the lane's next job (Patrick: "keep reusing the agents that are already working"): A, the master
+  (Opus modeller, its own worktree); B, code (Opus); C, checks and research (Sonnet).
+- **Chunk 1b, the delivery command (plan 3.4): built.** `3d-work` #31 merged (`node ct156/build/deliver.mjs`); here
+  #1032 (V2.427): the model files come from a delivery in `public/models/ct156/`, the code fingerprints are replaced by
+  a delivery check, `npm run models:import` refuses a failing delivery and leaves the old files in place if the dev
+  server holds the folder (stop it first). The first delivery put today's picture on screen (render kit: under 0.05 %
+  of pixels).
+- **Chunk 1, the station-change references: delivered onto #1032's branch** (`ct156-2026-10-13-f9eccd5`; master in
+  `3d-work` #30): the rings streamlined, the tail point (estimate until a photo), the pitots a third of the chord back
+  on a tall mast (Patrick's T-6A photo `F11`), the paddle white with its foot cap. Waiting on Patrick's look; then merge
+  #30 and #1032.
+- **The new look (chunk L2): approved for every 3D module at once,** built on #1032's branch after chunk 1 (a shared
+  helper `src/ui-kit/ct156-look.js`; every module's world is Z up, so today's sky light and reflections point
+  sideways). Then the app's `.gitattributes` (Patrick: line ends, "Yes, in both repos"; `3d-work` #32 done).
+- **Rulings today** (all in `3d-work` `ct156/plan.md`'s decisions log): the delivery design ("Approve all"); the ring
+  "parelell with the fusilage, stramlined into wind"; the roundel's real maple leaf; the pitot (`F11`); the eye's
+  height is a seat setting Patrick will choose in game; the enhancements EN1 to EN16 kept for consideration.
+- **Next:** chunk 2, the canopy (stacked on chunk 1's master).
+- **Found, not ours to fix:** EP Tabletop never disposes its CT-156 (`src/modules/ep-tabletop/world3d.js`, the
+  `ship` made around line 142; its `dispose()` frees the cockpit, airports, terrain, ground and sky but not the ship),
+  so the shared CT-156 material kit outlives the view. That file belongs to the EP Tabletop lane (#934, #946).
+- **Line ends:** the app's `.gitattributes` now stores every text file with LF (#1032's branch renormalised the 67
+  files stored with CRLF, line ends only). #1030 edits `src/modules/traffic/profile.js`, one of those files, so
+  whichever of #1030 and #1032 merges second should merge with `-X renormalize`.
+
+## Earlier (13 Oct 2026, later): station-change references first; pictures wanted listed
 
 - **Station-change references (Patrick: "its vital that we get this right", his formation slide `F07`):** the tie-down
   rings, the pitot and the aft belly paddle lead the fixes, checked from the slide's wingman positions. The hanging ring

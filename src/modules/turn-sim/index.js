@@ -13,6 +13,7 @@ import { createControls } from '../../ui-kit/controls.js';
 import { STEP_SEC, liftBankDeg } from './live/flight.js';
 import { drawnAttitudeBetween, drawnAttitudeOf } from './live/attitude.js';
 import { MANOEUVRES, relativeTo } from './live/manoeuvres.js';
+import { torqueReadout } from './live/power.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, fixedLine } from './live/formation.js';
 import { compassDeg, intoOrAway, labelFor } from './live/formation-words.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
@@ -55,7 +56,7 @@ const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackl
 BUTTONS.push({ key: G_WARM.key, label: G_WARM.label, sided: false, ships: [4] });
 // Lead's Wings level and Reversal in the 2-ship close formations (Patrick 12 Oct 2026 19:16Z; formation-turns.js planCloseMove).
 for (const [key, m] of Object.entries(CLOSE_MOVES)) BUTTONS.push({ key, label: m.label, sided: false, ships: [2] });
-const CLOSE_MOVE_FORMATIONS = ['echelon', 'route', 'astern'];
+const CLOSE_MOVE_FORMATIONS = ['echelon', 'route', 'astern', 'corner']; // the corner since B3 (TS-231)
 
 /** The setup isn't remembered between visits (saved setups are a later step), so it lives in memory. */
 function memoryStore() {
@@ -144,7 +145,7 @@ function mount(root, app) {
     settings: { rangeFt: LIVE_DEFAULTS.fluidRangeFt, bank: LIVE_DEFAULTS.fluidBank },
   });
   // #2 in close formation, Held or Live (B1): read by the formation at the next press, so it never starts the run again.
-  const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options), fluidUi, onCloseWing: (v) => formation.setOptions({ closeWing: v }) });
+  const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options), fluidUi, onCloseWing: (v) => formation.setOptions({ closeWing: v }), onFwWing: (v) => formation.setOptions({ fwWing: v }), onEchelonShift: (ft) => formation.setEchelonShift(ft), onCornerShift: (shift) => formation.setCornerShift(shift) });
   const ui = createLayout({ buttons: BUTTONS, setupControls, layout, layoutControls, listen: app.listen, fixedLine: fixedLine(LIVE_DEFAULTS), changeUi });
   root.append(ui.element);
 
@@ -332,7 +333,37 @@ function mount(root, app) {
    * its height off the block), G, indicated airspeed and heading. Null when the HUD is off.
    */
   function hudData() {
-    return layout.get().tagHud ? instrumentsOf() : null;
+    if (!layout.get().tagHud) return null;
+    const hud = instrumentsOf();
+    // T29r: the controller drop-down, closed by default (Data tag menu tick); only for #2, who has a live controller's trace.
+    if (hud && layout.get().tagCtl && hud.label === '#2') {
+      const lines = controllerLines(state);
+      if (lines) hud.controller = { open: true, lines };
+    }
+    return hud;
+  }
+  /** The live controller's words for the HUD drop-down (T29r): fighting wing's phase, technique and loops, or close formation's job and terms. */
+  function controllerLines(s) {
+    const n = (x, d = 1) => (Number.isFinite(x) ? x.toFixed(d) : '—');
+    const c = s.fwTrace?.ctl;
+    if (c) {
+      return [
+        `#2 fighting wing · ${c.phase ?? '—'} · ${c.caseLabel ?? '—'}`,
+        `technique ${c.techActive ?? 'normal'} · path ${n(c.techWeightPath, 2)} height ${n(c.techWeightHeight, 2)}`,
+        `turn ask ${n(c.turnAskG)} flown ${n(c.turnFlownG)} granted ${n(c.turnGrantedG)} G (${c.turnWinner})`,
+        `vertical ${n(c.vertG)} G · power ${c.powerKind ?? '—'} · cap ${n(c.capG)} G${c.capBind ? ' BIND' : ''}`,
+        `guard ${c.guardOn ? 'ON' : 'off'} · filter ${c.filterOn ? 'ON' : 'off'} · urgency ${n(c.urgency, 2)}`,
+      ];
+    }
+    const t = s.liveTrace;
+    if (t) {
+      return [
+        `#2 close formation · ${t.job ?? '—'}`,
+        `asked up ${n(t.asked?.upCorrG, 2)} left ${n(t.asked?.leftCorrG, 2)} G · torque ${n(t.asked?.torquePct, 0)}%`,
+        `hold ${n(t.holdPct, 0)}% · lead ${n(t.terms?.lead, 1)}%`,
+      ];
+    }
+    return null;
   }
   /**
    * The same numbers for one aircraft (by id; the HUD's aircraft when left out), whether or not the HUD is showing: the
@@ -350,6 +381,7 @@ function mount(root, app) {
       kias: a.kias,
       headingDeg: compassDeg(a.headingRad),
       rangeFt: rangeToLead(a),
+      torque: a.power ? torqueReadout(a.power) : null, // the HUD's TQ row (Patrick 14 Oct 2026)
     };
   }
   /** A wingman's straight-line range to Lead in feet, for the HUD's RANGE (Patrick 12 Oct 2026 01:37Z); null for Lead. */
@@ -541,9 +573,11 @@ function mount(root, app) {
       // shackle, the cross turn and G-warm stay line abreast moves.
       // Break and rejoin shows in echelon only (TS-175).
       // Wings level and Reversal in the 2-ship close formations.
-      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key) || (key === 'breakRejoin' && ships === 2 && turnKey === 'echelon') || (CLOSE_MOVES[key] && ships === 2 && CLOSE_MOVE_FORMATIONS.includes(turnKey)));
+      // One "Turn to" row stands for the turn buttons there (Patrick 14 Oct 2026, the menu "as drawn").
+      ui.setMovesEnabled(true, (key) => key === 'closeTurn' || (key === 'breakRejoin' && ships === 2 && turnKey === 'echelon') || (CLOSE_MOVES[key] && ships === 2 && CLOSE_MOVE_FORMATIONS.includes(turnKey)));
     } else if (ships === 2) {
-      ui.setMovesEnabled(true, (key) => key !== 'breakRejoin');
+      // Line abreast: its own manoeuvres only, not the close formation's Turn, Wings level, Reversal or Break.
+      ui.setMovesEnabled(true, (key) => key !== 'breakRejoin' && key !== 'closeTurn' && !CLOSE_MOVES[key]);
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;

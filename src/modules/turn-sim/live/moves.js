@@ -24,7 +24,21 @@ const POWER_JERK_KTPS2 = POWER.jerkKtps2;
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
 
 /** The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). */
-export const KIAS_OUTSIDE_LAB = 200;
+export const KIAS_OUTSIDE_LAB_RULED = 200;
+/**
+ * The speed outside line abreast as flown: the close formations, fighting wing and the rejoins' target (Patrick 14 Oct
+ * 2026, "Lead behaviours": close formation speed to play with while flying). KIAS_OUTSIDE_LAB_RULED by default; from 190 to
+ * 230 KIAS, read at each press (a live binding: every reader sees it). Measured 14 Oct 2026: at 180 the rejoin into echelon
+ * ended WIDE (its numbers were tuned at 200); at 240 Lead's 80% torque tops out about 229 KIAS at 8,000 ft.
+ */
+export let KIAS_OUTSIDE_LAB = KIAS_OUTSIDE_LAB_RULED;
+export const KIAS_OUTSIDE_LAB_RANGE = Object.freeze([190, 230]);
+/** Sets the speed outside line abreast, whole knots, clamped to KIAS_OUTSIDE_LAB_RANGE; returns it as set. */
+export function setKiasOutsideLab(kias) {
+  const k = Math.round(Number(kias));
+  if (Number.isFinite(k)) KIAS_OUTSIDE_LAB = Math.max(KIAS_OUTSIDE_LAB_RANGE[0], Math.min(KIAS_OUTSIDE_LAB_RANGE[1], k));
+  return KIAS_OUTSIDE_LAB;
+}
 export const KIAS_LAB = 220;
 
 // ---- rejoins (from transitions.js) --------------------------------------------------------------------------------

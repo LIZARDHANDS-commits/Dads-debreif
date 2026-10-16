@@ -24,11 +24,11 @@
 import { leadStateOf, stepLead } from '../fluid-lead.js';
 import { applyPose } from '../kinematic.js';
 import { poseOf3d } from '../attitude.js';
-import { pairSlot } from '../slots.js';
+import { pairSlot, LINE_BACK_PER_OUT } from '../slots.js';
 import { throttleAtTorque, powerFrom, withEngine } from '../power.js';
 import { STEP_SEC } from '../flight.js';
-import { startPerception, perceive, look, seenOf } from './perception.js';
-import { startJob, supervise } from './supervisor.js';
+import { startPerception, perceive, look, seenOf, placeDeviation, aimAt } from './perception.js';
+import { startJob, supervise, progress, deconflict } from './supervisor.js';
 import { startLaw, holdingTorque, closeLaw, liftFor, torqueFromThrottle } from './close-formation.js';
 import { startHand, shape } from './shaper.js';
 
@@ -47,7 +47,27 @@ export function startFrom(aircraft, refSt, { blockFt, key = 'echelon', side, ref
   const job = startJob(seen);
   const holdPct = holdingTorque(seen, st, place, key);
   const torquePct = st.eng?.thr !== null && st.eng?.thr !== undefined ? torqueFromThrottle(st.eng.thr, st.kias, st.pm.z) : holdPct;
-  return { st, per, job, law: startLaw(), hand: startHand({ torquePct }, job), place, side, key, blockFt, t: 0, flags: { outOfPower: false, boards: false } };
+  return { st, per, job, law: startLaw(), hand: startHand({ torquePct }, job), place, side, key, blockFt, t: 0, flags: { outOfPower: false, boards: false }, route: null, guard: null };
+}
+
+/**
+ * B3 (spec 7c.3, TS-231): the live wingman starting a change between the close formations: places, the list he flies
+ * through (supervisor.js stationChange, the last the new place), key the formation it ends in. He aims at the first place
+ * from the next step; the supervisor's off station job flies the list.
+ */
+export function withChange(w, places, key) {
+  if (!places.length) return w;
+  const first = places[0];
+  const side = first.side || w.side;
+  const place = pairSlot(first.key, side);
+  return { ...w, key, route: { places, i: 0 }, place, side, per: aimAt(w.per, place, side) };
+}
+
+/** Whether he is flying a change's list of places (B3), and the place of it he is flying to: { i, n, key, side } or null. */
+export function changeOf(w) {
+  if (!w.route) return null;
+  const p = w.route.places[w.route.i];
+  return { i: w.route.i, n: w.route.places.length, key: p.key, side: p.side };
 }
 
 /**
@@ -58,28 +78,112 @@ export function startFrom(aircraft, refSt, { blockFt, key = 'echelon', side, ref
 export function stepWingman(w, refSt) {
   const p = perceive(w.per, seenOf(refSt), seenOf(w.st));
   const seen = p.seen;
-  const job = supervise(w.job, seen);
+  const job = supervise(w.job, seen, Boolean(w.route));
   const holdPct = holdingTorque(seen, w.st, w.place, w.key);
-  const law = closeLaw(w.law, seen, job, { st: w.st, side: w.side, key: w.key, holdPct, held: w.hand.held });
+  const paceFtps = w.route ? w.route.places[w.route.i].paceFtps : null;
+  const law = closeLaw(w.law, seen, job, { st: w.st, side: w.side, key: w.key, holdPct, held: w.hand.held, place: w.place, paceFtps, torqueNow: w.hand.torquePct });
   const hand = shape(w.hand, law.want, job, seen.g);
   const lift = liftFor(seen, w.st, hand.mem);
   const throttle = throttleAtTorque(hand.mem.torquePct, w.st.kias, w.st.pm.z);
   const st = stepLead(w.st, { lift, throttle });
-  const next = { ...w, st, per: p.mem, job, law: law.mem, hand: hand.mem, t: w.t + STEP_SEC, flags: hand.flags };
+  // B3 (spec 7c.3): where he aims next step: on a change, the place of its list he is flying to (passed on within 5 ft and
+  // 5 kt, TS-117; the list done once settled on the last), else his formation's place; then the deconfliction guards on it.
+  const route = progressOf(w, seen);
+  const target = route ? route.places[route.i] : { key: w.key, side: w.side };
+  const side = target.side || w.side;
+  const base = pairSlot(target.key, side);
+  const k = LINE_BACK_PER_OUT;
+  const vLeft = (w.side * (k * seen.rate.line + seen.rate.along)) / Math.hypot(1, k);
+  const vFwd = (seen.rate.line - k * seen.rate.along) / Math.hypot(1, k);
+  // The guards fly the changes (B3); on station and in B1's moves back onto his place the jobs (out before up) do.
+  const guarded = route ? deconflict(base, seen.rel, vLeft, w.guard, vFwd) : { place: base, guard: null };
+  const per = aimAt(p.mem, guarded.place, side);
+  const next = { ...w, st, per, job, law: law.mem, hand: hand.mem, t: w.t + STEP_SEC, flags: hand.flags, route, place: guarded.place, side, guard: guarded.guard };
   return {
     w: next,
     trace: {
       t: next.t, job: job.kind, dev: seen.dev, rate: seen.rate, under: seen.under,
-      gWant: seen.g + seen.ffUpG + hand.mem.upCorrG, leftG: seen.ffLeftG + hand.mem.leftCorrG,
+      gWant: seen.gAhead + seen.ffUpG + hand.mem.upCorrG, leftG: seen.ffLeftG + hand.mem.leftCorrG,
       torquePct: hand.mem.torquePct, holdPct, flags: hand.flags,
+      // the loops' terms and each control asked against granted by the hand (plan T29m part 2; T29r's trace half)
+      terms: law.terms, asked: { upCorrG: law.want.upCorrG, leftCorrG: law.want.leftCorrG, torquePct: law.want.torquePct }, ffUpG: seen.ffUpG, ffLeftG: seen.ffLeftG, gAheadG: seen.gAhead,
+      change: route ? { i: route.i, n: route.places.length, key: target.key } : null, guard: guarded.guard,
     },
   };
+}
+
+/**
+ * A change's list after this step (B3): on to the next place once he has passed the one he flies to, null once settled
+ * on the last (supervisor.js progress), read against the place itself, not the guarded aim. seen.rel: where he is in the
+ * other aircraft's frame (as he saw it).
+ */
+function progressOf(w, seen) {
+  if (!w.route) return null;
+  const t = w.route.places[w.route.i];
+  const pl = pairSlot(t.key, t.side || w.side);
+  const offFt = Math.hypot(seen.rel.fwd - pl.fwd, seen.rel.left - pl.left, seen.rel.up - pl.alt);
+  const movingFtps = Math.hypot(seen.rate.plane, seen.rate.line, seen.rate.along);
+  return progress(w.route, offFt, movingFtps);
+}
+
+/**
+ * Whether he is settled on his place against the aircraft he flies off as it is now (refSt): within about 1 ft on every
+ * axis and closing under about 1 ft/s (spec 7b.7's "within about 1 ft"; the gauge's settle; B2's end of a live close turn).
+ */
+export function settledOn(w, refSt) {
+  const d = placeDeviation(seenOf(refSt), seenOf(w.st), w.place, w.side);
+  const r = w.per.filt.rate;
+  return Math.max(Math.abs(d.plane), Math.abs(d.line), Math.abs(d.along)) <= 1 && Math.max(Math.abs(r.plane), Math.abs(r.line), Math.abs(r.along)) <= 1;
+}
+
+/** The live wingman flying to a new place (the echelon setting moved, TS-230): his state with it, nothing else changed. */
+export function withPlace(w, place) {
+  return { ...w, place, per: { ...w.per, place } };
 }
 
 /** The inputs he holds now (for the next technique to start from, B5): { upCorrG, leftCorrG, torquePct }. */
 export function inputsOf(w) {
   const { upCorrG, leftCorrG, torquePct } = w.hand;
   return { upCorrG, leftCorrG, torquePct };
+}
+
+/**
+ * Starts the close-formation controller for the 100 -> 250 ft range-phased hand-over to fighting wing (B5 T30,
+ * control-model.md §7.13): initializes bumplessly from the aircraft's current state and aims straight back along his
+ * held side toward backToFt (500 ft) and stackFt (-50 ft).
+ */
+export function startCloseHandOver(aircraft, refSt, { blockFt, key = 'echelon', side = -1, backToFt = 500, stackFt = -50 }) {
+  const w0 = startFrom(aircraft, refSt, { blockFt, key, side });
+  const outFt = side * Math.max(43, Math.abs(w0.place.left));
+  const place = { fwd: -backToFt, left: outFt, alt: stackFt };
+  return {
+    ...w0,
+    place,
+    route: { places: [{ key, side, paceFtps: 10 }], i: 0 },
+    per: aimAt(w0.per, place, side),
+  };
+}
+
+/**
+ * One step of the close-formation law on shared plant state `st` during the 100 -> 250 ft range-phased hand-over to
+ * fighting wing (B5 T30): returns { w, lift, throttle } without stepping stepLead a second time.
+ */
+export function stepCloseHandOver(w, refSt, st, paceFtps = 10) {
+  const wSync = { ...w, st };
+  const p = perceive(wSync.per, seenOf(refSt), seenOf(st));
+  const seen = p.seen;
+  const job = supervise(wSync.job, seen, true);
+  const holdPct = holdingTorque(seen, st, wSync.place, wSync.key);
+  const law = closeLaw(wSync.law, seen, job, { st, side: wSync.side, key: wSync.key, holdPct, held: wSync.hand.held, place: wSync.place, paceFtps, torqueNow: wSync.hand.torquePct });
+  const hand = shape(wSync.hand, law.want, job, seen.g);
+  const lift = liftFor(seen, st, hand.mem);
+  const throttle = throttleAtTorque(hand.mem.torquePct, st.kias, st.pm.z);
+  const per = aimAt(p.mem, wSync.place, wSync.side);
+  return {
+    w: { ...wSync, per, job, law: law.mem, hand: hand.mem, t: wSync.t + STEP_SEC, flags: hand.flags },
+    lift,
+    throttle,
+  };
 }
 
 /**

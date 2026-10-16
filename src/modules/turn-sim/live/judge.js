@@ -39,7 +39,7 @@ const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
 /**
  * Which 2-ship formation one link is nearest to, from where the wingman really is (design section 4, note 2):
- * { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side: +1 | -1 | 0 }.
+ * { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'corner' | 'other', side: +1 | -1 | 0 }.
  * The regions are generous: they only say what the pair is nearest to. 'other' is anything else
  * (in trail after an in-place turn, mid-change).
  */
@@ -55,11 +55,17 @@ function classifyLink(lead, wing) {
   if (range >= FW_REGION.rangeFt[0] && range <= FW_REGION.rangeFt[1] && sweep >= FW_REGION.sweepDeg[0] && sweep <= FW_REGION.sweepDeg[1]) return { key: 'fw', side };
   if (range < N.closeRangeFt) {
     if (across < N.astern.maxAcrossFt && back > 0) return { key: 'astern', side: 0 };
+    // The corner (TS-231): echelon's lateral, line astern's fore and aft, so it takes the back half of echelon's region,
+    // behind the point halfway between the two places (about 30 ft back), never mistaken for echelon or line astern.
+    if (across < N.echelon.maxAcrossFt && rel.fwd > N.echelon.fwdFt[0] && rel.fwd < CORNER_FROM_FWD()) return { key: 'corner', side };
     if (across < N.echelon.maxAcrossFt && rel.fwd < N.echelon.fwdFt[1] && rel.fwd > N.echelon.fwdFt[0]) return { key: 'echelon', side };
     if (across <= (ROUTE_SPANS.max + N.route.extraSpans) * WINGSPAN_FT && rel.fwd < N.route.fwdFt[1] && rel.fwd > N.route.fwdFt[0]) return { key: 'route', side }; // route is on the spinner-to-wingtip line, about 96 ft back (TS-181)
   }
   return { key: 'other', side };
 }
+
+/** Where the corner's region starts, fwd ft: halfway between echelon's place and the corner's (both move with TS-230's setting). */
+const CORNER_FROM_FWD = () => (pairSlot('echelon', 1).fwd + pairSlot('corner', 1).fwd) / 2;
 
 /** True when the four are on the stack (each wingman more than 150 ft from Lead's height): fighting wing then keeps it. */
 export function isStacked(aircraft) {
@@ -133,7 +139,7 @@ export function closeLinkKind(key, id) {
  *  - 'fw': SMM 12.29 para 69's band, 500-1,000 ft and 30-60°, widened by marginFt and marginDeg (0 unless the caller says
  *    why), and with needBelow NOT BELOW LEAD when not below ref (the four's links); the pair is in position anywhere in the
  *    cone, within IN_POSITION.fwStackFt above or below ref with ref straight and level (Patrick 5 Oct 21:26Z, TS-80);
- *  - 'echelon', 'route', 'astern': within IN_POSITION.closeFt of the place in each direction (Patrick 21:26Z, TS-80: "close
+ *  - 'echelon', 'route', 'astern', 'corner': within IN_POSITION.closeFt of the place in each direction (Patrick 21:26Z, TS-80: "close
  *    formation within 5 feet and 5 knots"; the bands were ±15 ft and ±10 ft, estimates beside sight references, until
  *    V2.80). wingPlane: measure out and down in ref's
  *    wing plane, not level, so a wingman stepped up or down with ref's bank in a close turn (SMM 12.19 paras 41-43,
@@ -191,7 +197,7 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
     return { labels, numbers, rel, down, rangeFt, sweepDeg };
   }
   let numbers;
-  if (kind === 'echelon' || kind === 'route' || kind === 'astern') {
+  if (kind === 'echelon' || kind === 'route' || kind === 'astern' || kind === 'corner') {
     // Within IN_POSITION.closeFt of the place (slots.js pairSlot) out, back and down, on the side he is on.
     const slot = pairSlot(kind, rel.left >= 0 ? 1 : -1, spacingFt);
     const C = IN_POSITION.closeFt;
@@ -207,7 +213,7 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
     if (downErr < -C) labels.push('HIGH');
     else if (downErr > C) labels.push('LOW');
     const within = `(±${C} ft)`;
-    if (kind === 'echelon') numbers = `${ft(across)} out (${Math.abs(slot.left)} ${within}), ${ft(-rel.fwd)} back (${-slot.fwd} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
+    if (kind === 'echelon' || kind === 'corner') numbers = `${ft(across)} out (${Math.abs(slot.left)} ${within}), ${ft(-rel.fwd)} back (${-slot.fwd} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
     else if (kind === 'route') numbers = `${ft(across)} out (${Math.round(Math.abs(slot.left))} ${within}: ${ROUTE_SPANS.slot} wingspans down the line from echelon), ${ft(-rel.fwd)} back (${Math.round(-slot.fwd)} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
     else numbers = `${ft(-rel.fwd - LENGTH_FT)} nose to tail (${Math.round(-slot.fwd - LENGTH_FT)} ${within}), ${ft(across)} off line, ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
   } else {

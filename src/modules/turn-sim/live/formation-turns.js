@@ -295,7 +295,7 @@ export function planFluid4Turn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = 
 const closeWingRoll = (leadRoll) => ({ maxRateDps: leadRoll.maxRateDps * CLOSE_TURN.rollMargin, maxAccelDps2: leadRoll.maxAccelDps2 * CLOSE_TURN.rollMargin });
 
 /** The formations whose turns are flown in Lead's wing plane, 2-ship and 4-ship (spec section 10.2). */
-const CLOSE_TURN_FORMATIONS = Object.freeze({ 2: ['echelon', 'route', 'astern'], 4: ['finger', 'echelon', 'box', 'trail', 'route'] });
+const CLOSE_TURN_FORMATIONS = Object.freeze({ 2: ['echelon', 'route', 'astern', 'corner'], 4: ['finger', 'echelon', 'box', 'trail', 'route'] });
 /** Every formation the turn buttons fly in besides line abreast (Spread 4): fighting wing and the close ones. */
 export const TURN_FORMATIONS = Object.freeze({ 2: ['fw', ...CLOSE_TURN_FORMATIONS[2]], 4: ['fw', ...CLOSE_TURN_FORMATIONS[4]] });
 
@@ -561,7 +561,7 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined, 
   const turnDeg = move ? 90 : FW_TURN.turnDeg[key];
   const echelon2 = !four && formation === 'echelon';
   const closeBank = closeBankNow();
-  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : (echelon2 || formation === 'route' || formation === 'astern') ? closeBank : CLOSE_TURN.bankDeg;
+  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : (echelon2 || formation === 'route' || formation === 'astern' || formation === 'corner') ? closeBank : CLOSE_TURN.bankDeg;
   // The 2-ship echelon turn rolls slow and smooth (Patrick 20:50Z, TS-78); the other close formations as V2.76 (TS-77).
   // Each wingman's place in Lead's wing plane: his slot, or (a slot not known or more than SLOT_TOL_FT away) where he is now,
   // turned back out of Lead's bank.
@@ -673,12 +673,12 @@ export function leadTurnPlan(lead, formation, key, dir) {
   const turnDeg = FW_TURN.turnDeg[key];
   if (formation === 'fw') return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, WING_BANKS.fwTurnBankDeg, true).map((x) => ({ ...x, roll: LEAD_ROLL })) }; // Lead's 90°/s (TS-222)
   const closeBank = closeBankNow();
-  const isClose = formation === 'echelon' || formation === 'route' || formation === 'astern';
+  const isClose = formation === 'echelon' || formation === 'route' || formation === 'astern' || formation === 'corner';
   const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : isClose ? closeBank : CLOSE_TURN.bankDeg;
   return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: telegraphRoll(bank) })) };
 }
 
-const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', astern: 'line astern', trail: 'line astern', finger: 'finger', box: 'box', fw: 'fighting wing' })[key] ?? (four ? 'the formation' : key);
+const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', astern: 'line astern', corner: 'the corner', trail: 'line astern', finger: 'finger', box: 'box', fw: 'fighting wing' })[key] ?? (four ? 'the formation' : key);
 
 /**
  * A turn button pressed in a formation other than line abreast (spec sections 10.1 and 10.2): fighting wing (planFwTurn) or a

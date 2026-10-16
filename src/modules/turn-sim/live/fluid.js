@@ -41,7 +41,7 @@ export const LEVEL_BANKS = Object.freeze([
   { value: 'medium', label: '60/2', deg: LEAD.levelBanks.medium },
   { value: 'steep', label: 'Steep 70/3', deg: LEAD.levelBanks.steep },
 ]);
-export const bankDegFor = (value) => (LEVEL_BANKS.find((b) => b.value === value) ?? LEVEL_BANKS[1]).deg;
+export const bankDegFor = (value) => (typeof value === 'number' ? value : (LEVEL_BANKS.find((b) => b.value === value) ?? LEVEL_BANKS[1]).deg);
 
 /** The words for #2's pursuit, for the tags and the card. */
 export const PURSUIT_WORDS = Object.freeze({ lag: 'LAG', pure: 'PURE', lead: 'LEAD', swap: 'SWAPPING' });

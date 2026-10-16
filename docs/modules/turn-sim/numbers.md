@@ -71,7 +71,8 @@ Every number the Formation Sim's planners use, with the source written beside it
 | RATE_SETS.…roll | `Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 })` |  |
 | RATE_SETS.…frame | `Object.freeze({ foreAftFtps: 80, verticalFtps: 40, nearPerSec: 10, nearMinFtps: 20 })` |  |
 | RATE_SETS.…law | `Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 })` |  |
-| TELEGRAPH | `Object.freeze({ rolledSec: 6.5, easeSec: 1.5 })` | Lead "telegraphs" a close formation turn (Patrick 12 Oct 2026 18:45Z): the roll rate builds smoothly over easeSec, holds steady, and eases back to zero over easeSec, rolledSec from wings level to the bank (and the roll-out the same, his "yes" 18:45Z). A steeper bank rolls faster and builds faster: 30° at 6°/s (4°/s²), 45° at 9°/s (6°/s²), 60° at 12°/s (8°/s²). "It's to quick and suddent right now. |
+| TELEGRAPH | `Object.freeze({ rolledSec: 8.25, easeSec: 2.0 })` | Patrick 14 Oct 2026: "Slow leads roll rate down about 20 percent, make his telegraph start even slower and last a bit longer" (was 6.5 and 1.5: the steady rate 20% slower, the build-up 2.0 s, an estimate for "a bit longer") |
+| TELEGRAPH_RANGE | `Object.freeze({ rolledSec: Object.freeze([4, 15]), easeSec: Object.freeze([0.5, 4]) })` | The telegraph as flown (Patrick 14 Oct 2026, "Lead behaviours": "so i can play with them while flying"): TELEGRAPH's ruled numbers by default; rolledSec from 4 to 15 s and easeSec from 0.5 s to half of rolledSec (estimates: the rate builds and eases inside the roll). Read when Lead's turn is planned, at the press. Not remembered. |
 | CLOSE_SHAPING |  | Nominal shaping targets and soft envelope caps for close-in formation work (SMM 12.4, 12.6, 12.20). Targets, not walls: guidance steers toward the nominal targets, with progressive soft cushion expanding toward the envelope cap if displaced. Scaled so echelon <-> route takes ~10 seconds. |
 | CLOSE_SHAPING.targetBankDeg | `8.0` | Patrick's "small bank, gentle power" is the intent; 8° is an estimate (Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 11) |
 | CLOSE_SHAPING.envelopeBankCapDeg | `15.0` |  |
@@ -345,6 +346,8 @@ Every number the Formation Sim's planners use, with the source written beside it
 | CLOSE_WING.paceFtps | `8` | The pace: at most jogging, 8 ft/s, in B1 (Patrick 13 Oct 2026: "yes 8 ft/s and 13 ft/s works"; "start with slower rates until we figure out how to tune the PID"), tapering as sqrt(2 x braking x distance) so he can always stop on the spot, the braking what the power floor gives (spec 7b.6d item 13: at 20% torque about 1.3 kt/s at 200 KIAS and 8,000 ft), for the part of the move the power must stop  |
 | CLOSE_WING.brakeTorquePct | `20` | The pace: at most jogging, 8 ft/s, in B1 (Patrick 13 Oct 2026: "yes 8 ft/s and 13 ft/s works"; "start with slower rates until we figure out how to tune the PID"), tapering as sqrt(2 x braking x distance) so he can always stop on the spot, the braking what the power floor gives (spec 7b.6d item 13: at 20% torque about 1.3 kt/s at 200 KIAS and 8,000 ft), for the part of the move the power must stop  |
 | CLOSE_WING.boardsBelowPct | `10` | Below 10% torque he would use the boards before idle (Patrick 13 Oct 2026, "sure 10% tq for boards"; TS-61's order). The live step has no boards' drag, so B1 flags it and holds 10%: never needed in a straight-and-level hold. |
+| CLOSE_WING.rollCatchUp | `0.6` | while his bank is behind the bank his lift asks for he rolls this share of the gap past it, so he rolls faster than Lead until caught up (Patrick 13 Oct 2026; estimate, tuned on the probe) |
+| CLOSE_WING.telegraphTorquePctps | `20` | while he sees Lead rolling his hand moves the throttle at up to 20%/s (spec 7b.6d item 6: about 10%/s on station, 15-20%/s in a telegraph; estimate) |
 | CLOSE_WING.handOverBrakeKtps | `1.3` | The hand-over from a change into echelon (events.js liveHandOver; spec 7b.6d items 2 and 3): he is handed over only closing slowly enough to stop on his place after his reaction, braking at the power floor's rate (spec 7b.6d item 13: at 20% torque about 1.3 kt/s at 200 KIAS and 8,000 ft; the reaction TS-211's 0.3 s, as CLOSE_SEE.delaySec). |
 | CLOSE_WING.handOverReactSec | `0.3` | The hand-over from a change into echelon (events.js liveHandOver; spec 7b.6d items 2 and 3): he is handed over only closing slowly enough to stop on his place after his reaction, braking at the power floor's rate (spec 7b.6d item 13: at 20% torque about 1.3 kt/s at 200 KIAS and 8,000 ft; the reaction TS-211's 0.3 s, as CLOSE_SEE.delaySec). |
 | CLOSE_WING.jobs | `Object.freeze({` | The pilot's hand (spec 7b.4 and 7b.6d item 6; estimates), by job: the most G off what Lead's motion needs, the most bank off Lead's, the most torque off the holding setting (100: the floor to MAX), and how fast his torque may move (about 10%/s on station; a move's set and catch quicker, 20%/s, the top of 7b.6d's 15-20%/s). On station and small moves the pressures of 7b.4 (about 0.3 G, 5°, 5-10% to |
@@ -352,6 +355,19 @@ Every number the Formation Sim's planners use, with the source written beside it
 | CLOSE_WING.…smallMove | `Object.freeze({ gCap: 0.3, bankCapDeg: 5, torqueCapPct: 10, torquePctps: 10 })` | The pilot's hand (spec 7b.4 and 7b.6d item 6; estimates), by job: the most G off what Lead's motion needs, the most bank off Lead's, the most torque off the holding setting (100: the floor to MAX), and how fast his torque may move (about 10%/s on station; a move's set and catch quicker, 20%/s, the top of 7b.6d's 15-20%/s). On station and small moves the pressures of 7b.4 (about 0.3 G, 5°, 5-10% to |
 | CLOSE_WING.…largeMove | `Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 })` | The pilot's hand (spec 7b.4 and 7b.6d item 6; estimates), by job: the most G off what Lead's motion needs, the most bank off Lead's, the most torque off the holding setting (100: the floor to MAX), and how fast his torque may move (about 10%/s on station; a move's set and catch quicker, 20%/s, the top of 7b.6d's 15-20%/s). On station and small moves the pressures of 7b.4 (about 0.3 G, 5°, 5-10% to |
 | CLOSE_WING.…outBeforeUp | `Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 })` | The pilot's hand (spec 7b.4 and 7b.6d item 6; estimates), by job: the most G off what Lead's motion needs, the most bank off Lead's, the most torque off the holding setting (100: the floor to MAX), and how fast his torque may move (about 10%/s on station; a move's set and catch quicker, 20%/s, the top of 7b.6d's 15-20%/s). On station and small moves the pressures of 7b.4 (about 0.3 G, 5°, 5-10% to |
+| CLOSE_WING.…offStation | `Object.freeze({ gCap: 0.5, bankCapDeg: 15, torqueCapPct: 100, torquePctps: 20 })` | B3: a change between close places, a large move's sizes (estimate) |
+| CLOSE_WING.offStation | `Object.freeze({` | B3 (spec 7c.3-7c.5, TS-231): a change between the close formations, flown by him as a short list of places in Lead's frame (supervisor.js stationChange), straight at each in turn at a pace, tapering to stop on the last. |
+| CLOSE_WING.…paceFtps | `8` | at most jogging, 8 ft/s, on every close move for now (Patrick 14 Oct 2026, "Jogging only for now"; spec 7c.4) |
+| CLOSE_WING.…intoEchelonFtps | `5` | from the corner forward and up into echelon at about 5 ft/s (spec 7c.3, approved 14 Oct 2026; an estimate beside SMM 12.20 paras 45, 47) |
+| CLOSE_WING.…flowFt | `5` | a place on the way is passed once within 5 ft of it ... (TS-117: corners passed within 5 ft, an estimate) |
+| CLOSE_WING.…flowKt | `5` | ... and no faster against it than 5 kt (TS-117, Patrick 6 Oct 05:29Z: "can be moving 5 knots thru corners") |
+| CLOSE_WING.…doneFt | `1.5` | on the last place the change's own list ends within the small move's 1.5 ft (smallFromFt) ... |
+| CLOSE_WING.…doneFtps | `1.5` | ... moving under a gentle drift (driftBackFtps); he holds it from there as always |
+| CLOSE_WING.deconflict | `Object.freeze({` | B3 deconfliction (spec 7c.3: "never within a wingspan of Lead, never ahead of Lead's 3/9 line, no wings overlapping, under Lead out before up"), each a guard on the place he aims at, with a dead band so it never flickers (estimates): |
+| CLOSE_WING.…noseTailDeadFt | `2` | no wings overlapping (SMM 12.20 para 44 CAUTION: "never overlap the wing of another aircraft"; para 45: nose at least 10 ft behind Lead's tail, below the prop wash): while his wings overlap Lead's sideways (centres closer than a span, or will be within lookAheadSec at the rate he is moving across), he goes no further in and goes back to line astern's fore and aft once more than noseTailDeadFt ahea |
+| CLOSE_WING.…lookAheadSec | `1` | about what stopping from 8 ft/s across takes with 15° of bank and his 0.3 s reaction (standard kinematics) |
+| CLOSE_WING.…spanDeadFt | `2` | never within a wingspan (centre to centre): inside span + 2 ft he aims straight away from Lead to span + 4 ft |
+| CLOSE_WING.…aheadDeadFt | `5` | never ahead of Lead's 3/9 line: further forward than 5 ft behind it he aims 10 ft behind it |
 | CLOSE_WING.capsPerSec | `Object.freeze({ g: 0.5, bankDeg: 10, torquePct: 30 })` | a new job's pressure sizes are eased in, never stepped (bumpless; estimates) |
 | CLOSE_WING.smallFromFt | `1.5` | The supervisor's jobs, each with a dead band so it never flickers (spec 7b.6d item 12; estimates): a small move from 1.5 ft off (the 0.5 ft he can see and a margin) back to on station under 1 ft; a large move past 10 ft (Patrick's small move is "up to about 10 ft", spec 7b.6) back to small under 8 ft; under Lead (below his wing plane, inside his wingtip) out before up, until 2 ft outside the wingt |
 | CLOSE_WING.stationFromFt | `1` | The supervisor's jobs, each with a dead band so it never flickers (spec 7b.6d item 12; estimates): a small move from 1.5 ft off (the 0.5 ft he can see and a margin) back to on station under 1 ft; a large move past 10 ft (Patrick's small move is "up to about 10 ft", spec 7b.6) back to small under 8 ft; under Lead (below his wing plane, inside his wingtip) out before up, until 2 ft outside the wingt |
@@ -362,6 +378,232 @@ Every number the Formation Sim's planners use, with the source written beside it
 | CLOSE_WING.underClearFt | `2` | ... and a large move too while he is moving faster than a gentle drift (spec 7b.6: "a gentle drift for a few feet, up to a jogging pace"), 2 ft/s, back under 1.5 ft/s (estimates): a hand-over still closing brakes with a large move's pressures. |
 | CLOSE_WING.plhBandFt | `2` | Plane, line, hinge (Patrick 13 Oct 2026): in a large move the line's error is shown to the loops once he is within 2 ft of the plane, and the error along the line once also within 2 ft of the line, each eased in at half its share a second (estimates), so the loops see one or two dimensions at a time and the target never jumps. On station all at once. |
 | CLOSE_WING.plhPerSec | `0.5` | Plane, line, hinge (Patrick 13 Oct 2026): in a large move the line's error is shown to the loops once he is within 2 ft of the plane, and the error along the line once also within 2 ft of the line, each eased in at half its share a second (estimates), so the loops see one or two dimensions at a time and the target never jumps. On station all at once. |
+| FW_SEE |  | What #2 sees in fighting wing (live/wingman/perception.js seeFw; spec 7e.7). Close formation's CLOSE_SEE is its own and untouched (its 0.3 s, TS-211; the delay is per technique, F5). Estimates unless a source is given. |
+| FW_SEE.delaySec | `0.4` | he acts 0.4 s after he sees Lead's bank and nose start (Patrick 14 Oct 2026; TS-211's 0.3-0.5 s) |
+| FW_SEE.extraDelaySec | `0` | a further delay he does not know he has (his dead reckoning still carries Lead 0.4 s): the delay sweep's (Fable's loop margins), 0 in flying |
+| FW_SEE.losSec | `0.5` | the line of sight's rate, Lead's drift across the windscreen, smoothed over about 0.5 s (spec 7e.7) |
+| FW_SEE.gSec | `0.15` | Lead's seen G (his lift, so his turn circle and G cap, S05b) smoothed over about 0.15 s (spec 7e.4, Fable D22; estimate) |
+| FW_SEE.rollSec | `0.2` | Lead's seen roll rate (S04) smoothed over about 0.2 s before carrying his bank across the 0.4 s delay (spec 7e.4, Fable D3; estimate) |
+| FW_SEE.bankCarryMaxDeg | `70` | plausible end-bank cap when extrapolating Lead's seen bank across the 0.4 s delay (S03, TS-233 "Lead's roll carried on", Fable D3; estimate) |
+| FW_WING |  | How #2 flies fighting wing (live/wingman/fighting-wing.js, separation.js, supervisor.js fwJob; spec 7e.7's loop table), grouped by the part that reads it: steering, Lead's turn as he sees it, the turn, swept, the vertical, power, and the separation guard and filter. Estimates unless a source is given (every gain a guess to start from, spec 7e.8). The round-by-round history of each number is in `Pa |
+| FW_WING.chiMaxOutDeg | `20` | max outward approach angle toward lag side of Lead's circle or swept line: 20° (Patrick 14 Oct 2026, TS-233 "steer-behind 20°") |
+| FW_WING.chiMaxInDeg | `12` | max inward approach angle toward lead side of Lead's circle or swept line: 12° (Patrick 14 Oct 2026, TS-233 "steer-ahead 12°") |
+| FW_WING.keDegPerFt | `0.026` | cross-track approach slope Ke: 0.026°/ft (k ≈ 1/420 ft out, 1/250 ft in; TS-233, Fable D2; estimate) |
+| FW_WING.kChiPerSec | `0.5` | steering loop proportional course gain Kχ: 0.5 /s, crossover ~0.52 rad/s, 48-65° PM (TS-233, Fable D2; estimate) |
+| FW_WING.maxCircleRadiusFt | `20000` | Lead's seen turn radius clipped near 20,000 ft so the circle becomes the swept line smoothly as ω -> 0 (spec 7e §7.6, Fable D21; estimate) |
+| FW_WING.overLeadG | `1.5` | his G no more than Lead's + 1.5 (spec 7e.7, estimate); the guard may open the cap smoothly inside 550 ft, flagged (Patrick 14 Oct 2026) |
+| FW_WING.capKneeG | `0.2` | soft knee below the G cap where positive climb demand begins to give way smoothly before level hold and turn (spec 7e.8, Fable D20; estimate) |
+| FW_WING.minG | `0.5` | never under 0.5 G, so his lift always has a direction and he rolls and pulls instead of pushing to 0/neg G (Patrick 14 Oct 2026, TS-233; estimate) |
+| FW_WING.onsetMinGps | `1` | ordinary G onset at urgency 0: 1 G/s (Patrick 14 Oct 2026, TS-233 "G onset by urgency") |
+| FW_WING.onsetMaxGps | `4` | urgent G onset at urgency 1: 4 G/s, the T-6A's onset (Patrick 14 Oct 2026, TS-233 "G onset by urgency") |
+| FW_WING.rollDps | `60` | roll up to 60°/s (spec 7e.7, estimate); his bank is not capped: past 90° only when the lift he needs points there (Patrick 14 Oct 2026, "only if required") |
+| FW_WING.pullWithinDeg | `20` | unload, roll, pull: with his wings more than 20° off where the lift is wanted he pulls only its share along them (estimate; fw-live.js does the same) |
+| FW_WING.turnPlaneRadps | `0.0175` | steering in Lead's turn plane once Lead turns faster than about 1°/s, else the level plane (estimate) |
+| FW_WING.blendSec | `1.5` | phase weight blend time 1.5 s (spec 7e §7.5, R11; estimate) |
+| FW_WING.turnStartDeg | `10` | Entry phase starts immediately once Lead's seen extrapolated bank passes 10° with no 1 s hold (spec 7e §7.5, R7; estimate) |
+| FW_WING.turnEndDeg | `5` | Exit phase starts once Lead's seen bank drops under 5° (spec 7e §7.5; estimate) |
+| FW_WING.phaseBlendSec | `1.5` | continuous phase weights (level, entry, turning, exit) blended over 1.5 s (spec 7e §7.5, Fable D17; estimate) |
+| FW_WING.sideBlendSec | `6` | case/side choice blended over >= 6 s (3 / ω_c for steering crossover 0.52 rad/s; spec 7e §7.5, Fable D5, D17; estimate) |
+| FW_WING.caseDeadBandFt | `50` | ±50 ft hysteresis dead band around case range boundaries so case label never flickers (Fable D17; estimate) |
+| FW_WING.happyFt | `Object.freeze([600, 650])` | the range he is happy at, slant (Patrick 14 Oct 2026) |
+| FW_WING.stretchedFt | `700` | stretched case past 700 ft (Patrick 14 Oct 2026: "lead if more than 700, lag if near 500 (? numbers are a guess)") |
+| FW_WING.veryStretchedFt | `1000` | very-stretched case past 1,000 ft, outside the cone's far edge (Patrick 14 Oct 2026, TS-233) |
+| FW_WING.tightFt | `560` | tight case under 560 ft (spec 7e §7.5; estimate) |
+| FW_WING.entryCaptureFt | `100` | Entry phase transitions to Turning once within 100 ft of the target circle offset ... (spec 7e §7.5; estimate) |
+| FW_WING.entryCaptureDeg | `5` | ... and within 5° of the target course ... (spec 7e §7.5; estimate) |
+| FW_WING.entryMaxSec | `8` | ... or after at most 8 s in Entry (spec 7e §7.5; estimate) |
+| FW_WING.exitSettleFtps | `10` | Exit phase transitions to Level once in the cone with closure under 10 ft/s ... (spec 7e §7.5; estimate) |
+| FW_WING.exitSettleSec | `5` | ... held for 5 s (spec 7e §7.5; estimate) |
+| FW_WING.turnFrameDeg | `5` | (s, d) in Lead's turn-centre frame; below 5° of his bank their straight-line limits (Fable F10, estimate) |
+| FW_WING.arcTargetFt | `650` | s_target, the arc behind Lead he holds in a turn (Fable F1; Patrick's happy 600-650 ft) |
+| FW_WING.aimSec | `10` | one 10 s range time constant τ_s = τ_r = 10 s for both turns and level flight (Patrick 14 Oct 2026, TS-233, Fable D10, D21) |
+| FW_WING.arcNearFt | `300` | mid-point of the 200-400 ft soft closure transition band (spec 7e §7.7; estimate) |
+| FW_WING.arcNearBandFt | `Object.freeze([200, 400])` | wanted closure soft-limited from 25 ft/s inside 200 ft to 60 ft/s beyond 400 ft (spec 7e §7.7, Fable D10; estimate) |
+| FW_WING.arcNearFtps | `25` | wanted closure cap near target arc: 25 ft/s (Fable F1, D10; estimate) |
+| FW_WING.arcFarFtps | `60` | wanted closure cap far from target arc: 60 ft/s (Fable F1, D10; estimate) |
+| FW_WING.arcKc | `0.5` | closure-shortfall gain kc = 0.5 in d = d_ss + w/ω + kc(w - c)/ω (Fable D10; estimate) |
+| FW_WING.arcOffsetMaxFt | `250` | offset d_cmd bounded within ±250 ft of Lead's circle; unmet closure beyond ±250 ft hands off to speed S29b (Patrick 14 Oct 2026, TS-233, Fable D9, D21) |
+| FW_WING.arcSlewFtps | `60` | d_cmd slewed at 60 ft/s (Fable F1, F11; estimate) |
+| FW_WING.minTurnRadps | `0.03` | d divides by Lead's turn rate, never by less than about 1.7°/s (Fable F3; estimate) |
+| FW_WING.sweptFt | `625` | 625 ft at 45° (Patrick 14 Oct 2026) |
+| FW_WING.sweptDeg | `45` | 45° of sweep back from Lead's wing line (Patrick 14 Oct 2026) |
+| FW_WING.aimMaxFtps | `25` | level range closure cap ±25 ft/s (spec 7e §7.7) |
+| FW_WING.aimSlewFtps | `20` | turn offset slewed back to 0 at 20 ft/s when wings level (spec 7e §7.7) |
+| FW_WING.sTurnClosureFtps | `15` | tight-closing threshold in B03 range classification and turn exit (spec 7e §7.6; estimate) |
+| FW_WING.stackFt | `-50` | his stack: 50 ft below Lead (Patrick 14 Oct 2026, spec 7e.7 swept) |
+| FW_WING.heightBandFt | `200` | within 200 ft of Lead's height settle band (TS-80; a reference, not a wall) |
+| FW_WING.vertGPerFt | `0.005` | 0.005 G per foot of height error (spec 7e §7.8, crossover 0.68 rad/s; estimate) |
+| FW_WING.vertGPerFtps | `0.02` | 0.02 G per ft/s of (ḣ_T - ḣ) height-rate error including planned profile rate (spec 7e §7.8, Fable D1; estimate) |
+| FW_WING.vertMaxG | `1` | vertical loop demand bounded within ±1 G (estimate) |
+| FW_WING.stackReturnSec | `15` | height blend time returning to stack: 15 s (spec 7e §7.8, Fable D5; estimate) |
+| FW_WING.lowFt | `300` | continuous drop-low-inside cap 300 ft below stack (Patrick 14 Oct 2026, TS-233, Fable D24; estimate) |
+| FW_WING.lowStartKt | `5` | continuous drop-low-inside starts past 5 kt slow inside a turn (Patrick 14 Oct 2026, Fable D24; estimate) |
+| FW_WING.lowFtPerKt | `20` | continuous drop-low-inside slope: 20 ft/kt past 5 kt slow (100 ft low at 10 kt slow, capped at -300 ft at 20 kt slow, blended over 4.3 s; Fable D24; estimate) |
+| FW_WING.yoyo | `Object.freeze({` | ---- T4: high yo-yo technique (B06; techniques/yo-yo.js, spec 7e §7.9.4, TS-233, Fable D6, 3b §7) ---- |
+| FW_WING.…minFt | `100` | minimum yo-yo climb height: 100 ft (estimate) |
+| FW_WING.…exitArcFt | `150` | exit arc error threshold: 150 ft (estimate) |
+| FW_WING.…onCircleFt | `150` | on-circle offset threshold: 150 ft (estimate) |
+| FW_WING.…downEndFt | `50` | return-to-stack threshold: 50 ft (estimate) |
+| FW_WING.…highFt | `100` | "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233) |
+| FW_WING.…cueClosureFtps | `15` | closure trigger threshold: 15 ft/s (Fable D6; estimate) |
+| FW_WING.…cueDwellSec | `2` | closure dwell time before firing: 2 s (Fable D6; estimate) |
+| FW_WING.…topClosureFtps | `5` | closure threshold to top out and descend: 5 ft/s (Fable D6; estimate) |
+| FW_WING.…topDwellSec | `5` | dwell time at top of climb: 5 s (Fable D6; estimate) |
+| FW_WING.…doneClosureFtps | `10` | closure threshold to complete: 10 ft/s (Fable D6; estimate) |
+| FW_WING.…ftPerFtps | `12` | vertical climb height per closing ft/s (physics; estimate) |
+| FW_WING.…maxClimbFt | `450` | maximum planned climb height: 450 ft (estimate) |
+| FW_WING.…maxSlantFt | `1000` | maximum slant range before capping climb: 1,000 ft (TS-233; estimate) |
+| FW_WING.…maxRateFtps | `50` | maximum planned vertical profile rate: 50 ft/s (Fable D1; estimate) |
+| FW_WING.…urgency | `0.4` | technique urgency during climb: 0.4 (Fable 3b §7; estimate) |
+| FW_WING.…upIntent | `-0.5` | bleed energy intent during climb: -0.5 (Fable 3b §7; estimate) |
+| FW_WING.…downIntent | `0` | energy intent during descent: 0 (estimate) |
+| FW_WING.…maxRunSec | `20` | longest-run timeout for yo-yo technique: 20 s (estimate) |
+| FW_WING.powerBandKias | `15` | speed offset Δv_ref bounded within ±15 KIAS of Lead (Patrick 4 Oct 19:12Z, Fable D21) |
+| FW_WING.speedKvPerSec | `0.3` | proportional speed loop gain Kv = 0.3 /s with no integrator, crossover 0.3 rad/s, PM 89°/82° (Patrick 14 Oct 2026, Fable D21, D23; estimate) |
+| FW_WING.rollInLeadMinDps | `10` | Lead's seen roll rate threshold to ramp in roll-in power lead ahead of his expected end-bank G drag (spec 7e §7.8, Fable 3b §1; estimate) |
+| FW_WING.rollInLeadFullDps | `30` | Lead's seen roll rate for full roll-in power lead (spec 7e §7.8; estimate) |
+| FW_WING.intentBiasKtps | `2` | full-authority speed-rate bias for energy intent (±1) or guard bleed request (spec 7e §7.8, Fable 3b §4; estimate) |
+| FW_WING.brakes | `Object.freeze({` | ---- speed & power loop (B11; spec 7e §7.8, TS-233, Fable D8, D21, D23, D25, R4, R10) ---- |
+| FW_WING.…idleFtps | `40` | closure threshold where bleed intent phases throttle to idle (estimate) |
+| FW_WING.…idleOffFtps | `25` | idle release closure threshold (estimate) |
+| FW_WING.…boardsFtps | `60` | speed brake out threshold: slant closure > 60 ft/s (Patrick 14 Oct 2026, Fable D8; estimate) |
+| FW_WING.…boardsOffFtps | `10` | speed brake retract threshold: slant closure < 10 ft/s (lowered from 20 to 10 ft/s per Fable D25 since S0 measured 21.66 ft/s > 20 ft/s p2p ripple; estimate) |
+| FW_WING.…boardsOnSec | `1` | speed brake out dwell: closing > 60 ft/s must hold for 1 s under effective bleed intent <= -0.5 (Fable D8; estimate) |
+| FW_WING.…boardsHoldSec | `3` | speed brake minimum hold time once deployed: >= 3 s (Fable D8; estimate) |
+| FW_WING.…bleedOnIntent | `-0.5` | effective bleed intent threshold <= -0.5 required to deploy speed brake (Fable D8, 3b §5; estimate) |
+| FW_WING.…bleedOffIntent | `-0.2` | effective bleed intent threshold > -0.2 that retracts speed brake after its 3 s hold (Fable 3b §5; estimate) |
+| FW_WING.guard | `Object.freeze({` | ---- separation guard barrier (B12; separation.js, spec 7e §7.8b, TS-233, Fable D3, D16, R8, R9) ---- |
+| FW_WING.…hardFloorFt | `350` | emergency separation floor where guard uses full available authority (spec 7e §7.8b; estimate) |
+| FW_WING.…minFt | `500` | 500 ft bubble boundary where cubic barrier reaches full authority x = 1 (Patrick, TS-208, TS-233) |
+| FW_WING.…taperStartFt | `600` | guard is completely silent at >= 600 ft and tapers cubically x = ((600 - p)/100)^3 down to 500 ft (Patrick 14 Oct 2026, TS-233) |
+| FW_WING.…capOpenStartFt | `550` | G cap opens smoothly from Lead G + 1.5 at 550 ft to stall-warning/available G at 500 ft (spec 7e §7.8b; estimate) |
+| FW_WING.…lookSec | `10` | single forward predictor horizon up to 10 s over the closing part of the pass (spec 7e §7.8b, Fable D4; estimate) |
+| FW_WING.…lookStepSec | `0.25` | predictor integration step 0.25 s (search effort) |
+| FW_WING.…tighter | `1.3` | also checks Lead tightening his turn by 1.3x when inside 550 ft (Fable F1, F13; estimate) |
+| FW_WING.…passLineSec | `1.4` | closure allowance time scale in the tapered barrier (spec 7e §7.8b; estimate) |
+| FW_WING.…wingLineFt | `100` | minimum distance behind Lead's 3/9 line along Lead's path (TS-233, Fable F6; estimate) |
+| FW_WING.…filterSteps | `20` | candidate turn steps searched each way (search effort) |
+| FW_WING.…filterRefine | `6` | binary refinements on the least-change clearing turn (search effort) |
+| FW_WING.…urgencyDecaySec | `2` | guard urgency S36 rises at once and decays over ~2 s (spec 7e §7.8b; estimate) |
+| FW_WING.…sideHoldSec | `3` | guard side choice S41 held for at least 3 s so it never flickers left/right (spec 7e §7.8b, Fable §2; estimate) |
+| FW_WING.picker | `Object.freeze({` | ---- technique picker (B04; supervisor.js, spec 7e §7.10, Fable D5, D6) ---- |
+| FW_WING.…noRestartSec | `3` | 3 s cooldown after a technique finishes before the same technique can re-fire (spec 7e §7.10, Fable D6; estimate) |
+| FW_WING.…entryPathSec | `1.5` | scalar path blend time on technique entry (matching phaseBlendSec 1.5 s; estimate) |
+| FW_WING.…pathBlendSec | `6` | scalar path blend time >= 6 s on hand-back to normal follower (3 / ω_c for steering crossover 0.52 rad/s; Fable D5; estimate) |
+| FW_WING.…heightBlendSec | `4.3` | scalar height blend time >= 4.3 s on entry (3 / ω_c for vertical crossover 0.68 rad/s; Fable D5; estimate) |
+| FW_WING.miss | `Object.freeze({` | ---- T1: the miss / pass-clear technique (B06; techniques/miss.js, spec 7e §7.9.1, TS-233, Fable D1, D4, D6, 3b §7) ---- |
+| FW_WING.…clearSlantFt | `625` | target 3D pass clearance D = 625 ft so horizontal + vertical clears the 500 ft bubble with margin (spec 7e §7.9.1; estimate) |
+| FW_WING.…cuePassFt | `600` | cue triggers when predicted pass p < 600 ft closing (Patrick 14 Oct 2026, TS-233; estimate) |
+| FW_WING.…cueClosureFtps | `5` | minimum closing rate to trigger the miss cue (Fable D6; estimate) |
+| FW_WING.…tPassMinSec | `3` | minimum time-to-pass for the planned vertical profile cue window (Fable D4: 3 s <= t_pass <= 10 s; estimate) |
+| FW_WING.…tPassMaxSec | `10` | maximum time-to-pass for the planned vertical profile cue window (Fable D4; estimate) |
+| FW_WING.…dwellSteps | `2` | cue must hold for 2 consecutive steps (0.1 s) before firing (Fable D6; estimate) |
+| FW_WING.…urgencyStartSec | `8` | urgency u = clip((8 - t_pass) / 5, 0, 1) starts rising below 8 s to pass (Fable 3b §7; estimate) |
+| FW_WING.…urgencySpanSec | `5` | urgency reaches 1.0 at t_pass <= 3 s (Fable 3b §7; estimate) |
+| FW_WING.…minDepthFt | `75` | least vertical miss depth below Lead (spec 7e §7.9.1; estimate) |
+| FW_WING.…maxDepthFt | `300` | deepest planned vertical miss below Lead (spec 7e §7.9.1; estimate) |
+| FW_WING.…maxRateFtps | `60` | maximum planned vertical profile descent/climb rate \|ḣ_T\| (Fable D1; estimate) |
+| FW_WING.…maxTurnMixRadps | `0.12` | cap on least horizontal turn mix Δω when vertical reach alone is short of 625 ft (Fable D4; estimate) |
+| FW_WING.…replanTighterFt | `50` | re-plans depth once if predicted pass tightens by more than 50 ft (spec 7e §7.9.1; estimate) |
+| FW_WING.…donePassFt | `650` | miss hands back once predicted pass > 650 ft and opening ... (Fable D6; estimate) |
+| FW_WING.…doneDwellSec | `2` | ... held for 2 s after passing bottom (Fable D6; estimate) |
+| FW_WING.…maxRunSec | `15` | longest-run timeout for the miss technique (spec 7e §7.9.1; estimate) |
+| FW_WING.behind39 | `Object.freeze({` | ---- T2: back behind 3/9 line technique (B06; techniques/behind-39.js, spec 7e §7.9.2, TS-233, Fable D6) ---- |
+| FW_WING.…lookSec | `3` | forward prediction look-ahead horizon: 3 s (estimate) |
+| FW_WING.…sweepCueDeg | `0` | sweep angle threshold ahead of Lead 3/9 line: 0° (spec 7e §7.9.2; estimate) |
+| FW_WING.…doneSweepDeg | `15` | sweep angle threshold behind 3/9 line: 15° (spec 7e §7.9.2; estimate) |
+| FW_WING.…doneDwellSec | `2` | dwell time behind 3/9 line to complete: 2 s (Fable D6; estimate) |
+| FW_WING.…dwellSteps | `2` | cue dwell steps: 2 (Fable D6; estimate) |
+| FW_WING.…clearSlantFt | `625` | target 3D pass clearance: 625 ft (spec 7e §7.9.1; estimate) |
+| FW_WING.…minDepthFt | `100` | minimum vertical pass depth below Lead: 100 ft (estimate) |
+| FW_WING.…maxDepthFt | `300` | maximum vertical pass depth below Lead: 300 ft (estimate) |
+| FW_WING.…maxRateFtps | `60` | maximum planned vertical profile rate: 60 ft/s (Fable D1; estimate) |
+| FW_WING.…inCourseDeg | `35` | inward/lag course bias: 35° (TS-233; estimate) |
+| FW_WING.…urgency | `0.5` | technique urgency: 0.5 (Fable 3b §7; estimate) |
+| FW_WING.…energyIntent | `-0.5` | energy intent bleed: -0.5 (Fable 3b §7; estimate) |
+| FW_WING.…maxRunSec | `15` | longest-run timeout: 15 s (estimate) |
+| FW_WING.lagAbeam | `Object.freeze({` | ---- T3: lag pursuit from abeam technique (B06; techniques/lag-abeam.js, spec 7e §7.9.3, TS-233, Fable D6, D18) ---- |
+| FW_WING.…minSweepDeg | `0` | abeam sweep band lower bound behind 3/9 line: 0° (TS-233, spec 7e §7.9.3; estimate) |
+| FW_WING.…maxSweepDeg | `20` | abeam sweep band upper bound: 20° (spec 7e §7.9.3; estimate) |
+| FW_WING.…minSlantFt | `450` | minimum slant range for abeam cue: 450 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…maxSlantFt | `1050` | maximum slant range for abeam cue: 1,050 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…rollCueDps | `8` | Lead seen roll rate toward #2 to cue lag pursuit early: 8°/s (spec 7e §7.9.3; estimate) |
+| FW_WING.…bankCueDeg | `5` | Lead seen bank toward #2 to cue lag pursuit: 5° (spec 7e §7.9.3; estimate) |
+| FW_WING.…dwellSteps | `2` | cue dwell steps: 2 (Fable D6; estimate) |
+| FW_WING.…tailAimFt | `650` | lag pursuit aim point distance behind Lead on his track: 650 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…clearSlantFt | `625` | target 3D pass clearance D = 625 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…minDepthFt | `120` | minimum vertical pass depth below Lead: 120 ft (estimate) |
+| FW_WING.…maxDepthFt | `275` | maximum vertical pass depth below Lead: 275 ft (estimate) |
+| FW_WING.…maxRateFtps | `55` | maximum planned vertical profile rate: 55 ft/s (Fable D1; estimate) |
+| FW_WING.…lagOutDeg | `15` | gentle outward lag course bias away from Lead's turn before crossing track: 15° (SMM 12.29 Fig 12.20; estimate) |
+| FW_WING.…lagTurnRadps | `0` | zero turn-rate feed-forward during lag leg so #2 flies straight/gentle lag until crossing track (estimate) |
+| FW_WING.…crossOffsetFt | `180` | geometric track-crossing offset threshold behind Lead: 180 ft (Fable D18; estimate) |
+| FW_WING.…reversalSweepDeg | `25` | sweep angle threshold behind Lead for track-crossing reversal: 25° (Fable D18; estimate) |
+| FW_WING.…losRippleDps | `2.5` | steady-turn LOS rate ripple baseline (reversal backup cue >= 2x ripple = 5°/s, S15, Fable D18; estimate) |
+| FW_WING.…doneCircleFt | `100` | capture completion circle offset tolerance: 100 ft (spec 7e §7.9.3; estimate) |
+| FW_WING.…doneChiErrDeg | `5` | capture completion course error tolerance: 5° (spec 7e §7.9.3; estimate) |
+| FW_WING.…doneSweepDeg | `25` | capture completion minimum sweep behind 3/9 line: 25° (spec 7e §7.9.3; estimate) |
+| FW_WING.…doneDwellSec | `2` | completion dwell time: 2 s (Fable D6; estimate) |
+| FW_WING.…urgency | `0.5` | technique urgency: 0.5 (spec 7e §7.9.3; estimate) |
+| FW_WING.…energyIntent | `0` | energy intent keep: 0 (spec 7e §7.9.3; estimate) |
+| FW_WING.…maxRunSec | `20` | longest-run timeout: 20 s (spec 7e §7.9.3; estimate) |
+| FW_WING.cutAcross | `Object.freeze({` | ---- T5: cut-across technique (B06; techniques/cut-across.js, spec 7e §7.9.5, TS-233, Fable D6) ---- |
+| FW_WING.…cueSlantFt | `1000` | slant range cue threshold: 1,000 ft (TS-233; estimate) |
+| FW_WING.…cueClosureFtps | `0` | closure cue threshold: not closing <= 0 ft/s (estimate) |
+| FW_WING.…cueDwellSec | `3` | cue dwell time: 3 s (Fable D6; estimate) |
+| FW_WING.…doneSlantFt | `900` | completion slant range: < 900 ft (estimate) |
+| FW_WING.…doneClosureFtps | `30` | completion closure threshold: < 30 ft/s (estimate) |
+| FW_WING.…chiMaxInDeg | `45` | maximum inward approach angle cap: 45° (spec 7e §7.9.5; estimate) |
+| FW_WING.…targetArcFt | `800` | target arc transition range: 800 ft (estimate) |
+| FW_WING.…leadOffsetFt | `-150` | inward lead offset d: -150 ft (estimate) |
+| FW_WING.…diveFt | `-150` | planned dive height below Lead: -150 ft (estimate) |
+| FW_WING.…urgency | `0.2` | technique urgency: 0.2 (estimate) |
+| FW_WING.…energyIntent | `1` | energy intent gain: +1.0 (estimate) |
+| FW_WING.…maxRunSec | `40` | longest-run timeout: 40 s (estimate) |
+| FW_WING.exitVert | `Object.freeze({` | ---- T6: exit-vertical technique (B06; techniques/exit-vertical.js, spec 7e §7.9.6, TS-233, Fable D1, D6) ---- |
+| FW_WING.…cueArcErrFt | `150` | arc error threshold: 150 ft (TS-233; estimate) |
+| FW_WING.…cueClosureFtps | `20` | closure cue threshold: 20 ft/s (TS-233; estimate) |
+| FW_WING.…cueDwellSteps | `2` | cue dwell steps: 2 (Fable D6; estimate) |
+| FW_WING.…rangeSec | `10` | range time constant: 10 s (TS-233, Fable D10; estimate) |
+| FW_WING.…ftPerFtps | `12` | vertical height change per ft/s rate: 12 ft/(ft/s) (physics; estimate) |
+| FW_WING.…minConeFt | `500` | minimum cone boundary: 500 ft (Patrick, TS-208; estimate) |
+| FW_WING.…maxConeFt | `1000` | maximum cone boundary: 1,000 ft (TS-233; estimate) |
+| FW_WING.…maxHeightFt | `350` | maximum planned vertical displacement: 350 ft (spec 7e §7.9.6; estimate) |
+| FW_WING.…maxRateFtps | `50` | maximum planned vertical profile rate: 50 ft/s (Fable D1; estimate) |
+| FW_WING.…doneArcErrFt | `50` | completion arc error threshold: 50 ft (estimate) |
+| FW_WING.…doneClosureFtps | `10` | completion closure threshold: 10 ft/s (estimate) |
+| FW_WING.…doneDwellSec | `5` | completion dwell time: 5 s (Fable D6; estimate) |
+| FW_WING.…urgency | `0.4` | technique urgency: 0.4 (estimate) |
+| FW_WING.…diveIntent | `0.5` | energy intent while diving: +0.5 (estimate) |
+| FW_WING.…climbIntent | `-0.5` | energy intent while climbing: -0.5 (estimate) |
+| FW_WING.…maxRunSec | `25` | longest-run timeout: 25 s (estimate) |
+| FW_WING.sTurn | `Object.freeze({` | ---- T7: s-turns technique (B06; techniques/s-turns.js, spec 7e §7.9.7, TS-233, Fable D6) ---- |
+| FW_WING.…cueSlantFt | `575` | slant range cue threshold: 575 ft (TS-233; estimate) |
+| FW_WING.…cueClosureFtps | `15` | closure cue threshold: 15 ft/s (TS-233; estimate) |
+| FW_WING.…cueDwellSteps | `2` | cue dwell steps: 2 (Fable D6; estimate) |
+| FW_WING.…rangeSec | `10` | range time constant: 10 s (TS-233, Fable D10; estimate) |
+| FW_WING.…minSwingDeg | `12` | minimum heading swing angle: 12° (estimate) |
+| FW_WING.…maxSwingDeg | `30` | maximum heading swing angle: 30° (estimate) |
+| FW_WING.…legSec | `6` | s-turn leg alternation interval: 6 s (spec 7e §7.9.7; estimate) |
+| FW_WING.…doneSlantFt | `650` | completion slant range: 650 ft (estimate) |
+| FW_WING.…doneClosureFtps | `5` | completion closure threshold: 5 ft/s (estimate) |
+| FW_WING.…doneDwellSec | `5` | completion dwell time: 5 s (Fable D6; estimate) |
+| FW_WING.…urgency | `0` | technique urgency: 0 (estimate) |
+| FW_WING.…energyIntent | `-0.5` | energy intent bleed: -0.5 (estimate) |
+| FW_WING.…maxRunSec | `30` | longest-run timeout: 30 s (estimate) |
+| FW_WING.movingOut | `Object.freeze({` | ---- T8: moving out from close formation (B06; techniques/moving-out.js, spec 7e §7.9.8, TS-233, Fable D6, §7.13) ---- |
+| FW_WING.…handOverStartFt | `100` | close-to-fighting-wing range-phased blend start slant range: 100 ft (Fable control-model.md §7.13; estimate) |
+| FW_WING.…handOverEndFt | `250` | close-to-fighting-wing range-phased blend full fighting-wing slant range: 250 ft (Fable control-model.md §7.13; estimate) |
+| FW_WING.…cueSlantFt | `450` | slant range cue threshold in level flight to move out from close formation: 450 ft (spec 7e §7.9.8; estimate) |
+| FW_WING.…backToFt | `500` | stage-1 straight-back target slant range along held side: 500 ft (SMM 12.27 para 57, spec 7e §7.9.8) |
+| FW_WING.…backPaceFtps | `10` | stage-1 straight-back opening pace: 10 ft/s (SMM 12.27 para 57, TS-73, spec 7e §7.9.8) |
+| FW_WING.…doneSlantFt | `550` | completion slant range inside the cone: 550 ft (spec 7e §7.9.8; estimate) |
+| FW_WING.…doneDwellSec | `2` | completion dwell time inside the cone: 2 s (Fable D6; estimate) |
+| FW_WING.…dwellSteps | `2` | cue dwell steps: 2 (Fable D6; estimate) |
+| FW_WING.…urgency | `0` | technique urgency: 0 (estimate) |
+| FW_WING.…backIntent | `-0.35` | stage-1 energy intent while easing back 10 ft/s: -0.35 (estimate) |
+| FW_WING.…outIntent | `0` | stage-2 energy intent while sweeping out to 45°: 0 (estimate) |
+| FW_WING.…maxRunSec | `60` | longest-run timeout for moving out from close formation: 60 s (estimate) |
 | ROLLING_REJOIN |  | The rolling rejoin's search and pursuit (moved from rolling-rejoin.js, 12.2b). Estimates unless a page or ruling is named. |
 | ROLLING_REJOIN.turnDeg | `Object.freeze([30, 60, 90, 120])` | how far his heading swings the way Lead turns over the roll (estimates) |
 | ROLLING_REJOIN.pitchDeg | `Object.freeze([20, 40, 60])` | the nose's highest and lowest (estimates; 45° is the barrel roll's, SMM 14.8 para 19) |
@@ -381,8 +623,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | Number | Value | Source and note |
 |---|---|---|
 | POWER | `Object.freeze({ torqueSec: ENGINE.quickSec, jerkKtps2: 25 })` | How fast the power answers (Patrick 6 Oct 03:17Z: torque 0 to 100% in about 0.2 s; 03:18Z: the speed brakes are instant; TS-108). torqueSec: the torque's full travel, the engine's quick response (handling.js ENGINE.quickSec, 0.25 s, TS-218: one number; it was 0.2 here until V2.424). jerkKtps2: the most the wingman's hand changes his acceleration per second with the lever slammed (the Rates lever s |
-| KIAS_OUTSIDE_LAB | `200` | The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). |
-| KIAS_LAB | `220` |  |
+| KIAS_OUTSIDE_LAB_RULED | `200` | The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). |
+| KIAS_OUTSIDE_LAB_RANGE | `Object.freeze([190, 230])` | The speed outside line abreast as flown: the close formations, fighting wing and the rejoins' target (Patrick 14 Oct 2026, "Lead behaviours": close formation speed to play with while flying). KIAS_OUTSIDE_LAB_RULED by default; from 190 to 230 KIAS, read at each press (a live binding: every reader sees it). Measured 14 Oct 2026: at 180 the rejoin into echelon ended WIDE (its numbers were tuned at 2 |
+| KIAS_LAB | `220` | Sets the speed outside line abreast, whole knots, clamped to KIAS_OUTSIDE_LAB_RANGE; returns it as set. |
 | REJOIN |  | Defaults for rejoins. |
 | REJOIN.overtakeKias | `15` | the middle of EFIG p.374's 10 to 20 KIAS for a turning rejoin |
 | REJOIN.bankCapDeg | `NO_BANK_CAP_DEG` | #2 in a rejoin: no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; the G rule, about 78° level, from V2.59 until V2.116, TS-67; 60°, an estimate, until then) |

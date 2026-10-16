@@ -5,6 +5,7 @@
 // Browser tests for ui-kit controls.js and canvas-view.js (SPEC-ui-kit), on a
 // test page that loads them straight from src/.
 import { test, expect, expectNoA11yViolations } from './fixtures.js';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveDist } from './static-server.js';
 
@@ -343,6 +344,9 @@ test.describe('canvas view on a high-density screen', () => {
 // converter, so the page takes its baseline after one Harvard has come and gone.
 test.describe('Harvard model memory', () => {
   test('disposing the models returns the renderer to the baseline, round after round', async ({ page }) => {
+    // The page loads src/ as the dev server does, so /models/ is public/models/ as there (the delivered files).
+    await page.route(/\/models\//, (route) =>
+      route.fulfill({ path: join(ROOT, 'public', decodeURIComponent(new URL(route.request().url()).pathname)) }));
     await page.goto(`${site.url}tests/e2e/pages/ct156.html`);
     await page.waitForFunction(() => window.__ct156, null, { timeout: 30_000 });
     const { error, baseline, rounds } = await page.evaluate(() => window.__ct156);
@@ -354,5 +358,31 @@ test.describe('Harvard model memory', () => {
       expect(after).toEqual(baseline); // nothing left over, so nothing for a module to sweep
       expect(inScene).toBe(0);
     }
+  });
+
+  test('a Graphics level switch loads the other files and returns the renderer to its baseline', async ({ page }) => {
+    await page.route(/\/models\//, (route) =>
+      route.fulfill({ path: join(ROOT, 'public', decodeURIComponent(new URL(route.request().url()).pathname)) }));
+    await page.goto(`${site.url}tests/e2e/pages/ct156-level.html`);
+    await page.waitForFunction(() => window.__ct156Level, null, { timeout: 90_000 });
+    const { error, high, unshaded, performance, highAgain, cockpitPerformance, cockpitHigh } = await page.evaluate(() => window.__ct156Level);
+    expect(error).toBeUndefined();
+    expect(high.shaded).toBeGreaterThan(0); // the pictures are on the paint
+    expect(high.files.some((f) => f.includes('/ct156/performance/'))).toBe(false); // High asked for none of Performance's
+    expect(unshaded).toBe(0); // plain paint the moment the level changes, none of the old level's pictures left on it
+    expect(performance.shaded).toBe(high.shaded);
+    expect(performance.files.some((f) => f.endsWith('/ct156/performance/ct156-exterior.glb'))).toBe(true);
+    expect(performance.files.some((f) => f.endsWith('/ct156/performance/ct156-exterior-normal.png'))).toBe(true);
+    expect(highAgain.shaded).toBe(high.shaded);
+    // High, Performance, High: nothing left over from Performance. The first High holds 14 geometries more than any later
+    // level (the first frame draws the fine detail once, then hides it), so back at High it is at Performance's count.
+    expect(highAgain.memory.textures).toBe(high.memory.textures);
+    expect(highAgain.memory.geometries).toBeLessThanOrEqual(high.memory.geometries);
+    expect(highAgain.memory).toEqual(performance.memory);
+    // A cockpit closed at Performance, then one opened at High: each draws its own level's file (the delivery's count)
+    // and the High one the larger relief picture, not the Performance file left over (3.2 audit).
+    expect(cockpitPerformance.triangles).toBe(cockpitPerformance.delivered);
+    expect(cockpitHigh.triangles).toBe(cockpitHigh.delivered);
+    expect(cockpitHigh.normal).toBeGreaterThan(cockpitPerformance.normal);
   });
 });

@@ -57,6 +57,7 @@ import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
 import { ROLL, WING, LEAD, LEAD_ROLL } from './tuning.js';
 import { engineFrom, engineStep, throttleAtTorque } from './power.js';
+import { extraDragPerWeight } from './slow-down.js';
 
 export { LEAD }; // its home is lead-moves.js (the tuning sheet, TS-214); read from here by older imports
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
@@ -174,7 +175,10 @@ export function stepLead(st, ask) {
   // ask.throttle: a set throttle instead (the programme Lead's climbs at 80% torque and descents at 20%, TS-225, lead-pilot.js).
   const wantThr = ask.throttle ?? (ask.holdKias ? holdThrottle(st, ask.holdKias, ask.torqueBand ?? null) : 1);
   const eng = engineStep(st.eng ?? null, wantThr, st.kias, st.pm.z, STEP_SEC);
-  const excess = excessFnFor(eng.thr);
+  // ask.boards (B5 round 4, the live wingman only; off by default): the speed brake out, its drag (slow-down.js BOARDS, about
+  // 0.095 of weight at 200 KIAS, with KIAS squared) taken off the step's excess thrust.
+  const excess0 = excessFnFor(eng.thr);
+  const excess = ask.boards ? (ktas, altFt, g) => excess0(ktas, altFt, g) - extraDragPerWeight('boards', tasToIasKt(ktas, altFt)) : excess0;
   for (let i = 0; i < 2; i++) {
     // A lift asked for as a vector (the live wingman, TS-194) is read into a G and a bank against the up of this half step,
     // and after the step the bank is re-read against the new up (carryBank), so the wings go where the lift wants and never

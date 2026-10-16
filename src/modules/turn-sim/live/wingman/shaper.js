@@ -1,20 +1,19 @@
-// The close-formation wingman's hand (B1, TS-226; spec 7b.4, 7b.6c "Limits", 7b.6d item 6): pressure-sized inputs. It
-// limits the pilot's hand only:
-//  - the size of each pressure for the job he is doing (supervisor.js): G off what Lead's motion needs, bank off Lead's,
-//    torque off the holding setting (Patrick 13 Oct 2026: "In close form the control movements are pressures. you fly with
-//    your fingertips almost");
-//  - how fast his torque may move (about 10%/s on station, quicker in a move's set and catch);
-//  - a new job's sizes are eased in from the ones he has, so a change of job never steps his inputs (bumpless).
-// It never applies the T-6A's roll or G onset: fluid-lead.js stepLead does that, once (7b.6d item 6). His bank is not
-// smoothed: it moves as fast as the aircraft rolls (Patrick 13 Oct 2026: a wingman's bank may be "very un-smooth ... very
-// quick/small as required").
-// Torque: never below the boards' 10% (below it he would use the boards before idle, which the live step does not fly:
-// flagged) nor above MAX; wanting more than MAX or less than 10% is "out of power", a flag for the card (7b.6d item 13).
+// The wingman's hand: close-formation pressure-sized inputs (B1, TS-226; spec 7b.4) and fighting-wing urgency shaper (B5, B14; spec 7e.10).
+// Exports: startHand, shape, shapeFwLift.
+// Imports: core/angles, live/flight, live/wing-moves, live/attitude.
+// Depended on by: live/wingman/close-formation.js, live/wingman/fighting-wing.js.
 //
-// Signs and units as close-formation.js. The memory is never changed in place. Numbers: wing-moves.js CLOSE_WING.
+// Close formation (startHand, shape) limits the pilot's hand to fingertip pressures for the job (supervisor.js): G off
+// Lead's motion, bank off Lead's, torque off the holding setting (CLOSE_WING), leaving T-6A roll/G onset to stepLead.
+// Fighting wing (shapeFwLift, B14, D18, S45) modulates #2's G onset rate by urgency u in [0, 1] from 1.0 G/s (smooth
+// station-keeping) up to 4.0 G/s (guard / nose-behind urgency: 1 + 3u G/s, FW_WING.onsetMinGps..onsetMaxGps) while
+// preserving the lift unit vector so roll commands are unaffected.
+//
+// Signs and units as close-formation.js and fighting-wing.js. The memory is never changed in place.
 import { DEG } from '../../../../core/angles.js';
 import { STEP_SEC } from '../flight.js';
-import { CLOSE_WING } from '../wing-moves.js';
+import { CLOSE_WING, FW_WING } from '../wing-moves.js';
+import { len3, scale3 } from '../attitude.js';
 
 const C = CLOSE_WING;
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -42,10 +41,17 @@ export function shape(mem, want, job, gRef) {
   const upCorrG = clamp(want.upCorrG, -caps.gCap, caps.gCap);
   const sideCap = Math.max(gRef, 0.5) * Math.sin(caps.bankCapDeg * DEG);
   const leftCorrG = clamp(want.leftCorrG, -sideCap, sideCap);
-  const sized = clamp(want.torquePct, want.holdPct - caps.torqueCapPct, want.holdPct + caps.torqueCapPct);
+  // His corrections are sized around the setting the turn needs (the holding power and the power lead, B2), not around the
+  // holding power alone: the lead is what he puts in for the turn he sees coming, not a correction.
+  const base = want.basePct ?? want.holdPct;
+  const sized = clamp(want.torquePct, base - caps.torqueCapPct, base + caps.torqueCapPct);
   const flags = { outOfPower: want.torquePct > 100 || want.torquePct < C.boardsBelowPct, boards: sized < C.boardsBelowPct };
   const aim = clamp(sized, C.boardsBelowPct, 100);
-  const torquePct = toward(mem.torquePct, aim, j.torquePctps);
+  // While he sees Lead rolling his hand moves at the telegraph's rate, times how much further out than echelon his place is
+  // (B3: route about 3.3 times, so a 60° roll-in away from him, which needs about MAX from its start, gets MAX in about 0.7 s,
+  // not 2 s: Patrick 13 Oct 2026, "If I know I need a lot more energy I might give it a few seconds of MAX power"; the
+  // engine answers 0 to 100% in about 0.2 s, TS-108, TS-218).
+  const torquePct = toward(mem.torquePct, aim, want.telegraph ? Math.max(j.torquePctps, C.telegraphTorquePctps * (want.reach ?? 1)) : j.torquePctps);
   const held = {
     plane: upCorrG !== want.upCorrG,
     side: leftCorrG !== want.leftCorrG,
@@ -53,3 +59,22 @@ export function shape(mem, want, job, gRef) {
   };
   return { mem: { upCorrG, leftCorrG, torquePct, caps, held }, flags };
 }
+
+/**
+ * Fighting-wing urgency shaper (B14, D18, S45; spec 7e.10): modulates #2's G onset rate by urgency u in [0, 1]
+ * from W.onsetMinGps (1.0 G/s, smooth station-keeping) up to W.onsetMaxGps (4.0 G/s, guard / nose-behind urgency:
+ * 1 + 3u G/s), scaling the lift vector magnitude while preserving its unit direction so roll commands are unchanged.
+ */
+export function shapeFwLift(prevG, lift, urgency = 0, dt = STEP_SEC, W = FW_WING) {
+  const u = clamp(urgency ?? 0, 0, 1);
+  const onsetGps = W.onsetMinGps + (W.onsetMaxGps - W.onsetMinGps) * u;
+  const wantG = len3(lift);
+  const baseG = prevG ?? wantG;
+  const shapedG = baseG + clamp(wantG - baseG, -onsetGps * dt, onsetGps * dt);
+  return {
+    lift: wantG > 1e-9 ? scale3(lift, shapedG / wantG) : lift,
+    shapedG,
+    onsetGps,
+  };
+}
+

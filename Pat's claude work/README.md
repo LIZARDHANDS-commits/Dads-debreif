@@ -11,7 +11,8 @@ Patrick's project-only working docs from the Claude project, copied into the rep
 | For | Read first | Then |
 |---|---|---|
 | Where everything stands (12 Oct) | [wrap-up-handover-12oct.md](wrap-up-handover-12oct.md) | `docs/PLAN.md` |
-| Formation (turn-sim) | [turn-sim-review/formation-sim-handover.md](turn-sim-review/formation-sim-handover.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md), [fable-compiled.md](turn-sim-review/fable-compiled.md), the design folders |
+| Formation (turn-sim), now | [formation-handover-14oct.md](formation-handover-14oct.md) (the live wingman, fighting wing redesign) | its document table; `docs/modules/turn-sim/README.md` |
+| Formation (turn-sim), before the live wingman | [turn-sim-review/formation-sim-handover.md](turn-sim-review/formation-sim-handover.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md), [fable-compiled.md](turn-sim-review/fable-compiled.md), the design folders |
 | Fix drawn-path moves on the point-mass model | [turn-sim-review/drawn-path/handover.md](turn-sim-review/drawn-path/handover.md) | the three check scripts in that folder |
 | Fable's Formation engine review | [formation-review-package/report/report.md](formation-review-package/report/report.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md) turns its renamed terms back into ours |
 | The optimiser (next after polish) | [optimiser-plan.md](formation-review-package/report/optimiser-plan.md) (route 1, for the app) | [optimiser-plan-route2.md](formation-review-package/report/optimiser-plan-route2.md) (route 2, PC yardstick) |
@@ -267,3 +268,25 @@ Formation screenshots at V2.90.
 - [design.md](turn-sim-review/transitions/design.md): Changing formation design.
 - [spec-draft.md](turn-sim-review/transitions/spec-draft.md): Draft spec wording for changing formation (2-ship).
 - Other files (pictures, diagram sources, scripts, data): [formation-positions.png](turn-sim-review/transitions/formation-positions.png), [formation-positions.svg](turn-sim-review/transitions/formation-positions.svg), [make-pictures.mjs](turn-sim-review/transitions/make-pictures.mjs), [rejoin-from-lab-turn-away.svg](turn-sim-review/transitions/rejoin-from-lab-turn-away.svg), [rejoin-from-lab-turn-into.svg](turn-sim-review/transitions/rejoin-from-lab-turn-into.svg), [screen-change-formation.png](turn-sim-review/transitions/screen-change-formation.png), [screen-change-formation.svg](turn-sim-review/transitions/screen-change-formation.svg)
+
+### formation-track-logs/
+
+- [README.md](formation-track-logs/README.md): Patrick's four-ship track logs (23 Sep 2026 as #2, 14 Aug 2026 as #4), what one ship's track can and can't say, and the example four-ship measured as pairs (14 Oct 2026).
+- [pair-geometry.mjs](formation-track-logs/pair-geometry.mjs): a wingman's range, angle off the tail, height and closure off the ship he flies off, from two tracks of one sortie (the example four-ship by default).
+- Track files: [2026-09-23-four-ship-as-no2.kml](formation-track-logs/2026-09-23-four-ship-as-no2.kml), [2026-08-14-four-ship-as-no4.kml](formation-track-logs/2026-08-14-four-ship-as-no4.kml)
+
+### Formation handovers (live wingman)
+
+- [formation-handover-14oct.md](formation-handover-14oct.md): **Read first for Formation.** The short handover: where B5 stands, the next steps in order, Patrick's 14 Oct rulings, the document table, the checks.
+- [formation-handover-12oct-night.md](formation-handover-12oct-night.md), [formation-handover-12oct-evening.md](formation-handover-12oct-evening.md): the long running handovers of 12-14 Oct; history, for looking things up.
+
+### formation-review-12oct/
+
+- [fighting-wing-architecture-review.md](formation-review-12oct/fighting-wing-architecture-review.md): T29t's architecture review of the live fighting wing (verdict, findings F1-F12, recommended structure, slices, questions answered 14 Oct).
+- [control-systems-analysis-plan.md](formation-review-12oct/control-systems-analysis-plan.md): how the controllers are modelled and analysed (the master list, N² chart, margins, rig, gates C1-C11, tasks CA0-CA8). The model itself is `docs/modules/turn-sim/control-model.md`.
+- [fighting-wing-code-history.md](formation-review-12oct/fighting-wing-code-history.md): the technique's rounds 1-4 and what every removed option and folded switch did.
+- t29m-part2-report.md: T29m part 2's report (trace columns, probe, rig), once it lands.
+- Fable: [fable-fighting-wing-audit-14oct.md](formation-review-12oct/fable-fighting-wing-audit-14oct.md), [fable-fighting-wing-report-14oct.md](formation-review-12oct/fable-fighting-wing-report-14oct.md), [fable-cone-turn-report-14oct.md](formation-review-12oct/fable-cone-turn-report-14oct.md) (and their briefs), [research/wingman-audit-fable-13oct.md](formation-review-12oct/research/wingman-audit-fable-13oct.md).
+- [b5-t29a-tuning-14oct.md](formation-review-12oct/b5-t29a-tuning-14oct.md): the thread's T29 tuning notes (the filter, the arc range). [fluid-jerks-analysis.md](formation-review-12oct/fluid-jerks-analysis.md): the fluid law's jerks.
+- research/: pilot-model sources, the loop design, roll rate, thrust, GoPro and public data, JSBSim notes.
+- Scripts: [gauge-trace-compare.mjs](formation-review-12oct/gauge-trace-compare.mjs) (flying-unchanged check between two trace folders), [four-ship-probe.mjs](formation-review-12oct/four-ship-probe.mjs) (4-ship hash), the `b5-gauge-*.cjs` helpers, probes/.
