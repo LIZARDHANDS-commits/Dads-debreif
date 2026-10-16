@@ -1,6 +1,6 @@
-# Low-level Navigation Planner: plan (proposed)
+# Low-level Navigation Planner: plan (approved)
 
-> **Status:** proposed, waiting on Patrick's yes. Dad asked on 16 Oct 2026, from the idea list: "Low-level navigation planner: draw a route, get legs, times, fuel and terrain clearance, then fly it in the Debrief or check it against a real track. Could we do this better than falcon view?" Dad's picks below (16 Oct 2026, card answers).
+> **Status:** approved. Patrick's yes, relayed by Dad, 16 Oct 2026: "pat yes, build the nav planner" (ALL-43). Steps 0 to 5 being built for V2.483. Dad asked on 16 Oct 2026, from the idea list: "Low-level navigation planner: draw a route, get legs, times, fuel and terrain clearance, then fly it in the Debrief or check it against a real track. Could we do this better than falcon view?" Dad's picks below (16 Oct 2026, card answers).
 
 ## What it is
 
@@ -34,20 +34,21 @@ Speeds and fuel from core's CT-156 performance (cruise and low-level fuel flow n
 
 No winds: still air, said on every leg. Terrain tiles missing: clearance shown as unknown on that leg, never as clear. A route file that fails to load: refused with the reason, nothing half-loaded. Imported files are untrusted (range-checked, as the Debrief's KML loading is).
 
-## Steps (after Patrick's yes)
+## Steps
 
-0. Patrick's yes, and the whole-tool decision for the new module.
-1. Spec, requirements and decisions (NP-), with screen pictures, approved before code.
-2. Route editing, legs, times and fuel at Moose Jaw.
-3. Terrain clearance and the route card.
-4. Brief: 2D and 3D fly-through.
-5. Debrief: the flown track against the plan.
-6. The US bases: sectionals, obstacles, military training routes.
-7. Sign-off checklist in Dad's and Patrick's words, on a real low-level route and its flown track.
+- [x] 0. Patrick's yes (relayed by Dad, 16 Oct 2026), and the whole-tool decision for the new module (ALL-43).
+- [x] 1. Spec, requirements and decisions (NP-), with the screen's picture (`spec.md`, `requirements.md`, `decisions.md`, `screen.png`). Approved with the module (the brief's working answers stand until Patrick says otherwise).
+- [ ] 2. Route editing, legs, times and fuel at Moose Jaw (V2.483).
+- [ ] 3. Terrain clearance and the route card (V2.483).
+- [ ] 4. Brief: 2D and 3D fly-through, and **Brief mode** (Dad, 16 Oct 2026: "COuld this be a low level Briefing tool"; card pick "Add a Brief mode"; NP-11): a full-screen, leg-by-leg page with Next and Back and the arrow keys, each leg's run-in picture of its next turn point from the planned height 1 NM before it (estimate), and the leg's heading, time, ground speed, height, fuel remaining and hazards (V2.483).
+- [ ] 5. Debrief: the flown track against the plan (V2.483).
+- [ ] 6. The US bases: sectionals, obstacles, military training routes (not in this piece).
+- [ ] 7. Sign-off checklist in Dad's and Patrick's words, on a real low-level route and its flown track (`testing.md`).
 
-## Questions still open
+## Questions still open (working answers in the tool until answered)
 
-- The minimum terrain clearance to flag, and whether it changes by leg type.
-- The CT-156's low-level fuel flow and cruise speeds (manual page or Patrick's ruling).
-- A Canadian obstacle source.
-- Whether routes should snap to known turn points (towns, lakes, the SOF's airfields).
+- The minimum terrain clearance to flag, and whether it changes by leg type. **Working answer:** 500 ft, one value for every leg, an estimate; a flag, never a wall (NP-5).
+- The CT-156's low-level fuel flow and cruise speeds (manual page or Patrick's ruling). **Working answer:** 240 KIAS, 500 lb/h and 1,100 lb start fuel, all estimates and settable (NP-2, NP-7).
+- A Canadian obstacle source. **Working answer:** none; "no Canadian obstacle data" said on screen (NP-13).
+- Whether routes should snap to known turn points (towns, lakes, the SOF's airfields). **Working answer:** no (`future.md`).
+- New with the build: how an AGL leg is flown (NP-Q1), the typed wind in °T or °M (NP-Q2), the fuel numbers (NP-Q3): see the README.
