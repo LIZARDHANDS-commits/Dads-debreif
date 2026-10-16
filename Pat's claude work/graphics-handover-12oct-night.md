@@ -5,7 +5,7 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (15 Oct 2026, late): 4.5B and 4.5C built on the same draft (#1051, V2.462)
+## Latest (15 Oct 2026, late): 4.5B and 4.5C built on the same draft (#1051, V2.464; was V2.462, which #1050 also claimed)
 
 - Fix delivery `ct156-2026-10-15-6b02eca` imported. `ct156-cockpit.js` `attachScreens` draws a face into each of the 53
   rectangles in `ct156-points.json` (`loadCt156Points`), glass over the openings, the striped handles from the delivery's
@@ -15,9 +15,9 @@ gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/
 - **Open:** the VO / VLO speeds (dashes: which source?); the gear placard's and engine label's words are estimates; the
   delivery's `handle-stripes` puts a striped T on the rear panel, which row E1 says the rear doesn't have (the master's).
 
-## Earlier (15 Oct 2026, evening): increment 4.2 and 4.4 built here, draft PR, V2.462
+## Earlier (15 Oct 2026, evening): increment 4.2 and 4.4 built here, draft PR, V2.464 (was V2.462)
 
-- **Branch `shared-3d-ct156-increment4`** (stacked on #1049), draft PR "V2.462 Shared 3D: the CT-156's baked pictures,
+- **Branch `shared-3d-ct156-increment4`** (stacked on #1049), draft PR "V2.464 Shared 3D: the CT-156's baked pictures,
   glass, reflections and lights (increment 4.2 + 4.4)". Delivery `ct156-2026-10-15-117020e` (layout 3) imported.
 - **What changed:** relief, mask and painted weathering drawn with MikkTSpace tangents (`ct156-blender.js` `loadParts`
   `tangents`, `aoShaded`), pictures loaded per level at checked sizes and switched in only when all are in
