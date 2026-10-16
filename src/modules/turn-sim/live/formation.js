@@ -10,20 +10,27 @@ import { DEG } from '../../../core/angles.js';
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { createEvents } from './events.js';
-import { STEP_SEC, makeAircraft, planDone, planDoneBut } from './flight.js';
+import { STEP_SEC, makeAircraft, planDone, planDoneBut, copyAircraft } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
-import { flyStep, dryRunT } from './replay.js';
+import { flyStep, dryRunT, speedSeg } from './replay.js';
 import { setKias } from './pilot.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge, judgeFluid4 } from './judge.js';
-import { FORMATIONS, FOUR_FORMATIONS } from './slots.js';
+import { FORMATIONS, FOUR_FORMATIONS, pairSlot, setEchelonShift, setCornerShift, sideFor } from './slots.js';
+import { LEAD_ROLL, LEAD_ROLL_STATE } from './lead-moves.js';
+import { leadPointMassOf } from './lead-pilot.js'; // also registers Lead's point-mass pilot step with flight.js (TS-225) for the pointMassLead below
+import { startFrom, stepWingman, applyTo, settledOn, withPlace, withChange } from './wingman/wingman.js';
+import { stationChange } from './wingman/supervisor.js';
+import { CHANGE_LIMIT_SEC } from './transitions.js';
+import { KIAS_OUTSIDE_LAB } from './moves.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn } from './formation-turns.js';
-import { planFwMoveLive } from './fw-live.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, CLOSE_MOVES, planFormationTurn, planCloseMove, planFluid4Turn, fwLeadPlan, fwMoveWords } from './formation-turns.js';
+import { planFwMoveLive, FW_LIVE } from './fw-live.js';
+import { startFwWing, stepFwWingman, settledInFwCone } from './wingman/fighting-wing.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
@@ -44,6 +51,11 @@ export const LIVE_DEFAULTS = Object.freeze({
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
+  // #2 in Lead's fighting wing moves, 2-ship (B5, TS-233, spec 7e): 'law', today's live law (fw-live.js, TS-208), or 'live',
+  // the live wingman's fighting wing technique (wingman/fighting-wing.js). Today's law until Patrick has flown the new one
+  // (spec 7e.11, T28); the 4-ship always flies today's.
+  fwWing: /** @type {'law' | 'live'} */ ('law'),
+  closeWing: /** @type {'held' | 'live'} */ ('live'), // #2 in close formation: live (the close-in wingman, TS-226; the default since Patrick 14 Oct 2026, "yes live default", TS-232) or held (the planned poses and the tracker); read at each press
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -109,6 +121,11 @@ export function createFormation(options = {}) {
     spacingFt: opts.spacingFt,
     flown: 0, // manoeuvres finished since the start
     fluid: null, // fluid manoeuvring while it runs: { session, readouts, prev } (fluid.js, TS-57), else null
+    closeWing: opts.closeWing, // the close-formation wingman setting as read at the last press (Held or Live)
+    liveWing: null, // the live close-in wingman flying #2 while nothing is being flown (wingman.js state, B1), else null
+    liveTrace: null, // what he saw and did on the last step (wingman.js trace), for the gauge and the plot page
+    fwWing: null, // the live wingman flying #2 in a fighting wing move with fwWing 'live' (wingman/fighting-wing.js, B5), else null
+    fwTrace: null, // what he saw and did on the last step (fighting-wing.js trace), for the gauge
   };
   let record = [];
   // The events of a change in flight: the decision point, the picture breaking, a turn pressed mid-change, done (events.js).
@@ -120,7 +137,9 @@ export function createFormation(options = {}) {
     const h = headingRadFromCompass(opts.headingDeg);
     const side = opts.wingSide === 'left' ? 1 : -1; // +1 left of Lead
     const left = { x: Math.cos(h + Math.PI / 2), y: Math.sin(h + Math.PI / 2) };
-    const lead = { ...makeAircraft({ id: 1, xFt: 0, yFt: 0, headingRad: h, kias: opts.kias, tasFtps: tas }), ref: null, name: 'Lead' };
+    // Lead rolls at his 90°/s in every programme move that names no roll (TS-222); pointMassLead: the 2-ship's Lead flies his
+    // programme on the point mass (TS-225, lead-pilot.js; the switch is lead-moves.js LEAD_PILOT.onePointMass).
+    const lead = { ...makeAircraft({ id: 1, xFt: 0, yFt: 0, headingRad: h, kias: opts.kias, tasFtps: tas }), ref: null, name: 'Lead', techRoll: LEAD_ROLL, ...LEAD_ROLL_STATE, pointMassLead: true };
     const wing = {
       ...makeAircraft({ id: 2, xFt: side * left.x * opts.spacingFt, yFt: side * left.y * opts.spacingFt, headingRad: h, kias: opts.kias, tasFtps: tas }),
       ref: 1,
@@ -145,6 +164,9 @@ export function createFormation(options = {}) {
     state.spacingFt = opts.spacingFt;
     state.flown = 0;
     state.fluid = null;
+    state.closeWing = opts.closeWing;
+    state.liveWing = null;
+    state.liveTrace = null;
     record = [];
     keepTrack(true);
     // Smart wingman, fix now (TS-96; Patrick 5 Oct 23:33Z): #2 flies back into line abreast from where the error put him at
@@ -240,10 +262,48 @@ export function createFormation(options = {}) {
       // G-warm: its steps, and the least and most G any of the four pulled in each (design section 7: G flown against the call).
       gWarm: plan.steps ? { steps: plan.steps, flown: plan.steps.map(() => ({ min: Infinity, max: -Infinity })), spacingAfter: plan.spacingAfter } : null,
     };
+    liveTurn(turnIn);
     state.judged = null;
     state.refusal = null;
     state.errorOutcome = null;
     return true;
+  }
+
+  /**
+   * With Live chosen at the press (B2, TS-226), a 2-ship close turn in echelon (and Wings level, Reversal) flies Lead's
+   * plan only: #2 stays on the live close-in wingman through it, started now from the motion he has if he was not on it.
+   * The path drawn ahead is flown ahead at the press, Lead's plan and the wingman's law together on copies, so the drawn
+   * path is the flown one (spec 7b.6d item 9, fw-live.js planFwMoveLive's pattern); the turn is done when Lead's plan is
+   * done and #2 is settled on his place (or LIVE_TURN_SETTLE_CAP_SEC after Lead's, an estimate). where: { key, side }.
+   * B3 (TS-231, spec 7c.2): in every close formation, echelon, route, line astern and the corner.
+   */
+  function liveTurn(where) {
+    const c = state.current;
+    if (!c || state.closeWing !== 'live' || state.aircraft.length !== 2 || !LIVE_CLOSE.includes(where?.key)) return;
+    const [lead, wing] = state.aircraft;
+    if (!state.liveWing) state.liveWing = startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: where.key, side: where.side || sideOfTwo() });
+    state.plans[wing.id] = { segments: [] };
+    const a = copyAircraft(lead);
+    const lp = state.plans[lead.id] ?? { segments: [] };
+    const p = { segments: lp.segments.map((seg) => ({ ...seg })), profile: lp.profile };
+    let w = state.liveWing;
+    let t = state.tSec;
+    let leadDoneAt = null;
+    const every = Math.round(0.25 / STEP_SEC);
+    const pts = [[t, wing.xFt, wing.yFt, wing.altAboveFt]];
+    for (let i = 1; t - state.tSec < 600; i++) {
+      const refSt = leadPointMassOf(a, opts.blockFt);
+      flyStep(a, p, t);
+      w = stepWingman(w, refSt).w;
+      t += STEP_SEC;
+      if (i % every === 0) pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+      if (leadDoneAt === null && planDone(a, p)) leadDoneAt = t;
+      if (leadDoneAt !== null && (settledOn(w, leadPointMassOf(a, opts.blockFt)) || t - leadDoneAt >= LIVE_TURN_SETTLE_CAP_SEC)) break;
+    }
+    pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+    state.planned[wing.id] = pts;
+    c.endSec = Math.max(c.endSec, t);
+    c.liveTurn = true;
   }
 
   /** The side #2 is on now, +1 left of Lead, -1 right. */
@@ -266,8 +326,17 @@ export function createFormation(options = {}) {
    */
   function startChange(to, changeOptions, midLead = null) {
     if (to === 'fluid') return startFluid();
-    whereNow();
+    const from = whereNow();
     const four = state.aircraft.length > 2;
+    // B3 (spec 7c.3, TS-231): with Live, a change between the close formations is flown by the live wingman himself.
+    if (!four && !midLead && !state.errors && state.closeWing === 'live' && LIVE_CLOSE.includes(from.key) && LIVE_CLOSE.includes(to)) return startLiveChange(from, to, changeOptions);
+    // B5 T30 (spec 7e §7.9.8, control-model.md §7.13): with fwWing 'live', a change from a close formation to fighting wing
+    // is flown by the range-phased (100 -> 250 ft) close-to-fighting-wing blend and T8: moving-out.
+    if (!four && !midLead && !state.errors && opts.fwWing === 'live' && LIVE_CLOSE.includes(from.key) && to === 'fw') {
+      const sCur = from.side || state.lastSide || -1;
+      const sTo = sideFor('fw', changeOptions.side ?? 'keep', sCur);
+      if (from.key === 'astern' || sTo === sCur) return startLiveFwChange(from, changeOptions);
+    }
     // A training error set (TS-62): the chooser races "from here" too, from wherever the error put #2.
     // midLead: Lead's own flying when a turn button is pressed mid-change (turnMidChange); otherwise how the press leaves him.
     const mid = midLead ? { lead: { kind: 'carry', plan: midLead } } : state.current ? midPress(state.current) : null;
@@ -299,7 +368,8 @@ export function createFormation(options = {}) {
     state.trailSide = null; // the wait in trail after a break ends with the rejoin (TS-175)
     state.current = {
       key: `change:${to}`,
-      change: { to: plan.to ?? to, side: plan.side, from: plan.from, holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
+      // liveHand: a 2-ship change into echelon with Live chosen ends on the live wingman's hand-over test (events.js inBandAndSteady).
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, liveHand: !four && LIVE_CLOSE.includes(plan.to ?? to) && state.closeWing === 'live', holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -312,6 +382,201 @@ export function createFormation(options = {}) {
     state.judged = null;
     state.errorOutcome = null;
     return true;
+  }
+
+  /**
+   * A change between the close formations flown by the live close-in wingman (B3; spec 7c.3-7c.5, TS-231): echelon, route,
+   * line astern and the corner, either side. He flies a short list of places in Lead's frame (supervisor.js stationChange)
+   * at no more than the jogging pace, flowing through each place on the way and stopping on the last, with the deconfliction
+   * guards; Lead flies straight on (at the close formations' speed if he is not at it). The path drawn ahead is flown ahead
+   * at the press with the same law (as liveTurn). Done when he is on the last place, in band, closing under 5 kt, his bank
+   * within 10° of Lead's and on the new side (events.js). from: { key, side }, the formation he is in.
+   */
+  function startLiveChange(from, to, changeOptions) {
+    const [lead, wing] = state.aircraft;
+    const sCur = from.side || state.lastSide || -1;
+    const sTo = sideFor(to, changeOptions.side ?? 'keep', sCur);
+    if (from.key === to && (to === 'astern' || sTo === sCur)) {
+      state.refusal = `Already in ${FORMATIONS[to].label.toLowerCase()}.`;
+      return false;
+    }
+    const places = stationChange(from.key, sCur, to, sTo);
+    if (!places.length) {
+      state.refusal = 'Nothing to change.';
+      return false;
+    }
+    const w0 = state.liveWing ?? startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: from.key, side: sCur });
+    const w1 = withChange(w0, places, to);
+    const leadSegs = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [speedSeg(lead.kias, KIAS_OUTSIDE_LAB, opts.blockFt)] : [];
+    // The path ahead, flown ahead: Lead's plan and the wingman's law together on copies, until he has settled on his new
+    // place (or the change limit, a catch: then nothing is flown).
+    const a = copyAircraft(lead);
+    const p = { segments: leadSegs.map((seg) => ({ ...seg })) };
+    let w = w1;
+    let t = state.tSec;
+    const every = Math.round(0.25 / STEP_SEC);
+    const pts = [[t, wing.xFt, wing.yFt, wing.altAboveFt]];
+    let done = false;
+    for (let i = 1; t - state.tSec < CHANGE_LIMIT_SEC; i++) {
+      const refSt = leadPointMassOf(a, opts.blockFt);
+      flyStep(a, p, t);
+      w = stepWingman(w, refSt).w;
+      t += STEP_SEC;
+      if (i % every === 0) pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+      if (!w.route && planDone(a, p) && settledOn(w, leadPointMassOf(a, opts.blockFt))) {
+        done = true;
+        break;
+      }
+    }
+    if (!done) {
+      state.refusal = `No safe change from here: #2 does not settle in ${FORMATIONS[to].label.toLowerCase()} inside ${Math.round(CHANGE_LIMIT_SEC / 60)} minutes.`;
+      return false;
+    }
+    pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+    state.liveWing = w1;
+    state.liveTrace = null;
+    state.refusal = null;
+    state.plans = { [lead.id]: { segments: leadSegs }, [wing.id]: { segments: [] } };
+    state.planned = { [lead.id]: dryRunT(lead, state.plans[lead.id], state.tSec).points, [wing.id]: pts };
+    state.trailSide = null;
+    const side = (s) => (s > 0 ? ' left' : ' right');
+    const label = `${FORMATIONS[to].label}${to === 'astern' ? '' : side(sTo)}`;
+    const fromWord = `${FORMATIONS[from.key].label}${from.key === 'astern' ? '' : side(sCur)}`;
+    const via = places.slice(0, -1).map((pl) => `${FORMATIONS[pl.key].label.toLowerCase()}${pl.key === 'astern' ? '' : side(pl.side)}`);
+    state.current = {
+      key: `change:${to}`,
+      change: { to, side: sTo, from: from.key, live: true, liveHand: false, holdsPlan: false, rejoining: false, rejoinKind: 'none', flying: `${fromWord} to ${label} (station change, live)`, maxBankDeg: null, four: false, offStandard: null, chooser: null, options: changeOptions },
+      dir: 0,
+      label,
+      note: `${fromWord} to ${label}: #2 flies it himself${via.length ? ` through ${via.join(', then ')}` : ''}, at no more than a jog (8 ft/s), passing below and behind Lead (SMM 12.20 paras 44-47).`,
+      firstId: null,
+      shape: 'abreast',
+      startSec: state.tSec,
+      endSec: t,
+      errorRun: null,
+      liveChange: true,
+    };
+    state.judged = null;
+    state.errorOutcome = null;
+    return true;
+  }
+
+  /**
+   * A change from a close formation (echelon, route, line astern, corner) to fighting wing with fwWing 'live' (B5 T30;
+   * spec 7e §7.9.8, control-model.md §7.13): #2 flies the 100 -> 250 ft range-phased close-to-fighting-wing blend and
+   * T8: moving-out (straight back along his held side to 500 ft at 10 ft/s, then sweeping out to 625 ft at 45° and -50 ft
+   * stack, SMM 12.27 para 57). The path drawn ahead is flown ahead at the press with the same law.
+   */
+  function startLiveFwChange(from, changeOptions) {
+    const [lead, wing] = state.aircraft;
+    const sCur = from.side || state.lastSide || -1;
+    const sTo = sideFor('fw', changeOptions.side ?? 'keep', sCur);
+    const w0 = startFwWing(wing, leadPointMassOf(lead, opts.blockFt), {
+      blockFt: opts.blockFt,
+      closeHandOver: { key: from.key, side: sTo },
+    });
+    const leadSegs = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [speedSeg(lead.kias, KIAS_OUTSIDE_LAB, opts.blockFt)] : [];
+    const a = copyAircraft(lead);
+    const p = { segments: leadSegs.map((seg) => ({ ...seg })) };
+    let w = w0;
+    let t = state.tSec;
+    const every = Math.round(0.25 / STEP_SEC);
+    const pts = [[t, wing.xFt, wing.yFt, wing.altAboveFt]];
+    let done = false;
+    for (let i = 1; t - state.tSec < CHANGE_LIMIT_SEC; i++) {
+      const refSt = leadPointMassOf(a, opts.blockFt);
+      flyStep(a, p, t);
+      w = stepFwWingman(w, refSt).w;
+      t += STEP_SEC;
+      if (i % every === 0) pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+      if (planDone(a, p) && settledInFwCone(w)) {
+        done = true;
+        break;
+      }
+    }
+    if (!done) {
+      state.refusal = `No safe change from here: #2 does not settle in fighting wing inside ${Math.round(CHANGE_LIMIT_SEC / 60)} minutes.`;
+      return false;
+    }
+    pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+    state.liveWing = null;
+    state.liveTrace = null;
+    state.fwWing = w0;
+    state.fwTrace = null;
+    state.refusal = null;
+    state.plans = { [lead.id]: { segments: leadSegs }, [wing.id]: { segments: [] } };
+    state.planned = { [lead.id]: dryRunT(lead, state.plans[lead.id], state.tSec).points, [wing.id]: pts };
+    state.trailSide = null;
+    const side = (s) => (s > 0 ? ' left' : ' right');
+    const label = `${FORMATIONS.fw.label}${side(sTo)}`;
+    const fromWord = `${FORMATIONS[from.key].label}${from.key === 'astern' ? '' : side(sCur)}`;
+    state.current = {
+      key: 'change:fw',
+      change: { to: 'fw', side: sTo, from: from.key, live: true, liveHand: false, holdsPlan: false, rejoining: false, rejoinKind: 'none', flying: `${fromWord} to ${label} (moving out, live)`, maxBankDeg: null, four: false, offStandard: null, chooser: null, options: changeOptions },
+      dir: 0,
+      label,
+      note: `${fromWord} to ${label}: #2 moves straight back to 500 ft at 10 ft/s along his side, then sweeps out to 625 ft at 45° and 50 ft below Lead (SMM 12.27 para 57; B5 T8).`,
+      firstId: null,
+      shape: 'abreast',
+      startSec: state.tSec,
+      endSec: t,
+      errorRun: null,
+      fwLiveWing: true,
+    };
+    state.judged = null;
+    state.errorOutcome = null;
+    return true;
+  }
+
+  /**
+   * One of Lead's fighting wing moves with #2 on the live wingman's fighting wing technique (B5, TS-233; spec 7e): Lead flies
+   * his plan (formation-turns.js fwLeadPlan, as today), #2 flies off what he sees of Lead each step (fighting-wing.js), and
+   * Lead never waits for him (spec 7e.10). The path drawn ahead is flown ahead at the press with the same law (drawn =
+   * flown, as liveTurn). A press during a move carries his live state on. The move ends FW_LIVE.settleSec after Lead's
+   * plan, as today's; after it #2 flies on as he is (the swept place is T29). c: the move being flown, if any.
+   */
+  function pressFwLive(key, dir, c, refuse) {
+    const [lead, wing] = state.aircraft;
+    const bankDeg = bankDegFor(opts.fluidBank);
+    const lp = fwLeadPlan(lead, key, dir, state.tSec, bankDeg, opts.blockFt);
+    if (!lp.ok) return refuse(lp.reason);
+    const leadPlan = { segments: lp.segments.map((x) => ({ ...x })), profile: lp.profile, roll: lp.roll };
+    const w0 = c?.fwLiveWing && state.fwWing ? state.fwWing : startFwWing(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt });
+    // The path ahead, flown ahead: Lead's plan and #2's law together on copies.
+    const a = copyAircraft(lead);
+    const p = { segments: leadPlan.segments.map((x) => ({ ...x })), profile: leadPlan.profile, roll: leadPlan.roll };
+    let w = w0;
+    let t = state.tSec;
+    let doneAt = null;
+    const profileEnd = Math.max(state.tSec, ...(lp.profile ?? []).map((leg) => leg.t1));
+    const every = Math.round(0.25 / STEP_SEC);
+    const pts = [[t, wing.xFt, wing.yFt, wing.altAboveFt]];
+    for (let i = 1; t - state.tSec < FW_LIVE.maxSec; i++) {
+      const refSt = leadPointMassOf(a, opts.blockFt);
+      flyStep(a, p, t);
+      w = stepFwWingman(w, refSt).w;
+      t += STEP_SEC;
+      if (i % every === 0) pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+      if (doneAt === null && planDone(a, p) && t >= profileEnd) doneAt = t;
+      if (doneAt !== null && t - doneAt >= FW_LIVE.settleSec) break;
+    }
+    pts.push([t, w.st.pm.x, w.st.pm.y, w.st.pm.z - opts.blockFt]);
+    state.fwWing = w0;
+    state.fwTrace = null;
+    state.plans = { [lead.id]: leadPlan, [wing.id]: { segments: [] } };
+    state.planned = { [lead.id]: dryRunT(lead, { segments: leadPlan.segments.map((x) => ({ ...x })), profile: leadPlan.profile, roll: leadPlan.roll }, state.tSec).points, [wing.id]: pts };
+    const label = `${FW_MOVES[key].label}${FW_MOVES[key].sided ? (dir > 0 ? ' left' : ' right') : ''}`;
+    state.current = {
+      key: `fw:${key}`, dir: FW_MOVES[key].sided ? dir : 0, label,
+      note: `Fighting wing: Lead flies ${fwMoveWords(key, dir, bankDeg)}. #2 flies it live (spec 7e): he reads Lead 0.4 s late, aims at Lead, and his guard keeps him outside 500 ft slant, making the miss below Lead (above only if already above) and reversing onto Lead's circle when the line of sight rises. Lead never waits.`,
+      firstId: null, shape: 'formation', formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, fwLive: null, fwLiveWing: true,
+      flag: null, startSec: state.tSec, endSec: t, errorRun: null, gWarm: null,
+    };
+    state.queued = null;
+    state.judged = null;
+    state.refusal = null;
+    state.errorOutcome = null;
+    return 'started';
   }
 
   /**
@@ -387,6 +652,8 @@ export function createFormation(options = {}) {
 
   function finish() {
     const [lead, wing] = state.aircraft;
+    // A change into a close formation hands #2 to the live wingman there (B3), whatever the classifier reads at the line.
+    const into = state.current.change && LIVE_CLOSE.includes(state.current.change.to) ? { key: state.current.change.to, side: state.current.change.side } : null;
     if (state.current.change) {
       // A change of formation is judged against the target formation's band in the spec table (section 10; the four:
       // design section 7, each link against the aircraft it flies off).
@@ -453,6 +720,23 @@ export function createFormation(options = {}) {
         else start(next.key, next.dir);
       }
     }
+    startLiveWing(into);
+  }
+
+  /**
+   * With Live chosen at the last press (B1, TS-226), the pair idle in a close formation (echelon in B1 and B2; route, line
+   * astern and the corner since B3, TS-231): the close-in wingman flies #2 from here, from the motion the manoeuvre left him
+   * (wingman.js startFrom, bumpless: spec 7b.6d item 2). What is left of #2's plan (the held poses' tail) is dropped, so the
+   * next press plans him from where he is. The next press hands him back (step()). into: { key, side }, the close formation
+   * a change has just ended in (else where the classifier says the pair is).
+   */
+  function startLiveWing(into = null) {
+    if (state.closeWing !== 'live' || state.aircraft.length !== 2 || state.current || state.fluid || state.liveWing) return;
+    const where = into ?? whereNow();
+    if (!LIVE_CLOSE.includes(where.key)) return;
+    const [lead, wing] = state.aircraft;
+    state.plans[wing.id] = { segments: [] };
+    state.liveWing = startFrom(wing, leadPointMassOf(lead, opts.blockFt), { blockFt: opts.blockFt, key: where.key, side: where.side || sideOfTwo() });
   }
 
   /**
@@ -468,7 +752,12 @@ export function createFormation(options = {}) {
     // The heading trim runs through a reset to speed after a tactical turn too (TS-204); the speed trim waits for its end.
     if (lead.bankDeg !== 0 || !planDoneBut(lead, state.plans[lead.id])) return;
     for (const a of state.aircraft.slice(1)) {
+      if (state.liveWing && a.id === 2) continue; // the live close-in wingman holds his own place (B1)
       if (a.bankDeg !== 0 || !planDoneBut(a, state.plans[a.id])) continue;
+      if (holdCloseSide(lead, a)) {
+        if (planDone(lead, state.plans[lead.id]) && planDone(a, state.plans[a.id])) holdCloseFore(lead, a);
+        continue;
+      }
       const off = Math.atan2(Math.sin(a.headingRad - lead.headingRad), Math.cos(a.headingRad - lead.headingRad));
       if (Math.abs(off) > IDLE_TRIM.offRad) continue;
       const trim = IDLE_TRIM.rateRad * STEP_SEC;
@@ -477,8 +766,52 @@ export function createFormation(options = {}) {
       const dk = a.kias - lead.kias;
       const kTrim = IDLE_TRIM.ktps * STEP_SEC;
       if (!planDone(lead, state.plans[lead.id]) || !planDone(a, state.plans[a.id])) continue;
+      if (holdCloseFore(lead, a)) continue;
       if (dk !== 0 && Math.abs(dk) <= IDLE_TRIM.offKt) setKias(a, Math.abs(dk) <= kTrim ? lead.kias : a.kias - Math.sign(dk) * kTrim);
     }
+  }
+
+  /**
+   * Held #2 idle in a close formation (the pair): he holds his place fore and aft as well as Lead's speed, at any speed
+   * difference. The tracker can end a Held change 2 kt fast, in band and steady by its own test, and the speed trim
+   * above acted only within 2 kt and never on where he was: at 1.95 kt he crept 18 ft forward, nose over Lead's tail in
+   * line astern, and at 2.03 kt he never stopped (232 ft in a minute, through Lead; found in B3, 14 Oct 2026). His speed
+   * eases toward Lead's plus CLOSE_HOLD.ktPerFt for each foot he is behind his place (at most CLOSE_HOLD.maxKt), at
+   * CLOSE_HOLD.ktps. Returns true when it held him (the plain trim then stays out).
+   */
+  function holdCloseFore(lead, a) {
+    if (state.aircraft.length !== 2) return false;
+    const where = whereNow();
+    if (!LIVE_CLOSE.includes(where.key)) return false;
+    const place = pairSlot(where.key, where.side || sideOfTwo());
+    const behindFt = place.fwd - relativeTo(lead, a).fwd; // + when he is behind his place
+    if (Math.abs(behindFt) > CLOSE_HOLD.withinFt) return false;
+    const want = lead.kias + Math.max(-CLOSE_HOLD.maxKt, Math.min(CLOSE_HOLD.maxKt, CLOSE_HOLD.ktPerFt * behindFt));
+    const step = CLOSE_HOLD.ktps * STEP_SEC;
+    const d = want - a.kias;
+    if (d !== 0) setKias(a, Math.abs(d) <= step ? want : a.kias + Math.sign(d) * step);
+    return true;
+  }
+
+  /**
+   * Held #2 idle in a close formation, sideways (with holdCloseFore): his heading eases toward Lead's plus a fraction of a
+   * degree toward his place, CLOSE_HOLD.radPerFt for each foot out of it (at most CLOSE_HOLD.maxRad), at the idle trim's
+   * rate. A change ended a fraction of a degree off Lead's heading and the trim, slow to keep it unseen, let him creep
+   * 19 ft across in a minute from line astern (B3, 14 Oct 2026). Returns true when it held him.
+   */
+  function holdCloseSide(lead, a) {
+    if (state.aircraft.length !== 2) return false;
+    const where = whereNow();
+    if (!LIVE_CLOSE.includes(where.key)) return false;
+    const place = pairSlot(where.key, where.side || sideOfTwo());
+    const rel = relativeTo(lead, a);
+    if (Math.hypot(place.fwd - rel.fwd, place.left - rel.left) > CLOSE_HOLD.withinFt) return false;
+    // further left (+) wanted: a heading left of Lead's (headingRad counts anticlockwise, manoeuvres.js unit)
+    const want = lead.headingRad + Math.max(-CLOSE_HOLD.maxRad, Math.min(CLOSE_HOLD.maxRad, CLOSE_HOLD.radPerFt * (place.left - rel.left)));
+    const d = Math.atan2(Math.sin(want - a.headingRad), Math.cos(want - a.headingRad));
+    const step = IDLE_TRIM.rateRad * STEP_SEC;
+    a.headingRad = Math.abs(d) <= step ? want : a.headingRad + Math.sign(d) * step;
+    return true;
   }
 
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
@@ -511,9 +844,40 @@ export function createFormation(options = {}) {
       opts = { ...opts, ...next };
       build();
     },
+    /**
+     * The echelon setting (TS-230; slots.js): feet along the spinner-to-wingtip line from echelon's place, + down it. A live
+     * close-in wingman flies to the new place at once; planned flying takes it at the next press. Returns the setting.
+     */
+    setEchelonShift(ft) {
+      const v = setEchelonShift(ft);
+      const w = state.liveWing;
+      if (w) state.liveWing = withPlace(w, pairSlot(w.key, w.side)); // route and the corner move with echelon (TS-230, TS-231)
+      return v;
+    },
+    /**
+     * The Corner setting { fwd, up } (slots.js CORNER_SHIFT; Patrick 14 Oct 2026): a live #2 in the corner flies to the new
+     * place at once; planned flying takes it at the next press. Returns the setting.
+     */
+    setCornerShift(shift) {
+      const v = setCornerShift(shift);
+      const w = state.liveWing;
+      if (w) state.liveWing = withPlace(w, pairSlot(w.key, w.side));
+      return v;
+    },
     /** Changes options read only when a manoeuvre is planned (the 4-ship check turn), without starting again. */
     setOptions(next = {}) {
       opts = { ...opts, ...next };
+      // "#2 in close formation" switched while nothing is being flown takes effect at once (Patrick 14 Oct 2026: the echelon
+      // line control did nothing until the next press): Live starts the live wingman in echelon from where #2 is; Held hands
+      // him back (he flies straight on, the idle trim holding Lead's heading). During a press it waits for the next one.
+      if ('closeWing' in next && !state.current && !state.fluid) {
+        state.closeWing = opts.closeWing;
+        if (opts.closeWing === 'live') startLiveWing();
+        else if (state.liveWing) {
+          state.liveWing = null;
+          state.liveTrace = null;
+        }
+      }
     },
     /**
      * A button press. Flown at once when nothing is being flown; a turn button while #2 is changing formation (2-ship) is
@@ -521,6 +885,7 @@ export function createFormation(options = {}) {
      * current manoeuvre ends (a later press replaces the queued one). Returns 'started' or 'queued'.
      */
     press(key, dir = 1) {
+      state.closeWing = opts.closeWing;
       if (state.fluid) {
         state.refusal = 'In fluid manoeuvring Lead flies the fluid buttons; Terminate first.';
         return 'refused';
@@ -549,6 +914,7 @@ export function createFormation(options = {}) {
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
     change(to, options = {}) {
+      state.closeWing = opts.closeWing;
       if (state.fluid) return changeFromFluid(to, options);
       if (state.current) {
         const four = state.aircraft.length > 2;
@@ -599,6 +965,8 @@ export function createFormation(options = {}) {
       // The wingmen on the live law (fw-live.js, TS-202, TS-206, TS-208), carrying on their live states from the move being
       // flown when there is one. The only law for these moves since Patrick flew it (12 Oct 2026: "Live fighting wing is
       // fine. make it the default and get rid of it"); the tracker's (formation-turns.js planFwMove) is no longer called.
+      // B5 (spec 7e, TS-233): the 2-ship with fwWing 'live' flies #2 on the live wingman's fighting wing technique.
+      if (state.aircraft.length === 2 && opts.fwWing === 'live') return pressFwLive(key, dir, c, refuse);
       const ws0 = c?.fwLive ? c.fwLive[Math.round((state.tSec - c.startSec) / STEP_SEC) - 1] ?? null : null;
       const plan = planFwMoveLive(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank), ws0 });
       if (!plan.ok) return refuse(plan.reason);
@@ -649,6 +1017,7 @@ export function createFormation(options = {}) {
         key, dir: 0, label: CLOSE_MOVES[key].label, note: plan.note, firstId: null, shape: 'formation',
         formationTurn: where, closeMove: true, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
       };
+      liveTurn(where);
       state.queued = null;
       state.judged = null;
       state.refusal = null;
@@ -707,7 +1076,35 @@ export function createFormation(options = {}) {
       }
       // ctx: the live formation, so a line's tracker run-in is planned again at the hand-over (replay.js flyStep, step 2)
       const ctx = { live: true, aircraft: state.aircraft, plans: state.plans };
-      for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec, ctx);
+      // A press hands #2 back from the live close-in wingman: the planners start from where he is (B1).
+      if (state.liveWing && state.current && !state.current.liveTurn && !state.current.liveChange) {
+        state.liveWing = null;
+        state.liveTrace = null;
+      }
+      // The live fighting wing wingman (B5) flies only his own moves; anything else hands #2 back.
+      if (state.fwWing && !state.current?.fwLiveWing) {
+        state.fwWing = null;
+        state.fwTrace = null;
+      }
+      if (state.fwWing) {
+        // The live fighting wing wingman (B5): Lead flies his step; #2 flies off what he saw of Lead before it.
+        const [lead, wing] = state.aircraft;
+        const refSt = leadPointMassOf(lead, opts.blockFt);
+        flyStep(lead, state.plans[lead.id] ?? (state.plans[lead.id] = { segments: [] }), state.tSec, ctx);
+        const r = stepFwWingman(state.fwWing, refSt);
+        state.fwWing = r.w;
+        state.fwTrace = r.trace;
+        applyTo(wing, r.w);
+      } else if (state.liveWing) {
+        // The live close-in wingman (B1): Lead flies his step; #2 flies off what he saw of Lead before it (wingman.js).
+        const [lead, wing] = state.aircraft;
+        const refSt = leadPointMassOf(lead, opts.blockFt);
+        flyStep(lead, state.plans[lead.id] ?? (state.plans[lead.id] = { segments: [] }), state.tSec, ctx);
+        const r = stepWingman(state.liveWing, refSt);
+        state.liveWing = r.w;
+        state.liveTrace = r.trace;
+        applyTo(wing, r.w);
+      } else for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec, ctx);
       holdStationIdle();
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
       keepTrack();
@@ -722,7 +1119,9 @@ export function createFormation(options = {}) {
       }
       const rejudge = state.errorOutcome?.rejudge;
       if (rejudge && state.aircraft.every((a) => planDone(a, state.plans[a.id]))) state.errorOutcome = outcomeOf(rejudge.run, state.aircraft[0], state.aircraft[1], rejudge.label);
-      if (state.current && state.aircraft.every((a) => planDoneBut(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
+      // In a live close turn #2 has no plan: his end is the fly-ahead's, settled on his place (liveTurn, B2).
+      const flownOut = (a) => ((state.current.liveTurn || state.current.liveChange || state.current.fwLiveWing) && a.id === 2) || planDoneBut(a, state.plans[a.id]);
+      if (state.current && state.aircraft.every((a) => flownOut(a) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
       else if (state.current && inBandAndSteady()) finish();
       else if (state.current) replanAtEvents();
       return true;
@@ -730,15 +1129,32 @@ export function createFormation(options = {}) {
   };
 }
 
+/** The close formations the live close-in wingman flies (B1-B2 echelon; B3 route, line astern and the corner, TS-231). */
+const LIVE_CLOSE = Object.freeze(['echelon', 'route', 'astern', 'corner']);
+
+/** A live close turn ends once #2 is settled on his place, or this long after Lead's plan is done (B2; estimate). */
+const LIVE_TURN_SETTLE_CAP_SEC = 15;
+
 /** An idle wingman within offRad of Lead's heading and offKt of his speed eases onto them at rateRad and ktps a second (holdStationIdle; estimates). */
 const IDLE_TRIM = Object.freeze({ offRad: 1 * DEG, rateRad: 0.1 * DEG, offKt: 2, ktps: 0.2 });
+/**
+ * Held #2's fore and aft hold in the pair's close formations (holdCloseFore; estimates): 0.1 kt for each foot behind his place
+ * (16 ft off asks 1.6 kt, about 2.7 ft/s back), at most 2 kt, his speed moving 0.5 kt a second; within 30 ft of the place (a Held change can be called done with the tracker still
+ * rolling out, which once carried him 16 ft across line astern).
+ */
+const CLOSE_HOLD = Object.freeze({ ktPerFt: 0.1, maxKt: 2, ktps: 0.5, withinFt: 30,
+  // sideways: about 0.1 ft/s of drift back for each foot out at 200 KIAS (0.1 / 340 ft/s a radian per foot), at most 0.3°
+  radPerFt: 0.1 / 340, maxRad: 0.3 * DEG });
 
 /** The formations the manoeuvre buttons fly from: line abreast, or a picture that is none of the close ones (after an in-place turn). */
 const MOVES_FROM = ['lab', 'other'];
 /** The same for the four: Spread 4, or a wide picture that is none of the formations (a column after an in-place turn). */
 const MOVES_FROM_FOUR = ['spread4', 'other'];
 
-/** The fixed line under Setup. */
+/**
+ * The fixed line under Setup: line abreast's speed and turns, the close formations' speed (as set at load; Lead behaviours
+ * moves it), and Lead's roll limit (90°/s, TS-222; it read "roll up to 180°/s" until V2.428, from before TS-222).
+ */
 export function fixedLine(opts = LIVE_DEFAULTS) {
-  return `${opts.kias} KIAS · ${opts.blockFt.toLocaleString('en-CA')} ft · ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) · still air · roll up to 180°/s`;
+  return `${opts.kias} KIAS and ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) in line abreast, ${KIAS_OUTSIDE_LAB} KIAS outside it · ${opts.blockFt.toLocaleString('en-CA')} ft · still air · Lead rolls up to ${LEAD_ROLL.maxRateDps}°/s`;
 }

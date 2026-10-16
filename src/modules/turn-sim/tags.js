@@ -270,6 +270,7 @@ export const TAG_DEFAULTS = Object.freeze({
   tagHeight: false, tagHeading: false, tagBankG: false,
   tagArrow: false, tagElevation: false, // the arrow to Lead and the elevation lines to Lead's level (Patrick, 6 Oct)
   tagHud: true, // the HUD: attitude, altitude, G and airspeed of the aircraft the camera is on (Patrick, 6 Oct)
+  tagCtl: false, // T29r: the HUD's controller drop-down for #2 (phase, technique, loop shares); closed by default
 });
 
 /**

@@ -105,7 +105,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
         ref[v] += Math.max(-step, Math.min(step, want - ref[v]));
       }
       ref[axis] += ref[v] * STEP_SEC;
-      const snapDist = Math.max(T.snapFt, Math.min(T.snapMaxFt, (ph.advanceTol ?? T.snapFallbackTolFt) * T.snapTolShare));
+      const snapDist = Math.max(T.snapFt, Math.min(T.snapMaxFt, (ph.advanceTol ?? T.phase.advanceTol) * T.snapTolShare));
       if (Math.abs(target - ref[axis]) < snapDist) {
         ref[axis] = target;
         ref[v] = 0;
@@ -134,7 +134,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
   }
   const arrived = ph.goal
     ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt)
-    : Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? T.snapFallbackTolFt) * T.snapTolShare);
+    : Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? T.phase.advanceTol) * T.snapTolShare);
 
   // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
   // A phase with `refTurn: false` (the fighting wing turn exit) leaves out the ω × r: the place goes with the aircraft flown
@@ -400,6 +400,10 @@ function planeSlot(ph, L, slot) {
 
 function slotAltOf(ph, L, W) {
   const alt = ph.slot?.alt;
+  // A 2-ship change between close formations (transitions.js planGoTo marks its legs leadRelative) aims for the slot's height
+  // off Lead as he is, not off the block: since one Lead (TS-225) he drifts a few feet in turns, and aimed off the block a
+  // change ended outside its band and was refused (Patrick 14 Oct 2026: "it wont let me go in to route from echelon").
+  if (ph.leadRelative && !ph.wingPlane && alt != null && L) return (L.altAboveFt ?? 0) + alt;
   if (!ph.wingPlane || alt == null || !L || !W) return alt;
   const phi = (L.bankDeg ?? 0) * DEG;
   const leadAlt = L.altAboveFt ?? 0;
