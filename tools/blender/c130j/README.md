@@ -2,7 +2,7 @@
 
 Dad's ask, Patrick approved 15 Oct 2026 (relayed by Dad): the T-38A's process applied to the C-130J (shared plan Step 3e, `docs/modules/shared/c130j-plan.md`). Dad's picks (15 Oct 2026): the stretched C-130J-30, in USAF grey with the Ramstein "RS" tail. This folder is the one writer's own (Dad's thread). It never edits a CT-156, Astra or T-38A file.
 
-**Status:** first pass of the outside with a first paint pass, and the first delivery into the Debrief (V2.462, DB-35), 15 Oct 2026, **not yet seen by Patrick or Dad**. Sized to the published length, span and height; the shape inside them is measured off the line-art three-view Dad sent (C1, which draws the short C-130J) with the published 100 in and 80 in plugs put in, checked against his dimension drawing of the -30 (C3) (`sources.md` rows R1 to R15). What the pictures don't show (sections, struts, prop blades) is still an estimate.
+**Status:** first pass of the outside with a first paint pass, and the first delivery into the Debrief (V2.499, DB-35), 15 Oct 2026, **not yet seen by Patrick or Dad**. Sized to the published length, span and height; the shape inside them is measured off the line-art three-view Dad sent (C1, which draws the short C-130J) with the published 100 in and 80 in plugs put in, checked against his dimension drawing of the -30 (C3) (`sources.md` rows R1 to R15). What the pictures don't show (sections, struts, prop blades) is still an estimate.
 
 | File | What it does |
 |---|---|

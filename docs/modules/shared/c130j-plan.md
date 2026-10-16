@@ -1,6 +1,6 @@
 # C-130J Super Hercules model: plan (approved)
 
-> **Progress:** items 1 and 2 done and item 3's renders made, with a first paint pass (item 5) and the first delivery (item 6, V2.462), 15 Oct 2026, not yet seen by Patrick or Dad: [`tools/blender/c130j/`](../../../tools/blender/c130j/README.md); see `plan.md` Step 3e.
+> **Progress:** items 1 and 2 done and item 3's renders made, with a first paint pass (item 5) and the first delivery (item 6, V2.499), 15 Oct 2026, not yet seen by Patrick or Dad: [`tools/blender/c130j/`](../../../tools/blender/c130j/README.md); see `plan.md` Step 3e.
 >
 > **Status:** approved: Patrick said yes (relayed by Dad, 15 Oct 2026: "pat  yes"). Dad asked on 15 Oct 2026: "lets do a model for KML viewer for the C-130J", with four reference pictures. It would be Step 3e of `plan.md`, built the way the T-38A is (Step 3d, `t38a-plan.md`), which follows the Astra's (Step 3c) and the CT-156's process (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38).
 
