@@ -3498,6 +3498,7 @@ export function disposeCt156Model(group) {
     d.kit.propMeshes.delete(o);
     d.kit.lampMeshes.delete(o);
     d.kit.gearMeshes.delete(o);
+    d.kit.navMeshes.delete(o); // its flat nav ovals (a long Debrief otherwise keeps every ship's)
   });
   d.kit.lampShips.delete(d.lamps);
   d.kit.shadedCopies = d.kit.shadedCopies.filter(([, owner]) => owner !== d.mine); // freed below with the ship's own
