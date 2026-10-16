@@ -1,5 +1,7 @@
 # Low-level Navigation Planner: plan (approved)
 
+> **Shelved by Dad, 16 Oct 2026:** after trying the preview (V2.483) he said "I don't know about this... it's not helpful" and picked "Not needed at all". The work stays on this branch (pull request #1056, marked draft) in case it is wanted later; nothing of it is on main.
+>
 > **Status:** approved. Patrick's yes, relayed by Dad, 16 Oct 2026: "pat yes, build the nav planner" (ALL-43). Steps 0 to 5 built in V2.483 (branch `claude/nav-planner-plan`), not yet seen in the app by Patrick or Dad. Dad asked on 16 Oct 2026, from the idea list: "Low-level navigation planner: draw a route, get legs, times, fuel and terrain clearance, then fly it in the Debrief or check it against a real track. Could we do this better than falcon view?" Dad's picks below (16 Oct 2026, card answers).
 
 ## What it is

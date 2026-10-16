@@ -1,3 +1,5 @@
+**Shelved by Dad, 16 Oct 2026:** after trying the preview (V2.483) he said "I don't know about this... it's not helpful" and picked "Not needed at all". The work stays on this branch (pull request #1056, marked draft) in case it is wanted later; nothing of it is on main.
+
 # Low-level Navigation Planner
 
 This folder is the low-level navigation planner: draw a route at Moose Jaw, get each leg's track, heading, distance, time, fuel and terrain clearance, brief it in 2D, 3D and a leg-by-leg Brief mode, print a route card, then load the flown KML track and see how the flying matched the plan. Not for flight planning: a training and debrief tool. Start here, then read only the file you need.
