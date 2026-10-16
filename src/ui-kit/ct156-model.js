@@ -27,7 +27,7 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, CT156_FILES, loadAo, loadDelivered, paintBands, paintGrain } from './ct156-blender.js';
+import { aoShaded, CT156_PICTURES, ct156Files, ct156Level, ct156PanelSheen, loadDelivered, loadPicture, paintBands, paintGrain, shadeWhenLoaded } from './ct156-blender.js';
 import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
@@ -835,13 +835,7 @@ const PILOT_PARTS = Object.freeze(['helmetFront', 'helmetRear']);
 // shadows would be black, and the pilots, coloured by slot): their picture layout is flat, so they are drawn without the
 // file's shadow picture, in the code's own colours.
 const NO_PICTURE = new Set(['floor', 'speedBrakeWell', 'flapInWell', 'flapOutWell', 'tub', 'gearInboardWell', 'gearLegWell', 'gearNoseWell', ...PILOT_PARTS]);
-const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
-// The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
-// same script on the same uv map (Patrick, 11 Oct 2026 21:07Z: "Surface texture"); BUMP_SCALE how strongly the relief
-// shows, by eye.
-const EXTERIOR_BUMP = 'ct156-exterior-bump.jpg';
-const EXTERIOR_DIRT = 'ct156-exterior-dirt.jpg';
-const BUMP_SCALE = 3;
+// The outside's pictures (soft shadows and panel lines, relief, mask, painted weathering): ct156-blender.js CT156_PICTURES.
 
 /** The shapes the Blender outside is built from, by name (tools/blender/ct156-exterior-pieces.mjs). */
 export function ct156ExteriorPieces(THREE) {
@@ -861,19 +855,38 @@ export function ct156GearPieces(THREE) {
  * each copy made once.
  */
 function shadeMesh(kit, mesh, gear = false) {
-  const cache = gear ? kit.gearShaded : kit.shaded;
+  // A part drawn as its mirror (the right aileron and flaps under a group scaled -1 in y) needs its relief's green the
+  // other way round: its tangent frame turns with the mirror, three.js's bitangent doesn't.
+  let mirrored = false;
+  for (let o = mesh; o; o = o.parent) if (o.scale.x * o.scale.y * o.scale.z < 0) mirrored = !mirrored;
+  const cache = gear ? kit.gearShaded : mirrored ? kit.shadedMirrored : kit.shaded;
   const swap = (mat) => {
-    if (!mat?.isMeshStandardMaterial) return mat;
+    // The lenses (their own glass and glow) take none of the outside's pictures: a picture baked onto the half-sunk lens
+    // gives it a ragged dark waist (3d-work fix 4.1d).
+    if (!mat?.isMeshStandardMaterial || mat.userData.ct156NoPictures) return mat;
     let copy = cache.get(mat);
     if (!copy) {
-      copy = gear ? aoShaded(mat, kit.gearAo) : aoShaded(mat, kit.ao, kit.skin);
+      copy = gear ? aoShaded(mat, kit.gearAo) : aoShaded(mat, kit.ao, { ...kit.skin, mirrored });
       cache.set(mat, copy);
       const mine = mesh.userData.ct156Mine;
       (mine?.includes(mat) ? mine : kit.own).push(copy);
     }
     return copy;
   };
-  mesh.material = Array.isArray(mesh.material) ? mesh.material.map(swap) : swap(mesh.material);
+  const ghost = mesh.userData.ct156Ghost ?? ((m) => m); // the Debrief's see-through copy of a ship (it keeps the pictures)
+  const plain = mesh.userData.ct156Ghost ? mesh.userData.ct156Plain : mesh.material;
+  mesh.material = Array.isArray(plain) ? plain.map((m) => ghost(swap(m))) : ghost(swap(plain));
+}
+
+/** Gives a ship's mesh its plain material(s): a ghosted mesh (Debrief) keeps them as its plain ones and shows its see-through copies. */
+function setPlain(mesh, material) {
+  const ghost = mesh.userData.ct156Ghost;
+  if (!ghost) {
+    mesh.material = material;
+    return;
+  }
+  mesh.userData.ct156Plain = material;
+  mesh.material = Array.isArray(material) ? material.map(ghost) : ghost(material);
 }
 
 /** A shape with nothing in it yet, for a part only a Blender file has (takeShape fills it in). */
@@ -890,7 +903,8 @@ function takeShape(THREE, into, meshes) {
   into.setIndex(null);
   into.clearGroups();
   for (const key of Object.keys(into.attributes)) into.deleteAttribute(key);
-  const arrays = { position: [], normal: [], uv: [] };
+  // The tangents (loadParts' MikkTSpace) come along when every colour has them.
+  const arrays = { position: [], normal: [], uv: [], ...(slots.every(([, g]) => g.attributes.tangent) ? { tangent: [] } : {}) };
   let start = 0;
   for (const [slot, g] of slots) {
     into.addGroup(start, g.attributes.position.count, slot);
@@ -902,7 +916,7 @@ function takeShape(THREE, into, meshes) {
     const out = new Float32Array(list.reduce((n, a) => n + a.length, 0));
     let at = 0;
     for (const a of list) { out.set(a, at); at += a.length; }
-    into.setAttribute(key, new THREE.BufferAttribute(out, key === 'uv' ? 2 : 3));
+    into.setAttribute(key, new THREE.BufferAttribute(out, { uv: 2, tangent: 4 }[key] ?? 3));
   }
   into.computeBoundingBox();
   into.computeBoundingSphere();
@@ -930,7 +944,7 @@ function mirrorShape(THREE, into, from) {
 }
 
 function attachExterior(kit) {
-  loadDelivered(EXTERIOR_FILE).then((list) => {
+  loadDelivered(EXTERIOR_FILE, { tangents: true }).then((list) => {
     if (kit.disposed) return;
     const byName = new Map(list.map((p) => [p.name, p]));
     const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
@@ -943,18 +957,29 @@ function attachExterior(kit) {
     // The file's plate lies shut in the model's frame; the ship turns it on its hinge (addSpeedBrake), so it moves into the hinge's frame.
     const sb = speedBrakeHinge();
     kit.geo.speedBrake.translate(-sb.at[0], -sb.at[1], -sb.at[2]).rotateY(-sb.shut);
-    kit.ao = loadAo(kit.THREE, CT156_FILES + EXTERIOR_AO);
-    kit.skin = { bump: loadAo(kit.THREE, CT156_FILES + EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, CT156_FILES + EXTERIOR_DIRT) };
-    for (const mesh of kit.exteriorMeshes) {
-      if (mesh.userData.ct156Slots) mesh.material = mesh.userData.ct156Slots; // the wicks' and slots' dark colour (kit.slotExtras)
-      shadeMesh(kit, mesh);
-    }
+    for (const mesh of kit.exteriorMeshes) if (mesh.userData.ct156Slots) setPlain(mesh, mesh.userData.ct156Slots); // the wicks' and slots' dark colour (kit.slotExtras)
+    // The nav and tail lights' lenses (3d-work slice 4.1: antenna|3 red, |4 green, |5 white) in place of the code's flat
+    // ovals (fix row W4), when the file has them.
+    kit.lensesDelivered = [3, 4, 5].every((slot) => byName.get('antenna').meshes.some(({ material }) => material === `antenna|${slot}`));
+    for (const m of kit.navMeshes) m.visible = !kit.lensesDelivered;
     // The prop's blade 1 and its tip, when the file has them (3d-work delivery 423e5eb on); before that the code's plates stay.
     if (PROP_PARTS.every((name) => usable(byName.get(name)))) {
       for (const name of PROP_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
       kit.propDelivered = true;
-      for (const mesh of kit.propMeshes) shadeMesh(kit, mesh);
     }
+    // The pictures (slice 4.1, a set per level), the paint shaded only once every one has loaded at its size.
+    const P = CT156_PICTURES[ct156Level()], at = ct156Files();
+    const pic = (k) => loadPicture(kit.THREE, at + P[k].file, P[k].size);
+    shadeWhenLoaded({ ao: pic('ao'), normal: pic('normal'), mask: pic('mask'), weather: pic('weather') }, (p) => {
+      if (kit.disposed) return;
+      const sheen = ct156PanelSheen(kit.THREE, p.mask);
+      kit.own.push(sheen.texture);
+      kit.sheenInfo = { panels: sheen.panels, ms: sheen.ms, samples: sheen.samples };
+      kit.skin = { normal: p.normal, mask: p.mask, weather: p.weather, sheen: sheen.texture };
+      kit.ao = p.ao;
+      for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
+      if (kit.propDelivered) for (const mesh of kit.propMeshes) shadeMesh(kit, mesh);
+    });
   }, () => {}); // no file: the code model shows
 }
 
@@ -976,8 +1001,13 @@ function attachGear(kit) {
       mirrorShape(kit.THREE, kit.geo[`${name}R`], kit.geo[`${name}L`]);
     }
     takeShape(kit.THREE, kit.geo.gearNoseWell, byName.get('gearNoseWell').meshes);
-    kit.gearAo = loadAo(kit.THREE, CT156_FILES + GEAR_AO);
-    for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
+    const { gearAo } = CT156_PICTURES[ct156Level()];
+    shadeWhenLoaded({ ao: loadPicture(kit.THREE, ct156Files() + gearAo.file, gearAo.size) }, ({ ao }) => {
+      if (kit.disposed) return;
+      kit.gearAo = ao;
+      for (const mesh of kit.gearMeshes) shadeMesh(kit, mesh, true);
+      for (const lamps of kit.lampShips) showLamps(lamps);
+    });
     // The landing and taxi lamp (GEAR_LAMP), when the file has it (3d-work delivery 423e5eb on): every ship's lamps take
     // it and its old glow goes; before that the glow stays.
     if (usable(byName.get('gearLamp'))) {
@@ -1013,9 +1043,30 @@ function showLamps(lamps) {
   if (glow) glow.visible = lit && !kit.lampDelivered;
   for (const mesh of meshes) {
     mesh.visible = Boolean(kit.lampDelivered);
-    mesh.material = lit ? [mats.gearLamp[0], mats.lamp, mats.lamp] : mats.gearLamp;
+    setPlain(mesh, lit ? [mats.gearLamp[0], mats.lamp, mats.lamp] : mats.gearLamp);
     if (kit.lampDelivered && kit.gearAo) shadeMesh(kit, mesh, true);
   }
+}
+
+/**
+ * The canopy's tinted glass seen from outside (next-steps 5b, Patrick 15 Oct 2026; 3d-work handover 4.4): the sky's
+ * reflection as before (envMap), and toward the glass's edges, where it is seen at a glancing angle, more of the tint and
+ * less of what is behind (a Fresnel-like rise, (1 - |n.v|)^3, to GLASS_EDGE's opacity, the light dimmed by up to
+ * GLASS_EDGE_DIM), so the hood reads as curved glass and its edges darker than its middle. Numbers estimates, judged on
+ * renders. Returns the material.
+ */
+const GLASS_EDGE = 0.85, GLASS_EDGE_DIM = 0.85;
+function canopyGlass(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
+		float ct156Glance = pow( 1.0 - abs( dot( normal, normalize( vViewPosition ) ) ), 3.0 );
+		diffuseColor.a = mix( diffuseColor.a, ${GLASS_EDGE.toFixed(3)}, ct156Glance );
+		outgoingLight *= 1.0 - ${GLASS_EDGE_DIM.toFixed(3)} * ct156Glance;
+	}
+	#include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => 'ct156-canopy-glass';
+  return material;
 }
 
 const kits = new WeakMap(); // THREE namespace -> kit
@@ -1607,8 +1658,7 @@ function surfaceLayout() {
 const GEAR_PARTS = Object.freeze(['gearMain', 'gearMainDoor', 'gearInboardDoor', 'gearNose', 'gearNoseDoor']);
 /** The gear's wells from the same file (layout 2), in the model's frame: the left side's two and the nose bay's. */
 const GEAR_WELLS = Object.freeze(['gearInboardWell', 'gearLegWell', 'gearNoseWell']);
-const GEAR_FILE = 'ct156-gear.glb';
-const GEAR_AO = 'ct156-gear-ao.jpg';
+const GEAR_FILE = 'ct156-gear.glb'; // its soft shadows: ct156-blender.js CT156_PICTURES gearAo
 
 /**
  * Where each gear part sits, gear down, as a column-major 4x4 matrix from its hinge's frame to the model's (the left
@@ -2715,7 +2765,8 @@ function buildKit(THREE) {
     env,
     navy: gloss({ color: NAVY, roughness: 0.42, metalness: 0.15, envMapIntensity: 0.8 }),
     cheat: mat({ color: '#f1f4f8', roughness: 0.45, emissive: '#ffffff', emissiveIntensity: 0.3, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.2, envMapIntensity: 0.5 }),
+    // Self-lit 0.1 (was 0.2): with the old dirt haze gone the white clipped to pure white over 1 % of a close view (4.4 check).
+    wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.1, envMapIntensity: 0.5 }),
     finLe: mat({ color: '#c3c9cf', roughness: 0.5, side: two }),
     vent: mat({ color: '#07090b', roughness: 0.9, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     // The floors of the speed brake's slots (the file's speedBrake|1, layout 2): a vent's dark, without its offset, as
@@ -2723,7 +2774,15 @@ function buildKit(THREE) {
     slotFloor: mat({ color: '#07090b', roughness: 0.9, side: two }),
     // The antennas (geo.antenna's slots): light grey (lighter, as the paddles on Patrick's 156102 photo; was #a8aaa4),
     // white, and dark for the painted TAS blades and the tie-down rings.
-    antenna: [mat({ color: '#c4c5bf', roughness: 0.5, side: two }), mat({ color: '#f1f3f5', roughness: 0.45, side: two }), mat({ color: '#15181d', roughness: 0.45, metalness: 0.3, side: two })],
+    // Slots 3 to 5 (3d-work slice 4.1, fix row W4): the nav lights' lenses, red left and green right, and the tail
+    // light's, white: coloured glass, lit from inside so they glow whatever the sun (the code's flat ovals' colours), and
+    // drawn without the outside's pictures (ct156NoPictures).
+    antenna: [mat({ color: '#c4c5bf', roughness: 0.5, side: two }), mat({ color: '#f1f3f5', roughness: 0.45, side: two }), mat({ color: '#15181d', roughness: 0.45, metalness: 0.3, side: two }),
+      ...['#ff2b2b', '#2bff6a', '#ffffff'].map((c) => {
+        const lens = keep(new THREE.MeshPhysicalMaterial({ color: c, emissive: c, emissiveIntensity: 1.6, roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.03, envMap: env, envMapIntensity: 1, side: two, fog: false }));
+        lens.userData.ct156NoPictures = true;
+        return lens;
+      })],
     beacon: mat({ color: '#8a6326', roughness: 0.25, metalness: 0.2, envMap: env, envMapIntensity: 0.8 }),
     chrome: mat({ color: '#f2f5f8', roughness: 0.1, metalness: 1, envMap: env, envMapIntensity: 1.2 }),
     // Bare, heat-stained steel, as on Patrick's photo of 156102 (was a dark grey that read as paint).
@@ -2732,7 +2791,7 @@ function buildKit(THREE) {
     // The stacks' sooty insides: a dull brown-black, grained and blotchy, not a smooth shiny black (Patrick, 12 Oct 2026,
     // pinned on a stack's open end: "give the whole interior a texture, its not quite right"; was the blades' black).
     soot: paintGrain(mat({ color: '#2b251d', roughness: 0.95 }), { unit: 1 / FT, grain: 0.02, bump: 0.0015, speckle: 0.15, mottle: 0.2, mottleSize: 0.12, wear: 0, shine: 0.05 }),
-    glass: mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two }),
+    glass: canopyGlass(mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two })),
     // The canopy seen from inside (setCockpitView): a faint clear tint, no reflections, so the sky shows through it.
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
@@ -2809,7 +2868,11 @@ function buildKit(THREE) {
   kit.slotExtras = new Map([[geo.aileron, mats.antenna[2]], [geo.elevator, mats.antenna[2]], [geo.rudder, mats.antenna[2]], [geo.speedBrake, mats.slotFloor]]);
   kit.exteriorMeshes = new Set();
   kit.shaded = new WeakMap();
+  kit.shadedMirrored = new WeakMap(); // the mirrored parts' copies (shadeMesh)
   kit.ao = null;
+  kit.skin = {};
+  kit.navMeshes = new Set(); // every ship's flat nav ovals (geo.lights), hidden once the file's lenses are in
+  kit.lensesDelivered = false;
   // The gear from its own Blender file (ALL-34), the same way, swapped in only all together.
   kit.gearHashes = Object.fromEntries(GEAR_PARTS.map((name) => [name, ct156PiecesHash([{ geometry: geo[name] }])]));
   kit.gearGeos = new Set(GEAR_PARTS.map((name) => geo[name]));
@@ -3076,7 +3139,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return { sides, elevator: pivot('elevator', geo.elevator, paintMat), rudder: pivot('rudder', geo.rudder, rudderMat) };
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
+  let fuselage, canopy, navLights, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -3106,7 +3169,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.spinner, m('#20242a', { roughness: 0.4 }));
     add(geo.spinnerRing, mats.blade);
     // Up close only: the position lights, the exhaust stacks, the canopy's frames and the serial on the fin (TS-156).
-    add(geo.lights, mats.lights, detail);
+    navLights = add(geo.lights, mats.lights, detail);
     strobes = add(geo.strobes, mats.lights[2], detail);
     gearLights = add(geo.gearLights, mats.lamp, detail);
     gearLights.visible = false; // lit only with all three legs down (setGear)
@@ -3168,7 +3231,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.beacon, mats.beacon, detail);
     speedBrake = addSpeedBrake(mats.navy);
     gear = addGear(mats.navy);
-    add(geo.lights, mats.lights, detail);
+    navLights = add(geo.lights, mats.lights, detail);
     strobes = add(geo.strobes, mats.lights[2], detail);
     gearLights = add(geo.gearLights, mats.lamp, detail);
     gearLights.visible = false; // lit only with all three legs down (setGear)
@@ -3206,6 +3269,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     setDetail(THREE, root, camera, renderer);
     turnProp(root);
   };
+  // The flat nav ovals only until the file's lenses are in (attachExterior).
+  kit.navMeshes.add(navLights);
+  navLights.visible = !kit.lensesDelivered;
   // The landing and taxi lamps, unlit while the gear is up (setGear, showLamps).
   const lamps = { kit, glow: gearLights, meshes: gear.lampMeshes, lit: false };
   kit.lampShips.add(lamps);

@@ -5,16 +5,19 @@
 // file (forward-bow, canopy-rails, and the seat, pcl and stick rounded from the code's own pieces) replaces the code cockpit's mesh named ct156-cockpit-<part> once the file is in; until
 // then, or if it never loads, the code's part shows. Built in the cockpit's own feet (nose +X, left +Y, up +Z), so the
 // parts drop into the cockpit's group as they are. A picture only: no flight numbers.
-import { aoShaded, CT156_FILES, loadAo, loadDelivered } from './ct156-blender.js';
+import { aoShaded, CT156_PICTURES, ct156Files, ct156Level, loadAo, loadDelivered, loadPicture, shadeWhenLoaded } from './ct156-blender.js';
 
 const FILE = 'ct156-cockpit.glb';
+// The body's relief picture (3d-work slice 4.1: the glare shield's screws and rivets, on the body's own layout), drawn
+// with MikkTSpace tangents worked out for the body only.
+const RELIEF_PART = 'body';
 
 /** The file's parts, loaded once per page and shared by every cockpit: Promise of [{ name, ao, meshes }]. */
 let parts = null;
 function cockpitParts(THREE) {
   if (!parts) {
-    parts = loadDelivered(FILE).then((list) => list.map(({ name, extras, meshes }) => ({
-      name, ao: extras.ct156_ao ? loadAo(THREE, CT156_FILES + extras.ct156_ao) : null, meshes,
+    parts = loadDelivered(FILE, { tangents: (name) => name === RELIEF_PART }).then((list) => list.map(({ name, extras, meshes }) => ({
+      name, ao: extras.ct156_ao ? loadAo(THREE, ct156Files() + extras.ct156_ao) : null, meshes,
     })));
     parts.catch(() => {}); // a missing file leaves the code's parts showing
   }
@@ -38,6 +41,7 @@ export function attachCockpitModel(THREE, group, mats, own = (m) => m, partMats 
       const code = group.getObjectByName(`ct156-cockpit-${name}`);
       const part = new THREE.Group();
       part.name = `ct156-cockpit-${name}-model`;
+      const relief = []; // [mesh, base] of the body's lit colours, given the relief once its picture loads
       for (const { geometry, material } of meshes) {
         if (material === 'shade') { // the pictured faces' baked shadows, laid over the code's pictures
           if (ao) part.add(new THREE.Mesh(geometry, own(new THREE.MeshBasicMaterial({ map: ao, blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide, fog: false }))));
@@ -49,9 +53,17 @@ export function attachCockpitModel(THREE, group, mats, own = (m) => m, partMats 
         const mesh = new THREE.Mesh(geometry, m);
         mesh.castShadow = mesh.receiveShadow = !m.transparent; // real-time shadows where a view has them (aircraft-shadows.js)
         part.add(mesh);
+        if (m !== base && geometry.attributes.tangent) relief.push([mesh, base]);
       }
       group.add(part);
       if (code) code.visible = false;
+      if (relief.length) {
+        const { cockpitNormal: n } = CT156_PICTURES[ct156Level()];
+        shadeWhenLoaded({ normal: loadPicture(THREE, ct156Files() + n.file, n.size) }, ({ normal }) => {
+          if (group.userData.disposed) return;
+          for (const [mesh, base] of relief) mesh.material = own(aoShaded(base, ao, { normal }));
+        });
+      }
     }
   }, () => {});
 }
