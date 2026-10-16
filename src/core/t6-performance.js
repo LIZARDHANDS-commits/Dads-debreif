@@ -41,8 +41,12 @@ export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKi
  * performance audit, 5 Oct 21:59Z-22:01Z): no manual in the project files gives them, so they stay estimates until Patrick
  * corrects them.
  *  - full-stick roll rate: rollPerKtasDps per knot of TRUE airspeed (a roll rate at a fixed helix angle grows with true
- *    airspeed), capped at maxRateDps: about 100°/s at 200 KIAS and 8,000 ft, the cap from about 265 KTAS. The audit's examples
- *    (65°/s at 140 KIAS, 90 at 200, 115 at 250) are the same rule read with KIAS, about 13% lower at 8,000 ft;
+ *    airspeed), capped at maxRateDps: about 131°/s at 200 KIAS and 8,000 ft, the cap from about 345 KTAS (only near VMO at
+ *    height). ALL-39 (Patrick 12 Oct 2026, "agreed"): 0.58 and 200°/s, worked out from the airframe with standard
+ *    aerodynamics (aileron travel 20° up and 11° down, NFM p.1-41 to 1-43; helix angle pb/2V about 0.10, range 0.07-0.14),
+ *    still an estimate until Patrick's measured full-stick 360° roll at about 200 KIAS (about 3.0 s expected). It was 0.45
+ *    and 120°/s (ALL-28, Fable's audit of 5 Oct). Patrick's phase 2 rolls (GoPro telemetry, 2022) reached 83-100°/s at about
+ *    110-140 KTAS, above even this at low speed, so a measured roll may raise it again;
  *  - roll acceleration: full rate in fullRateSec, the acceleration itself built over onsetSec (Patrick's ruling 12 Oct 2026
  *    03:37Z, "let's do .2", from Fable's estimate of a brisk full stick throw; his 02:08Z ask, "the roll rate itself just
  *    needs to be realistic and smoothed (not instant acceleration)"). Only a roll that carries its acceleration uses it
@@ -50,9 +54,15 @@ export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKi
  *  - G onset (T6A_G_ONSET): 4 G per second, building at 16 G/s² (the Formation fluid Lead's number, design 5.3).
  * A module's own gentler rate (a pilot's) is its choice; it never goes past these (rollWithinT6A).
  */
-export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.45, maxRateDps: 120, fullRateSec: 0.3, onsetSec: 0.2 });
+export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.58, maxRateDps: 200, fullRateSec: 0.3, onsetSec: 0.2 });
 /** The T-6A's G onset in easeValue's shape (flight-math.js): G per second, and per second². An estimate (T6A_ROLL). */
 export const T6A_G_ONSET = Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 });
+/**
+ * The fastest G ever builds, G per second: the ceiling the envelope gates hold every roll-in under (Formation handling.js,
+ * Traffic envelope.js). 6 G/s (ALL-40, Patrick 12 Oct 2026: "make it 6 g/s ceiling"; it was 8, twice T6A_G_ONSET): no
+ * pilot source supports more (centrifuge training tops out about 6 G/s; Patrick's recorded pulls peak under 3 G/s). An estimate.
+ */
+export const T6A_G_ONSET_CEILING_GPS = 6;
 
 /** The T-6A's roll limits at a true airspeed (knots), in easeRoll's shape { maxRateDps, maxAccelDps2 }. Estimates (T6A_ROLL). */
 export function rollLimitsAtKtasT6A(ktas) {
@@ -407,6 +417,23 @@ export const T6A_MANOEUVRE = Object.freeze({
 const SPLIT_S_MIN_KIAS = 1;     // the point-mass step needs a speed; slower than this is a tail slide
 const SPLIT_S_STEP_SEC = 0.02;
 const SPLIT_S_MAX_SEC = 120;    // a guard: the slowest entry takes about 30 s (at 30,000 ft)
+
+/**
+ * The angle of attack indexer, in units (Patrick 12 Oct 2026: the stick shaker comes on at 15 units, and a pilot may
+ * ease on to 17; SMM 14.14 para 33: 17 units is just under the 18-unit stall).
+ */
+export const T6A_AOA = Object.freeze({ shakerUnits: 15, stallUnits: 18 });
+
+/**
+ * The G a pull at an AOA indexer reading (units) gives at this speed. The lift is taken as rising evenly with the units
+ * from the shaker's (15 units: shakerG, 1 G at the shaker speed) to the stall line's (18 units); an estimate, as is the
+ * shaker's margin. 17 units is about 95% of the stall line's G, 11% above the shaker's. At most maxG.
+ */
+export function gAtAoaUnits(kias, units, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A_MANOEUVRE.shakerMarginKt, maxG = T6A_LIMITS.maxG } = {}) {
+  const atShaker = (stallKias / (stallKias + marginKt)) ** 2; // the shaker's share of the stall line's lift
+  const share = atShaker + ((units - T6A_AOA.shakerUnits) / (T6A_AOA.stallUnits - T6A_AOA.shakerUnits)) * (1 - atShaker);
+  return Math.min(share * (kias / stallKias) ** 2, maxG);
+}
 
 /**
  * The G a pull in the stick shaker gives at this speed: 1 G at the shaker
