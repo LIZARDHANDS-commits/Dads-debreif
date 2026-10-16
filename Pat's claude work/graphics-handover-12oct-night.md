@@ -5,7 +5,19 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (15 Oct 2026, late): 4.5B and 4.5C built on the same draft (#1051, V2.464; was V2.462, which #1050 also claimed)
+## Latest (15 Oct 2026, night): slice 3.2, the Graphics switch picks the CT-156's files (V2.465, branch `shared-3d-ct156-level-switch`, draft PR stacked on #1051)
+
+- Formation and Traffic call `setCt156Level` when their 3D view starts (Performance files at Performance) and set High
+  when it goes. `ct156-blender.js` keeps a level, a generation count (`ct156Generation`) and `onCt156Level`; a real change
+  frees the old level's pictures. `ct156-model.js` `unshadeKit` puts every ship back to plain paint, disposes the shaded
+  copies and the sheen picture, then re-attaches the shapes and pictures at the new level; a load that began under an
+  earlier generation is dropped. `ct156-cockpit-model.js` does the same for each live cockpit (`detachCockpitModel` on
+  its dispose). The look sliders are separate (shared uniforms) and keep working across a switch.
+- Open: the first High holds 14 geometries more than any later level (the first frame draws the fine detail once, 140
+  draw calls then 29), so "back to the first High's counts" is met as "back to Performance's count, not above the first".
+  Formation's overview shows the same draw calls and triangles at both levels (61, 30,780).
+
+## Earlier (15 Oct 2026, late): 4.5B and 4.5C built on the same draft (#1051, V2.464; was V2.462, which #1050 also claimed)
 
 - Fix delivery `ct156-2026-10-15-6b02eca` imported. `ct156-cockpit.js` `attachScreens` draws a face into each of the 53
   rectangles in `ct156-points.json` (`loadCt156Points`), glass over the openings, the striped handles from the delivery's

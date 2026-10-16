@@ -50,17 +50,38 @@ export function loadParts(file, { tangents = false } = {}) {
 /**
  * Where the CT-156's delivered files sit (plan Step 3b item 3.4): public/models/ct156/, written only by
  * `npm run models:import` from a checked delivery of the 3d-work repo (ALL-38: Blender owns the shape). High and
- * Performance each have their own folder, picked by setCt156Level before the first CT-156 is made (a view's Graphics
- * switch reloads the page, so the level never changes under a model already drawn); High until then.
+ * Performance each have their own folder, picked by setCt156Level; High until then. A view sets it when it starts (its
+ * Graphics switch reloads the page, as the canvas keeps its first edge smoothing), and a change under models already made
+ * (a view that switches live) is told to every model and cockpit through onCt156Level: each frees what it made at the old
+ * level and loads the new one's files.
  */
 let level = 'high';
-/** Picks the files' level, 'high' or 'performance' (anything else is High). Returns the level now in use. */
+let generation = 0;
+const levelListeners = new Set();
+/**
+ * Picks the files' level, 'high' or 'performance' (anything else is High). A real change counts a new generation (a slow
+ * load that began under an earlier one is dropped when it finishes: ct156Generation), tells the listeners, then frees the
+ * old level's pictures. Returns the level now in use.
+ */
 export function setCt156Level(next) {
+  const was = level;
   level = next === 'performance' ? 'performance' : 'high';
+  if (level !== was) {
+    generation++;
+    for (const fn of [...levelListeners]) fn(level, was);
+    releasePictures(ct156Files(was));
+  }
   return level;
 }
 /** The files' level now: 'high' or 'performance'. */
 export const ct156Level = () => level;
+/** Counts each real level change: a load that started under another count is out of date when it finishes. */
+export const ct156Generation = () => generation;
+/** Calls fn(newLevel, oldLevel) on each level change; returns the function that stops it (call it when the model or cockpit is disposed). */
+export function onCt156Level(fn) {
+  levelListeners.add(fn);
+  return () => levelListeners.delete(fn);
+}
 /** The level's folder under public/models/: 'ct156/high/' or 'ct156/performance/'. */
 export const ct156Files = (at = level) => `ct156/${at === 'performance' ? 'performance' : 'high'}/`;
 
@@ -157,6 +178,19 @@ export function loadPicture(THREE, file, size) {
 
 /** The soft-shadow picture alone (the cockpit's parts, named by each part): a texture at once, filled in when it loads. */
 const aoTextures = new Map();
+/** Frees every picture loaded from a level's folder (`folder` as ct156Files gives it) and forgets it, so the level can be asked for again. */
+function releasePictures(folder) {
+  for (const [file, texture] of pictures) {
+    if (!file.startsWith(folder)) continue;
+    pictures.delete(file);
+    texture.then((t) => { t.dispose(); t.image?.close?.(); }, () => {});
+  }
+  for (const [file, t] of aoTextures) {
+    if (!file.startsWith(folder)) continue;
+    aoTextures.delete(file);
+    t.dispose();
+  }
+}
 export function loadAo(THREE, file) {
   if (!aoTextures.has(file)) {
     const t = new THREE.TextureLoader().load(modelsUrl(file));

@@ -47,7 +47,7 @@ const intoRootFrame = ({ x, y, z }) => Object.freeze({ x: x * Math.cos(DATUM_RAD
 /** The same the other way: a point in the root's frame as a point in the model's. */
 const fromRootFrame = ({ x, y, z }) => ({ x: x * Math.cos(DATUM_RAD) - z * Math.sin(DATUM_RAD), y, z: z * Math.cos(DATUM_RAD) + x * Math.sin(DATUM_RAD) });
 import { drawAttitude } from './hud.js';
-import { attachCockpitModel } from './ct156-cockpit-model.js';
+import { attachCockpitModel, detachCockpitModel } from './ct156-cockpit-model.js';
 import { loadCt156Points, paintGrain } from './ct156-blender.js';
 import { browserStorage, createStore } from '../storage/store.js';
 
@@ -3039,6 +3039,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     },
     dispose() {
       group.userData.disposed = true;
+      detachCockpitModel(group); // stops following the Graphics level (ct156-cockpit-model.js)
       group.removeFromParent();
       for (const g of geometries) g.dispose();
       for (const m of materials) m.dispose();
