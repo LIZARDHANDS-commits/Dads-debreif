@@ -221,12 +221,12 @@ onCt156Look((look) => {
  */
 const SHEEN_VAR = 0.06; // an estimate, judged on renders (the donor's sheenVar)
 const WEATHER_GLSL = `
-	float ct156G = 3.5 * max( ct156WeatherK, 0.0 );
+	float ct156Gain = 3.5 * max( ct156WeatherK, 0.0 );
 	vec4 ct156W = texture2D( ct156Weather, vAoMapUv );
-	float ct156FWear = min( ct156W.b * ct156G, 1.0 );
-	float ct156FScuff = min( ct156W.a * ct156G, 1.0 );
-	float ct156FOil = min( ct156W.g * ct156G, 1.0 );
-	float ct156FSoot = min( ct156W.r * ct156G, 1.0 );
+	float ct156FWear = min( ct156W.b * ct156Gain, 1.0 );
+	float ct156FScuff = min( ct156W.a * ct156Gain, 1.0 );
+	float ct156FOil = min( ct156W.g * ct156Gain, 1.0 );
+	float ct156FSoot = min( ct156W.r * ct156Gain, 1.0 );
 	diffuseColor.rgb = mix( diffuseColor.rgb, max( diffuseColor.rgb, vec3( 0.030, 0.034, 0.048 ) ), ct156FWear );
 	diffuseColor.rgb = mix( diffuseColor.rgb, max( diffuseColor.rgb, vec3( 0.024, 0.026, 0.034 ) ), ct156FScuff );
 	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.014, 0.009, 0.005 ), ct156FOil );
