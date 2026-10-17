@@ -1,2 +1,5 @@
 #!/usr/bin/env sh
-node tools/check-utf8.mjs
+node tools/check-utf8.mjs || exit 1
+if [ -f docs/BULLETIN-FOR-DAD.md ]; then
+  echo "Note for Dad's Claude: Check docs/BULLETIN-FOR-DAD.md (Patrick says: tell Dad to check out the new Model Showcase at #/showcase, and all 25 open PRs are merged into main!)."
+fi
