@@ -1086,7 +1086,7 @@ As draft 3 (Patrick 14 Oct 2026: "Lead can maneuver as required in fighting wing
 
 ### 11. Round 5, re-cut into slices (`S0` – `T31`)
 
-**Re-ordered by Fable's `D7` and `3b` §8 (approved, `TS-233`, 14 Oct 2026).** Every slice sits behind `"#2 in fighting wing: Live"` with `Old` the default; keeps the default gauge traces (close formations, fluid, rejoins, Old) byte-identical and the four-ship probe's hashes (`2d5b5a8020839796`) the same; updates `tools/control-map/signals.mjs` model-first (`TARGET_BLOCKS` `B01-B15`, `TARGET_SIGNALS` `S01-S45`); and reports what it removed as well as added (observation `0080`).
+**Re-ordered by Fable's `D7` and `3b` §8 (approved, `TS-233`, 14 Oct 2026).** Every slice sits behind `"#2 in fighting wing: Live"` with `Old` the default while the slices were built (Live the default from V2.515, `TS-235`, Patrick 17 Oct 2026); keeps the default gauge traces (close formations, fluid, rejoins, Old) byte-identical and the four-ship probe's hashes (`2d5b5a8020839796`) the same; updates `tools/control-map/signals.mjs` model-first (`TARGET_BLOCKS` `B01-B15`, `TARGET_SIGNALS` `S01-S45`); and reports what it removed as well as added (observation `0080`).
 
 **Intermediate slice policy ("close enough for tuning"):** Intermediate build slices (`S2–S7`) verify clean compilation (`npm run build`), control-map integrity (`check.mjs`, `draw.mjs --check`), rig step checks (`fw-rig.mjs`), and default/close-formation/4-ship non-regression so each piece lands "close enough for tuning", while full-sim fighting-wing trace tuning and gate sign-off run once the full loop and technique system is assembled (`S8a–S8b`).
 
