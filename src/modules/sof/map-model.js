@@ -83,11 +83,13 @@ export function airfieldMarks({ cards = [], fields = [], snapshot = {} } = /** @
  * (RainViewer while it is the radar, adsb.lol's data while traffic is on). VNC carries "not for navigation".
  * `layers` is the layers state; `radarBackup` and `trafficOn` say what is in use. `feedsCredit` is the site profile's words for its radar, lightning,
  * cloud and warnings sources (profile `credits.mapFeeds`); null or left out when the base has none, then none are credited.
+ * `strikesCredit`: the words for NOAA's lightning strikes (SOF-71, strikes-model.js STRIKES_CREDIT) where the base reads them, else null.
  */
-export function mapCredits(layers, { radarBackup = false, trafficOn = false, feedsCredit = null } = {}) {
+export function mapCredits(layers, { radarBackup = false, trafficOn = false, feedsCredit = null, strikesCredit = null } = {}) {
   const parts = ['Map: Esri, Maxar, Earthstar Geographics, and the GIS User Community imagery'];
   if (layers?.base === 'vnc' || layers?.base === 'vnc-satellite') parts.push('VNC charts © NAV CANADA (not for navigation)');
   if (feedsCredit) parts.push(feedsCredit);
+  if (strikesCredit) parts.push(strikesCredit);
   if (radarBackup) parts.push('backup radar: RainViewer');
   if (trafficOn) parts.push('traffic: adsb.lol (ODbL)');
   return `${parts.join('. ')}.`;
@@ -119,7 +121,8 @@ export const MRMS_SCALE = Object.freeze({
 });
 
 /**
- * The map key for what is showing (F5 of sof-recheck-207): { radar, lightning, rings, traffic }, each null when its layer is off.
+ * The map key for what is showing (F5 of sof-recheck-207): { radar, lightning, strikes, rings, traffic }, each null when its layer is off (`strikes`: NOAA's
+ * lightning strikes, SOF-71, STRIKES_KEY_WORDS).
  * `radarBackup`: RainViewer's tiles are the radar now, in their own colours. `radar` is { noun, unit, ticks, words } (and `colours` for a scale
  * that is not ECCC's); `lightning`, `rings` and `traffic` are the words. Plain words, never colour alone.
  * `radarScale`: 'dbz' for NOAA's MRMS reflectivity (the US bases' radar source's `scale`), else ECCC's rain or snow rate.
@@ -140,6 +143,7 @@ export function legendItems(layers, { radarBackup = false, radarScale = null, li
     lightning: on.lightning
       ? 'Lightning: a yellow mark with a dark outline is a 2.5 km square with lightning in the last 10 minutes. It shows where, not how strong.'
       : null,
+    strikes: on.strikes ? STRIKES_KEY_WORDS : null,
     rings: on.rings
       ? `Dashed rings are 25 and 50 NM from home.${lightningRing ? ' A dotted amber ring is the lightning caution radius, when it is not one of those.' : ''}`
       : null,
@@ -148,6 +152,9 @@ export function legendItems(layers, { radarBackup = false, radarScale = null, li
       : null,
   };
 }
+
+/** NOAA's lightning strikes in the map key (SOF-71, the spec's words). Kept here, not in strikes-model.js, so this file imports no MRMS code (mrms-model.js imports it). */
+export const STRIKES_KEY_WORDS = 'Lightning strike: a yellow cross is a cloud-to-ground strike (NOAA NLDN), brighter the newer, last 30 minutes. In-cloud lightning is not shown.';
 
 // ---- The outside lightning map link -------------------------------------------------------------------
 
@@ -181,7 +188,9 @@ export function baseNote(layers) {
 
 // ---- The status strip ---------------------------------------------------------------------------------
 
-const ORDER = ['radar', 'coverage', 'lightning', 'nearhome', 'cloud', 'warnings', 'traffic'];
+// NOAA's strikes (SOF-71): beside the near-home line, the nearest and last strike, then the strikes feed's own line, a skipped file and, at a Canadian home,
+// the not-yet-checked line. The strip is one line that ends in "…" when full, so the near-home line keeps its early place (fourth, as before).
+const ORDER = ['radar', 'coverage', 'lightning', 'nearhome', 'strikes-nearest', 'strikes-last', 'strikes', 'strikes-skip', 'strikes-canada', 'cloud', 'warnings', 'traffic'];
 
 /**
  * The near-home lightning line for the strip: { id: 'nearhome', text, symbol, tone }, from lightning.js's answer
