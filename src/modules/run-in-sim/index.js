@@ -28,6 +28,8 @@ import { createView2d } from './view2d.js';
 const STYLESHEET = new URL('./run-in-sim.css', import.meta.url).href;
 /** The working-out of the planned lines waits this long after the last change, ms (an estimate that keeps typing smooth). */
 const REPLAN_MS = 400;
+/** A change of setting flies the pass again by itself this long after the last change, ms (Dad, 17 Oct 2026: "Re-fly on its own"). */
+const REFLY_MS = 600;
 /** Tiles that arrive are read into the ground at most this often, ms (an estimate, as the EP Tabletop's). */
 const TERRAIN_MS = 400;
 /** The most passes kept on the card list; the oldest go first. */
@@ -218,7 +220,7 @@ function mount(root, app) {
     }
     passes.forEach((pass, i) => {
       const card = cardFor(pass, pass.n, { selected: i === selected, showFlags: values().showFlags, onSelect: () => select(i) });
-      if (i === selected && pass.stale) card.append(h('p', { class: 'rs-stale' }, 'The settings have changed since this pass: Fly the pass again to see them.'));
+      if (i === selected && pass.stale) card.append(h('p', { class: 'rs-stale' }, 'Flying it again with the new settings…'));
       cards.append(card);
     });
   }
@@ -270,7 +272,10 @@ function mount(root, app) {
   app.keys({ Space: () => (playing ? pause() : play()) });
 
   // ---- Flying the pass ----
-  function fly() {
+  // replace: a re-fly after a change of setting takes the latest pass's place; the button adds a new pass to compare.
+  function fly({ replace = false } = {}) {
+    reflyWake?.();
+    reflyWake = null;
     setup.flyButton.disabled = true;
     status.textContent = 'Working out the pass…';
     pause();
@@ -279,9 +284,10 @@ function mount(root, app) {
       try {
         const v = values();
         const pass = flyPass(setupFrom(v), ground);
-        pass.n = (passes[0]?.n ?? 0) + 1;
+        const swap = replace && passes.length > 0;
+        pass.n = swap ? passes[0].n : (passes[0]?.n ?? 0) + 1;
         pass.stale = false;
-        passes = [pass, ...passes].slice(0, MAX_PASSES);
+        passes = swap ? [pass, ...passes.slice(1)] : [pass, ...passes].slice(0, MAX_PASSES);
         plan = pass.plan;
         status.textContent = `Worked out in ${(pass.computeMs / 1000).toFixed(1)} s`;
         setup.update(v, plan, pass.exit);
@@ -293,6 +299,17 @@ function mount(root, app) {
       } finally {
         setup.flyButton.disabled = false;
       }
+    });
+  }
+
+  // ---- Flying again by itself after a change (Dad, 17 Oct 2026) ----
+  let reflyWake = null;
+  function scheduleRefly() {
+    reflyWake?.();
+    reflyWake = app.scheduler.after(REFLY_MS, () => {
+      reflyWake = null;
+      if (setup.flyButton.disabled) scheduleRefly(); // a pass is still being worked out: try again after it
+      else fly({ replace: true });
     });
   }
 
@@ -356,6 +373,7 @@ function mount(root, app) {
     if (flying.length) {
       for (const p of passes) p.stale = true;
       scheduleReplan();
+      scheduleRefly();
       renderCards();
     }
     if (v.viewMode !== was.viewMode || v.profileZoom !== was.profileZoom) syncView();
