@@ -16,9 +16,10 @@
  * Chunk 7's colours (3d-work #72, Patrick's rulings H1, H2, H6, H7, 13 Oct 2026; imported with delivery ct156-2026-10-13-17f0c75): the shell light sage grey #8e978d (was #353a41), the
  * visor dark #101316 and nearly opaque (0.92; was clear #b4bec6 at 0.22), the flight suit brighter olive #7a8535 (was #555c43), the vest pale grey-sage #a9b1a2 (was #7c8467), the
  * webbing pale grey-green #9ca59a (was #1f2224), and a new silver slot (#c2c5c9, metalness 0.8, roughness 0.3: an estimate off photo H06's buckles) for the harness buckles.
+ * Then the shell light grey-white #cfd2d0 (W27, Patrick 17 Oct 2026, the look audit's Q5: photos H04, A24, A22; was #8e978d).
  */
 export const CT156_PILOT_SLOTS = Object.freeze([
-  { name: 'helmet shell', color: '#8e978d', roughness: 0.28, metalness: 0.1, side: 'double', env: 0.9, opacity: 1 },
+  { name: 'helmet shell', color: '#cfd2d0', roughness: 0.28, metalness: 0.1, side: 'double', env: 0.9, opacity: 1 },
   { name: 'visor', color: '#101316', roughness: 0.05, metalness: 0.1, side: 'double', env: 1.3, opacity: 0.92 },
   { name: 'mask', color: '#17191c', roughness: 0.55, metalness: 0, side: 'front', env: 0, opacity: 1 },
   { name: 'hose', color: '#9aa0a7', roughness: 0.55, metalness: 0, side: 'front', env: 0, opacity: 1 },
