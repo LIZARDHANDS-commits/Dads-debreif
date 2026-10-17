@@ -20,7 +20,7 @@ import { createLayout } from './layout.js';
 import { createMap2d, hintFor, photoCaption } from './map2d.js';
 import { createView3d } from './view3d.js';
 import { createSettingsPanel } from './settings-panel.js';
-import { createAircraftPanel } from './aircraft.js';
+import { createAircraftPanel, hasOwnPattern } from './aircraft.js';
 import { createSetupPanel, scenarioAircraft, BUSY_STRAIGHT_IN_SEC } from './setup-panel.js';
 import { straightInDelaySec } from './scenario-timing.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
@@ -288,7 +288,10 @@ function mount(root, app) {
    * under a second).
    */
   function scenarioAircraftNow(id, seed) {
-    const list = scenarioAircraft(id, { routes: setup.routes.filter((r) => r.kind !== 'split'), builtIn: BUILT_IN[0].profile.aircraft, seed, type: settings.get().spawnType });
+    // The scenarios are all CT-156 (spec 4.19 item 6: no Mixed scenario yet, TR-161), whatever Type the spawner shows;
+    // the type of a type-only route (the Astra pattern) never takes part.
+    const spawnType = settings.get().spawnType;
+    const list = scenarioAircraft(id, { routes: setup.routes.filter((r) => r.kind !== 'split'), builtIn: BUILT_IN[0].profile.aircraft, seed, type: hasOwnPattern(spawnType) ? 'CT-156' : spawnType });
     const inbound = list.find((a) => a.routeId === 'ENT2' && a.startsAtSec === BUSY_STRAIGHT_IN_SEC);
     const overhead = list.find((a) => a.routeId === 'PAT1' && a.startIndex === 8 && !a.area);
     const usual = setup.windFromDeg === 260 && setup.windKt === 15;

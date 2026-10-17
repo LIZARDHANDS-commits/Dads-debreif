@@ -18,6 +18,9 @@ export const M_PER_FT = 0.3048;
 /** Standard gravity in ft/s². */
 export const G_FTPS2 = 32.174;
 
+/** Air density at sea level on the standard day, slug/ft³ (1.225 kg/m³, the ICAO standard atmosphere). */
+export const SEA_LEVEL_DENSITY_SLUG_FT3 = 0.0023769;
+
 /** Earth's mean radius in metres, for the flat map projection (geo.js). */
 export const EARTH_RADIUS_M = 6371000;
 

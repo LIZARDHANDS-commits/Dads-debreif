@@ -19,10 +19,11 @@ import {
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt102bModel } from '../../ui-kit/ct102b-model.js';
 import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
-import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
+import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT, lengthRatioFor } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
@@ -265,8 +266,12 @@ export function planeLengthFt(zoom, scale = 1) {
   return Math.max(CLOSE_UP_DRAW_FT, MIN_PLANE_PX / (zoom / 1000)) * (Number(scale) > 0 ? Number(scale) : 1);
 }
 
-/** The CT-156 and CT-157 are the shared T-6; every other type (CT-102B, CT-102, CT-114, CT-155, CF-188) is a stand-in shape until it has its own model. */
-export const modelKindFor = (type) => (type === 'CT-156' || type === 'CT-157' ? 'ct156' : 'standin');
+/**
+ * The CT-156 and CT-157 are the shared T-6; the CT-102B Astra II has its Blender model (plan Step 5c Phase 5, ui-kit
+ * ct102b-model.js, the stand-in until its file is in); every other type (CT-102, CT-114, CT-155, CF-188) is a stand-in shape
+ * until it has its own model.
+ */
+export const modelKindFor = (type) => (type === 'CT-156' || type === 'CT-157' ? 'ct156' : type === 'CT-102B' ? 'ct102b' : 'standin');
 
 /**
  * Stand-in mesh kind for aircraft types without dedicated custom 3D models.
@@ -932,10 +937,11 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     line.material.dispose();
   }
 
-  // `kind` is which builder made the mesh: 'ct156' (the full Harvard model), 't6plain' (the ui-kit's plain T-6) or 'standin'.
+  // `kind` is which builder made the mesh: 'ct156' (the full Harvard model), 't6plain' (the ui-kit's plain T-6),
+  // 'ct102b' or 'ct102bLite' (the Astra II's Blender model, full or light) or 'standin'.
   function planeFor(ac, kind, paint) {
     const have = planes.get(ac.id);
-    if (have && have.kind === kind && (kind === 'standin' || have.paint === paint)) return have.mesh;
+    if (have && have.kind === kind && (kind !== 'ct156' && kind !== 't6plain' || have.paint === paint)) return have.mesh; // only the T-6 has paint schemes
     if (have) disposeAircraftMesh(have.mesh); // the T-6 in another paint or another detail: built again
     const options = { color: aircraftColor(ac), number: numberOf(ac.id), paint, type: ac.type };
     const mesh = models[kind](THREE, options);
@@ -1004,15 +1010,20 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     for (const ac of flying) {
       present.add(ac.id);
       const full = options.fullModels === true || ac.id === fullId;
-      const kind = modelKindFor(ac.type) === 'ct156' ? (full ? 'ct156' : 't6plain') : 'standin';
+      // The Astra II likewise: the full file for the one followed, the light file for the rest (plan Step 5c Phase 5).
+      const own = modelKindFor(ac.type);
+      const kind = own === 'ct156' ? (full ? 'ct156' : 't6plain') : own === 'ct102b' ? (full ? 'ct102b' : 'ct102bLite') : 'standin';
       const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
       const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
-      applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: drawHeadingOf(ac), bankRad, pitchRad }, lengthFt);
+      // Each type at its own length against the T-6's (types.js lengthFt): the CT-102B Astra II at 27.6 ft against 33.4
+      // (plan Step 5c Phase 3; spec 4.19 item 8), its model or, until that file is in, its stand-in in its own colour.
+      const acLengthFt = lengthFt * lengthRatioFor(ac.type);
+      applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: drawHeadingOf(ac), bankRad, pitchRad }, acLengthFt);
       const z = altToZ(ac.alt, ALT_SCALE);
       // Drawn at its true height, on its route line; raised only where its wheels would go under the runway (Patrick,
       // 5 Oct: the aircraft flew "above the line" when the wheel lift was added in the air too).
-      mesh.position.z = Math.max(z, floor + wheelLiftFt(lengthFt));
+      mesh.position.z = Math.max(z, floor + wheelLiftFt(acLengthFt));
       const groundZ = Math.min(floor, z);
       dropAt.setXYZ(n * 2, ac.x, ac.y, z);
       dropAt.setXYZ(n * 2 + 1, ac.x, ac.y, groundZ);
@@ -1344,11 +1355,14 @@ export function threeStats(kit) {
   return { geometries: geometries.size, materials: materials.size };
 }
 
-// The models the view uses: the shared T-6 (the Harvard scheme by default) and the stand-in.
+// The models the view uses: the shared T-6 (the Harvard scheme by default), the Astra II and the stand-in.
 function defaultModels() {
+  const astraStandIn = (THREE, color, type) => () => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) });
   return {
     ct156: (THREE, { color, number, paint }) => createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH }),
     t6plain: (THREE, { color, paint }) => createLightHarvard(THREE, { color, paint }), // the shared light Harvard (TR-152)
+    ct102b: (THREE, { color, type }) => createCt102bModel(THREE, { detail: 'high', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),
+    ct102bLite: (THREE, { color, type }) => createCt102bModel(THREE, { detail: 'lite', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),
     standin: (THREE, { color, type }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) }),
   };
 }
