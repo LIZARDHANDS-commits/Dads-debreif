@@ -294,7 +294,7 @@ From V2.508 a cut is flown this way:
 
 **The card** says, for example, "Cut right at 60° bank at +0:34, onto the run-in 3.2 NM out, run-in 255 KIAS", and a note names a cut that would have crossed nearer the last note but more than 300 ft abeam. The peak G is flagged against the CT-156's limit as before (a reference, never a wall). **The views** show the flown cut, with the run-in line drawn from where it joined (marked as the IP).
 
-### Change: the aircraft's paint, RCAF, USAF or USN (RS-28; proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026))
+### Change: the aircraft's paint, RCAF, USAF or USN (RS-29; proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026))
 
 Dad, 17 Oct 2026: **"Can we make a paint scheme for USAF and USN"**, with reference photos and profile drawings of the T-6A and T-6B.
 

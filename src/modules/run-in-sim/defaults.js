@@ -161,7 +161,7 @@ export const DEFAULTS = Object.freeze({
   showCarp: true,
   showTrails: true,
   showFlags: true,
-  // The 3D aircraft's paint (RS-28, proposed, built ahead of Patrick's yes: Dad, 17 Oct 2026): the RCAF Harvard, or the USAF or USN
+  // The 3D aircraft's paint (RS-29, proposed, built ahead of Patrick's yes: Dad, 17 Oct 2026): the RCAF Harvard, or the USAF or USN
   // Texan II markings (ui-kit ct156-model.js paints 'harvard', 'usaf', 'usn'; ALL-45). Set from the Display box; the RCAF by default.
   paint: 'harvard',
   // The view (RS-13): the 3D view, or the 2D plan and profile; the profile shows the release to the impact (near), close
@@ -187,7 +187,7 @@ export const CAMERAS = Object.freeze([
 export const AAR_CAMERAS = Object.freeze(['tanker', 'drogue']);
 export const PLAY_SPEEDS = Object.freeze([1, 2, 4, 8]);
 
-/** The aircraft paints the Display box offers (RS-28, proposed): [ct156-model.js paint, label]; the first is the default. */
+/** The aircraft paints the Display box offers (RS-29, proposed): [ct156-model.js paint, label]; the first is the default. */
 export const PAINTS = Object.freeze([['harvard', 'RCAF Harvard'], ['usaf', 'USAF'], ['usn', 'USN']]);
 
 export const ALLOWED = Object.freeze({

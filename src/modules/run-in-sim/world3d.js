@@ -332,7 +332,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
   }
 
   // ---- The aircraft ----
-  // The paint is the Display box's (RS-28, proposed): the RCAF Harvard, or the USAF or USN markings. A change builds the ship again.
+  // The paint is the Display box's (RS-29, proposed): the RCAF Harvard, or the USAF or USN markings. A change builds the ship again.
   const makeShip = (shipPaint) => {
     const model = createCt156Model(THREE, { color: '#58a6ff', paint: shipPaint, number: 1 });
     model.scale.setScalar(CT156_FT_PER_UNIT);
@@ -583,7 +583,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
       }
       draw();
     },
-    /** The aircraft's paint (RS-28, proposed): 'harvard', 'usaf' or 'usn'; the ship is built again where it was. The caller redraws (show). */
+    /** The aircraft's paint (RS-29, proposed): 'harvard', 'usaf' or 'usn'; the ship is built again where it was. The caller redraws (show). */
     setPaint(next) {
       if (next === shipPaint) return;
       shipPaint = next;

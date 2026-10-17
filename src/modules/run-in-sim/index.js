@@ -504,7 +504,7 @@ function mount(root, app) {
       scheduleRefly();
       renderCards();
     }
-    if (v.paint !== was.paint) world?.setPaint(v.paint); // the Display box's Paint (RS-28, proposed)
+    if (v.paint !== was.paint) world?.setPaint(v.paint); // the Display box's Paint (RS-29, proposed)
     if (v.viewMode !== was.viewMode || v.profileZoom !== was.profileZoom) syncView();
     if (changed.some((k) => k.startsWith('show'))) {
       syncPlan();

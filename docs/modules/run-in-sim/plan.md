@@ -85,9 +85,9 @@ Dad, 17 Oct 2026: "as well as the cutting of ground track the aircraft increase 
 
 ## Step 8d. Dad's paint ask (proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026))
 Dad, 17 Oct 2026: "Can we make a paint scheme for USAF and USN".
-- [x] Written down: spec, RS-28, RS-R18 and ALL-45 (17 Oct 2026).
-- [x] The USAF and USN paints in the shared model, and the Paint choice in the Display box (RS-28).
-- [ ] Patrick's yes on ALL-45 and RS-28.
+- [x] Written down: spec, RS-29, RS-R18 and ALL-45 (17 Oct 2026).
+- [x] The USAF and USN paints in the shared model, and the Paint choice in the Display box (RS-29).
+- [ ] Patrick's yes on ALL-45 and RS-29.
 - [ ] Dad or Patrick looks at both paints in the app (Chase and Side cameras, and in Turn Fight's Paint).
 
 ## Not in this plan
