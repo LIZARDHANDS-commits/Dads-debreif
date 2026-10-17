@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import { serviceWorker } from './tools/service-worker.mjs';
+import { TRAFFIC_VERSION } from './src/modules/traffic/version.js';
 
 // The version sent with bug reports and shown in the footer's tooltip: build date plus commit.
 function appVersion(built) {
@@ -17,17 +18,23 @@ function appVersion(built) {
 }
 
 // Writes the version and build time into index.html as <meta name="app-version">
-// and <meta name="app-built">, so the source still runs as plain modules without
-// Vite (it then reads as "dev" and "Development copy").
+// and <meta name="app-built">, and stamps the header's .version-badge from
+// src/modules/traffic/version.js so PRs only ever need to update version.js.
 function versionMeta() {
   const built = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const version = appVersion(built);
   return {
     name: 'app-version-meta',
-    transformIndexHtml: () => [
-      { tag: 'meta', attrs: { name: 'app-version', content: version }, injectTo: 'head' },
-      { tag: 'meta', attrs: { name: 'app-built', content: built }, injectTo: 'head' },
-    ],
+    transformIndexHtml: (html) => ({
+      html: html.replace(
+        /<span class="version-badge">[^<]*<\/span>/,
+        `<span class="version-badge">${TRAFFIC_VERSION}</span>`,
+      ),
+      tags: [
+        { tag: 'meta', attrs: { name: 'app-version', content: version }, injectTo: 'head' },
+        { tag: 'meta', attrs: { name: 'app-built', content: built }, injectTo: 'head' },
+      ],
+    }),
   };
 }
 

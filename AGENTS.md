@@ -80,7 +80,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 - **Third-party skills, plugins and connectors** go in only after they are read and scanned, pinned to a version, and without hooks (Patrick, 12 Oct 2026).
 - **Simple screens:** every setting starts with a default; a module opens with only its essentials showing, and extras sit behind a switch or a "More".
 - **Before deleting or rewriting code,** list what it did, then check the new code on the module's default start.
-- **Version label:** the version on screen changes with every published change.
+- **Version label:** the version on screen changes with every published change. Set it in one place only: `src/modules/traffic/version.js` (`TRAFFIC_VERSION`). Do not edit `index.html` for version bumps—`src/app.js`, `src/shell/home.js`, and `vite.config.js` read `TRAFFIC_VERSION` from `src/modules/traffic/version.js` automatically.
 - **Safety items** (weather limits, closed fields, stale reports) have their failure and stale-data behaviour written into the spec.
 - **The 3D view is a bonus:** keep what is built, but no more 3D tests or polish in a module still being built.
 - **Dad's V6 stays untouched** in `original/`. Never edit `original/shell.html` or `original/assets/`. `python3 tools/rebuild_original.py out.html` rebuilds the original file and checks it.
@@ -109,6 +109,8 @@ The full policy is `docs/TESTING.md`; each module adds its own in `docs/modules/
 - Once Patrick has approved the spec or decision behind a change, its pull request merges when its checks are green, without asking, with a short note on the pull request saying what changed, what was checked and what is unseen. Patrick hears only about problems.
 - Every branch, commit, pull request and merge has a plain-English name that says what changed, for example "Traffic: break turn follows the wind". Decision, patch or task numbers may follow in brackets, but never replace the words.
 - **Readable history on main.** Every merge into main is titled with the version and module first, for example "V2.216 Formation: turning rejoin line 50 ft below Lead". The whole tool has one version number, the one on the home screen (Patrick, 10 Oct 2026 21:46Z). Every merge that changes the version also gets a tag made of the version and a few words, for example `v2.216-trj-line-50ft`, so GitHub's Tags page lists what changed most recently. Nothing already on main is renamed (Patrick, 5 Oct 22:47Z).
+- **UTF-8 without BOM and LF line endings:** every text file is saved as UTF-8 without BOM with LF line endings (`.gitattributes` enforces LF, and `npm run check:utf8` rejects non-UTF-8 bytes, UTF-8 BOMs, Windows-1252 Mojibake, and controlled document mentions in `public/` or `src/`). On Windows PowerShell 5.1, never use raw `>` redirection or Windows-1252 `Get-Content`/`Set-Content` without UTF-8 without BOM.
+- **Protected local worktree (`Dads-debreif-open-source-perf`, branch `wip/open-source-performance-redesign`):** holds Patrick's work-in-progress open-source aircraft performance redesign. Never delete, reset, push, or merge this worktree or branch until Patrick specifically authorizes it.
 - Fewer, larger pull requests: one per finished piece of work, not one per fix.
 - Links in docs are repo-relative, never a path on one person's computer.
 - No new top-level folders, and no second copy of a file that already has a home.

@@ -287,7 +287,7 @@ export const GLARESHIELD_FT = Object.freeze({
 // only", and on the rail's lower run "this black strip is wrong too, right?"; an estimate off that picture). Earlier on
 // 12 Oct it ran on down the panel's sides and the lower panel's edge to the console's top (faceAbove, jogAbove), from
 // his cockpit photos; before that it stopped at brackets 18 % up the face. The rear seat's still ends at brackets.
-// D6 (3d-work #56, Patrick 13 Oct 2026; an estimate off the CFAFM front panel and photo D03): the front rail's lower end 0.3 of the face up the panel, level with the GPS and audio rows' bottom (frontEndV was 0.5).
+// D6 (3d-work #56, Patrick 13 Oct 2026; an estimate off the reference front panel and photo D03): the front rail's lower end 0.3 of the face up the panel, level with the GPS and audio rows' bottom (frontEndV was 0.5).
 export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05, lowV: 0.18, frontEndV: 0.3, faceAbove: 0.3, jogAbove: 0.18 });
 
 /**
@@ -329,7 +329,7 @@ export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.2
  */
 // D15 (3d-work #79, Patrick, 13 Oct 2026, night: "Compass moved", then further outboard on its own bracket, clear of the rail's right corner, as photo 39; estimates): the front compass 0.18 ft further right, y -0.56 to -0.73,
 // and 1 in lower (its height follows the hood's there; the master's middle is about z 1.59 ft, was 1.67), with a stem `stemR` 0.02 ft round from the bowl's foot down to a base `baseR` 0.04 round on the hood's shoulder.
-// E12 (3d-work #66, Patrick 13 Oct 2026; the CFAFM rear panel drawing at its true scale): the rear compass 0.70 ft right of the middle (yRear was -0.8); its height follows the hood's (E3).
+// E12 (3d-work #66, Patrick 13 Oct 2026; the reference rear panel drawing at its true scale): the rear compass 0.70 ft right of the middle (yRear was -0.8); its height follows the hood's (E3).
 export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, cardR: 0.055, cardBandDeg: 35, clear: 0.06, flange: 0.68, cornerR: 0.018, flangeT: 0.02, strapIn: 0.05, windowDeg: 120, aheadOfEdge: 0.1, y: -0.73, yRear: -0.7, stemR: 0.02, baseR: 0.04, baseH: 0.015 });
 // Since 12 Oct 2026 (Patrick, from his photo) the flange is smaller (0.68 of the ball's width, so turned 45° its corners
 // stay inside the ball's outline; was 0.95, and 1.3 before that, "smaller footprint for the compass mount"), its corners
@@ -340,7 +340,7 @@ export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, cardR: 0.055, cardBa
  * 12 Oct 2026: 0.47 ft ahead of the rear coaming's aft edge, under it; was 0.7 ft aft of the origin, 0.7 to 1.75 ft up,
  * 0.1 ft ahead of the edge; height and width estimates).
  */
-// E2 (3d-work #66, Patrick 13 Oct 2026; the CFAFM rear panel drawing: its instruments are the front's size, its ASI 2.96 in): the rear face the front's size and outline, upright (the rear's lean waits on M39):
+// E2 (3d-work #66, Patrick 13 Oct 2026; the reference rear panel drawing: its instruments are the front's size, its ASI 2.96 in): the rear face the front's size and outline, upright (the rear's lean waits on M39):
 // z 0.40 to 1.66 (was 0.57 to 1.62), 2.3 ft across (was 2.2), the front's shoulder and top (shoulderV 0.661, topFrac 0.435; were 0.6 and 0.55). x stays 0.47.
 export const REAR_PANEL_FT = Object.freeze({ x: 0.47, leanDeg: 0, top: 1.66, bottom: 0.40, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.661, topFrac: 0.435 });
 /**
@@ -2395,7 +2395,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // with its light wheel knob on the lower panel, left of the left knee well; Dad's pictures 17, 26, 27). With a delivery
   // the T's stripes are the delivered handle-stripes face (tilted under its placard, 4.5A).
   {
-    // E1 (3d-work #66, the CFAFM rear panel drawing): the rear has no emergency gear handle (nor park brake handle, below).
+    // E1 (3d-work #66, the reference rear panel drawing): the rear has no emergency gear handle (nor park brake handle, below).
     const y = yOf(EMER_T_UV[0]), z = zOf(EMER_T_UV[1]);
     if (front) striped.push(box(THREE, p.x - 0.12, p.x - 0.01, y - 0.012, y + 0.012, z - 0.012, z + 0.012), box(THREE, p.x - 0.14, p.x - 0.11, y - 0.06, y + 0.06, z - 0.018, z + 0.018));
     const gy = 1.09, gz = p.bottom - 0.27; // the handle's place on its panel

@@ -394,13 +394,13 @@ function finSurf(x, z) {
 // position lights, the exhaust stacks and the stabiliser tips. Places are estimates off the model's own tables.
 const [, WINGTIP_Y, WINGTIP_Z] = wingBend([0, TIP_S, WING_Z]);
 const WINGTIP = Object.freeze({ y: WINGTIP_Y, z: WINGTIP_Z }); // the wing's tip after its dihedral (TIP)
-// The CT-156's exterior lights (CFAFM p190, fix rows F6 and F23, approved by Patrick 13 Oct 2026): red left and green right at each
+// The CT-156's exterior lights (reference, fix rows F6 and F23, approved by Patrick 13 Oct 2026): red left and green right at each
 // tip's leading edge, a steady white nav light at each tip's trailing edge, an anti-collision strobe on each tip near the
 // leading edge, a landing light aft and inboard of the left main strut and a taxi light the right (lit with all three
 // legs down only); no tail light and no beacon light.
 const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge (red and green)
 const WHITE_NAV_X = WING_TIP.le - WING_TIP.chord + 0.01; // the steady white nav light at the tip's trailing edge
-const STROBE_X = NAV_LIGHT_X - 0.55 * CT156_UNIT_LENGTH / CT156_LENGTH_FT; // the strobe, 0.55 ft aft of the nav light, still near the leading edge (an estimate: the CFAFM gives no distance)
+const STROBE_X = NAV_LIGHT_X - 0.55 * CT156_UNIT_LENGTH / CT156_LENGTH_FT; // the strobe, 0.55 ft aft of the nav light, still near the leading edge (an estimate: the reference gives no distance)
 // Not drawn since F23 (the CT-156 has no tail light), but kept as a point: CT156_REFERENCE_POINTS.tailLight is a formation
 // reference for ct156-cockpit.js sightAnglesOf and is in the delivered points file.
 const TAIL_LIGHT = Object.freeze([-0.746, 0, -1.453 / 23.148]); // the tail cone's end, under the rudder; 1.453 ft under the axis since FU4 (was 0.058 units, 1.343 ft)
@@ -408,12 +408,12 @@ const TAIL_LIGHT = Object.freeze([-0.746, 0, -1.453 / 23.148]); // the tail cone
 // strobe; no manual number), each ship at its own phase.
 export const CT156_STROBE = Object.freeze({ periodS: 1.2, flashS: 0.08, gapS: 0.16 });
 // The landing and taxi lights, in feet from the main leg's pivot: aft and inboard of the strut, on the wing's underside; the
-// lens about 0.36 ft long and 0.22 ft wide (estimates: the CFAFM p190 says only "aft and inboard of the main strut").
+// lens about 0.36 ft long and 0.22 ft wide (estimates: the reference says only "aft and inboard of the main strut").
 const GEAR_LIGHT = Object.freeze({ aftFt: 0.9, inboardFt: 0.8, halfLongFt: 0.18, halfWideFt: 0.11 });
 // The lamps as the gear's Blender file draws them (3d-work F6, chunk 8b, delivery 423e5eb; its sources.md "The landing and
 // taxi lamps"): each turns on a hinge across the span (+Y) at that place, hingeUpFt (3 in) up inside the wing from its
 // lower skin: 0 gear down, upDeg gear up (the head swings aft and up into the wing, face down), with the main legs'
-// travel (ct156GearPhase). Lit only with all three legs down (CFAFM p190). Housing a silver rim, the lens dark glass and
+// travel (ct156GearPhase). Lit only with all three legs down (reference). Housing a silver rim, the lens dark glass and
 // the LEDs a pale dull yellow when off, off photo 13 (estimates); lit, the lens and LEDs the warm white the old glow had.
 // Estimates, all, as the master's rows: the hinge and the fold have no source. The old glow (GEAR_LIGHT's oval) shows only
 // while no delivered lamp is in.
@@ -2423,7 +2423,7 @@ function pilotGeometry(THREE, x, z) {
 }
 
 /**
- * The canopy breakers' latch posts on each ejection seat, feet (E6, 3d-work #66, Patrick 13 Oct 2026: `E01`, `E02`, SMM p198, the CFAFM seat figure; sizes
+ * The canopy breakers' latch posts on each ejection seat, feet (E6, 3d-work #66, Patrick 13 Oct 2026: `E01`, `E02`, SMM p198, the reference seat figure; sizes
  * estimates; imported with delivery ct156-2026-10-13-17f0c75). They replace the two cones on stems (0.9 in across, 3.5 in tall, 5 in apart; Patrick, 12 Oct 2026,
  * "there are spikes for the ejection seats") and the bar between them: a post `deep` by `wide` each side, `out` from the middle, standing on the seat back's side
  * frames from `base` up and raked with the back. The left (+y) post's top is `leftOver` over the headbox's top, with a block `blockIn` turned inboard (the block
@@ -3436,7 +3436,7 @@ export function setGear(root, t, parked = false) {
   d.nose.rotation.y = (Math.PI / 2) * (1 - legs);
   for (const door of d.noseDoors) door.rotation.x = rad(GEAR.noseDoor.openDeg) * legs;
   d.noseWell.visible = legs > 0;
-  // The landing and taxi lamps fold down with the legs, lit only with all three down (F6, F23; CFAFM p190).
+  // The landing and taxi lamps fold down with the legs, lit only with all three down (F6, F23; reference).
   for (const turn of d.lampTurns) turn.rotation.y = rad(GEAR_LAMP.upDeg) * (1 - legs);
   const lamps = root.userData.ct156.lamps;
   if (lamps) {

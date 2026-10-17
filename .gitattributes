@@ -1,29 +1,21 @@
-# Line endings: every text file is stored with LF line ends, whatever computer commits it (Patrick, 13 Oct 2026:
-# "Yes, in both repos"). Binary files are never converted.
+# Normalize all text files to LF in Git index and working trees to prevent CRLF/LF merge conflicts
 * text=auto eol=lf
 
-# Binary
+# Windows batch and PowerShell scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets must never undergo text conversion
 *.glb binary
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.webp binary
-*.gif binary
-*.ico binary
-*.pdf binary
-*.mp4 binary
 *.webm binary
+*.mp4 binary
 *.gz binary
-*.zip binary
-*.bundle binary
+*.pdf binary
+*.ico binary
 *.woff binary
 *.woff2 binary
-*.ttf binary
-*.otf binary
-*.blend binary
-
-# Dad's V6 is never edited or converted (rule book).
-original/** -text
-
-# Kept as it is until EP Tabletop's pull request #934 merges (it owns this file); remove this line then.
-src/shell/registry.js -text

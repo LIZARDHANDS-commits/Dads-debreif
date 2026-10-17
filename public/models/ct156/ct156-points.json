@@ -411,7 +411,7 @@
     0.0
    ],
    "positive": "code setGear: +90 deg up (the head swings aft and up into the wing), 0 down",
-   "travel": "code (ALL-34): with the gear; lit only with all three legs down (CFAFM p190)"
+   "travel": "code (ALL-34): with the gear; lit only with all three legs down (reference)"
   },
   "gearLampRight": {
    "at": [
@@ -425,7 +425,7 @@
     0.0
    ],
    "positive": "code setGear: +90 deg up (the head swings aft and up into the wing), 0 down",
-   "travel": "code (ALL-34): with the gear; lit only with all three legs down (CFAFM p190)"
+   "travel": "code (ALL-34): with the gear; lit only with all three legs down (reference)"
   }
  },
  "faces": {
