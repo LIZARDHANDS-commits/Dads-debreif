@@ -76,6 +76,13 @@ Dad, 17 Oct 2026: "adjusts speed on run in and cuts track".
 - [x] Written down first: spec, RS-26 and RS-27, RS-R17 (17 Oct 2026).
 - [x] The cut, the speed worked out, the pick, the card and the views (V2.507).
 
+## Step 8c. Dad's two asks on V2.507 (within Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "as well as the cutting of ground track the aircraft increase bank or g or turn towards the inbound line and skip the IP"; and, with a picture of ∞, "can the figure 8 be more like this".
+- [x] Written down first: RS-11 and RS-26 amended, the spec (17 Oct 2026).
+- [x] The cut at 60° bank onto an intercept of the run-in line, skipping the IP, never a loop; the card's words (V2.508).
+- [x] The figure 8 as an infinity sign, its legs crossing at the IP; time over target by the last loop as before (V2.508).
+- [ ] Dad or Patrick looks at both in the app.
+
 ## Not in this plan
 
 Live weapons, real-world target data, threats, formation runs, the user flying by hand and winds aloft from the models (`future.md`). For air refuelling: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous.

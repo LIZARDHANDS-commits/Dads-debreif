@@ -1,4 +1,4 @@
-// A path over the ground made of straight legs and arcs (RS-11): the holding pattern and the figure 8 the orbit is flown
+// A path over the ground made of straight legs and arcs (RS-11): the holding pattern and the figure 8 (an infinity sign) the orbit is flown
 // on. Plain geometry only, no flying: the pilot (pass.js, pilot.js) holds the path the way he holds the run-in line and
 // the circle, by aiming the lift at a point a few seconds ahead on it (core liftTowardAim, the L1 path follower), so the
 // racetrack, the figure 8 and the circle are all flown by the one follower.
@@ -52,7 +52,7 @@ export function pointOnPath(path, s) {
 
 /**
  * How far along the path (feet) the point nearest p lies, looking only between sFrom and sTo. The window keeps the
- * follower on its own part of the path where the path crosses itself (the figure 8 crosses at the IP).
+ * follower on its own part of the path where the path crosses itself (the figure 8's legs cross at the IP).
  */
 export function nearestOnPath(path, p, sFrom, sTo) {
   const lo = Math.max(0, sFrom);
@@ -121,7 +121,25 @@ export function holdLap({ ip, u, dir, r, legFt }) {
   ];
 }
 
-/** One loop of the figure 8 (RS-11): a full turn at radius r in direction dir, from the IP on track u back to it. */
-export function eightLoop({ ip, u, dir, r }) {
-  return [turn(ip, u, r, TAU, dir)];
+/**
+ * One loop of the figure 8 (RS-11; an infinity sign since V2.508, Dad: "can the figure 8 be more like this"): from the
+ * IP a straight leg at half the crossing angle (crossDeg) off the inbound track u, out toward the loop's side (dir −1
+ * left, +1 right), the loop round at radius r in direction dir, and the straight leg back in to the IP at half the
+ * crossing angle off u on the other side. The legs point inbound and cross at the IP; the loop's centre sits abeam the
+ * IP at r ÷ cos(crossDeg ÷ 2) and each leg is r × tan(crossDeg ÷ 2) long (tangents from the IP to the loop).
+ */
+export function eightLoop({ ip, u, dir, r, crossDeg }) {
+  const half = (crossDeg * Math.PI) / 360;
+  const side = dir < 0 ? left(u) : { x: u.y, y: -u.x };
+  const rot = (k) => ({ x: u.x * Math.cos(half) + side.x * Math.sin(half) * k, y: u.y * Math.cos(half) + side.y * Math.sin(half) * k });
+  const legFt = r * Math.tan(half);
+  const out = rot(1); // out toward the loop's side, inbound
+  const back = rot(-1); // back in across the IP toward the other side, inbound
+  const a = { x: ip.x + out.x * legFt, y: ip.y + out.y * legFt };
+  const b = { x: ip.x - back.x * legFt, y: ip.y - back.y * legFt };
+  return [
+    { kind: 'line', a: { ...ip }, b: a },
+    turn(a, out, r, TAU - 2 * half, dir),
+    { kind: 'line', a: b, b: { ...ip } },
+  ];
 }

@@ -64,9 +64,10 @@ export const REFERENCES = Object.freeze({ lowestAglFt: 500, overTopFt: 1000, ove
 /**
  * The holding pattern and the figure 8 (RS-11), ESTIMATES: the last outbound leg is shortened to no less than
  * holdMinLegSec (so the pilot is wings level inbound before the IP), and the figure 8's last loop is flown between
- * eightBankDeg's banks (15° to 45°, the spec's estimates), its radius worked out at the orbit's true airspeed.
+ * eightBankDeg's banks (15° to 45°, the spec's estimates), its radius worked out at the orbit's true airspeed. The figure
+ * 8's legs cross at the IP at eightCrossDeg (V2.508, an infinity sign; an estimate).
  */
-export const PATTERN = Object.freeze({ holdMinLegSec: 15, eightBankDeg: Object.freeze([15, 45]) });
+export const PATTERN = Object.freeze({ holdMinLegSec: 15, eightBankDeg: Object.freeze([15, 45]), eightCrossDeg: 60 });
 /** The patterns flown as a path over the ground (the circle keeps the first version's way). */
 const PATH_PATTERNS = Object.freeze(['hold', 'eight']);
 const TAU = Math.PI * 2;
@@ -194,7 +195,7 @@ export function buildPlan(setup, world) {
     const legFt = tasFtps * o.legSec;
     const lap = o.pattern === 'hold'
       ? holdLap({ ip: plan.ip, u, dir: o.dir, r: radiusFt, legFt })
-      : [...eightLoop({ ip: plan.ip, u, dir: o.dir, r: radiusFt }), ...eightLoop({ ip: plan.ip, u, dir: -o.dir, r: radiusFt })];
+      : [...eightLoop({ ip: plan.ip, u, dir: o.dir, r: radiusFt, crossDeg: PATTERN.eightCrossDeg }), ...eightLoop({ ip: plan.ip, u, dir: -o.dir, r: radiusFt, crossDeg: PATTERN.eightCrossDeg })];
     plan.orbit = { ...o, msl, ccw: o.dir < 0, tasFtps, radiusFt, legFt, centre: { ...plan.ip }, lap: makePath(lap), path: null, prepFrom: 0 };
     return plan;
   }
@@ -385,9 +386,11 @@ function patternStart(plan) {
   const o = plan.orbit;
   const V = o.tasFtps;
   const w = windWords(plan.windAt(o.msl));
-  const tri = windTriangle(plan.setup.trackDegT, V / KT_TO_FTPS, w.fromDeg, w.kt);
-  const s = pointMassState({ x: plan.ip.x, y: plan.ip.y, altFt: o.msl, ktas: V / KT_TO_FTPS, headingRad: compassDegToHeadingRad(tri.headingDeg) });
   const first = o.path?.segs[0];
+  // The figure 8 starts on its first leg (V2.508: half the crossing angle off inbound); the holding pattern on inbound.
+  const trackDeg = first?.kind === 'line' ? compassDegFromVector(first.dir.x, first.dir.y) : plan.setup.trackDegT;
+  const tri = windTriangle(trackDeg, V / KT_TO_FTPS, w.fromDeg, w.kt);
+  const s = pointMassState({ x: plan.ip.x, y: plan.ip.y, altFt: o.msl, ktas: V / KT_TO_FTPS, headingRad: compassDegToHeadingRad(tri.headingDeg) });
   const bankDeg = first?.kind === 'arc' ? Math.sign(-first.sweep) * radToDeg(Math.atan((V * V) / (G_FTPS2 * first.r))) : 0;
   return pilotAt(s, { aircraft: plan.ac, sigmaAt: plan.sigmaAt, bankDeg, g: 1 / Math.cos(degToRad(bankDeg)) });
 }
@@ -431,6 +434,16 @@ function control(plan, p, phase, esc) {
     case PHASE.TO_IP:
     case PHASE.RUN_IN: {
       const climbCmdRad = climbToward(s, wind, plan.runInMsl, PILOT.maxClimbDeg);
+      if (phase === PHASE.TO_IP && plan.cut) {
+        // A live anthem press's cut (RS-26, V2.508): the turn at the cut bank, straight on the intercept, the roll-out.
+        const c = plan.cut;
+        if (esc.cut === 'straight') {
+          const aim = { x: s.x + c.want.x * 3 * look, y: s.y + c.want.y * 3 * look };
+          return { lift: wantedLift(p, { ...env, climbCmdRad, aim }), kias: plan.runInKias, gMax: PILOT.manoeuvreG };
+        }
+        const side = esc.cut === 'turn' ? c.side : esc.rollSide;
+        return { lift: wantedLift(p, { ...env, climbCmdRad, bankDeg: side * c.bankDeg, maxBankDeg: 89 }), kias: plan.runInKias, gMax: PILOT.manoeuvreG };
+      }
       const aim = phase === PHASE.TO_IP ? plan.ip : lineAim();
       return { lift: wantedLift(p, { ...env, climbCmdRad, aim }), kias: plan.runInKias, gMax: PILOT.manoeuvreG };
     }
@@ -483,6 +496,8 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
   let ground = null;
   let stallHeld = 0;
   const esc = { turned: 0, lastHdg: null, holdFrom: null, from: null, pathS: 0 };
+  if (plan.cut) Object.assign(esc, { cut: plan.cut.turnRad > 0.02 ? 'turn' : 'straight', cutTurned: 0, cutLast: null, cutFail: null, joinFt: null });
+  const track = plan.keepTrack ? [] : null; // a live press's trials: the track every 2 s to the release, to find a loop
   const path = plan.orbit?.path; // none while the plan is still being worked out (the dive's trials)
   const escMsl = plan.groundFt + plan.setup.escape.heightFt;
   const startEscape = () => {
@@ -526,7 +541,13 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
       ph = PHASE.TO_IP;
       events.exit = t;
     }
-    if (ph === PHASE.TO_IP) {
+    if (track && !release && (!track.length || t - track[track.length - 1].t >= 2)) track.push({ t, x: s.x, y: s.y });
+    if (ph === PHASE.TO_IP && plan.cut) {
+      if (cutLegs(plan, s, esc)) {
+        ph = PHASE.RUN_IN;
+        events.ip = t;
+      }
+    } else if (ph === PHASE.TO_IP) {
       // At the IP (within a turn's radius of it, so the turn onto the run-in is led) he turns onto the run-in line.
       if (Math.hypot(plan.ip.x - s.x, plan.ip.y - s.y) < switchFt(s)) {
         ph = PHASE.RUN_IN;
@@ -601,7 +622,53 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
       ph = startEscape();
     }
   }
-  return { events, release, steadySec, ground, stallHeld, timeline: tl, end: p };
+  const cut = plan.cut ? { fail: esc.cutFail, joinFt: esc.joinFt } : null;
+  return { events, release, steadySec, ground, stallHeld, timeline: tl, end: p, cut, track };
+}
+
+/**
+ * A live anthem press's cut legs (RS-26, V2.508), the leg changes at the start of a step: the turn at the cut bank until
+ * the ground track is on the intercept, straight on it until the roll-out onto the run-in line is due (led by the turn's
+ * radius over the ground at the cut bank), and the roll-out until on the line's track. True when he is on the run-in.
+ * Marks esc.cutFail when the cut crosses the line before rolling out on it.
+ */
+function cutLegs(plan, s, esc) {
+  const c = plan.cut;
+  const w = plan.windAt(s.z);
+  const gx = s.vx + w.x, gy = s.vy + w.y;
+  const gs = Math.hypot(gx, gy);
+  const trk = Math.atan2(gy, gx);
+  const off = (s.x * plan.r.x + s.y * plan.r.y - plan.offsetFt) * c.from; // + on the side it started, ft
+  const rollOutSec = c.bankDeg / PILOT.roll.maxRateDps;
+  const turnedBy = () => {
+    if (esc.cutLast !== null) esc.cutTurned += Math.abs(wrapPi(trk - esc.cutLast));
+    esc.cutLast = trk;
+  };
+  const rate = gs * Math.tan(degToRad(c.bankDeg)) * G_FTPS2 / Math.max(1, gs * gs); // rad/s at the cut bank, near enough
+  if (esc.cut !== 'roll' && off <= 0 && !esc.cutFail) esc.cutFail = 'crossed the line before rolling out on it';
+  if (esc.cut === 'turn') {
+    turnedBy();
+    if (esc.cutTurned + rate * rollOutSec * 0.5 >= c.turnRad) esc.cut = 'straight';
+  }
+  if (esc.cut === 'straight') {
+    const left = Math.abs(wrapPi(trk - c.runTrk));
+    const radius = (gs * gs) / (G_FTPS2 * Math.tan(degToRad(c.bankDeg)));
+    if (off <= radius * (1 - Math.cos(left)) + gs * rollOutSec * Math.sin(left) * 0.5) {
+      esc.cut = 'roll';
+      esc.cutTurned = 0;
+      esc.cutLast = null;
+      esc.rollRad = left;
+      esc.rollSide = Math.sign(wrapPi(trk - c.runTrk)) || 1; // + right (the track left of the line's): turn right onto it
+    }
+  }
+  if (esc.cut === 'roll') {
+    turnedBy();
+    if (esc.cutTurned + rate * rollOutSec * 0.5 >= esc.rollRad) {
+      esc.joinFt = -(s.x * plan.u.x + s.y * plan.u.y);
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -675,18 +742,26 @@ export function solveExit(plan) {
 /**
  * The pattern's times over the ground (RS-11) at the orbit's true airspeed in the wind at its height: K, the seconds per
  * foot of radius of a full turn (∫ dθ ÷ ground speed, the same either way round, and the same for a holding pattern's
- * two half turns together), and perLegFt, the seconds per foot of the holding legs (one out, one in).
+ * two half turns together), and perLegFt, the seconds per foot of the holding legs (one out, one in). The figure 8's
+ * loop (an infinity sign since V2.508) scales with its radius too: its turn misses the tracks within half the crossing
+ * angle of inbound, and its two legs, each tan(half) of the radius, are flown at half the crossing angle either side of
+ * inbound, so its K is the turn's part plus the legs'.
  */
 function patternTimes(plan) {
   const o = plan.orbit;
   const w = plan.windAt(o.msl);
   const gs = (x, y) => Math.max(1, speedAlong({ x, y, z: 0 }, w, o.tasFtps));
   const N = 180;
+  const eight = o.pattern === 'eight';
+  const half = degToRad(PATTERN.eightCrossDeg / 2);
+  const inbound = Math.atan2(plan.u.y, plan.u.x);
   let K = 0;
   for (let i = 0; i < N; i++) {
     const th = ((i + 0.5) / N) * TAU;
+    if (eight && Math.abs(wrapPi(th - inbound)) < half) continue;
     K += TAU / N / gs(Math.cos(th), Math.sin(th));
   }
+  if (eight) for (const k of [1, -1]) K += Math.tan(half) / gs(Math.cos(inbound + k * half), Math.sin(inbound + k * half));
   return { K, perLegFt: 1 / gs(-plan.u.x, -plan.u.y) + 1 / gs(plan.u.x, plan.u.y) };
 }
 
@@ -748,7 +823,7 @@ function patternPath(plan, k, param, standard = false) {
   const segs = [];
   const lapOf = (i, size) => (o.pattern === 'hold'
     ? holdLap({ ...base, dir: o.dir, r: o.radiusFt, legFt: size })
-    : eightLoop({ ...base, dir: i % 2 === 0 ? o.dir : -o.dir, r: size }));
+    : eightLoop({ ...base, dir: i % 2 === 0 ? o.dir : -o.dir, r: size, crossDeg: PATTERN.eightCrossDeg }));
   const nominal = o.pattern === 'hold' ? o.legFt : o.radiusFt;
   const n = standard ? k - 1 : k;
   for (let i = 0; i < n; i++) segs.push(...lapOf(i, nominal));
@@ -884,7 +959,7 @@ export function flyPassFrom(prev, setup, world, pressSec) {
   if (tl.phase[i] !== PHASE.ORBIT) return committed('Already on its way in when the anthem started: nothing left in the orbit to change.');
   let options;
   if (o.lap) {
-    const stdFt = o.pattern === 'hold' ? makePath(holdLap({ ip: prev.plan.ip, u: prev.plan.u, dir: o.dir, r: o.radiusFt, legFt: o.legFt })).total : TAU * o.radiusFt;
+    const stdFt = o.pattern === 'hold' ? makePath(holdLap({ ip: prev.plan.ip, u: prev.plan.u, dir: o.dir, r: o.radiusFt, legFt: o.legFt })).total : makePath(eightLoop({ ip: prev.plan.ip, u: prev.plan.u, dir: o.dir, r: o.radiusFt, crossDeg: PATTERN.eightCrossDeg })).total;
     const s = tl.pathS[i] ?? 0;
     const w = prev.plan.windAt(tl.z[i]);
     const look = Math.max(500, Math.hypot(tl.vx[i] + w.x, tl.vy[i] + w.y) * PILOT.lookaheadSec);
@@ -926,11 +1001,13 @@ export function flyPassFrom(prev, setup, world, pressSec) {
  */
 export const ANTHEM_SPEED = Object.freeze({ slowMarginKt: 60, vmoMarginKt: 10 });
 /**
- * The live press's cut (RS-26), ESTIMATES: joins the run-in line each stepNm in from the IP, no closer than minRunInNm of
- * straight run-in; a choice whose crossing passes more than maxAbeamFt from the aim point (inside the stadium bowl's
- * 400 ft half-length, so it still flies over it) is not taken.
+ * The live press's cut (RS-26, V2.508), ESTIMATES: turned at once at bankDeg (harder than the orbit's 30°; 2 G level,
+ * inside the CT-156's limit and above the stall line at the run-in speeds) onto an intercept of the run-in line at one of
+ * interceptDeg, the IP skipped, rolled out on the line at the same bank no closer than minRunInNm of straight run-in; a
+ * choice whose crossing passes more than maxAbeamFt from the aim point (inside the stadium bowl's 400 ft half-length, so
+ * it still flies over it) is not taken.
  */
-export const ANTHEM_CUT = Object.freeze({ minRunInNm: 2, stepNm: 1, maxAbeamFt: 300 });
+export const ANTHEM_CUT = Object.freeze({ minRunInNm: 2, maxAbeamFt: 300, bankDeg: 60, interceptDeg: Object.freeze([30, 45, 60, 90]) });
 
 /** The run-in speeds a live press may set, [slowest, fastest] KIAS (RS-27; ANTHEM_SPEED). */
 export function anthemSpeedRange(plan) {
@@ -957,17 +1034,30 @@ function pilotFromTimeline(plan, tl, i) {
   return pilotAt(s, { aircraft: plan.ac, sigmaAt: plan.sigmaAt, bankDeg: tl.bank[i], g: tl.g[i] });
 }
 
+/** True when a track (points every few seconds) crosses itself: a loop (RS-26: a cut never flies one). */
+function crossesItself(pts) {
+  const cross = (a, b, c, d) => {
+    const o = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+  };
+  for (let i = 0; i + 1 < pts.length; i++) for (let j = i + 2; j + 1 < pts.length; j++) if (cross(pts[i], pts[i + 1], pts[j], pts[j + 1])) return true;
+  return false;
+}
+
 /**
  * A live "Anthem starts" press, cutting track and setting the run-in speed (RS-26, RS-27; Dad, 17 Oct 2026: "adjusts
- * speed on run in and cuts track"). setup.totSec is the anthem's last note. The choices, each with its run-in speed
- * worked out to hit between anthemSpeedRange()'s slowest and fastest (found by flying it):
+ * speed on run in and cuts track", and on V2.507 "as well as the cutting of ground track the aircraft increase bank or g
+ * or turn towards the inbound line and skip the IP"). setup.totSec is the anthem's last note. The choices, each with its
+ * run-in speed worked out to hit between anthemSpeedRange()'s slowest and fastest (found by flying it):
  *  - stay in the orbit (flyPassFrom, the existing solver with the past kept) at the planned speed, or the fastest if late;
- *  - cut: from where he was at the press, direct to the IP, or to a point on the run-in line each ANTHEM_CUT.stepNm in
- *    from it down to ANTHEM_CUT.minRunInNm, then down the line (fly()'s own legs to the IP and the run-in, aimed there);
- *  - already on the run-in at the press: the speed only.
- * The pick: the crossing nearest the last note; within half a second, the least change (the orbit, the IP, the farther
- * joins). Returns a pass in flyPass's shape with `press` = { kind ('orbit' | 'ip' | 'inside' | 'speed' | 'none'), atSec,
- * joinNm, kias, errSec, choices } for the card.
+ *  - cut (V2.508): from where he was at the press, turn at once at ANTHEM_CUT.bankDeg either way round onto an intercept
+ *    of the run-in line at each of ANTHEM_CUT.interceptDeg, skipping the IP, then roll out onto the line (cutLegs); not a
+ *    choice when it loops (its track crosses itself), crosses the line before rolling out, leaves less than
+ *    minRunInNm of straight run-in, or crosses more than maxAbeamFt abeam;
+ *  - on the way to the IP or the run-in already at the press: the speed only (and, on the way to the IP, the cut).
+ * The pick: the crossing nearest the last note; within half a second, the least change (the orbit, then the least
+ * turning). Returns a pass in flyPass's shape with `press` = { kind ('orbit' | 'cut' | 'speed' | 'none'), atSec, side,
+ * bankDeg, joinNm, kias, errSec, turnDeg, choices, nearMiss } for the card.
  */
 export function flyAnthemPress(prev, setup, world, pressSec) {
   const started = globalThis.performance?.now?.() ?? Date.now();
@@ -979,12 +1069,13 @@ export function flyAnthemPress(prev, setup, world, pressSec) {
   const base = { ...prev.plan, setup: { ...prev.plan.setup, totSec: T }, notes: [...prev.plan.notes] };
   const [slow, fast] = anthemSpeedRange(base);
   const choices = [];
+  let nearMiss = null; // the cut nearest the note that crossed too far abeam to count (for the card)
 
   // Stay in the orbit (V2.506's way), at the planned speed, then the fastest if that is late.
   const orbitAt = (kias) => {
     const p = flyPassFrom(prev, { ...setup, kias }, world, pressSec);
     if (p.committed || p.splicedFt > 1) return null;
-    return { kind: 'orbit', kias, errSec: p.result.lateSec ?? Infinity, pass: p };
+    return { kind: 'orbit', kias, errSec: p.result.lateSec ?? Infinity, turn: 0, pass: p };
   };
   const phase0 = tl.phase[i];
   if (phase0 === PHASE.ORBIT) {
@@ -997,16 +1088,47 @@ export function flyAnthemPress(prev, setup, world, pressSec) {
     }
   }
 
-  // A choice flown from the press state: to `ip` (a point on the run-in line, joinFt from the target), then the line.
+  // A choice flown from the press state: a cut (plan.cut) or, on the way in already, the legs as they were.
   const pilot0 = pilotFromTimeline(base, tl, i);
-  const planFor = (joinFt, kias) => ({ ...base, ip: joinFt === null ? base.ip : { x: -base.u.x * joinFt + base.r.x * base.offsetFt, y: -base.u.y * joinFt + base.r.y * base.offsetFt }, ipFt: joinFt ?? base.ipFt, runInKias: kias });
-  const startPhase = phase0 === PHASE.ORBIT ? PHASE.TO_IP : phase0;
-  const arrival = (plan, step, record = false) => fly(plan, { pilot: pilot0, t0: atSec, phase: startPhase, exitSec: atSec, dt: step, stopAt: record ? null : 'release', record });
-  const solveSpeed = (joinFt) => {
-    const at = (kias) => arrival(planFor(joinFt, kias), SOLVE_STEP_SEC).release?.t ?? Infinity;
+  const w0 = base.windAt(tl.z[i]);
+  const trk0 = Math.atan2(tl.vy[i] + w0.y, tl.vx[i] + w0.x);
+  const off0 = tl.x[i] * base.r.x + tl.y[i] * base.r.y - base.offsetFt; // right of the run-in line, ft
+  const runTrk = Math.atan2(base.u.y, base.u.x);
+  const cutOf = (interceptDeg, side) => {
+    const from = Math.sign(off0) || 1;
+    const k = degToRad(interceptDeg);
+    // The intercept: the run-in's track turned toward the line (the line lies at −from × r from him).
+    const want = { x: base.u.x * Math.cos(k) - from * base.r.x * Math.sin(k), y: base.u.y * Math.cos(k) - from * base.r.y * Math.sin(k) };
+    const wantTrk = Math.atan2(want.y, want.x);
+    const d = side > 0 ? trk0 - wantTrk : wantTrk - trk0; // + right: the track's angle falls
+    return { side, from, want, wantTrk, runTrk, interceptDeg, bankDeg: ANTHEM_CUT.bankDeg, turnRad: ((d % TAU) + TAU) % TAU };
+  };
+  // A cut (plan.cut), or (cut.joinFt) V2.507's cut direct to a point on the run-in line inside the IP, then the line.
+  const planFor = (cut, kias) => (cut?.point
+    ? { ...base, keepTrack: true, ip: { x: -base.u.x * cut.joinFt + base.r.x * base.offsetFt, y: -base.u.y * cut.joinFt + base.r.y * base.offsetFt }, ipFt: cut.joinFt, runInKias: kias }
+    : { ...base, keepTrack: true, cut, runInKias: kias });
+  const arrival = (plan, step, record = false) => fly(plan, { pilot: pilot0, t0: atSec, phase: phase0 === PHASE.ORBIT ? PHASE.TO_IP : phase0, exitSec: atSec, dt: step, stopAt: record ? null : 'release', record });
+  // Why a flown choice is not one (null when it is), and its crossing's distance abeam.
+  let cutting = false; // the loop check is for the cuts; the speed alone has nothing else to fly
+  const judge = (f) => {
+    if (!f.release) return { why: 'never crossed' };
+    const abeamFt = Math.abs((f.release.state.x * base.r.x + f.release.state.y * base.r.y) - base.offsetFt);
+    if (f.cut) {
+      if (f.cut.fail) return { why: f.cut.fail };
+      if (f.cut.joinFt === null || f.cut.joinFt < ANTHEM_CUT.minRunInNm * FT_PER_NM) return { why: 'too short a run-in' };
+    }
+    if (cutting && crossesItself(f.track.concat([{ x: f.release.state.x, y: f.release.state.y }]))) return { why: 'a loop' };
+    if (abeamFt > ANTHEM_CUT.maxAbeamFt) return { why: 'abeam', abeamFt };
+    return { why: null, abeamFt };
+  };
+  const solveSpeed = (cut) => {
+    const at = (kias) => arrival(planFor(cut, kias), SOLVE_STEP_SEC).release?.t ?? Infinity;
+    // At the fastest first: a cut that loops or runs short there is dropped before the speed is worked out.
+    const fFast = arrival(planFor(cut, fast), SOLVE_STEP_SEC);
+    const jFast = judge(fFast);
+    if (jFast.why && jFast.why !== 'abeam') return null;
+    const tFast = fFast.release.t;
     const tSlow = at(slow);
-    const tFast = at(fast);
-    if (!Number.isFinite(tFast)) return null;
     let kias;
     if (T >= tSlow) kias = slow; // early even at the slowest
     else if (T <= tFast) kias = fast; // late even at the fastest
@@ -1019,44 +1141,84 @@ export function flyAnthemPress(prev, setup, world, pressSec) {
       }
       kias = (a + b) / 2;
     }
-    // It must still fly over the target: a crossing too far abeam (the line too short to settle on) is not a choice.
-    const rel = arrival(planFor(joinFt, kias), SOLVE_STEP_SEC).release;
-    if (!rel || Math.abs((rel.state.x * base.r.x + rel.state.y * base.r.y) - base.offsetFt) > ANTHEM_CUT.maxAbeamFt) return null;
-    return { kias, errSec: rel.t - T };
+    const f = arrival(planFor(cut, kias), SOLVE_STEP_SEC);
+    const j = judge(f);
+    if (j.why === 'abeam') {
+      // Kept for the card only: a crossing nearer the note than the pick, but too far abeam to count.
+      const miss = { kind: cut ? (cut.point ? 'point' : 'cut') : 'speed', side: cut?.side ?? null, joinFt: f.cut?.joinFt ?? cut?.joinFt ?? null, kias, errSec: f.release.t - T, abeamFt: j.abeamFt };
+      if (!nearMiss || Math.abs(miss.errSec) < Math.abs(nearMiss.errSec)) nearMiss = miss;
+      return null;
+    }
+    if (j.why) return null;
+    return { kias, errSec: f.release.t - T, joinFt: f.cut?.joinFt ?? cut?.joinFt ?? null };
   };
-  if (phase0 === PHASE.ORBIT) {
-    const joins = [base.ipFt];
-    for (let d = base.ipFt / FT_PER_NM - ANTHEM_CUT.stepNm; d >= ANTHEM_CUT.minRunInNm - 1e-9; d -= ANTHEM_CUT.stepNm) joins.push(d * FT_PER_NM);
-    joins.forEach((joinFt, k) => {
-      const sp = solveSpeed(joinFt);
-      if (sp) choices.push({ kind: k === 0 ? 'ip' : 'inside', joinFt, ...sp });
-    });
-  } else if (phase0 === PHASE.TO_IP || phase0 === PHASE.RUN_IN) {
+  if (phase0 === PHASE.ORBIT || phase0 === PHASE.TO_IP) {
+    cutting = true;
+    if (Math.abs(off0) > 200) {
+      for (const deg of ANTHEM_CUT.interceptDeg) for (const side of [-1, 1]) {
+        const cut = cutOf(deg, side);
+        const sp = solveSpeed(cut);
+        if (sp) choices.push({ kind: 'cut', cut, turn: cut.turnRad + degToRad(deg), ...sp });
+      }
+    }
+    // V2.507's cuts direct to a point on the line, each whole mile in from the IP (the IP itself skipped), kept for where
+    // the line can't be met heading inbound (from a circle round the target, say), and never when they loop.
+    for (let d = Math.ceil(base.ipFt / FT_PER_NM - 1 - 1e-9); d >= ANTHEM_CUT.minRunInNm - 1e-9; d -= 1) {
+      const cut = { point: true, joinFt: d * FT_PER_NM };
+      const sp = solveSpeed(cut);
+      if (sp) choices.push({ kind: 'point', cut, turn: 10, ...sp }); // ranked after any cut toward the line on a tie
+    }
+    cutting = false;
+  }
+  if (phase0 === PHASE.TO_IP || phase0 === PHASE.RUN_IN) {
     const sp = solveSpeed(null);
-    if (sp) choices.push({ kind: 'speed', joinFt: null, ...sp });
+    if (sp) choices.push({ kind: 'speed', cut: null, turn: 0, ...sp });
   }
   if (!choices.length) {
     const kept = flyPassFrom(prev, setup, world, pressSec);
-    return { ...kept, press: { kind: 'none', atSec, joinNm: null, kias: null, errSec: kept.result.lateSec, choices: [] } };
+    return { ...kept, press: { kind: 'none', atSec, joinNm: null, kias: null, errSec: kept.result.lateSec, choices: [], nearMiss: missOf(kept.result.lateSec) } };
   }
-  // The pick: nearest the last note; within half a second the least change (the order they were added).
+  // The pick: nearest the last note; within half a second, the least change (the orbit, then the least turning).
+  const rank = (c) => (c.kind === 'orbit' ? -1 : c.turn);
   let best = choices[0];
-  for (const c of choices) if (Math.abs(c.errSec) < Math.abs(best.errSec) - 0.5) best = c;
+  for (const c of choices) {
+    const d = Math.abs(c.errSec) - Math.abs(best.errSec);
+    if (d < -0.5 || (Math.abs(d) <= 0.5 && rank(c) < rank(best))) best = c;
+  }
   return finish(best);
 
+  function missOf(errSec) {
+    return nearMiss && Math.abs(nearMiss.errSec) < Math.abs(errSec) - 0.5
+      ? { kind: nearMiss.kind, side: nearMiss.side, joinNm: nearMiss.joinFt ? nearMiss.joinFt / FT_PER_NM : null, kias: nearMiss.kias, errSec: nearMiss.errSec, abeamFt: nearMiss.abeamFt, limitFt: ANTHEM_CUT.maxAbeamFt, bankDeg: ANTHEM_CUT.bankDeg }
+      : null;
+  }
+
   function finish(c) {
-    const press = { kind: c.kind, atSec, joinNm: c.joinFt ? c.joinFt / FT_PER_NM : null, kias: c.kias, errSec: c.errSec, choices: choices.map((x) => ({ kind: x.kind, joinNm: x.joinFt ? x.joinFt / FT_PER_NM : null, kias: x.kias, errSec: x.errSec })) };
-    if (c.pass) return { ...c.pass, press };
+    const words = (x) => ({ kind: x.kind, side: x.cut?.side ?? null, interceptDeg: x.cut?.interceptDeg ?? null, joinNm: x.joinFt ? x.joinFt / FT_PER_NM : null, kias: x.kias, errSec: x.errSec });
+    const press = { ...words(c), atSec, bankDeg: c.kind === 'cut' ? c.cut.bankDeg : null, turnDeg: 0, choices: choices.map(words), nearMiss: null };
+    if (c.pass) return { ...c.pass, press: { ...press, nearMiss: missOf(press.errSec) } };
     // A cut or a speed: flown from the press state and joined to the stored flight up to the press.
-    const plan = planFor(c.joinFt ?? null, c.kias);
+    let plan = planFor(c.cut, c.kias);
     const flight = arrival(plan, PASS_STEP_SEC, true);
     const nt = flight.timeline;
     for (const key of Object.keys(nt)) if (Array.isArray(tl[key])) nt[key] = tl[key].slice(0, i).concat(nt[key]);
     flight.events = { ...flight.events, exit: atSec };
-    if (startPhase !== PHASE.TO_IP && prev.flight.events.ip !== undefined) flight.events.ip = prev.flight.events.ip;
+    if (phase0 === PHASE.RUN_IN && prev.flight.events.ip !== undefined) flight.events.ip = prev.flight.events.ip;
+    if (c.cut && !c.cut.point && flight.cut?.joinFt) {
+      // The views mark where the cut joined the run-in line (as the IP: the run-in is drawn from there).
+      const j = flight.cut.joinFt;
+      plan = { ...plan, ip: { x: -base.u.x * j + base.r.x * base.offsetFt, y: -base.u.y * j + base.r.y * base.offsetFt }, ipFt: j };
+      press.joinNm = j / FT_PER_NM;
+    }
     const exit = { sec: atSec, byHand: false };
     const result = resultOf(plan, exit, flight, null);
     press.errSec = result.lateSec;
+    // How far it turned from the press to the target, + left (anticlockwise seen from above).
+    let turn = 0;
+    const overAt = flight.events.release ?? Infinity;
+    for (let k = i + 1; k < nt.t.length && nt.t[k] <= overAt; k++) turn += wrapPi(Math.atan2(nt.vy[k], nt.vx[k]) - Math.atan2(nt.vy[k - 1], nt.vx[k - 1]));
+    press.turnDeg = radToDeg(turn);
+    press.nearMiss = missOf(press.errSec);
     return { plan, exit, flight, fall: null, result, press, computeMs: (globalThis.performance?.now?.() ?? Date.now()) - started };
   }
 }
