@@ -22,8 +22,11 @@ export const CONTROL_PARTS = Object.freeze(['stick', 'pcl']);
 function controlSeat(name, c, pivots) {
   const seat = Math.abs(c[0] - pivots.front[name].x) <= Math.abs(c[0] - pivots.rear[name].x) ? 'front' : 'rear';
   if (name === 'stick') return seat;
-  const p = pivots[seat].pcl, up = c[2] - p.z;
-  return up > p.fixedTop || (Math.abs(c[1] - p.y) < p.stemHalf && up > 0.02) ? seat : null;
+  // Height over the console in the lever's own frame (it is built leaned forward restDeg about its pivot), so its
+  // lowest pieces (the finger lift's guard tray, about 0.23 ft up) stay with it however it leans.
+  const p = pivots[seat].pcl, rest = (p.restDeg * Math.PI) / 180;
+  const up = (c[0] - p.x) * Math.sin(rest) + (c[2] - p.z) * Math.cos(rest);
+  return up > p.fixedTop || (Math.abs(c[1] - p.y) < p.stemHalf && up > p.stemFrom) ? seat : null;
 }
 
 /**

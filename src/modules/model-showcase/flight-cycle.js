@@ -80,6 +80,16 @@ export function stepShowcaseFlight(s, dtS, { manoeuvre = true } = {}) {
   return { t, bankDeg: roll.bankDeg, rollRateDps: roll.rollRateDps, pitchDeg, pitchRateDps, vsFpm, torquePct, kias, altFt, headingDeg, g, controls };
 }
 
+/**
+ * The ship root's turn for an attitude, as three.js Euler angles { x, y, z, order } (W24, Patrick 17 Oct 2026: "the EADI
+ * and backup eadi indicate the OPPOSITE bank of what the model is flying"): bankDeg right wing down positive about the
+ * nose (+X), so a right bank lifts the left (+Y) wing; pitchDeg nose up positive, -pitch about +Y (left); the app's
+ * convention (the EP Tabletop's world3d.js). The heading stays 0: the Showcase turns only on its panel (MS-7).
+ */
+export function showcaseAttitude({ bankDeg = 0, pitchDeg = 0 }) {
+  return { x: bankDeg / DEG, y: -pitchDeg / DEG, z: 0, order: 'ZYX' };
+}
+
 /** The panel's numbers for the cockpit (ct156-cockpit.js update) from the flight. */
 export function showcaseHud(s) {
   return { pitchDeg: s.pitchDeg, bankDeg: s.bankDeg, kias: s.kias, altFt: s.altFt, headingDeg: s.headingDeg, g: s.g, vsFpm: s.vsFpm, speedBrake: false, torquePct: s.torquePct, engineRunning: true, controls: s.controls };

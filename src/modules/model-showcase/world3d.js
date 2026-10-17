@@ -19,7 +19,7 @@ import { setCt156Level, ct156Level, onCt156Level } from '../../ui-kit/ct156-blen
 import { onCt156Look } from '../../ui-kit/ct156-look-settings.js';
 import { createCockpitMount, aimCockpitCamera, createCockpitZoomKey, CT156_FT_PER_UNIT, COCKPIT_HEAD } from '../../ui-kit/ct156-cockpit.js';
 import { T6A_PITCH } from '../../core/t6-performance.js';
-import { createShowcaseFlight, stepShowcaseFlight, showcaseHud } from './flight-cycle.js';
+import { createShowcaseFlight, stepShowcaseFlight, showcaseHud, showcaseAttitude } from './flight-cycle.js';
 
 const rad = (d) => (d * Math.PI) / 180;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -57,14 +57,13 @@ const flapDeg = (at) => (at <= 0.5 ? (at / 0.5) * CT156_FLAP_DEG.TO : CT156_FLAP
 const toward = (from, to, perS, dtS) => (Math.abs(to - from) <= perS * dtS ? to : from + Math.sign(to - from) * perS * dtS);
 
 /**
- * Sets the ship's attitude from what its panel reads, so the outside and the EADI and standby always agree (W24, Patrick
- * 17 Oct 2026: "the EADI and backup eadi indicate the OPPOSITE bank of what the model is flying"). bankDeg right wing down
- * positive, pitchDeg nose up positive: the app's convention, about +X (nose) for bank, so a right bank lifts the left
- * (+Y) wing; -pitch about +Y (left) for the nose up (as the EP Tabletop's world3d.js). The root is the EADI's attitude;
- * the model sits CT156_DATUM_DEG nose-down inside it, so on the ground at the gear's 2.5° the spinner's axis is level.
+ * Sets the ship's attitude from what its panel reads (flight-cycle.js showcaseAttitude), so the outside and the EADI and
+ * standby always agree (W24). The root is the EADI's attitude; the model sits CT156_DATUM_DEG nose-down inside it, so on
+ * the ground at the gear's 2.5° the spinner's axis is level.
  */
-function applyAttitude(ship, { bankDeg = 0, pitchDeg = 0 }) {
-  ship.rotation.set(rad(bankDeg), -rad(pitchDeg), 0, 'ZYX');
+function applyAttitude(ship, hud) {
+  const { x, y, z, order } = showcaseAttitude(hud);
+  ship.rotation.set(x, y, z, order);
 }
 
 /** A vertical gradient picture for the backdrop. */
@@ -355,6 +354,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     setGear(next) {
       if (pose !== 'flying') return;
       gear.to = next === 'down' ? 1 : 0;
+      gear.parked = false; // in the air the inboard doors close behind the legs, even turned back mid-way from the parked pose
       touch();
       onChange();
     },

@@ -786,7 +786,6 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     for (const who of SHIPS) {
       if (gl.planes[who]) disposeCt156Model(gl.planes[who]);
       const mesh = createCt156Model(THREE, { color: COLORS[who], number: LETTERS[who], paint: paintNow, lengthFt: CT156_UNIT_LENGTH });
-      setCt156Crew(mesh, 'lite'); // other ships draw the lighter pilots (5A); the one the camera sits in its full ones (setCockpitView)
       gl.scene.add(mesh);
       gl.planes[who] = mesh;
     }
@@ -956,6 +955,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     gl.ground.position.set(gridX, gridY, altToZ(groundZ, ALT_SCALE) - 2);
     const pov = povOf(cam.state ?? cam.mode);
     for (const who of SHIPS) gl.planes[who].visible = true;
+    // The ship the camera rides or chases keeps its full pilots; the other draws the lighter ones (5A, ALL-46).
+    for (const who of SHIPS) setCt156Crew(gl.planes[who], pov?.who === who ? 'full' : 'lite');
     if (pov && gl.planes[pov.who]) {
       // Perspective: the aircraft at their real size, and the camera from the aircraft's own attitude.
       for (const who of SHIPS) gl.planes[who].scale.setScalar(T6_LENGTH_FT / CT156_UNIT_LENGTH);

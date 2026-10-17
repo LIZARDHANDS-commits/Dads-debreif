@@ -285,7 +285,6 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     if (!entry) {
       const mesh = createCt156Model(THREE, { color: source.colors[id] ?? '#ffffff', number: id, paint: paintNow, lengthFt: CT156_UNIT_LENGTH });
       blurProp(THREE, mesh); // the turning prop as a blurred disc, as Traffic's (TS-210; Patrick, 12 Oct 2026)
-      setCt156Crew(mesh, 'lite'); // other ships draw the lighter pilots (5A); the one the camera sits in its full ones (setCockpitView)
       mesh.rotation.order = 'ZYX';
       gl.scene.add(mesh);
       entry = { mesh, paint: paintNow };
@@ -754,6 +753,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       present.add(a.id);
       const pose = aircraftPose(a, signs[a.id] ?? 1);
       const mesh = planeFor(a.id);
+      // The ship the camera rides or chases keeps its full pilots; the others draw the lighter ones (5A, ALL-46).
+      setCt156Crew(mesh, pov && a.id === pov.id ? 'full' : 'lite');
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       const drawn = pose.model ?? pose;

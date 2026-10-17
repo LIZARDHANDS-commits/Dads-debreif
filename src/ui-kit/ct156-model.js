@@ -1102,17 +1102,21 @@ function attachPilots(kit) {
 
 /** The lighter helmets (5A): the Performance pilots' file into the Lite pair, once, and only when a ship has asked for it. */
 function attachLitePilots(kit) {
-  if (!kit.liteWanted || kit.liteLoaded || kit.liteLoading || typeof window === 'undefined') return;
+  if (!kit.liteWanted || kit.liteLoaded || kit.liteLoading || kit.liteFailed || typeof window === 'undefined') return;
   kit.liteLoading = true;
   loadDelivered(PILOTS_FILE, { level: 'performance' }).then((list) => {
     kit.liteLoading = false;
     if (kit.disposed || kit.liteLoaded) return;
     const byName = pilotPartsOf(list);
-    if (!byName) return;
+    if (!byName) {
+      kit.liteFailed = true;
+      return;
+    }
     for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[`${name}Lite`], byName.get(name).meshes);
     kit.liteLoaded = true;
   }, (e) => {
     kit.liteLoading = false;
+    kit.liteFailed = true; // once a page: every later ship keeps the code's pilots without asking again
     warnUnlessReported(PILOTS_FILE, e, "the code's pilots show on other ships");
   });
 }
@@ -2984,6 +2988,7 @@ function buildKit(THREE) {
   kit.liteWanted = false; // some ship draws the lighter helmets (setCt156Crew)
   kit.liteLoaded = false;
   kit.liteLoading = false;
+  kit.liteFailed = false;
   if (typeof window !== 'undefined') {
     attachFiles(kit);
     // A level switch under ships already made: back to plain paint, the old level's copies and pictures freed, the new level's loaded.

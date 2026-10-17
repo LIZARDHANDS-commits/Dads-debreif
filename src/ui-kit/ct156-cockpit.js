@@ -1301,9 +1301,6 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       ctx.fillStyle = PLACARD_INK;
       for (let y = b.y + b.h * 0.12, k = 0; y < b.y + b.h * 0.85; y += Math.max(3, b.w * 0.14), k++) ctx.fillRect(b.x + b.w * 0.1, y, b.w * (k % 3 === 2 ? 0.5 : 0.8), Math.max(1, b.w * 0.05));
       break;
-    case 'label':
-      ctx.fillStyle = '#16181b'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      break;
     case 'eadi': {
       const sc = screen(ctx, b.x, b.y, b.w, b.h, '#020304');
       eadi(ctx, sc, h?.pitchDeg, h?.bankDeg);
@@ -2574,9 +2571,10 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     // parts below are in the lever's own frame: x forward, y across (0 the plate's middle, inboard negative), z up.
     const f = (L(P.pclSlot.at) - xs[0]) / (xs[1] - xs[0]), lean = rad(lerp(-Q.travelDeg, Q.travelDeg, f));
     const lever = (g) => g.rotateY(lean).translate(qx, sy, c.top);
-    // The lever's pieces stand above the housings (fixedTop over the console; the flap selector's tab is the highest
-    // housing part, about 0.17 ft) except its plate, a stem `across` wide up out of the slot.
-    pivots.pcl = { x: qx, y: sy, z: c.top, restDeg: lerp(-Q.travelDeg, Q.travelDeg, f), travelDeg: Q.travelDeg, fixedTop: 0.205, stemHalf: S2.t / 2 + 0.008 };
+    // The lever's pieces stand above the housings in its own leaned frame (fixedTop over the console; the flap selector's
+    // tab is the highest housing part, about 0.18 ft; the lowest lever part, the finger lift's guard tray, about 0.23 ft)
+    // except its plate, a stem `across` wide up out of the slot from stemFrom.
+    pivots.pcl = { x: qx, y: sy, z: c.top, restDeg: lerp(-Q.travelDeg, Q.travelDeg, f), travelDeg: Q.travelDeg, fixedTop: 0.205, stemHalf: S2.t / 2 + 0.008, stemFrom: B - 0.09 }; // the plate starts B - 0.04 up in its own frame
     const g0 = G.bottom, hw = G.depth / 2, r = hw, yo = -S2.t / 2, yi = yo - G.length; // the grip's outboard and inboard ends
     // The grip's section: flat underneath with rounded corners, straight sides, round on top; grown by `grow` all round.
     const gripShape = (grow) => {
@@ -3118,6 +3116,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     return { ...hud, vsFpm: vs };
   };
   let shownAt = -Infinity;
+  let shownEngineKey = engineKey(null); // the engine picture starts as the static one (drawEngineLive(null) above)
   /**
    * What the engine displays show: with liveEngine (the EP Tabletop) its own `hud.engine`, exactly as before; otherwise,
    * at High, `hud.engine` when a module passes one, else numbers made from its torque (hud.torquePct, or Formation's
@@ -3165,10 +3164,14 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
       shownAt = nowMs;
       drawLive(live.ctx, { ...hud, ...faces });
       live.texture.needsUpdate = true;
-      drawEngineLive(engine.ctx, eng);
-      engine.texture.needsUpdate = true;
-      const lit = new Set(eng?.lights ?? []);
-      for (const { mesh, name } of lampMeshes) mesh.visible = lit.has(name);
+      const ek = engineKey(eng);
+      if (ek !== shownEngineKey) { // the engine picture only when its numbers changed (at Performance never after the first)
+        shownEngineKey = ek;
+        drawEngineLive(engine.ctx, eng);
+        engine.texture.needsUpdate = true;
+        const lit = new Set(eng?.lights ?? []);
+        for (const { mesh, name } of lampMeshes) mesh.visible = lit.has(name);
+      }
       return true;
     },
     dispose() {
