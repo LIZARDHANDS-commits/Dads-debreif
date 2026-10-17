@@ -59,6 +59,16 @@ Dad: "add 3D from the cockpit to the KML viewer ... if there is a GPS gap, for t
 - [x] Runways and the ground (built V2.231, DB-26; wording waits on Patrick; not yet seen by Patrick in the real app; Dad, 10 Oct: "fix the runways so that [in the] KML viewer the planes land on it. Also the ground line seems off in 3D, the aircraft almost sit below the green 3D terrain"): runways from Patrick's measured points at Moose Jaw, the FAA CIFP at the US fields and OurAirports elsewhere, each tagged with its source; the 3D ground from the tracks' own ground fixes less the wheels' height, Chase and Cockpit standing on it, runways shifted to match, and "From the tracks" the new default Ground setting. No new test (existing tests pass).
 - [x] Altitude check (built V2.316, DB-28, on the working answers DB-Q27 and DB-Q28; wording waits on Patrick; not yet seen by Patrick in the real app; Dad, 11 Oct: "For the KML viewer can we also have an altitude assessment. Each aircraft should be taxiing on the same plane for sure on the taxiways and same with touch down, so that should help with the altitude error"): each ship's ground fixes at taxi out and taxi in are measured against the terrain under them (shared height tiles), its bias blended from take-off to landing, and taken off relative to the other ships; "Altitude: Corrected from the ground (auto) / As recorded" and the check line per ship in the GPS source box.
 
+## Step 3b. Simulated drop over a drop zone (Dad, 15 Oct 2026; Patrick approved, relayed by Dad the same day)
+
+The plan, Dad's picks and the math: [drop-plan.md](drop-plan.md). Built after the C-130J model (shared plan Step 3e).
+
+- [ ] 1. The numbers: AFMAN 11-231 and the BDU-33's published data read into the plan's table with pages; estimates marked.
+- [ ] 2. Spec, requirements and decisions (DB-36 onward) with a screen picture, approved before code. **Spec section, DB-36 and DB-R29 written (15 Oct 2026) from the approved plan ("pat yes all this"); the screen picture still to send.**
+- [x] 3. Core `drop.js` (the fall and the CARP) with one light test. **Built 15 Oct 2026 (`src/core/drop.js`, `tests/unit/core/drop.test.js`); not yet used on screen.**
+- [x] 4. The Drop box in Tools, the drawing in 2D and 3D, saved with the debrief. **Built 16 Oct 2026 (V2.500; `src/modules/debrief/drop.js`, `drop-panel.js`, `map2d/drop-layer.js`, `view3d/drop-overlay.js`); first pass, not yet seen by Patrick or Dad.** What it does is written into DB-36 and the spec section "Simulated drop".
+- [ ] 5. Sign-off checklist run on a real flight with a known drop.
+
 ## Step 4. Check the Debrief's tests match the new rules
 
 The test register marks the Debrief's files: about 9 unit checks and about 5 browser checks are pinned to V6's numbers, and one pins seconds of the example flight. Those are rewritten by the clean-up pull requests, not by this plan (`pf/reset/5-testing/test-register.md:641`). This plan only adds:

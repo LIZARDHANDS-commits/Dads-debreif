@@ -49,6 +49,7 @@ import { headToward, aimChaseCamera } from './aim.js';
 import {
   drawStickLabel, drawAltitudeScale, drawMarker, labelShip, drawCompass, drawCaption, drawCockpitCaption, drawTennis3d, TEXT,
 } from './overlay.js';
+import { drawDrop3d } from './drop-overlay.js';
 
 const BACKGROUND = '#050b12';
 const LAND = '#0b3318';
@@ -94,11 +95,12 @@ const TERRAIN_UNDERLAY_FT = 50;
  * onUnavailable(message): three.js or WebGL couldn't start; the screen
  * says so and goes back to 2D. onTerrain(state): the "Terrain and satellite" ground's
  * words for 3D settings and its credit lines ({ words, credit }), or null while it isn't
- * shown (DB-27). loadThree: for tests.
+ * shown (DB-27). drop(): the simulated drop to draw over the picture (DB-36; view3d/drop-overlay.js), or null.
+ * loadThree: for tests.
  */
 export function createView3d(canvas, {
   timers, flight, time, settings, fieldFt, setCamera, tennis = () => null, ground = () => null,
-  fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '', space = () => null,
+  fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '', space = () => null, drop = () => null,
   onUnavailable = /** @type {(message: string) => void} */ (() => {}), onTerrain = /** @type {(state: any) => void} */ (() => {}), loadThree = loadThreeModule,
 }) {
   const glCanvas = document.createElement('canvas');
@@ -230,6 +232,8 @@ export function createView3d(canvas, {
         if (Number.isFinite(c.x)) labelShip(ctx, c, s, on);
       }
       if (ball?.points) drawTennis3d(ctx, P, ball);
+      const droppedInCockpit = drop();
+      if (droppedInCockpit) drawDrop3d(ctx, P, droppedInCockpit);
       // The T-38A's gauges are pictures (DB-33); with the C-130J chosen the eye rides the CT-156 cockpit (DB-35).
       const note = cockpit.chase ? null : ({ t38a: COCKPIT_CAPTION.t38a, c130j: COCKPIT_CAPTION.c130j }[on.model3d] ?? null);
       drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, chase: cockpit.chase, gap: riding.gap, windKnown: Boolean(cockpit.windKey), note }, COCKPIT_CAPTION);
@@ -250,6 +254,8 @@ export function createView3d(canvas, {
       else drawMarker(ctx, P, s, on); // the flat marker, or a dot for a ship with no heading
     }
     if (ball?.points) drawTennis3d(ctx, P, ball);
+    const dropped = drop();
+    if (dropped) drawDrop3d(ctx, P, dropped);
     if (on.groundRef3d) drawCompass(ctx, size, camera);
     drawCaption(ctx, camera, on, datum, ground()?.source ?? 'field');
   }

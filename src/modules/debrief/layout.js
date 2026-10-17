@@ -286,6 +286,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
     controls.checkbox('tennisOpen', { label: 'Tennis ball' }),
+    controls.checkbox('dropOpen', { label: 'Drop' }), // the simulated drop's box (DB-36)
   ]);
 
   // The 3D view's settings, in 3D only (SPEC-debrief: The screen). The camera itself (mount, aim, ship, seat) is the bar
