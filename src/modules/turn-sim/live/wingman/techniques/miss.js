@@ -23,9 +23,12 @@ function buildMissPlan(ctx, prevPlan = null) {
   const p = Math.max(0, guard.predFt ?? seen.slant);
   const tPass = clamp(guard.tPassSec ?? 5, M.tPassMinSec, M.tPassMaxSec);
   const urgency = clamp01((M.urgencyStartSec - tPass) / Math.max(M.urgencySpanSec, 1e-6));
-  const vertSign = prevPlan ? prevPlan.vertSign : seen.heightFt > FW_WING.yoyo.highFt ? 1 : -1;
+  const vertSign = prevPlan ? prevPlan.vertSign : seen.heightFt > 0 ? 1 : -1;
   const rawDepth = Math.sqrt(Math.max(0, M.clearSlantFt * M.clearSlantFt - p * p));
-  const depthFt = Math.max(prevPlan?.depthFt ?? 0, clamp(rawDepth, M.minDepthFt, M.maxDepthFt));
+  const baseDepthFt = Math.max(prevPlan?.depthFt ?? 0, clamp(rawDepth, M.minDepthFt, M.maxDepthFt));
+  const depthFt = vertSign > 0
+    ? Math.max(baseDepthFt, seen.heightFt + 50)
+    : Math.min(M.maxDepthFt, Math.max(baseDepthFt, Math.abs(seen.heightFt) + 30));
   const heightTargetFt = vertSign * depthFt;
 
   // Vertical acceleration budget along n_p = 0.5 * (1 - u) -> a_v = (0.5 + 0.5 * u) * g (3b §7, D4)
@@ -83,7 +86,9 @@ export const FW_MISS_TECHNIQUE = Object.freeze({
     const p = ctx.guard?.predFt ?? ctx.seen.slant;
     const tPass = ctx.guard?.tPassSec ?? 5;
     const closing = ctx.seen.closure > M.cueClosureFtps;
-    const inWindow = p < M.cuePassFt && closing && tPass >= M.tPassMinSec && tPass <= M.tPassMaxSec;
+    const closeEnough = ctx.seen.slant < 650 && !(ctx.seen.sweepDeg > 65 && ctx.seen.slant > 560);
+    const minTPass = ctx.phase?.into ? 0.5 : M.tPassMinSec;
+    const inWindow = closeEnough && p < M.cuePassFt && closing && tPass >= minTPass && tPass <= 4.5;
     const dwell = inWindow ? (mem.dwell ?? 0) + 1 : 0;
     const cue = dwell >= M.dwellSteps ? clamp01((M.cuePassFt - p) / 100 + 0.25) : 0;
     return { cue, dwell };
@@ -98,7 +103,7 @@ export const FW_MISS_TECHNIQUE = Object.freeze({
   step(ctx, state) {
     const M = FW_WING.miss;
     const p = ctx.guard?.predFt ?? ctx.seen.slant;
-    const nextState = p < state.plannedPassFt - M.replanTighterFt ? buildMissPlan(ctx, state) : { ...state };
+    const nextState = !state.passedBottom && p < state.plannedPassFt - M.replanTighterFt ? buildMissPlan(ctx, state) : { ...state };
     const hErr = nextState.heightTargetFt - ctx.seen.heightFt;
     const nearBottom = Math.abs(hErr) < 35 || Math.sign(hErr) !== nextState.vertSign;
     const passedBottom = nextState.passedBottom || nearBottom || ctx.seen.closure <= 0;
@@ -107,26 +112,38 @@ export const FW_MISS_TECHNIQUE = Object.freeze({
       (ctx.seen.closure <= M.cueClosureFtps || (p > M.clearSlantFt && ctx.seen.slant > M.clearSlantFt)) &&
       passedBottom;
     const doneHoldSec = clearNow ? nextState.doneHoldSec + STEP_SEC : 0;
-    const done = doneHoldSec >= M.doneDwellSec;
+    const done = doneHoldSec >= M.doneDwellSec || (passedBottom && ctx.seen.closure < -5 && ctx.seen.slant > 560);
 
-    // Profile rate ḣ_T (D1): smooth sqrt braking profile toward heightTargetFt so B10's rate term drives the drop
-    const rateMag = Math.min(M.maxRateFtps, Math.sqrt(2 * nextState.avFtps2 * Math.abs(hErr)) * 0.65);
-    const heightRateTargetFtps = Math.abs(hErr) > 5 ? Math.sign(hErr) * rateMag : 0;
+    // Once over-the-top / under-pass apex is passed and range is opening, return height toward stack and reverse onto Lead's circle
+    const activeHeightTargetFt = passedBottom && ctx.seen.closure <= 0 ? FW_WING.stackFt : nextState.heightTargetFt;
+    const activeHErr = activeHeightTargetFt - ctx.seen.heightFt;
+    const maxVRate = nextState.vertSign < 0 || activeHErr < 0 ? 28 : M.maxRateFtps;
+    const rateMag = Math.min(maxVRate, Math.sqrt(2 * nextState.avFtps2 * Math.abs(activeHErr)) * 0.65);
+    const heightRateTargetFtps = Math.abs(activeHErr) > 5 ? Math.sign(activeHErr) * rateMag : 0;
 
-    // Outward course bias toward Lead's tail only when vertical drop alone leaves a horizontal residual dqFt (D4)
+    // When High (vertSign > 0), pull up-and-over with outward lag bias when forward of 55° sweep then reverse onto circle;
+    // when Mid/Low (vertSign < 0), unload and fly straight/shallow under Lead until reaching Lead's circle.
     const normalRef = ctx.normalRef;
-    const horizNeedShare = clamp01((nextState.dqFt ?? 0) / 120);
-    const lagBiasDeg = -nextState.turnDir * FW_WING.chiMaxOutDeg * horizNeedShare * clamp01((M.donePassFt - p) / 150);
+    const fwdShare = clamp01((60 - ctx.seen.sweepDeg) / 30);
+    const horizNeedShare = passedBottom || nextState.vertSign < 0 ? 0 : clamp01((nextState.dqFt ?? 0) / 120) * fwdShare;
+    const rangeShare = passedBottom ? 0 : clamp01((M.donePassFt - ctx.seen.slant) / 150);
+    const lagBiasDeg = -nextState.turnDir * FW_WING.chiMaxOutDeg * horizNeedShare * rangeShare;
+    const chiWantedDeg = normalRef.chiWantedDeg + lagBiasDeg;
+    const dOm = passedBottom
+      ? 0
+      : nextState.vertSign < 0
+        ? -0.5 * normalRef.omegaFfRadps * rangeShare
+        : nextState.deltaOmegaRadps * fwdShare * rangeShare;
     const ref = makeFwReference({
       ...normalRef,
       pathKind: 'circle',
-      chiWantedDeg: normalRef.chiWantedDeg + lagBiasDeg,
-      omegaFfRadps: normalRef.omegaFfRadps + nextState.deltaOmegaRadps,
-      heightTargetFt: nextState.heightTargetFt,
+      chiWantedDeg,
+      omegaFfRadps: normalRef.omegaFfRadps + dOm,
+      heightTargetFt: activeHeightTargetFt,
       heightRateTargetFtps,
-      speedOffsetKt: nextState.energyIntent < 0 ? -5 : normalRef.speedOffsetKt,
-      energyIntent: nextState.energyIntent,
-      urgency: nextState.urgency,
+      speedOffsetKt: nextState.energyIntent < 0 && !passedBottom ? -5 : normalRef.speedOffsetKt,
+      energyIntent: passedBottom && ctx.seen.slant > 700 ? 0.5 : nextState.energyIntent,
+      urgency: passedBottom ? 0.2 : nextState.urgency,
       capChangeG: 0,
       aimKind: 'passClear',
       pitchOwner: 'passClear',

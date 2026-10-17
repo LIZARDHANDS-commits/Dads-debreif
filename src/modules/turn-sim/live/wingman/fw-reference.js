@@ -89,6 +89,7 @@ export function blendFwReferences(normalRef, techRef = null, weight = 0, guardUr
 
   const pick = wPath >= 0.5 ? t : n;
   return {
+    pathKind: pick.pathKind,
     chiWantedDeg,
     omegaFfRadps,
     heightTargetFt,
