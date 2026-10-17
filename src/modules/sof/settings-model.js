@@ -15,6 +15,7 @@ import { trafficUrl } from './traffic.js';
 import { CROSSWIND_DEFAULTS, RUNWAY_STATES } from './crosswind.js';
 import { AREA_CHOICES_NM, DEFAULT_AREA_NM, TRAFFIC_DISPLAY_DEFAULTS, cleanTrafficDisplay, MOUSE_LEFT_CHOICES, DEFAULT_MOUSE_LEFT } from './scene3d-model.js';
 import { cleanAirspaceHidden } from '../../airfields/airspace/filter.js';
+import { DEFAULT_RADAR_DETAIL, RADAR_DETAIL_VALUES } from './mrms-model.js';
 
 const LOCAL = triggerLimits('local');
 
@@ -226,6 +227,7 @@ export const VIEW3D_DEFAULTS = Object.freeze({
   trafficIconSize: TRAFFIC_DISPLAY_DEFAULTS.iconSize, trafficTagSize: TRAFFIC_DISPLAY_DEFAULTS.tagSize, trafficTagShows: TRAFFIC_DISPLAY_DEFAULTS.tagShows,
   trafficNamesFor: TRAFFIC_DISPLAY_DEFAULTS.namesFor, trafficT6Tags: TRAFFIC_DISPLAY_DEFAULTS.t6Tags,
   mouseLeft3d: DEFAULT_MOUSE_LEFT, airspaceHidden3d: Object.freeze({}),
+  radarDetail3d: DEFAULT_RADAR_DETAIL, // "3D radar detail" (SOF-67): Performance or High
 });
 
 /** The "3D mouse" choice, in the menu's words. */
@@ -297,6 +299,7 @@ export function cleanView3d(values) {
     trafficT6Tags: typeof v.trafficT6Tags === 'boolean' ? v.trafficT6Tags : VIEW3D_DEFAULTS.trafficT6Tags,
     mouseLeft3d: MOUSE_LEFT_CHOICES.includes(v.mouseLeft3d) ? v.mouseLeft3d : VIEW3D_DEFAULTS.mouseLeft3d,
     airspaceHidden3d: cleanAirspaceHidden(v.airspaceHidden3d),
+    radarDetail3d: RADAR_DETAIL_VALUES.includes(v.radarDetail3d) ? v.radarDetail3d : VIEW3D_DEFAULTS.radarDetail3d,
   });
 }
 
@@ -313,7 +316,7 @@ export function createView3dSettings(store) {
     allowed: {
       cloudStyle3d: [...STYLE_VALUES], area3dNm: [...AREA_CHOICES_NM], approachRunway3d: [...RUNWAY_MODE_VALUES],
       trafficIconSize: [...SIZE_VALUES], trafficTagSize: [...SIZE_VALUES], trafficTagShows: [...TAG_SHOWS_VALUES], trafficNamesFor: [...NAMES_FOR_VALUES],
-      mouseLeft3d: [...MOUSE_LEFT_CHOICES],
+      mouseLeft3d: [...MOUSE_LEFT_CHOICES], radarDetail3d: [...RADAR_DETAIL_VALUES],
     },
   });
   return {
@@ -333,6 +336,7 @@ export function createView3dSettings(store) {
       if (NAMES_FOR_VALUES.includes(patch.trafficNamesFor)) next.trafficNamesFor = patch.trafficNamesFor;
       if (typeof patch.trafficT6Tags === 'boolean') next.trafficT6Tags = patch.trafficT6Tags;
       if (MOUSE_LEFT_CHOICES.includes(patch.mouseLeft3d)) next.mouseLeft3d = patch.mouseLeft3d;
+      if (RADAR_DETAIL_VALUES.includes(patch.radarDetail3d)) next.radarDetail3d = patch.radarDetail3d;
       if (patch.airspaceHidden3d && typeof patch.airspaceHidden3d === 'object') next.airspaceHidden3d = cleanAirspaceHidden(patch.airspaceHidden3d);
       if (Object.keys(next).length) inner.update(next);
     },
