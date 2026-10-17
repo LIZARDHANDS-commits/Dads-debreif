@@ -318,6 +318,9 @@ uniform float ct156Wear;${sheen ? '\nuniform sampler2D ct156Sheen;' : ''}`)
     shader.fragmentShader = fs;
   };
   m.customProgramCacheKey = () => `ct156-ao-direct${paint ? `-paint${sheen ? '-sheen' : ''}` : ''}`;
+  // The shader above replaced the base's, Neutral curve and all, but the copy kept the base's "dressed" mark: drop it so
+  // the look (ct156-look.js) dresses the copy once more, on top of this shader (W27; the delivered parts drew uncurved).
+  delete m.userData.ct156Look;
   if (m.userData.ct156Bands) paintBands(m, m.userData.ct156Bands); // painted bands (the prop's tips) stay
   return m.userData.ct156Grain ? paintGrain(m, m.userData.ct156Grain) : m; // a painted surface keeps its grain
 }
