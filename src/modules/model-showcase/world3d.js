@@ -14,6 +14,7 @@ import { createCt156Model, disposeCt156Model, setGear, setPropStopped, PAINT_DEF
 import { setCt156Level, ct156Level, onCt156Level } from '../../ui-kit/ct156-blender.js';
 import { onCt156Look } from '../../ui-kit/ct156-look-settings.js';
 import { createCockpitMount, aimCockpitCamera, createCockpitZoomKey, CT156_FT_PER_UNIT, COCKPIT_HEAD } from '../../ui-kit/ct156-cockpit.js';
+import { T6A_PITCH } from '../../core/t6-performance.js';
 
 const rad = (d) => (d * Math.PI) / 180;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -43,9 +44,20 @@ const SETTLE_MS = 25_000;
 const MIN_DRAW_MS = 33;
 /** What the seat's panel reads (a picture of the panel only): standing on the ground, and in the air (the numbers are the picture's, not flight). */
 const HUD = Object.freeze({
-  ground: { pitchDeg: 0, bankDeg: 0, kias: 0, altFt: 1892, headingDeg: 0, g: 1, vsFpm: 0, speedBrake: false },
+  ground: { pitchDeg: T6A_PITCH.onGearDeg, bankDeg: 0, kias: 0, altFt: 1892, headingDeg: 0, g: 1, vsFpm: 0, speedBrake: false },
   flying: { pitchDeg: 0, bankDeg: FLYING_BANK_DEG, kias: 150, altFt: 5000, headingDeg: 90, g: 1, vsFpm: 0, speedBrake: false },
 });
+
+/**
+ * Sets the ship's attitude from what its panel reads, so the outside and the EADI and standby always agree (W24, Patrick
+ * 17 Oct 2026: "the EADI and backup eadi indicate the OPPOSITE bank of what the model is flying"). bankDeg right wing down
+ * positive, pitchDeg nose up positive: the app's convention, about +X (nose) for bank, so a right bank lifts the left
+ * (+Y) wing; -pitch about +Y (left) for the nose up (as the EP Tabletop's world3d.js). The root is the EADI's attitude;
+ * the model sits CT156_DATUM_DEG nose-down inside it, so on the ground at the gear's 2.5° the spinner's axis is level.
+ */
+function applyAttitude(ship, { bankDeg = 0, pitchDeg = 0 }) {
+  ship.rotation.set(rad(bankDeg), -rad(pitchDeg), 0, 'ZYX');
+}
 
 /** A vertical gradient picture for the backdrop. */
 function gradientTexture(THREE, doc, stops) {
@@ -161,13 +173,12 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
       setGear(ship, 1, true);
       setPropStopped(ship, true);
       ship.position.set(0, 0, AXIS_ABOVE_GROUND_FT);
-      ship.rotation.set(0, 0, 0, 'ZYX');
     } else {
       setGear(ship, 0);
       setPropStopped(ship, false);
       ship.position.set(0, 0, 0);
-      ship.rotation.set(-rad(FLYING_BANK_DEG), 0, 0, 'ZYX');
     }
+    applyAttitude(ship, HUD[pose]);
     floor.visible = shadow.visible = pose === 'ground';
     ship.updateMatrixWorld(true);
   }
