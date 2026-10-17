@@ -603,7 +603,7 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Who:** Writer agent, Opus high, own worktree; files `wingman.js`, `techniques/moving-out.js` (new), `supervisor.js`, `wing-moves.js`, `tools/control-map/signals.mjs`; size **M**; budget ~2 h.
             - **Done:** Flown by Patrick (echelon ↔ fighting wing transitions) and ratified.
 
-          - **`CR` Code review of the whole B5 change · `gates run, agent review not done`**
+          - **`CR` Code review of the whole B5 change · `agent review done 17 Oct 2026; F1-F4 fixed, F5 (bubble busts) and F6-F18 open`** ([b5-code-review-17oct.md](../../../Pat%27s%20claude%20work/formation-review-12oct/b5-code-review-17oct.md))
             - **Goal:** Read-only audit of the complete B5 diff against `AGENTS.md`, `spec.md` §7a/§7e, `TS-233`, `TS-234`, `control-model.md`, and `numbers.md` before Checkpoint G.
             - **Before:** `T30`. **After:** `T31` and Checkpoint G.
             - **Checks:** File headers (`AGENTS.md:43`), no dead code or orphaned numbers, `check.mjs` and `draw.mjs --check` clean, all `D1–D26` and `R1–R15` findings verified closed, all default and close-formation traces unchanged.
