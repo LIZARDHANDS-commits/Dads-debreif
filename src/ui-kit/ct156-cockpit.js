@@ -2760,6 +2760,20 @@ function attachScreens(THREE, c) {
       c.add(g, c.stripeMat).name = 'ct156-cockpit-handle-stripes';
       c.codeStripes.visible = false;
     }
+    // The standby compasses' cards where the master's bowls hang (W19, Patrick 17 Oct 2026: "compass is floating below
+    // out of its braket"): the delivered card face (3d-work D15 moved the bowls 0.18 ft right and 1 in down, the code's
+    // card stayed where it was), with the same picture and turning (its corners run as the code's: u left to right
+    // across the window, v top to bottom).
+    const cc = pts.faces?.['compass-card'];
+    if (cc?.verts?.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(cc.verts.flat(), 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(cc.uvs.flat(), 2));
+      g.setIndex(cc.tris.flat());
+      g.computeVertexNormals();
+      c.add(g, c.cardMat).name = 'ct156-cockpit-compass-cards';
+      c.codeCards.visible = false;
+    }
     for (const m of c.codeFaces) m.visible = false;
     c.group.userData.screens = { count: list.length, placed, windows };
   });
@@ -2909,7 +2923,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   card.texture.repeat.x = STANDBY_COMPASS_FT.windowDeg / 360;
   card.texture.offset.x = compassCardOffset(0);
   card.texture.needsUpdate = true;
-  add(joinTextured(THREE, cards), own(new THREE.MeshBasicMaterial({ map: card.texture, color: '#d0d0d0', side: THREE.DoubleSide, fog: false })));
+  const cardMat = own(new THREE.MeshBasicMaterial({ map: card.texture, color: '#d0d0d0', side: THREE.DoubleSide, fog: false }));
+  const codeCards = add(joinTextured(THREE, cards), cardMat);
 
   // Round the canopy. The forward bow's T section with its studs and flared feet (FORWARD_BOW_FT), and its two curved chrome
   // mirrors (BOW_MIRRORS).
@@ -2996,7 +3011,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const codeStripes = add(joinTextured(THREE, striped), stripeMat);
   // The delivered faces (slice 4.5B): each instrument and placard into its rectangle, the striped handles from the
   // delivery's own face, the code's plain plates hidden.
-  if (doc) attachScreens(THREE, { group, own, add, canvasTexture, liveMat, engineMat, stripeMat, codeFaces, codeStripes, textures });
+  if (doc) attachScreens(THREE, { group, own, add, canvasTexture, liveMat, engineMat, stripeMat, codeFaces, codeStripes, cardMat, codeCards, textures });
 
   let shownKey = null;
   // The VSI's rate: the HUD's vsFpm when it gives one, else the altitude's change between calls, smoothed over about a
