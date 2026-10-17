@@ -153,6 +153,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     const st = spaceState;
     const hidden = new Set(hiddenKinds(on.airspaceHidden));
     const words = !st || !on.airspace ? '' : st.words;
+    satDetailSelect.hidden = on.datum3d !== 'terrain';
     for (const box of spaceBoxes) {
       if (box.ground) box.ground.hidden = !st || st.status === 'none' || (!on.airspace && !on.airfields) || on.datum3d !== 'min' || ridesShip(on);
       if (box.status.textContent !== words) box.status.textContent = words;
@@ -305,6 +306,11 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     groundNote.hidden = !text;
   };
   const outside = (el) => (notInCockpit.push(el), el);
+  // "Satellite detail" (DB-34), shown only with Terrain and satellite: High is a finer picture over the whole flight, for capable computers.
+  const satDetailSelect = controls.select('satDetail3d', { label: 'Satellite detail', options: [
+    { value: 'standard', label: 'Standard' },
+    { value: 'high', label: 'High (sharper, more graphics memory)' },
+  ] });
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
     controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
     controls.select('paint3d', { label: 'Paint', options: PAINT_OPTIONS.map((o) => ({ value: o.value, label: o.label })) }),
@@ -321,6 +327,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       { value: 'field', label: 'Home field elevation' },
       { value: 'zero', label: 'Sea level' },
     ] })),
+    satDetailSelect,
     groundNote,
     controls.checkbox('attLabels3d', { label: 'Bank and pitch' }),
     outside(controls.checkbox('sticks3d', { label: 'Altitude sticks' })),

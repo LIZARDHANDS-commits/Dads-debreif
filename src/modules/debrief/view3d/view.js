@@ -73,7 +73,7 @@ const TERRAIN_UNDERLAY_FT = 50;
  * it). timers: the module's scheduler scope. flight(): the loaded flight or
  * null. time(): the playback time. settings(): the layout values (view,
  * cam3d, yaw3d, pitch3d, zoom3d, altScale3d, model3d, paint3d, planeSize3d,
- * attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d, grid3d,
+ * attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d, satDetail3d, grid3d,
  * sticks3d, altMarks3d). fieldFt(): the home field's elevation. ground(): the ground
  * the tracks recorded (ground.js groundLevel, DB-26), or null: Chase and Cockpit stand
  * on it, and it is the "From the tracks" ground setting.
@@ -197,7 +197,8 @@ export function createView3d(canvas, {
     // The real ground (DB-27), whenever it is the Ground choice: moved to the tracks' ground, stretched by the scale in force.
     let relief = null;
     if (shown && on.datum3d === 'terrain') {
-      relief = gl.terrain.sync({ flight: shown, ground: ground(), groundFt: tracksGround, space: spaceWant, scale: view.altScale });
+      // The follow patch (DB-34) rides what the camera follows: the ridden ship in Chase and Cockpit, else the overview's centre (Follow Lead or Centre formation).
+      relief = gl.terrain.sync({ flight: shown, ground: ground(), groundFt: tracksGround, space: spaceWant, scale: view.altScale, focus: { x: ctr.x, y: ctr.y }, detail: on.satDetail3d });
     } else gl.terrain.hide();
     tellTerrain(relief ? { words: relief.words, credit: relief.credit } : null);
     const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit, relief });
