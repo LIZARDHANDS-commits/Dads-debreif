@@ -3055,8 +3055,24 @@ function setDetail(THREE, root, camera, renderer) {
   const d = root.userData.ct156;
   if (!d?.detail) return;
   const px = onScreenPx(THREE, root, camera, renderer);
+  const was = d.detail.visible;
   if (px >= CT156_DETAIL_PX.show) d.detail.visible = true;
   else if (px < CT156_DETAIL_PX.hide) d.detail.visible = false;
+  if (d.detail.visible !== was) showCockpitShell(d);
+}
+
+/**
+ * The fuselage over the cockpit (W12, Patrick 17 Oct 2026: "can we make it so the seats area ctually seats fro mthe
+ * outside? doesnt have to be great detail but not a black layer liek that"): open onto the tub and the seats under the
+ * glass whenever the ship is near enough to show its detail, or the camera is in one of its seats (TS-155); closed, as
+ * the closed outside skin, when it is far off and the detail is hidden, so no hole shows at range and the far ship costs
+ * nothing more. The flat black floor disc it used to show under the glass is no longer drawn. 'ship' paint (its canopy
+ * solid dark glass) keeps the closed skin outside.
+ */
+function showCockpitShell(d) {
+  const inside = d.seat === 'front' || d.seat === 'rear';
+  const open = inside || (Boolean(d.tub) && d.detail.visible);
+  d.fuselage.geometry = open ? d.kit.geo.fuselageCut : d.kit.geo.fuselage;
 }
 
 /**
@@ -3213,7 +3229,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return { sides, elevator: pivot('elevator', geo.elevator, paintMat), rudder: pivot('rudder', geo.rudder, rudderMat) };
   };
 
-  let fuselage, canopy, spinner = null, navLights, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
+  let fuselage, canopy, spinner = null, tub = null, navLights, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -3310,6 +3326,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     gearLights = add(geo.gearLights, mats.lamp, detail);
     gearLights.visible = false; // lit only with all three legs down (setGear)
     floor = add(geo.floor, mats.floor, detail);
+    floor.visible = false; // the open cockpit's tub instead (showCockpitShell)
+    tub = add(geo.tub, [mats.tubFloor, mats.tubWall], detail);
     coamings = add(geo.coamings, mats.coaming, detail);
     add(geo.frames, mats.frame, detail);
     bowFront = add(geo.bowFront, mats.frame, detail);
@@ -3351,7 +3369,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const lamps = { kit, glow: gearLights, meshes: gear.lampMeshes, lit: false };
   kit.lampShips.add(lamps);
   showLamps(lamps);
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, spinner, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, spinner, tub, seat: null, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  showCockpitShell(root.userData.ct156);
   return root;
 }
 
@@ -3468,8 +3487,8 @@ export function setGear(root, t, parked = false) {
  * The ship seen from one of its own seats (the Formation Sim's Cockpit and Padlock views, with ct156-cockpit.js) or from
  * outside again. seat 'front' or 'rear': the pilot in that seat goes (the camera is in it) and the other seat's shows,
  * the still prop blades go (a turning prop is a blur from the seat; the faint disc stays), the canopy turns to clear
- * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155) in place of the floor disc and the outside
- * coamings, and the frames
+ * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155; a near ship's is open from outside too,
+ * showCockpitShell) in place of the outside coamings, and the frames
  * (the centre and rear canopy bows; the forward one goes, as ct156-cockpit.js draws it from the seat, TS-156), sill
  * rails show (both paints draw them up close from V2.208; 'ship' paint's pilots are added from the shared kit); the
  * outside headboxes go, as ct156-cockpit.js draws the seats. seat null: the ship as built. Only the ship the camera sits in is ever changed, so every
@@ -3485,15 +3504,15 @@ export function setCockpitView(root, { seat = null } = {}) {
   const inside = seat === 'front' || seat === 'rear';
   d.canopy.userData.outsideMaterial ??= d.canopy.material;
   d.canopy.material = inside ? mats.glassInside : d.canopy.userData.outsideMaterial;
-  d.fuselage.geometry = inside ? geo.fuselageCut : geo.fuselage;
-  if (d.floor) d.floor.visible = !inside;
+  d.seat = inside ? seat : null;
+  showCockpitShell(d);
   if (d.coamings) d.coamings.visible = !inside; // from the seat, ct156-cockpit.js draws the coamings
   if (d.prop) d.prop.visible = !inside;
   if (d.bowFront) d.bowFront.visible = !inside; // from the seat, ct156-cockpit.js's band is the forward bow (TS-156)
   if (d.seats) d.seats.visible = !inside; // from the seat, ct156-cockpit.js draws both seats (TS-157)
   if (inside && !d.inside) {
     d.inside = new THREE.Group();
-    d.inside.add(new THREE.Mesh(geo.tub, [mats.tubFloor, mats.tubWall]));
+    if (!d.tub) d.inside.add(new THREE.Mesh(geo.tub, [mats.tubFloor, mats.tubWall])); // 'ship' paint: Harvard ships carry their own (showCockpitShell)
     if (d.paint === 'ship') {
       d.helmetFront = new THREE.Mesh(geo.helmetFront, mats.pilot);
       d.helmetRear = new THREE.Mesh(geo.helmetRear, mats.pilot);
