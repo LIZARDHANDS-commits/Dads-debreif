@@ -112,21 +112,58 @@ export function flyDrop({ release, load, windAt = null, groundAt = /** @type {(x
  * The computed air release point (CARP): where to release, on a pass at this height and ground velocity, so the load
  * lands on the point of impact. The same fall run from a trial release, the trial moved by the miss, until within
  * toleranceFt (10 ft, an estimate) or maxPasses.
- * target: { x, y } the point of impact; heightFt: release height MSL; ground: { vx, vy } the ship's velocity over the
- * ground (ft/s; the load leaves with it, level). Returns { x, y, missFt, passes, fall } or null if it never lands.
+ * target: { x, y } the point of impact; heightFt: release height MSL; ground: { vx, vy, vz } the ship's velocity over the
+ * ground (ft/s; the load leaves with it). vz, the climb or dive part, is 0 (a level release) unless given: a dive release
+ * passes its own (negative), so the load leaves going down (Run-in Simulator RS-5).
+ * along (optional, { x, y, z }): a line the release point slides along instead of over the ground, such as a dive line
+ * (the way the ship flies down it; any length). The trial starts at `from` ({ x, y }, the target unless given) at
+ * heightFt and moves only along the line: the miss along the line's ground track moves it, so the height changes with
+ * it and the miss across the line stays (sliding can't take it out). Each pass after the first moves by the miss over
+ * how far the last move shifted the impact (a secant step, used only while it is between a fifth and five times the plain
+ * step, else the plain step), because
+ * a release further down a dive line is also lower and throws the load less far.
+ * Returns { x, y, z, missFt, passes, fall } (z, the release height: heightFt unless it slid) or null if it never lands
+ * (or, sliding, the point would go below the ground).
+ * With no vz and no `along` it is the level CARP it always was.
  */
-export function carp({ target, heightFt, ground, load, windAt = null, groundAt = /** @type {(x: number, y: number) => number} */ (() => 0), deviationC = 0, toleranceFt = 10, maxPasses = 8 }) {
-  let rx = target.x;
-  let ry = target.y;
+export function carp({ target, heightFt, ground, load, windAt = null, groundAt = /** @type {(x: number, y: number) => number} */ (() => 0), deviationC = 0, toleranceFt = 10, maxPasses = 8, along = null, from = null }) {
+  const vz = ground.vz ?? 0;
+  let rx = from ? from.x : target.x;
+  let ry = from ? from.y : target.y;
+  let rz = heightFt;
+  // Along a line: its ground track as a unit vector, and how far the release moves (x, y, z) per foot of that track.
+  const h = along ? Math.hypot(along.x, along.y) : 0;
+  if (along && !(h > 1e-9)) return null; // straight down: no ground track to slide along
+  const ux = along ? along.x / h : 0;
+  const uy = along ? along.y / h : 0;
+  const dz = along ? along.z / h : 0;
+  let last = null; // { s, e }: the last slide's along-track miss, for the secant
+  let s = 0; // feet slid along the track from the start
   for (let pass = 1; pass <= maxPasses; pass++) {
-    const fall = flyDrop({ release: { x: rx, y: ry, z: heightFt, vx: ground.vx, vy: ground.vy, vz: 0 }, load, windAt, groundAt, deviationC, every: 20 });
+    const fall = flyDrop({ release: { x: rx, y: ry, z: rz, vx: ground.vx, vy: ground.vy, vz }, load, windAt, groundAt, deviationC, every: 20 });
     if (!fall.landed) return null;
     const ex = target.x - fall.impact.x;
     const ey = target.y - fall.impact.y;
     const missFt = Math.hypot(ex, ey);
-    if (missFt <= toleranceFt || pass === maxPasses) return { x: rx, y: ry, missFt, passes: pass, fall }; // the miss is this point's own
-    rx += ex;
-    ry += ey;
+    const e = along ? ex * ux + ey * uy : 0; // the miss along the line's track; the rest can't be slid out
+    const done = along ? Math.abs(e) <= toleranceFt : missFt <= toleranceFt;
+    if (done || pass === maxPasses) return { x: rx, y: ry, z: rz, missFt, passes: pass, fall }; // the miss is this point's own
+    if (!along) {
+      rx += ex;
+      ry += ey;
+      continue;
+    }
+    let step = e;
+    if (last && s !== last.s) {
+      const k = (last.e - e) / (s - last.s); // how much one foot of slide moved the impact along the track
+      if (Number.isFinite(k) && k > 0.2 && k < 5) step = e / k;
+    }
+    last = { s, e };
+    s += step;
+    rx += step * ux;
+    ry += step * uy;
+    rz += step * dz;
+    if (rz <= /** @type {(x: number, y: number) => number} */ (groundAt)(rx, ry)) return null; // no release point on the line above the ground lands it on the target
   }
   return null;
 }
