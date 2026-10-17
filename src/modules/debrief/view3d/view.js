@@ -14,7 +14,8 @@
 // that camera. Filled GPS gaps (DB-20) are a translucent ribbon with a dashed
 // centre line, the ship in one a ghosted model labelled "est.". With 3D settings'
 // Aircraft "T-38A Talon" (DB-33) the ridden ship is the T-38A and the eye sits in
-// its own rough cockpit (ui-kit t38a-model.js), whose instruments don't move yet.
+// its own rough cockpit (ui-kit t38a-model.js), whose instruments don't move yet. With "C-130J Hercules" (DB-35)
+// every ship is the C-130J (ui-kit c130j-model.js) in the overview and Chase, and the Cockpit camera rides the CT-156.
 //
 // Airspace and airfields round the flight (DB-24) are the SOF's own drawing, shared in ui-kit (airspace3d.js,
 // airfield3d.js): built once at true height for the flight's area and kept in the scene, stretched up by the
@@ -30,6 +31,7 @@ import {
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
 import { createT38aModel, createT38aCockpitMount, t38aEyeWorld } from '../../../ui-kit/t38a-model.js';
+import { createC130jModel, C130J_LENGTH_FT } from '../../../ui-kit/c130j-model.js';
 import { ct156CloneMaterial } from '../../../ui-kit/ct156-blender.js';
 import { createCockpitMount, aimCockpitCamera, PANEL_REDRAW_MS } from '../../../ui-kit/ct156-cockpit.js';
 import { createAircraftShadows } from '../../../ui-kit/aircraft-shadows.js';
@@ -57,6 +59,8 @@ const STICK_PX = 3; // the height sticks' width on screen, as the 2D-canvas view
 /** A filled gap in 3D (DB-20): the zone's ribbon about 18 % opaque, a ship in one ghosted to about 45 %. */
 const FILL_RIBBON_OPACITY = 0.18;
 const GHOST_OPACITY = 0.45;
+/** The Aircraft choices drawn as a model in the overview ("Flat marker" draws none): DB-32, DB-35. */
+const MODELLED = new Set(['t6', 't38a', 'c130j']);
 /** The cockpit's sky (a plain colour: a screen-fixed gradient would not bank with the aircraft) and its wider ground. */
 const COCKPIT_SKY = '#2f6aa8';
 const COCKPIT_LAND = '#3d5a2e';
@@ -226,7 +230,8 @@ export function createView3d(canvas, {
         if (Number.isFinite(c.x)) labelShip(ctx, c, s, on);
       }
       if (ball?.points) drawTennis3d(ctx, P, ball);
-      const note = !cockpit.chase && on.model3d === 't38a' ? COCKPIT_CAPTION.t38a : null; // its gauges are pictures (DB-33)
+      // The T-38A's gauges are pictures (DB-33); with the C-130J chosen the eye rides the CT-156 cockpit (DB-35).
+      const note = cockpit.chase ? null : ({ t38a: COCKPIT_CAPTION.t38a, c130j: COCKPIT_CAPTION.c130j }[on.model3d] ?? null);
       drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, chase: cockpit.chase, gap: riding.gap, windKnown: Boolean(cockpit.windKey), note }, COCKPIT_CAPTION);
       return;
     }
@@ -316,8 +321,10 @@ function clearGroup(group) {
 // copies keep what the CT-156's shaders add (its baked pictures and look: ct156CloneMaterial), and the model keeps
 // ghosting the shaded paint that replaces the plain once its pictures load (ct156Ghost, ct156Plain: ct156-model.js).
 // A T-38A (Aircraft "T-38A Talon", shared plan Step 3d item 6) ghosts its own copies when its file is in (ui-kit t38a-model.js).
+// So does a C-130J (Aircraft "C-130J Hercules", DB-35; ui-kit c130j-model.js).
 function ghostModel(THREE, options) {
   if (options.t38a) return { mesh: createT38aModel(THREE, { lengthFt: options.lengthFt, ghost: GHOST_OPACITY, onReady: options.onReady }), copies: [] };
+  if (options.c130j) return { mesh: createC130jModel(THREE, { lengthFt: options.lengthFt, ghost: GHOST_OPACITY, onReady: options.onReady }), copies: [] };
   const mesh = createCt156Model(THREE, options);
   const copies = [];
   const made = new Map(); // each material's see-through copy, made once
@@ -578,12 +585,15 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   // against the CT-156's, in the overview, in Chase and in the Cockpit camera, which rides in the T-38A's own rough
   // cockpit (plan Step 3d item 7; DB-33). The Harvard's Cockpit camera is unchanged (DB-21).
   const t38a = on.model3d === 't38a';
-  const key = `${t38a ? 't38a' : paint}|${lengthFt}|${rootScale}`;
+  // Aircraft "C-130J Hercules" (Dad, 15 Oct 2026; shared plan Step 3e item 6; DB-35): each ship is the C-130J at its own
+  // length in the overview and in Chase; in the Cockpit camera every ship stays the CT-156 and the eye rides its cockpit.
+  const c130j = on.model3d === 'c130j' && !(cockpit && !cockpit.chase);
+  const key = `${t38a ? 't38a' : c130j ? 'c130j' : paint}|${lengthFt}|${rootScale}`;
   const ghosted = new Set();
   let ridden = null;
   for (const s of ships) {
     const ghost = s.estimated && !s.ridden;
-    if ((!cockpit && on.model3d !== 't6' && on.model3d !== 't38a') || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
+    if ((!cockpit && !MODELLED.has(on.model3d)) || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
     const store = ghost ? gl.ghosts : gl.ships;
     let entry = store.get(s.slot);
     if (entry && entry.key !== key) {
@@ -595,10 +605,13 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
       entry = null;
     }
     if (!entry) {
-      const options = { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt, t38a, onReady: () => gl.redraw?.() };
-      const solid = () => (t38a
-        ? createT38aModel(THREE, { lengthFt, fallback: () => createCt156Model(THREE, options), onReady: options.onReady }) // the CT-156 until the file is in
-        : createCt156Model(THREE, options));
+      const options = { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt, t38a, c130j, onReady: () => gl.redraw?.() };
+      const fallback = () => createCt156Model(THREE, options); // the CT-156 until a model file is in, or if it fails
+      const solid = () => {
+        if (t38a) return createT38aModel(THREE, { lengthFt, fallback, onReady: options.onReady });
+        if (c130j) return createC130jModel(THREE, { lengthFt, fallback, onReady: options.onReady });
+        return createCt156Model(THREE, options);
+      };
       entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: solid() };
       entry.mesh.rotation.order = attitudeEuler(s).order;
       entry.mesh.scale.setScalar(rootScale);
@@ -614,7 +627,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   }
   // The shadows follow the ridden ship, or else Lead (or the lowest slot shown): one ship's box keeps them sharp.
   const shadowShip = ridden ?? [...gl.ships].filter(([slot]) => modelled.has(slot)).sort(([a], [b]) => a - b)[0]?.[1].mesh;
-  gl.shadows.follow(shadowShip, 0.8 * (lengthFt / CT156_UNIT_LENGTH) * rootScale);
+  gl.shadows.follow(shadowShip, 0.8 * (lengthFt / CT156_UNIT_LENGTH) * rootScale * (c130j ? C130J_LENGTH_FT / CT156_LENGTH_FT : 1));
   for (const [slot, { mesh }] of gl.ships) mesh.visible = modelled.has(slot);
   for (const [slot, { mesh }] of gl.ghosts) mesh.visible = ghosted.has(slot);
   for (const slot of ghosted) modelled.add(slot); // labelled as a model, not given a flat marker
@@ -625,6 +638,13 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     aimChaseCamera(THREE, gl.persp, ridden, {
       hdg: cockpit.hdg, yawDeg: cockpit.head.yawDeg, pitchDeg: cockpit.head.pitchDeg, target: cockpit.target ?? null, width: size.width, height: size.height,
     });
+    if (c130j) { // DB-35: stand back in proportion to the C-130J's length, so the whole aircraft is in view (an estimate)
+      const back = gl.persp.position.clone().sub(ridden.position).multiplyScalar(C130J_LENGTH_FT / CT156_LENGTH_FT);
+      gl.persp.position.copy(ridden.position).add(back);
+      const aim = cockpit.target;
+      gl.persp.lookAt(aim ? new THREE.Vector3(aim.x, aim.y, aim.z) : ridden.position); // aimed again from the new place
+      gl.persp.updateMatrixWorld(true);
+    }
   } else if (cockpit && ridden && t38a) {
     // The T-38A (DB-33): its own cockpit in the ridden ship, the eye at its seat's eye point. The aim, lens and head turn
     // are the shared seat helper's; only the eye moves to the T-38A's. No live panel: its gauges are pictures for now.
