@@ -17,6 +17,7 @@ import { h } from '../../ui-kit/dom.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { DEFAULTS, LIMITS } from './defaults.js';
+import { numbersAreEstimates } from './types.js';
 
 export const TITLE = 'Traffic settings';
 
@@ -105,6 +106,8 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
       step: 0.5,
       format: (v) => (Number(v) === 1 ? 'Realistic' : `${v}×`),
     }), 'Realistic is true size. Slide right to draw them bigger.'),
+    // The estimate flag's line (spec 4.19 item 5; review 3.2), shown while any CT-102B number is an estimate.
+    ...(numbersAreEstimates('CT-102B') ? [h('p', { class: 'settings-note' }, 'CT-102B numbers are estimates: see docs/modules/traffic/spec.md 4.19.')] : []),
   );
 
   if (available.photo) {

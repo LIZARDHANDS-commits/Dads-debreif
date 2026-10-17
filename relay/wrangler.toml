@@ -1,0 +1,14 @@
+# The relay as a Cloudflare Worker (relay/README.md, "Running it on Cloudflare"). Deploy from relay/:
+#   npx -y wrangler@4.147.0 deploy
+# The FAA NOTAM key, when there is one, is added with `npx -y wrangler@4.147.0 secret put FAA_CLIENT_ID` (and FAA_CLIENT_SECRET),
+# never written here.
+name = "dads-sof-relay"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+# Exact origins only, never "allow all": the live site, local development and the Cloudflare previews (tools/cloudflare-preview/README.md).
+ALLOWED_ORIGINS = "https://lizardhands-commits.github.io,http://localhost:5173,http://127.0.0.1:5173,https://dads-ooda-preview.pages.dev,https://dads-ooda-preview.dads-ooda.workers.dev"
+# Also ask adsb.fi and merge by hex id, as on Netlify (Dad, 7 Oct 2026); "none" turns it off.
+SECOND_FEED = "adsb.fi"
