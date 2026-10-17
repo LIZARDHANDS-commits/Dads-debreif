@@ -19,9 +19,9 @@ Refuelling height and speed, the anchor's leg length and bank, the point-paralle
 
 ## Steps
 
-1. [x] Spec, decisions and a screen picture (built ahead of Patrick's yes, Dad, 17 Oct 2026).
-2. [ ] The tanker model (KC-130J from the C-130J model, drogues) and its anchor (V2.503, ahead of Patrick's yes).
-3. [ ] The point-parallel rendezvous and the join to pre-contact, worked out to hit (as RS-9) (V2.503, ahead of Patrick's yes).
+1. [x] Spec, decisions and a screen picture (`air-refuelling-screen.png`) (built ahead of Patrick's yes, Dad, 17 Oct 2026).
+2. [x] The tanker model (KC-130J from the C-130J model, drogues) and its anchor (V2.503, ahead of Patrick's yes).
+3. [x] The point-parallel rendezvous and the join to pre-contact, worked out to hit (as RS-9) (V2.503, ahead of Patrick's yes).
 4. [ ] The en-route rendezvous (on `future.md`; not built).
 5. [ ] Sign-off checklist in Dad's and Patrick's words.
 

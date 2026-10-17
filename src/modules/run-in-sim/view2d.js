@@ -10,6 +10,10 @@
 //    aircraft's path, the dive line, the release, the load's fall to its impact and the escape, with heights labelled.
 // A picture only: it reads the plan and the stored pass (pass.js) and draws them at the time it is given. Canvas, no
 // library. When the satellite tiles don't come, the plan draws on the plain ground colour.
+// The air refuelling run (RS-18; proposed, built ahead of Patrick's yes, Dad, 17 Oct 2026): the plan shows the anchor,
+// the receiver's track, the turn and roll-out points and both flown tracks; the profile shows both along the refuelling
+// track (heights MSL against distance from the roll-out point), the whole rendezvous or the join, or the receiver behind
+// the tanker (its height against its distance behind the tanker's wing line, with the hose, basket and pre-contact point).
 import { h } from '../../ui-kit/dom.js';
 import { createCanvasView, createCanvasSurface } from '../../ui-kit/canvas-view.js';
 import { createTileLayer, ESRI_IMAGERY, cornersOf } from '../../ui-kit/map-tiles.js';
@@ -18,14 +22,16 @@ import { FT_PER_NM, KT_TO_FTPS } from '../../core/units.js';
 import { compassDegFromVector } from '../../core/angles.js';
 import { footprintOf, targetCut } from './targets.js';
 import { orbitOutline } from './pass.js';
+import { refuelOutline, DROGUE, RECEIVER } from './refuel.js';
 
 const COLOURS = Object.freeze({
   ground: '#1b2a35', halo: 'rgba(5, 10, 18, 0.85)', plan: '#e8f4ff', runIn: '#42bfe9', release: '#ff9f43', ip: '#f5c542',
   escape: '#3ecf8e', load: '#f5c542', text: '#e8f1f8', target: 'rgba(255, 255, 255, 0.9)', targetFill: 'rgba(255, 255, 255, 0.28)',
   terrain: '#6b5a43', terrainLine: '#a08b6a', solid: '#b8b4aa', axis: 'rgba(232, 241, 248, 0.45)', faint: 'rgba(66, 191, 233, 0.35)',
-  profileBg: '#0d1822',
+  profileBg: '#0d1822', tanker: '#ff9f43',
 });
 const FONT = '12px system-ui, sans-serif';
+const RUN_IN_TITLE = 'Profile along the run-in, through the aim point';
 const ft10 = (n) => `${(Math.round(n / 10) * 10).toLocaleString('en-CA')} ft`;
 /** A round tick step near `raw`: 1, 2 or 5 times a power of ten. */
 const niceStep = (raw) => {
@@ -35,6 +41,8 @@ const niceStep = (raw) => {
 };
 
 /** The index of time t in a timeline at a steady step. */
+/** The pass to draw on this plan: none when it is of the other kind (just after the Run changed). */
+const passFor = (pass, plan) => (pass && plan && (pass.plan.kind === 'aar') === (plan.kind === 'aar') ? pass : null);
 const indexAt = (tl, t) => Math.max(0, Math.min(tl.t.length - 1, Math.floor(t / (tl.t[1] - tl.t[0] || 0.05))));
 
 /**
@@ -47,11 +55,14 @@ export function createView2d({ timers, getProjection, onZoom }) {
   const profCanvas = h('canvas', { class: 'rs-2d-canvas' });
   const fitBtn = h('button', { type: 'button', class: 'rs-btn rs-2d-fit', title: 'Show the whole pass again' }, 'Fit');
   const zoom = createPillGroup({ prefix: 'rs', label: 'The profile shows', items: [{ id: 'target', label: 'At the target' }, { id: 'near', label: 'Release to impact' }, { id: 'whole', label: 'Whole run-in' }], onPick: onZoom });
+  // The refuelling run's profile spans, on the same setting (RS-18): the whole rendezvous, the join, behind the tanker.
+  const zoomAar = createPillGroup({ prefix: 'rs', label: 'The profile shows', items: [{ id: 'whole', label: 'Whole rendezvous' }, { id: 'near', label: 'The join' }, { id: 'target', label: 'Behind the tanker' }], onPick: onZoom });
   const cutNote = h('span', { class: 'rs-2d-note' });
+  const profTitle = h('span', { class: 'rs-2d-title' }, 'Profile along the run-in, through the aim point', cutNote);
   const element = h('div', { class: 'rs-2d', hidden: true },
     h('div', { class: 'rs-2d-plan' }, planCanvas, fitBtn),
     h('div', { class: 'rs-2d-profile' },
-      h('div', { class: 'rs-2d-bar' }, h('span', { class: 'rs-2d-title' }, 'Profile along the run-in, through the aim point', cutNote), zoom.element),
+      h('div', { class: 'rs-2d-bar' }, profTitle, zoom.element, zoomAar.element),
       profCanvas));
 
   let state = { plan: null, pass: null, t: 0, windWords: '', zoom: 'near' };
@@ -103,6 +114,11 @@ export function createView2d({ timers, getProjection, onZoom }) {
     label(ctx, 'Plan · north up · true scale', 8, 18);
     if (!plan) return;
     const k = v.view.scale;
+    if (plan.kind === 'aar') {
+      drawRefuelPlan(ctx, v, plan, S);
+      planFurniture(ctx, width, height, k, plan.windAt(plan.windMsl));
+      return;
+    }
     const line = (pts, colour, width = 2, dash = []) => {
       if (pts.length < 2) return;
       halo(ctx, () => {
@@ -184,7 +200,7 @@ export function createView2d({ timers, getProjection, onZoom }) {
     }
 
     // The flight: the whole track faint, flown so far bright (the escape in green), the load's track and its impact.
-    const pass = state.pass;
+    const pass = passFor(state.pass, plan);
     const tl = pass?.flight.timeline;
     if (tl) {
       const end = indexAt(tl, state.t);
@@ -241,7 +257,98 @@ export function createView2d({ timers, getProjection, onZoom }) {
       ctx.restore();
     }
 
-    // The north arrow, the wind arrow (the way the air moves, at the run-in's height) and the scale.
+    planFurniture(ctx, width, height, k, plan.windAt(plan.runInMsl));
+  }
+
+  /** The refuelling run's plan: the anchor, the receiver's track, the turn and roll-out points, both flown tracks and marks. */
+  function drawRefuelPlan(ctx, v, plan, S) {
+    const line = (pts, colour, width = 2, dash = []) => {
+      if (pts.length < 2) return;
+      halo(ctx, () => {
+        ctx.beginPath();
+        pts.forEach((p, i) => (i ? ctx.lineTo(...S(p)) : ctx.moveTo(...S(p))));
+      }, colour, width, dash);
+    };
+    const spot = (p, colour, r = 5) => {
+      const [x, y] = S(p);
+      ctx.fillStyle = COLOURS.halo;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = colour;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    const mark = (p, words, colour) => {
+      const [x, y] = S(p);
+      label(ctx, words, x + 9, y - 6, colour);
+    };
+    const o = refuelOutline(plan);
+    line(o.anchor, COLOURS.plan, 1.5, [6, 4]);
+    line(o.track, COLOURS.runIn, 2.5);
+    spot(o.start, COLOURS.runIn, 4);
+    mark(o.start, 'Receiver starts', COLOURS.runIn);
+    spot(o.turnStart, COLOURS.ip);
+    mark(o.turnStart, 'Tanker turns', COLOURS.ip);
+    spot(o.rollOut, COLOURS.target);
+    mark(o.rollOut, 'Roll-out point', COLOURS.target);
+    const pass = passFor(state.pass, plan);
+    const tl = pass?.flight.timeline;
+    const tt = pass?.tanker;
+    if (!tl || !tt) return;
+    const end = indexAt(tl, state.t);
+    const roT = pass.flight.events.rollOut ?? Infinity;
+    const all = [];
+    const allT = [];
+    const before = [];
+    const after = [];
+    const tk = [];
+    for (let i = 0; i < tl.t.length; i += 4) {
+      all.push({ x: tl.x[i], y: tl.y[i] });
+      allT.push({ x: tt.x[i], y: tt.y[i] });
+      if (i > end) continue;
+      (tl.t[i] <= roT ? before : after).push({ x: tl.x[i], y: tl.y[i] });
+      tk.push({ x: tt.x[i], y: tt.y[i] });
+    }
+    const here = { x: tl.x[end], y: tl.y[end] };
+    const hereT = { x: tt.x[end], y: tt.y[end] };
+    (tl.t[end] <= roT ? before : after).push(here);
+    tk.push(hereT);
+    line(all, COLOURS.faint, 1.5);
+    line(allT, 'rgba(255, 159, 67, 0.35)', 1.5);
+    line(tk, COLOURS.tanker, 2);
+    line(before, COLOURS.runIn, 2);
+    if (after.length) line([before[before.length - 1] ?? after[0], ...after], COLOURS.escape, 2);
+    const arrow = (p, a, colour) => {
+      const [ax, ay] = S(p);
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.rotate(-a);
+      ctx.beginPath();
+      ctx.moveTo(10, 0);
+      ctx.lineTo(-7, 6);
+      ctx.lineTo(-4, 0);
+      ctx.lineTo(-7, -6);
+      ctx.closePath();
+      ctx.fillStyle = colour;
+      ctx.strokeStyle = COLOURS.halo;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fill();
+      ctx.restore();
+    };
+    const j = Math.min(tl.t.length - 1, end + 1);
+    const i0 = Math.max(0, j - 2);
+    arrow(hereT, Math.atan2(tt.y[j] - tt.y[i0], tt.x[j] - tt.x[i0]), COLOURS.tanker);
+    arrow(here, Math.atan2(tl.y[j] - tl.y[i0], tl.x[j] - tl.x[i0]), '#ffffff');
+    mark(hereT, 'KC-130J', COLOURS.tanker);
+    const [rx, ry] = S(here);
+    label(ctx, 'Stand-in receiver', rx + 9, ry + 18);
+  }
+
+  /** The north arrow, the wind arrow (the way the air moves, at the run-in's or the refuelling height) and the scale. */
+  function planFurniture(ctx, width, height, k, w0) {
     const nx = width - 26;
     halo(ctx, () => {
       ctx.beginPath();
@@ -252,7 +359,6 @@ export function createView2d({ timers, getProjection, onZoom }) {
       ctx.lineTo(nx + 6, 30);
     }, COLOURS.text, 2);
     label(ctx, 'N', nx - 4, 64);
-    const w0 = plan.windAt(plan.runInMsl);
     const kt = Math.hypot(w0.x, w0.y) / KT_TO_FTPS;
     const wx = 22;
     const wy = height - 52;
@@ -296,7 +402,11 @@ export function createView2d({ timers, getProjection, onZoom }) {
     ctx.fillRect(0, 0, width, height);
     const plan = state.plan;
     if (!plan) return;
-    const pass = state.pass;
+    if (plan.kind === 'aar') {
+      drawRefuelProfile(ctx, width, height, plan);
+      return;
+    }
+    const pass = passFor(state.pass, plan);
     const tl = pass?.flight.timeline;
     const { u } = plan;
     const g0 = plan.groundFt;
@@ -527,16 +637,184 @@ export function createView2d({ timers, getProjection, onZoom }) {
     ctx.restore();
   }
 
+  /**
+   * The refuelling run's profile: along the refuelling track (heights MSL against distance from the roll-out point; the
+   * whole rendezvous or the join) or behind the tanker (the receiver's height against the tanker's, and its distance
+   * behind the tanker's wing line, from the roll-out on).
+   */
+  function drawRefuelProfile(ctx, width, height, plan) {
+    const pass = passFor(state.pass, plan);
+    const tl = pass?.flight.timeline;
+    const tt = pass?.tanker;
+    const { u } = plan;
+    const alongOf = (x, y) => x * u.x + y * u.y;
+    const behind = state.zoom === 'target';
+    const down = (DROGUE.hoseDownDeg * Math.PI) / 180;
+    const basket = { s: DROGUE.podTailAheadFt - DROGUE.hoseFt * Math.cos(down), z: DROGUE.podUpFt - DROGUE.hoseFt * Math.sin(down) };
+    const pre = { s: basket.s - plan.aar.preContactFt - RECEIVER.noseAheadFt, z: basket.z };
+    const roT = pass?.flight.events.rollOut ?? Infinity;
+    const end = tl ? indexAt(tl, state.t) : 0;
+    // The points: { s, z } for each aircraft over the span shown.
+    const rcv = [];
+    const tkr = [];
+    let from = 0;
+    if (tl) {
+      from = behind || state.zoom === 'near' ? indexAt(tl, Number.isFinite(roT) ? roT : 0) : 0;
+      for (let i = from; i < tl.t.length; i += 4) {
+        if (behind) {
+          const v = Math.hypot(tt.vx[i], tt.vy[i]) || 1;
+          rcv.push({ i, s: ((tl.x[i] - tt.x[i]) * tt.vx[i] + (tl.y[i] - tt.y[i]) * tt.vy[i]) / v, z: tl.z[i] - tt.z[i] });
+        } else {
+          rcv.push({ i, s: alongOf(tl.x[i], tl.y[i]), z: tl.z[i] });
+          tkr.push({ i, s: alongOf(tt.x[i], tt.y[i]), z: tt.z[i] });
+        }
+      }
+    }
+    let x0;
+    let x1;
+    let yMin;
+    let yMax;
+    if (behind) {
+      x0 = Math.min(pre.s - 200, ...rcv.map((p) => p.s)) - 100;
+      x1 = 150;
+      yMin = Math.min(-plan.aar.splitFt, ...rcv.map((p) => p.z)) - 150;
+      yMax = 120;
+    } else {
+      const ss = [...rcv, ...tkr].map((p) => p.s);
+      x0 = ss.length ? Math.min(...ss) : plan.startAlong ?? -(plan.trailFt + 10 * FT_PER_NM);
+      x1 = ss.length ? Math.max(...ss) : 2 * FT_PER_NM;
+      const pad = (x1 - x0) * 0.04 + 500;
+      x0 -= pad;
+      x1 += pad;
+      yMin = plan.Hr - 400;
+      yMax = plan.H + 300;
+    }
+    const L = 64;
+    const R = 14;
+    const T = 14;
+    const B = 38;
+    const X = (sv) => L + ((sv - x0) / (x1 - x0)) * (width - L - R);
+    const Y = (z) => T + (1 - (z - yMin) / (yMax - yMin)) * (height - T - B);
+    // The axes.
+    ctx.font = FONT;
+    ctx.lineWidth = 1;
+    const yStep = niceStep((yMax - yMin) / 5);
+    for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax; y += yStep) {
+      ctx.strokeStyle = 'rgba(232, 241, 248, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(L, Y(y));
+      ctx.lineTo(width - R, Y(y));
+      ctx.stroke();
+      ctx.fillStyle = COLOURS.axis;
+      const words = (Math.abs(y) < 1e-6 ? 0 : y).toLocaleString('en-CA');
+      ctx.fillText(words, L - 6 - ctx.measureText(words).width, Y(y) + 4);
+    }
+    const nmAxis = x1 - x0 > 1.5 * FT_PER_NM;
+    const xStep = nmAxis ? niceStep((x1 - x0) / FT_PER_NM / 6) * FT_PER_NM : niceStep((x1 - x0) / 6);
+    for (let sv = Math.ceil(x0 / xStep) * xStep; sv <= x1; sv += xStep) {
+      ctx.strokeStyle = 'rgba(232, 241, 248, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(X(sv), T);
+      ctx.lineTo(X(sv), height - B);
+      ctx.stroke();
+      const d = Math.abs(sv) < 1 ? 0 : sv;
+      const words = nmAxis ? `${+(d / FT_PER_NM).toFixed(1)}` : d.toLocaleString('en-CA');
+      ctx.fillStyle = COLOURS.axis;
+      ctx.fillText(words, X(sv) - ctx.measureText(words).width / 2, height - B + 15);
+    }
+    ctx.fillStyle = COLOURS.axis;
+    ctx.fillText(behind ? 'Ahead (+) or behind (−) the tanker\'s wing line, ft' : `Along the refuelling track from the roll-out point, ${nmAxis ? 'NM' : 'ft'} (flying left to right)`, L, height - 6);
+    ctx.save();
+    ctx.translate(13, T + (height - T - B) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(behind ? 'ft from the tanker' : 'ft MSL', -30, 0);
+    ctx.restore();
+    const across = (width - L - R) / (x1 - x0);
+    const up = (height - T - B) / (yMax - yMin);
+    if (up / across > 1.5) {
+      const words = `heights ×${Math.round(up / across)} against distance`;
+      ctx.fillText(words, width - R - ctx.measureText(words).width, height - 6);
+    }
+    const title = behind ? 'Profile behind the tanker: the stand-in receiver from the roll-out on (the tanker fixed at 0)' : 'Profile along the refuelling track: both aircraft (heights MSL; the ground is far below)';
+    if (profTitle.firstChild.textContent !== title) profTitle.firstChild.textContent = title;
+    if (cutNote.textContent) cutNote.textContent = '';
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(L, 0, width - L - R, height - B);
+    ctx.clip();
+    const path = (pts, colour, w = 2, dash = []) => {
+      if (pts.length < 2) return;
+      halo(ctx, () => {
+        ctx.beginPath();
+        pts.forEach((p, i) => (i ? ctx.lineTo(X(p.s), Y(p.z)) : ctx.moveTo(X(p.s), Y(p.z))));
+      }, colour, w, dash);
+    };
+    const dot = (p, colour, r = 4.5) => {
+      ctx.fillStyle = COLOURS.halo;
+      ctx.beginPath();
+      ctx.arc(X(p.s), Y(p.z), r + 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = colour;
+      ctx.beginPath();
+      ctx.arc(X(p.s), Y(p.z), r, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    if (behind) {
+      // The tanker at 0 with its wing line, the hose to the basket, and the pre-contact point.
+      path([{ s: 0, z: yMin }, { s: 0, z: yMax }], COLOURS.axis, 1, [4, 4]);
+      dot({ s: 0, z: 0 }, COLOURS.tanker, 6);
+      label(ctx, 'KC-130J · its wing line', X(0) - 150, Y(0) - 10, COLOURS.tanker);
+      path([{ s: DROGUE.podTailAheadFt, z: DROGUE.podUpFt }, basket], COLOURS.tanker, 1.5);
+      dot(basket, COLOURS.release, 3.5);
+      ctx.strokeStyle = COLOURS.target;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(X(pre.s), Y(pre.z), 7, 0, Math.PI * 2);
+      ctx.stroke();
+      label(ctx, 'Pre-contact', X(pre.s) - 40, Y(pre.z) + 22);
+    } else {
+      label(ctx, `Tanker ${(Math.round(plan.H / 10) * 10).toLocaleString('en-CA')} ft MSL`, L + 8, Y(plan.H) - 8, COLOURS.tanker);
+      if (!tl) path([{ s: x0, z: plan.H }, { s: x1, z: plan.H }], COLOURS.tanker, 1.5, [5, 4]);
+    }
+    if (tl) {
+      const split = (pts) => {
+        const now = pts.filter((p) => p.i <= end);
+        return { before: now.filter((p) => tl.t[p.i] <= roT), after: now.filter((p) => tl.t[p.i] > roT) };
+      };
+      path(rcv, COLOURS.faint, 1.5);
+      if (tkr.length) {
+        path(tkr, 'rgba(255, 159, 67, 0.35)', 1.5);
+        path(tkr.filter((p) => p.i <= end), COLOURS.tanker, 2);
+      }
+      const { before, after } = split(rcv);
+      path(before, COLOURS.runIn, 2);
+      if (after.length) path([before[before.length - 1] ?? after[0], ...after], COLOURS.escape, 2);
+      const nowR = rcv.filter((p) => p.i <= end).pop();
+      if (nowR && end >= from) {
+        dot(nowR, '#ffffff', 4);
+        label(ctx, behind ? `${ft10(-nowR.s)} behind, ${ft10(Math.abs(nowR.z))} ${nowR.z < 0 ? 'below' : 'above'}` : `Receiver ${ft10(nowR.z)}`, X(nowR.s) + 8, Y(nowR.z) + 18);
+      }
+      const nowT = tkr.filter((p) => p.i <= end).pop();
+      if (nowT) dot(nowT, COLOURS.tanker, 4);
+    }
+    ctx.restore();
+  }
+
   const planView = createCanvasView(planCanvas, { timers, draw: drawPlan, minSpan: 400, maxSpan: 60 * FT_PER_NM, label: 'Plan of the pass on the satellite map, north up, at true scale. Drag to pan, the wheel or + and - to zoom.' });
   const profile = createCanvasSurface(profCanvas, { timers, draw: drawProfile, label: 'Profile of the pass along the run-in through the aim point: height above the target\'s ground against distance from the target.' });
 
   function fit() {
     const plan = state.plan;
     if (!plan || !shown) return;
-    const pts = [{ x: 0, y: 0 }, plan.ip, ...orbitOutline(plan).flat()];
-    const tl = state.pass?.flight.timeline;
+    const aar = refuelOutline(plan);
+    const pts = aar ? [...aar.anchor, ...aar.track] : [{ x: 0, y: 0 }, plan.ip, ...orbitOutline(plan).flat()];
+    const shownPass = passFor(state.pass, plan);
+    const tl = shownPass?.flight.timeline;
     if (tl) for (let i = 0; i < tl.t.length; i += 40) pts.push({ x: tl.x[i], y: tl.y[i] });
-    const size = Math.max(plan.sizes.sizeFt, 500);
+    const tt = shownPass?.tanker;
+    if (tt) for (let i = 0; i < tt.x.length; i += 40) pts.push({ x: tt.x[i], y: tt.y[i] });
+    const size = aar ? 500 : Math.max(plan.sizes.sizeFt, 500);
     pts.push({ x: -size, y: -size }, { x: size, y: size });
     planView.fit({ minX: Math.min(...pts.map((p) => p.x)), minY: Math.min(...pts.map((p) => p.y)), maxX: Math.max(...pts.map((p) => p.x)), maxY: Math.max(...pts.map((p) => p.y)) }, 28);
     needFit = false;
@@ -544,6 +822,8 @@ export function createView2d({ timers, getProjection, onZoom }) {
   const onFit = () => fit();
   fitBtn.addEventListener('click', onFit);
   zoom.set(state.zoom);
+  zoomAar.set(state.zoom);
+  zoomAar.element.hidden = true;
 
   return {
     element,
@@ -552,7 +832,15 @@ export function createView2d({ timers, getProjection, onZoom }) {
       if (next.pass && next.pass !== state.pass) needFit = true; // a new pass: the view fits it once
       if ('plan' in next && !state.plan && next.plan) needFit = true;
       state = { ...state, ...next };
-      if (next.zoom) zoom.set(next.zoom);
+      if (next.zoom) {
+        zoom.set(next.zoom);
+        zoomAar.set(next.zoom);
+      }
+      // The refuelling run has its own profile spans and title (RS-18); the run-in's come back with its plan.
+      const aar = state.plan?.kind === 'aar';
+      zoom.element.hidden = aar;
+      zoomAar.element.hidden = !aar;
+      if (!aar && profTitle.firstChild.textContent !== RUN_IN_TITLE) profTitle.firstChild.textContent = RUN_IN_TITLE;
       if (!shown) return;
       if (needFit) fit();
       planView.requestDraw();

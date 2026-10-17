@@ -276,6 +276,7 @@ function fly(plan, pilot, { kias, tRollOut = Infinity, until = Infinity, dt = PA
   const events = {};
   let p = pilot;
   let t = 0;
+  /** @type {number} */
   let ph = AAR_PHASE.RV;
   let stableFrom = null;
   let ground = null;

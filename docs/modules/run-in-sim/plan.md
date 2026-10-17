@@ -39,10 +39,10 @@ Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a st
 
 ## Step 7. Air refuelling: the point-parallel rendezvous (proposed, built ahead of Patrick's yes)
 Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim"; his picks: the rendezvous first, the point-parallel, the CT-156 as a stand-in receiver. **Built ahead of Patrick's yes: Dad chose "Build anyway" (17 Oct 2026) after being told the plan waits on Patrick.** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; Step 4 (the en-route rendezvous) stays on `future.md`.
-- [x] Written down first: `spec.md` "Air refuelling", RS-15 to RS-18 (proposed), RS-R10 to RS-R13, `testing.md`'s one test (17 Oct 2026).
-- [ ] The tanker: the KC-130J from the C-130J model with its two wing-pod drogues, flying its anchor at a set height and true airspeed, a picture with no performance set (RS-15) (V2.503).
-- [ ] The point-parallel worked out to hit (RS-16) and the join to pre-contact behind the left drogue (RS-17); the card, the two new cameras and the 2D plan and profile with both tracks (RS-18) (V2.503).
-- [ ] One light test: in still air from the defaults the receiver ends at pre-contact behind the tanker, never ahead of its wing line, and the tanker never below its height (`tests/unit/run-in-sim/refuel.test.js`, V2.503).
+- [x] Written down first: `spec.md` "Air refuelling" with its screen picture (`air-refuelling-screen.png`), RS-15 to RS-18 (proposed), RS-R10 to RS-R13, `testing.md`'s one test (17 Oct 2026).
+- [x] The tanker: the KC-130J from the C-130J model with its two wing-pod drogues, flying its anchor at a set height and true airspeed, a picture with no performance set (RS-15) (V2.503).
+- [x] The point-parallel worked out to hit (RS-16) and the join to pre-contact behind the left drogue (RS-17); the card, the two new cameras and the 2D plan and profile with both tracks (RS-18) (V2.503).
+- [x] One light test: in still air from the defaults the receiver ends at pre-contact behind the tanker, never ahead of its wing line, and the tanker never below its height (`tests/unit/run-in-sim/refuel.test.js`, V2.503).
 - [ ] Patrick's yes on RS-15 to RS-18, and numbers or a manual page (ATP-56) for the estimates.
 - [ ] Dad or Patrick sees it in the app; the sign-off checklist in Dad's and Patrick's words (air-refuelling-plan.md Step 5).
 

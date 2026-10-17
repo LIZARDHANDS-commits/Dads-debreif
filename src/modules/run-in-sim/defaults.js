@@ -155,10 +155,12 @@ export const CAMERAS = Object.freeze([
   Object.freeze({ id: 'target', label: 'Target' }),
   Object.freeze({ id: 'overhead', label: 'Overhead' }),
   Object.freeze({ id: 'side', label: 'Side' }),
-  // The air refuelling run's own two (RS-18); they show only on that run.
-  Object.freeze({ id: 'tanker', label: 'From the tanker', aarOnly: true }),
-  Object.freeze({ id: 'drogue', label: 'Behind the drogue', aarOnly: true }),
+  // The air refuelling run's own two (RS-18, AAR_CAMERAS); they show only on that run.
+  Object.freeze({ id: 'tanker', label: 'From the tanker' }),
+  Object.freeze({ id: 'drogue', label: 'Behind the drogue' }),
 ]);
+/** The cameras only the air refuelling run has (RS-18). */
+export const AAR_CAMERAS = Object.freeze(['tanker', 'drogue']);
 export const PLAY_SPEEDS = Object.freeze([1, 2, 4, 8]);
 
 export const ALLOWED = Object.freeze({

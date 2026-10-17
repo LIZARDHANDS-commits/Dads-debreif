@@ -5,6 +5,8 @@
 // right (card.js). "Fly the pass" works the whole pass out first (pass.js) into a stored timeline; playing and scrubbing
 // only read it. "Training only" always shows (RS-2). Everything mount() starts runs on the shell's scheduler and
 // listeners, so the shell stops it all when the module closes.
+// The air refuelling run (RS-15 to RS-18; proposed, built ahead of Patrick's yes, Dad, 17 Oct 2026) is worked out and
+// flown by refuel.js instead of pass.js, with its own card (card.js refuelCardFor), marks and two more cameras.
 import { h, clear } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
@@ -13,13 +15,14 @@ import { createTerrain3d } from '../../ui-kit/terrain3d.js';
 import { airportElevationFt } from '../../ui-kit/airfield3d.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { TRAFFIC_VERSION } from '../traffic/version.js';
-import { DEFAULTS, ALLOWED, CAMERAS, PLAY_SPEEDS, DEFAULT_PLACE, runPatch, setupFrom, runOf } from './defaults.js';
+import { DEFAULTS, ALLOWED, CAMERAS, AAR_CAMERAS, PLAY_SPEEDS, DEFAULT_PLACE, runPatch, setupFrom, runOf } from './defaults.js';
 import { TARGETS } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { buildPlan, flyPass, clock } from './pass.js';
+import { buildRefuelPlan, flyRefuel } from './refuel.js';
 import { areaFor } from './area.js';
 import { createSetup } from './setup-panel.js';
-import { cardFor } from './card.js';
+import { cardFor, refuelCardFor } from './card.js';
 import { createPlanView } from './plan-view.js';
 import { createMapPicker } from './map-picker.js';
 import { createRunInWorld } from './world3d.js';
@@ -156,6 +159,10 @@ function mount(root, app) {
   function syncTarget() {
     const v = values();
     const s = setupFrom(v);
+    if (s.aar) {
+      world?.setTarget(null); // the refuelling run has no target
+      return;
+    }
     world?.setTarget({ id: v.target, sizeFt: v.targetSizeFt, headingDegT: s.target.headingDegT, groundFt: ground.groundAt(0, 0) });
   }
   function syncPlan() {
@@ -182,7 +189,7 @@ function mount(root, app) {
     clear(marks);
     if (pass) {
       const ev = pass.flight.events;
-      const at = [['Orbit', 0], ['IP', ev.ip], ['Roll-in', ev.rollIn], [pass.plan.run === 'flyover' ? 'TOT' : 'Release', ev.release], [pass.plan.run === 'flyover' ? null : 'TOT', pass.result.arrivalSec], ['Escape', ev.release !== undefined ? ev.release + 2 : undefined]];
+      const at = pass.plan.kind === 'aar' ? [['Start', 0], ['Turn', ev.turn], ['Roll-out', ev.rollOut], ['Pre-contact', ev.preContact]] : [['Orbit', 0], ['IP', ev.ip], ['Roll-in', ev.rollIn], [pass.plan.run === 'flyover' ? 'TOT' : 'Release', ev.release], [pass.plan.run === 'flyover' ? null : 'TOT', pass.result.arrivalSec], ['Escape', ev.release !== undefined ? ev.release + 2 : undefined]];
       // Marks at the same moment share one label; the rest take the first of two rows where they don't print over another
       // (their width estimated at about 6.5 px a letter of the 11 px type; a label past 85% hangs to the left of its mark),
       // and one with no room on either joins the mark before it.
@@ -219,7 +226,7 @@ function mount(root, app) {
       return;
     }
     passes.forEach((pass, i) => {
-      const card = cardFor(pass, pass.n, { selected: i === selected, showFlags: values().showFlags, onSelect: () => select(i) });
+      const card = (pass.plan.kind === 'aar' ? refuelCardFor : cardFor)(pass, pass.n, { selected: i === selected, showFlags: values().showFlags, onSelect: () => select(i) });
       if (i === selected && pass.stale) card.append(h('p', { class: 'rs-stale' }, 'Flying it again with the new settings…'));
       cards.append(card);
     });
@@ -283,7 +290,10 @@ function mount(root, app) {
     app.scheduler.after(30, () => {
       try {
         const v = values();
-        const pass = flyPass(setupFrom(v), ground);
+        const s = setupFrom(v);
+        const pass = s.aar ? flyRefuel(s, ground) : flyPass(s, ground);
+        // The refuelling run's worked-out start and turn range, for the Setup's "set to hit" (RS-16).
+        if (s.aar) Object.assign(pass.exit, { startNm: pass.result.worked.startNm, turnRangeNm: pass.result.worked.turnRangeNm });
         const swap = replace && passes.length > 0;
         pass.n = swap ? passes[0].n : (passes[0]?.n ?? 0) + 1;
         pass.stale = false;
@@ -320,7 +330,8 @@ function mount(root, app) {
     replanWake = app.scheduler.after(REPLAN_MS, () => {
       replanWake = null;
       try {
-        plan = buildPlan(setupFrom(values()), ground);
+        const s = setupFrom(values());
+        plan = s.aar ? buildRefuelPlan(s, ground) : buildPlan(s, ground);
       } catch (err) {
         plan = null;
         console.warn('Run-in Simulator: the plan could not be worked out', err);
@@ -330,6 +341,22 @@ function mount(root, app) {
       syncPlan();
       render();
     });
+  }
+
+  /** Whether the camera picked is one this run has. */
+  function cameraFits(v) {
+    return v.run === 'aar' ? v.camera !== 'target' : !AAR_CAMERAS.includes(v.camera);
+  }
+  /** The camera bar for the run: the refuelling run's two cameras show only on it, and its Target is greyed (RS-18). */
+  function syncCams(v) {
+    const aar = v.run === 'aar';
+    CAMERAS.forEach((c, i) => {
+      const pill = /** @type {HTMLElement} */ (cams.element.children[i]);
+      if (pill) pill.hidden = AAR_CAMERAS.includes(c.id) && !aar;
+    });
+    const disabled = AIRCRAFT[runOf(v.run).aircraft].cockpit ? {} : { cockpit: 'This aircraft has no cockpit model' };
+    if (aar) disabled.target = 'The refuelling run has no target';
+    cams.set(v.camera, { disabled });
   }
 
   function openMap() {
@@ -344,8 +371,12 @@ function mount(root, app) {
     const was = before;
     before = v;
     if (v.run !== was.run) {
-      settings.update(runPatch(v.run));
-      return; // the patch comes back through here
+      const patch = runPatch(v.run);
+      if (Object.keys(patch).some((k) => v[k] !== patch[k])) {
+        settings.update(patch);
+        return; // the patch comes back through here
+      }
+      // A patch that changes nothing (the refuelling run's defaults already set) sends no second notice: carry on here.
     }
     if (v.target !== was.target && v.targetSizeFt === was.targetSizeFt) {
       settings.update({ targetSizeFt: TARGETS[v.target].sizeFt });
@@ -357,6 +388,14 @@ function mount(root, app) {
     if (v.rollInByHand && !was.rollInByHand && plan?.dive) prefill.rollInFt = Math.round((plan.dive.rollInMsl - plan.groundFt) / 50) * 50;
     if (v.rollInKiasByHand && !was.rollInKiasByHand && plan?.dive) prefill.rollInKias = Math.round(plan.dive.rollInKias / 5) * 5;
     if (v.exitByHand && !was.exitByHand && current()?.exit) prefill.exitSec = Math.round(current().exit.sec);
+    const aarDone = current()?.plan.kind === 'aar' ? current().result.worked : null;
+    if (v.aarTurnRangeByHand && !was.aarTurnRangeByHand && Number.isFinite(aarDone?.turnRangeNm)) prefill.aarTurnRangeNm = Math.round(aarDone.turnRangeNm * 10) / 10;
+    if (v.aarRcvKiasByHand && !was.aarRcvKiasByHand && plan?.kind === 'aar') prefill.aarRcvKias = Math.round(plan.worked.rcvKias / 5) * 5;
+    // A camera the run hasn't got goes back to Chase (the refuelling run's two show only on it; it has no Target).
+    if (!cameraFits(v)) {
+      settings.update({ camera: 'chase' });
+      return;
+    }
     if (Object.keys(prefill).length) {
       settings.update(prefill);
       return;
@@ -383,13 +422,13 @@ function mount(root, app) {
       renderCards();
     }
     speeds.set(v.playSpeed);
-    cams.set(v.camera, { disabled: AIRCRAFT[runOf(v.run).aircraft].cockpit ? {} : { cockpit: 'This aircraft has no cockpit model' } });
+    syncCams(v);
     setup.update(v, plan, current()?.stale === false ? current().exit : null);
     render();
   });
 
   speeds.set(values().playSpeed);
-  cams.set(values().camera);
+  syncCams(values());
   syncView();
   setup.update(values(), null, null);
   renderCards();

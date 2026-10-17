@@ -6,6 +6,8 @@
 import { h } from '../../ui-kit/dom.js';
 import { clock, REFERENCES } from './pass.js';
 import { runOf } from './defaults.js';
+import { AAR_REFERENCES as AAR_REFS } from './refuel.js';
+import { FT_PER_NM } from '../../core/units.js';
 
 const ft10 = (n) => `${(Math.round(n / 10) * 10).toLocaleString('en-CA')} ft`;
 const kt = (n) => `${Math.round(n)} KIAS`;
@@ -80,5 +82,76 @@ export function cardFor(pass, n, { selected, onSelect, showFlags = true }) {
   const legs = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'Legs'), r.legs.map((l) => row(l.label, clock(l.sec))));
   card.append(timing, escape, legs);
   if (r.notes.length) card.append(h('ul', { class: 'rs-notes' }, r.notes.map((t) => h('li', {}, t))));
+  return card;
+}
+
+// ---- The air refuelling run's card (spec "Air refuelling", "The result card"; RS-16, RS-17; proposed, built ahead of
+// Patrick's yes, Dad, 17 Oct 2026). It leads with the trail at the tanker's roll-out against the plan, then the
+// rendezvous as worked out, the roll-out, the join and its flags (RS-6: references, never walls), the tanker (a
+// picture) and the stand-in receiver. Overtake and closure are the rate the range shrinks (ground against ground). ----
+
+const nm1 = (ft) => `${(ft / FT_PER_NM).toFixed(1)} NM`;
+const sideWords = (ft) => (Math.abs(ft) < 5 ? 'on the track' : `${ft10(Math.abs(ft))} ${ft > 0 ? 'right' : 'left'}`);
+
+/** The refuelling card's lead line. */
+export function refuelHeadline(pass) {
+  const r = pass.result;
+  if (!r.rollOut) return 'The tanker never rolled out';
+  const t = r.rollOut.trailFt;
+  if (t <= 0) return `Rolled out ${ft10(-t)} behind the receiver: an overrun`;
+  return `Rolled out ${nm1(t)} ahead, plan ${nm1(r.plannedTrailFt)}`;
+}
+
+/** One card for an air refuelling pass; the same options as cardFor. */
+export function refuelCardFor(pass, n, { selected, onSelect, showFlags = true }) {
+  const r = pass.result;
+  const plan = pass.plan;
+  const w = r.worked;
+  const flags = Object.fromEntries(r.flags.map((f) => [f.id, f]));
+  const sub = r.stableSec !== null ? `Stabilised in pre-contact ${clock(r.stableSec)} after the roll-out` : 'Did not stabilise in pre-contact';
+  const head = h('button', { type: 'button', class: 'rs-card-head', 'aria-pressed': String(selected) },
+    h('span', { class: 'rs-card-eyebrow' }, `Pass ${n} · ${runOf(plan.run).label} · KC-130J and stand-in CT-156`),
+    h('span', { class: 'rs-card-lead' }, refuelHeadline(pass)),
+    h('span', { class: 'rs-card-sub' }, sub));
+  head.addEventListener('click', onSelect);
+  const card = h('article', { class: `rs-card${selected ? ' is-selected' : ''}` }, head);
+  if (!selected) return card;
+
+  const tag = (...a) => (showFlags ? tagOf(...a) : null);
+  const kts = (k) => (k === null || !Number.isFinite(k) ? '--' : `${Math.round(k)} kt`);
+  const set = (byHand) => (byHand ? 'set by hand' : 'set to hit');
+  const late = r.lateSec === null ? '' : Math.abs(r.lateSec) < 0.5 ? ', on time' : ` (${lateWords(r.lateSec)})`;
+  const rv = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'The rendezvous (worked out to hit)'),
+    row('Tanker turns', `+${clock(w.tTurn)} at ${Number.isFinite(w.turnRangeNm) ? `${w.turnRangeNm.toFixed(1)} NM` : '--'} · ${set(w.turnByHand)}`),
+    row('Offset (two turn radii)', nm1(w.offsetFt)),
+    row('Receiver', `${Math.round(w.rcvKiasFlown)} KIAS · ${set(w.rcvByHand)}`),
+    row('Receiver starts', `${w.startNm.toFixed(1)} NM back from the roll-out point`),
+    row('Tanker rolls out', `+${clock(w.tRollOut)}${late}`));
+  const ro = r.rollOut;
+  const atRo = ro ? h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'At the roll-out'),
+    row('Trail', `${ro.trailFt >= 0 ? nm1(ro.trailFt) : `${ft10(-ro.trailFt)} ahead of the tanker`} (plan ${nm1(r.plannedTrailFt)})`),
+    row('Across the track', sideWords(ro.acrossFt)),
+    row('Below the tanker', ft10(ro.belowFt)),
+    row('Overtake', kts(ro.overtakeKt))) : null;
+  const end = r.endFromPre;
+  const join = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'The join'),
+    row('Peak closure', kts(r.peakClosureKt), tag(flags.closure.over, `under ${AAR_REFS.closureKt}`, `over ${AAR_REFS.closureKt}`)),
+    row(`Closure inside ${AAR_REFS.nearFt} ft`, kts(r.nearClosureKt), r.nearClosureKt === null ? null : tag(flags.nearClosure.over, `under ${AAR_REFS.nearClosureKt}`, `over ${AAR_REFS.nearClosureKt}`)),
+    row('Roll-out to pre-contact', r.toPreContactSec === null ? 'not reached' : clock(r.toPreContactSec)),
+    row('Closest to the wing line', r.wingLineFt === null ? '--' : r.wingLineFt < 0 ? `${ft10(-r.wingLineFt)} behind` : `${ft10(r.wingLineFt)} ahead`, tag(flags.wingLine.over, 'behind it', 'ahead of it')),
+    row('Ended from pre-contact', `${ft10(Math.abs(end.behindFt))} ${end.behindFt >= 0 ? 'behind' : 'past'} · ${sideWords(end.acrossFt)} · ${ft10(Math.abs(end.belowFt))} ${end.belowFt >= 0 ? 'below' : 'above'}`));
+  const who = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'The tanker (a picture) and the stand-in receiver'),
+    row('Tanker\'s steepest bank', `${Math.round(r.tankerBankDeg)}° (set ${plan.aar.bankDeg}°)`, tag(flags.tankerBank.over, 'as set', 'steeper')),
+    row('Tanker\'s height', `${ft10(r.tankerLowestFt)} MSL, held`),
+    row('Receiver\'s peak G', `${r.peakG.toFixed(1)} G`, tag(flags.peakG.over, `under ${plan.ac.gLimit}`, `over ${plan.ac.gLimit}`)),
+    row('Receiver\'s lowest airspeed', kt(r.lowestKias), tag(flags.slow.over, 'above the shaker', 'near the stall')),
+    flags.vmo.over ? row('Receiver\'s fastest', `over VMO by ${Math.round(r.overVmo)} kt`, tag(true, '', 'over VMO')) : null);
+  card.append(rv, atRo, join, who);
+  const notes = [
+    'The tanker\'s flying is a picture, not a performance claim: the KC-130J has no performance set yet (RS-Q1). The receiver is a stand-in: the CT-156, no probe.',
+    'Proposed, built ahead of Patrick\'s yes (Dad, 17 Oct 2026). Every refuelling number is an estimate (ATP-56 not read).',
+    ...r.notes,
+  ];
+  card.append(h('ul', { class: 'rs-notes' }, notes.map((t) => h('li', {}, t))));
   return card;
 }
