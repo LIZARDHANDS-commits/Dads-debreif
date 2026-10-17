@@ -5,6 +5,8 @@
 // routes; the 25 and 50 NM rings; the airfield dots with wind barbs; and live traffic through our own relay.
 // The ADS-B Exchange view swaps the whole map area for their own page, and the 3D view (view3d.js, SOF-39) swaps it for a
 // three.js picture of the weather round home; the two are never on together.
+// NOAA's lightning strikes (SOF-71, V2.455; strikes-feed.js, read in their own background worker) run wherever the site profile names them, for the map's
+// crosses, the 3D bolts and the near-home check (a US base's source, Moose Jaw's backup).
 //
 // This file wires the pieces together and touches the page. Where things are and what they say is decided
 // in map-view.js, map-layers.js, map-model.js and the feeds (map-feeds.js, map-loops.js), all tested in Node.
@@ -30,10 +32,10 @@ import {
   createProjection, homeView, cornersOf, radarImageRequest, imageStillFits, nearestWithin, RING_NM, SPAN_LIMITS,
 } from './map-view.js';
 import {
-  cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM,
+  cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM, withSiteDefaults,
 } from './map-layers.js';
 import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem, legendItems, noSourceLine, coverageNotShownLine, lightningMapLink } from './map-model.js';
-import { drawGeoImage, drawRings, drawAirfields, drawTraffic, drawTrails, drawApproaches2d } from './map-draw.js';
+import { drawGeoImage, drawRings, drawAirfields, drawTraffic, drawTrails, drawApproaches2d, drawStrikes } from './map-draw.js';
 import { fieldApproaches, finalCourse2d, publishedLine } from './approaches-model.js';
 import { approachesOf, loadApproachesFor } from './sites/approaches-load.js';
 import { runwayInUse, fieldsForRunways, shownSignature } from './runway-in-use.js';
@@ -51,6 +53,11 @@ import { tacnavRoutes, checkedAirspace } from '../../airfields/airspace/model.js
 import { createAirspaceLog } from './airspace-log.js';
 import { createModelFeed, gridPoints } from './model-clouds.js';
 import { siteFor, noSourceWords } from './sites/index.js';
+import { createMrmsFeed } from './mrms-feed.js';
+import { squareBounds, CANADA_WORDS, DEFAULT_RADAR_DETAIL } from './mrms-model.js';
+import { coverageCanvas } from './radar3d.js';
+import { createStrikesFeed } from './strikes-feed.js';
+import { strikesLine, strikeNearLines, skippedLine, strikeMarks, strikeBoltCells, STRIKES_CANADA_WORDS, STRIKES_CREDIT } from './strikes-model.js';
 
 const LAYERS_KEY = 'map-layers';
 const BACKGROUND = '#05090d';
@@ -112,6 +119,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   /** The site profile's source for each map layer (radar and its coverage share one). A source that is null means this base has none: nothing is asked for and the line says so. */
   const SOURCE_OF = { radar: 'radar', coverage: 'radar', lightning: 'lightning', cloud: 'satellite', warnings: 'warnings' };
   const hasSource = (id) => site.sources[SOURCE_OF[id]] != null;
+  /** NOAA's lightning strikes (SOF-71): the profile's source ({ role, mapDefault, checkedHere }), or null at a base without them. */
+  const strikesSource = () => site.sources.strikes ?? null;
+  /** Is there a near-home lightning check here at all (ECCC's picture or NOAA's strikes)? Without one there is no caution radius to draw or speak of. */
+  const hasLightningCheck = () => hasSource('lightning') || strikesSource() !== null;
+  /** The layers as shown: the ones whose start depends on the base (the NOAA strikes) filled from this base's profile until the person sets them (map-layers.js). */
+  const shown = () => withSiteDefaults(layers, { strikes: strikesSource()?.mapDefault === true });
   /** Radar coverage is drawn only when the radar source has a coverage layer (ECCC's; NOAA's MRMS has none: its line says "not shown for this source"). */
   const coverageShown = () => hasSource('coverage') && Boolean(site.sources.radar.layers?.coverage);
   /** The source's words for a status line (`strip`, `short`), as feedLine takes them; nothing at Moose Jaw, whose lines read as before. */
@@ -212,6 +225,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     onTrails: (trails) => change(setTrafficOption(layers, { trails })),
     onModelHour: (ms) => setModelHour(ms), // the 3D slider's model hour: the HRDPS cloud picture follows it
     onRainToGround: (on) => view3dSettings?.update({ rainToGround3d: on }), // the Rain to ground button, kept in the SOF's "view3d" settings
+    onRadarDetail: (value) => view3dSettings?.update({ radarDetail3d: value }), // "3D radar detail" (SOF-67), kept in the same settings; pushScene asks the feed again
     // The Approaches button and its field picker, kept in the same settings; the 2D map draws the same field's final courses.
     onApproaches: ({ on, field, runway, manual }) => {
       view3dSettings?.update({ approaches3d: on, approachField3d: field, approachRunway3d: runway, approachRunways3d: manual });
@@ -275,6 +289,50 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       bitmap.close();
     }
   }
+  /**
+   * One background worker reading NOAA MRMS files (mrms-worker.js), made when first asked and ended by `end()`, so its memory goes with it: { decode(request), end() }.
+   * Two are made: the 3D radar heights' (ended when the 3D view closes) and the lightning strikes' (SOF-71; ended when the SOF closes or the base has no strikes,
+   * since the near-home check rests on it), so closing the 3D view never drops a strikes file half read.
+   */
+  function workerDecoder() {
+    let held = null; // { worker, pending: Map(id -> { resolve, reject }) }
+    let ask = 0;
+    return {
+      decode(request) {
+        if (!held) {
+          const worker = new Worker(new URL('./mrms-worker.js', import.meta.url), { type: 'module' });
+          const made = { worker, pending: new Map() };
+          worker.onmessage = (event) => {
+            const answer = made.pending.get(event.data?.id);
+            if (!answer) return;
+            made.pending.delete(event.data.id);
+            answer.resolve(event.data);
+          };
+          worker.onerror = (event) => {
+            event.preventDefault?.(); // said in words (the reason "decoder failed"), not as a page error
+            for (const { reject } of made.pending.values()) reject(new Error('worker failed'));
+            made.pending.clear();
+            if (held === made) held = null;
+            worker.terminate();
+          };
+          held = made;
+        }
+        const mine = held;
+        const id = ++ask;
+        return new Promise((resolve, reject) => {
+          mine.pending.set(id, { resolve, reject });
+          mine.worker.postMessage({ id, ...request }, [request.gz]);
+        });
+      },
+      end() {
+        if (!held) return;
+        for (const { reject } of held.pending.values()) reject(new Error('worker ended'));
+        held.worker.terminate();
+        held = null;
+      },
+    };
+  }
+
   // The lightning layer is drawn as a bright, outlined mark (map-lightning.js `recolourLightning`), not in ECCC's dark blue,
   // which is 1.02 to 1.41 : 1 on the satellite. The near-home check reads the picture as ECCC drew it (`readPixels`), not this.
   async function decodeLightning(bytes) {
@@ -310,10 +368,33 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     cloud: picture(() => site.sources.satellite?.layer, 'cloud', REFRESH_MS.lightning, { decodeWith: decodeSatellite }),
     warnings: picture(() => site.sources.warnings?.layer, 'lightning', REFRESH_MS.lightning, { timeless: true }),
   };
+  // NOAA's lightning strikes (SOF-71): one MRMS file a minute, read in their own worker, while the SOF is open at a base whose profile names them, hidden tab
+  // included (the near-home check rests on them at a US base, and they are Moose Jaw's backup). The map, the 3D bolts and the lines read `held()`.
+  const strikesWorker = workerDecoder();
+  const strikesFeed = createStrikesFeed({
+    fetch: fetchNet,
+    timers,
+    now,
+    decode: (request) => strikesWorker.decode(request),
+    home: () => ({ icao: home.icao, lat: home.lat, lon: home.lon }),
+    onChange: () => redraw(),
+  });
+  /** The strikes feed on at a base whose profile names them, off (what was read let go) elsewhere; a new home starts it over. */
+  function syncStrikes() {
+    strikesFeed.setPlace();
+    if (strikesSource()) strikesFeed.start();
+    else {
+      strikesFeed.stop();
+      strikesWorker.end();
+    }
+  }
   const watch = createLightningWatch({
     home: () => ({ icao: home.icao, lat: home.lat, lon: home.lon }),
     radiusNm: () => settings.get().lightningNm,
-    hasSource: () => site.sources.lightning != null, // none for this base: nothing is asked for, and it reads "no source, can't tell" (never "no lightning")
+    hasSource: () => site.sources.lightning != null, // no ECCC picture for this base: it is not asked for
+    // NOAA's strikes: the source at a US base, the labelled backup at Moose Jaw; with neither it reads "no source, can't tell" (never "no lightning")
+    strikes: strikesFeed,
+    strikesRole: () => strikesSource()?.role ?? null,
     readPixels,
     store: app.storage, // the lightning episode survives a reload, so an acknowledged caution stays acknowledged
     ...shared,
@@ -364,6 +445,26 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     },
   });
 
+  // The 3D radar's heights (SOF-67): NOAA MRMS echo tops (Performance) or 3D reflectivity (High), read by our own GRIB2 reader in a background worker, only while the
+  // 3D view is shown and the base has the source. The worker (workerDecoder, below) is ended when the 3D view closes.
+  const mrmsWorker = workerDecoder();
+  const endMrmsWorker = () => mrmsWorker.end();
+  const radarDetail = () => view3dSettings?.get().radarDetail3d ?? DEFAULT_RADAR_DETAIL;
+  let radarDetailShown = radarDetail();
+  const mrmsFeed = createMrmsFeed({
+    fetch: fetchNet,
+    timers,
+    now,
+    decode: (request) => mrmsWorker.decode(request),
+    square: () => ({ lat: home.lat, lon: home.lon, halfFt: AREA_FT / 2 }),
+    mode: radarDetail,
+    paused: () => document.hidden,
+    onChange: () => {
+      if (threeOn && !disposed) view3d.touch();
+    },
+  });
+  const mrmsCanvases = new Map(); // set id -> its ground picture (radar3d.js coverageCanvas) or null, the last one only
+
   /**
    * The "3D area" setting (Dad, 8 Oct 2026): sets the square's size (scene3d-model.js `setAreaNm`) and, when it changed, starts the square's things over: the model is asked
    * again over the new square (the same 13 x 13 points, so the same Open-Meteo calls, about 1,200; a change counts against the free daily 10,000), the pictures are asked
@@ -378,6 +479,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     if (threeOn) {
       syncFeeds3d();
       askAnchors();
+      mrmsFeed.refresh(); // the radar heights over the new square
     }
     view3d.setArea();
   }
@@ -422,6 +524,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     else frontsFeed.stop();
     if (site.sources.modelClouds) modelFeed.start(); // asks for the model clouds and winds at once, then when a newer run can be out (HRDPS about 0500, 1100, 1700, 2300Z; HRRR every 3 hours) while the view is open
     else modelFeed.stop();
+    if (site.sources.radarHeights) {
+      mrmsFeed.start(); // the MRMS radar heights at once, then every 6 minutes while the view is open
+    } else {
+      mrmsFeed.stop();
+      endMrmsWorker();
+    }
   }
   function start3dFeeds() {
     syncFeeds3d();
@@ -432,6 +540,8 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   function stop3dFeeds() {
     for (const feed of Object.values(feeds3d)) feed.enable(false);
     frontsFeed.stop();
+    mrmsFeed.stop();
+    endMrmsWorker();
     cancelAnchors?.();
     cancelAnchors = null;
   }
@@ -589,7 +699,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     followView(tv.corners);
 
     // Overlays, bottom to top
-    for (const id of stackOrder(layers, { relay: relayOn() })) {
+    for (const id of stackOrder(shown(), { relay: relayOn() })) {
       const pct = (layers.opacity[id] ?? 100) / 100;
       switch (id) {
         case 'cloud':
@@ -597,6 +707,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         case 'warnings':
         case 'lightning':
           drawPicture(ctx, feeds[id], pct * (id === 'lightning' && feedStale('lightning') ? STALE_ALPHA : 1));
+          break;
+        case 'strikes':
+          // NOAA's strikes as crosses, brighter the newer (SOF-71); none once the newest file is over 10 minutes old (strikes-model.js).
+          if (strikesSource()) drawStrikes(ctx, strikeMarks(strikesFeed.held(), t), project, size);
           break;
         case 'radar': {
           const s = radar.state();
@@ -615,8 +729,8 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
           for (const r of routes) drawRoute(ctx, view, r, /** @type {any} */ (layers.opacity).routes);
           break;
         case 'rings':
-          // The lightning caution ring only where the base has a lightning source: elsewhere there is no caution to draw a radius for.
-          drawRings(ctx, view.worldToScreen(0, 0), view.view.scale, { radii: RING_NM, lightningNm: hasSource('lightning') ? settings.get().lightningNm : null }, pal);
+          // The lightning caution ring only where the base has a lightning check (ECCC's picture or NOAA's strikes): elsewhere there is no caution to draw a radius for.
+          drawRings(ctx, view.worldToScreen(0, 0), view.view.scale, { radii: RING_NM, lightningNm: hasLightningCheck() ? settings.get().lightningNm : null }, pal);
           break;
         case 'airfields':
           hits.airfields = drawAirfields(ctx, marks, project, pal, size);
@@ -767,6 +881,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   function wakeFeeds() {
     radar.wake();
     for (const feed of Object.values(feeds)) feed.wake();
+    if (threeOn) mrmsFeed.wake();
   }
 
   // ---- The 3D view (SOF-39) ----------------------------------------------------------------------------
@@ -788,7 +903,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     view3d.setScene({
       airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs', rainToGround: view3dSettings?.get().rainToGround3d ?? true, approaches: approachChoice(),
       mouseLeft: view3dSettings?.get().mouseLeft3d ?? 'move', airspaceHidden: view3dSettings?.get().airspaceHidden3d ?? {}, // the 3D mouse and the Airspace tab's choices (Dad, 8 Oct 2026)
+      radarDetail: radarDetail(), // "3D radar detail" (SOF-67)
     });
+    if (radarDetail() !== radarDetailShown) {
+      radarDetailShown = radarDetail();
+      if (threeOn) mrmsFeed.refresh(); // the other mode's files are asked for at once
+    }
   }
 
   /**
@@ -948,6 +1068,21 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       list.push({ id, image: s.image, bbox: req.bbox, alpha });
       parts.push(`${id}:${idOf(s.image)}:${req.key}:${alpha}`);
     }
+    // Where the MRMS radar heights have no coverage (grey hatching, never clear air) and the strip north of 55° N with its words (SOF-67), while they are drawn.
+    const mv = site.sources.radarHeights && layers.on.radar ? mrmsFeed.view(t) : null;
+    if (mv?.set) {
+      let pic = mrmsCanvases.get(mv.set.id);
+      if (pic === undefined) {
+        mrmsCanvases.clear();
+        pic = coverageCanvas(document, mv.set);
+        mrmsCanvases.set(mv.set.id, pic);
+      }
+      if (pic) {
+        const b = squareBounds(mv.set.lat, mv.set.lon, mv.set.halfFt);
+        list.push({ id: 'mrms', image: pic.canvas, bbox: [b.west, b.south, b.east, b.north], alpha: 1 });
+        parts.push(`mrms:${mv.set.id}`);
+      }
+    }
     return { sig: parts.join('|'), list };
   }
 
@@ -973,8 +1108,23 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       return { id: idOf(s.image), image: s.image, bbox: req.bbox, stale: line.stale };
     };
     const radar = pic('radar');
-    const lightning = pic('lightning');
+    // ECCC's lightning picture, or none at a base that has NOAA's strikes instead (no "no source" line beside NOAA's).
+    const lightning = site.sources.lightning || !strikesSource() ? pic('lightning') : null;
     const satellite = pic('cloud');
+    // NOAA's strikes (SOF-71): a neon bolt for each strike of the last 30 minutes, dimmer the older (V2.456), while their Layers switch is on (on at a US base, off at Moose Jaw), with their line.
+    let strikes = null;
+    if (strikesSource()) {
+      const held = strikesFeed.held();
+      const line = strikesLine(held, t);
+      lines.push({ id: 'strikes', text: line.text, symbol: line.symbol, tone: line.tone });
+      parts.push(`strikes-line:${line.text}`);
+      if (shown().on.strikes) {
+        const cells = strikeBoltCells(held, t, { toXY: projection.toXY, areaFt: AREA_FT });
+        strikes = { key: `${held.newest}|${cells.length}|${Math.floor(+t / 60_000)}`, cells };
+      }
+      if (strikesSource().checkedHere === false) lines.push({ id: 'strikes-canada', text: STRIKES_CANADA_WORDS, symbol: '⚠', tone: 'caution' });
+    }
+    parts.push(`strikes:${strikes ? strikes.key : 'none'}`);
     // The HRDPS cloud picture for the slabs: the hour it is for, its model run, whether that run is old, and whether the last try failed (no status-strip line: the model panel says it).
     const mc = feeds3d.modelCloud.state();
     const mcReq = mc.image && mc.imageKey ? requests3d.get(mc.imageKey) : null;
@@ -999,7 +1149,16 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     parts.push(`fronts:${fronts.status}:${fronts.key}`);
     if (fronts.status === 'nosource') lines.push({ id: 'fronts', text: fronts.words, symbol: '⚠', tone: 'caution' });
     else lines.push({ id: 'fronts', text: fronts.words, symbol: fronts.status === 'ok' ? (fs.failed ? '⚠' : '✓') : fronts.status === 'loading' ? '⟳' : '⚠', tone: fronts.status === 'ok' && !fs.failed ? 'ok' : fronts.status === 'loading' ? 'busy' : 'bad' });
-    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines, modelCloud, anchors };
+    // The radar heights (SOF-67): NOAA MRMS when it answers, else the flat radar in the model cloud, said in words. No source at this base: amber, never a tick.
+    const heights = site.sources.radarHeights ?? null;
+    const mrms = heights
+      ? mrmsFeed.view(t)
+      : { state: 'nosource', set: null, line: { text: noSourceWords('Radar heights'), symbol: '⚠', tone: 'caution' }, notes: [], reason: 'no source for this base', sig: 'nosource' };
+    lines.push({ id: 'mrms', ...mrms.line });
+    for (const note of mrms.notes ?? []) lines.push({ id: 'mrms-note', text: note, symbol: '⚠', tone: 'caution' }); // a High height missing, High dropped to Performance, cores not drawn
+    if (heights && heights.checkedHere === false) lines.push({ id: 'mrms-canada', text: CANADA_WORDS, symbol: '⚠', tone: 'caution' }); // until Dad's Moose Jaw comparison (plan item 6)
+    parts.push(`mrms:${mrms.sig}`);
+    return { sig: parts.join('|'), radar, lightning, strikes, satellite, fronts, lines, modelCloud, anchors, mrms };
   }
 
   function stopThree() {
@@ -1060,6 +1219,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   }
 
   function lineOf(id, t) {
+    // NOAA's strikes (SOF-71): their own line, or "no source" where the base has none.
+    if (id === 'strikes') return strikesSource() ? strikesLine(strikesFeed.held(), t) : noSourceLine('Lightning strikes');
+    // ECCC's lightning picture at a base that has NOAA's strikes instead (a US base): no line, so the strip does not say "no source" beside NOAA's answer.
+    if (id === 'lightning' && !hasSource('lightning') && strikesSource()) return null;
     // No source for this base: "Radar: no source for this base, can't tell", amber with ⚠, never a tick and never "no picture".
     if (id in SOURCE_OF && !hasSource(id)) return noSourceLine({ radar: 'Radar', coverage: 'Radar coverage', lightning: 'Lightning map', cloud: 'Cloud', warnings: 'Warnings' }[id]);
     if (id === 'coverage' && !coverageShown()) return coverageNotShownLine(); // a radar source with no coverage layer (NOAA MRMS): neutral, not a failure
@@ -1094,30 +1257,45 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       controls.setLegend(null);
       return;
     }
+    const on = shown().on;
     const lines = {};
-    for (const id of ['radar', 'coverage', 'lightning', 'cloud', 'warnings']) lines[id] = layers.on[id] ? lineOf(id, t) : null;
+    for (const id of ['radar', 'coverage', 'lightning', 'cloud', 'warnings']) lines[id] = on[id] ? lineOf(id, t) : null;
     const tv = trafficFeed.view(t);
-    if (layers.on.traffic && relayOn()) {
+    if (on.traffic && relayOn()) {
       lines.traffic = { text: tv.statusText, symbol: tv.status === 'unavailable' ? '⚠' : tv.status === 'ok' ? '✓' : '⟳', tone: tv.status === 'unavailable' ? 'bad' : tv.status === 'ok' ? 'ok' : 'busy' };
     }
-    const items = statusItems({ ...lines, nearhome: nearHome(t) }, { ...layers.on, nearhome: true, traffic: layers.on.traffic && relayOn() });
+    // NOAA's strikes (SOF-71): wherever the base reads them (the near-home check rests on them, or they are its backup), their line, the nearest and last strike,
+    // a skipped file, and at a Canadian home the not-yet-checked line; with the layer switched off too, since the check does not depend on the map.
+    const strikesOn = strikesSource() !== null;
+    if (strikesOn) {
+      const held = strikesFeed.held();
+      lines.strikes = lineOf('strikes', t);
+      for (const item of strikeNearLines(held, { home, radiusNm: settings.get().lightningNm, now: t })) lines[item.id] = item;
+      lines['strikes-skip'] = skippedLine(held);
+      lines['strikes-canada'] = strikesSource().checkedHere === false ? { text: STRIKES_CANADA_WORDS, symbol: '⚠', tone: 'caution' } : null;
+    }
+    const strikeIds = ['strikes', 'strikes-nearest', 'strikes-last', 'strikes-skip', 'strikes-canada'];
+    const items = statusItems({ ...lines, nearhome: nearHome(t) }, { ...on, ...Object.fromEntries(strikeIds.map((id) => [id, strikesOn])), nearhome: true, traffic: on.traffic && relayOn() });
     const space = airspaceLog.view();
     // Information only, never a caution: it is on the traffic line's side of the strip, in amber with the ⚠ symbol and the words.
-    if (layers.on.traffic && relayOn() && space.count > 0) items.push({ id: 'airspace', text: space.countWords, symbol: '⚠', tone: 'caution' });
+    if (on.traffic && relayOn() && space.count > 0) items.push({ id: 'airspace', text: space.countWords, symbol: '⚠', tone: 'caution' });
     controls.setStatus(items);
-    controls.setCredits(mapCredits(layers, { radarBackup: radar.state().source === 'rainviewer', trafficOn: layers.on.traffic && relayOn(), feedsCredit: site.credits.mapFeeds }));
+    controls.setCredits(mapCredits(layers, { radarBackup: radar.state().source === 'rainviewer', trafficOn: on.traffic && relayOn(), feedsCredit: site.credits.mapFeeds, strikesCredit: strikesOn ? STRIKES_CREDIT : null }));
     // A base with no lightning picture of its own may have an outside map to look at instead (us-base.js): a plain link under the map, labelled as not checked.
     controls.setNote(site.charts.vnc ? baseNote(layers) : null, lightningMapLink(site.lightningLink, home));
     // The key explains only the layers this base has a source for.
-    controls.setLegend(legendItems({ ...layers, on: { ...layers.on, radar: layers.on.radar && hasSource('radar'), lightning: layers.on.lightning && hasSource('lightning'), traffic: layers.on.traffic === true && relayOn() } }, { radarBackup: radar.state().source === 'rainviewer', radarScale: site.sources.radar?.scale ?? null, lightningRing: hasSource('lightning') }));
+    controls.setLegend(legendItems({ ...layers, on: { ...on, radar: on.radar && hasSource('radar'), lightning: on.lightning && hasSource('lightning'), strikes: on.strikes && strikesOn, traffic: on.traffic === true && relayOn() } }, { radarBackup: radar.state().source === 'rainviewer', radarScale: site.sources.radar?.scale ?? null, lightningRing: hasLightningCheck() }));
   }
 
   function nearHome(t) {
-    return nearHomeItem(watch.result(t), layers.on.lightning ? lineOf('lightning', t) : null);
+    const result = watch.result(t);
+    // The map line beside it is the one that answered: NOAA's strikes' (SOF-71), or ECCC's lightning picture's when its layer is on.
+    const mapLine = result.source === 'noaa' ? lineOf('strikes', t) : layers.on.lightning ? lineOf('lightning', t) : null;
+    return nearHomeItem(result, mapLine);
   }
 
   function sync() {
-    controls.sync({ layers, relay: relayOn(), adsbOn, threeOn, fullOn: fullScreen?.isFull() === true });
+    controls.sync({ layers: shown(), relay: relayOn(), adsbOn, threeOn, fullOn: fullScreen?.isFull() === true });
     refreshStatus();
   }
 
@@ -1131,6 +1309,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       radar.wake();
       for (const feed of Object.values(feeds)) feed.wake();
       watch.wake();
+      strikesFeed.wake();
       trafficFeed.wake();
     }),
     app.listen(globalThis, 'offline', () => {
@@ -1151,6 +1330,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   goHome();
   applyLayers();
   watch.start();
+  syncStrikes(); // NOAA's lightning strikes, where this base reads them
   sync();
   syncMessage();
 
@@ -1186,6 +1366,8 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         updateAirspaceLog();
         applyLayers(); // a layer is on only if the new base has a source for it
         watch.setPlace();
+        syncStrikes(); // NOAA's strikes round the new home, or off where the new base has none
+        sync(); // the strikes layer's switch follows the new base's default until set
         modelFeed.setPlace(); // the grid is round the new home
         requests3d.clear();
         anchorReports = {}; // and the stations round it
@@ -1193,6 +1375,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         if (threeOn) {
           syncFeeds3d(); // and so are the 3D pictures
           enable3dSources(); // for the sources the new base has
+          mrmsFeed.refresh(); // the radar heights round the new home
           askAnchors();
         }
         goHome();
@@ -1210,7 +1393,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         // and applyLayers turns it on again for the new one (or leaves it off when the address is not one we use).
         trafficFeed.setOn(false);
         applyLayers();
-        controls.sync({ layers, relay: relayOn(), adsbOn, threeOn, fullOn: fullScreen?.isFull() === true });
+        controls.sync({ layers: shown(), relay: relayOn(), adsbOn, threeOn, fullOn: fullScreen?.isFull() === true });
         view.requestDraw();
       }
       const fields = [home, ...app.airfields.alternates()];
@@ -1278,6 +1461,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       radar.wake();
       for (const feed of Object.values(feeds)) feed.wake();
       watch.wake();
+      strikesFeed.wake();
       trafficFeed.wake();
       modelFeed.wake();
       if (threeOn) {
@@ -1295,12 +1479,17 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       radar.stop();
       for (const feed of Object.values(feeds)) feed.stop();
       watch.stop();
+      strikesFeed.dispose();
+      strikesWorker.end();
       trafficFeed.stop();
       cancelGlide2d?.();
       cancelNotice?.();
       modelFeed.stop();
       for (const feed of Object.values(feeds3d)) feed.stop();
       frontsFeed.stop();
+      mrmsFeed.dispose();
+      endMrmsWorker();
+      mrmsCanvases.clear();
       cancelAnchors?.();
       cancelAnchors = null;
       view3d.dispose();

@@ -13,11 +13,11 @@ Only what is here gets built. Patrick approved `spec.md` and EP-1 to EP-3 (relay
 
 ## Step 2. The instructor's phone
 - [x] QR code on the student's screen, the console on the phone, the link as EP-Q1 settles; "Instructor link lost" handling (EP-R10).
-- Built in V2.492, not yet seen: the relay mailbox (EP-8 to EP-10), our own QR encoder (EP-Q2), the phone as the master sending only the student view, and its one test. The relay's `/ep-link` is live (deployed 12 Oct 2026); a real phone camera, iOS Safari and mobile networks are untried.
+- Built in V2.509, not yet seen: the relay mailbox (EP-8 to EP-10), our own QR encoder (EP-Q2), the phone as the master sending only the student view, and its one test. The relay's `/ep-link` is live (deployed 12 Oct 2026); a real phone camera, iOS Safari and mobile networks are untried.
 
 ## Step 3. Systems model: faults drive the gauges, the gauges drive the lights (`systems-plan.md` Phase 1)
 - [x] `systems.js`: the instructor sets causes (oil leak, chip, fuel imbalance, fire, generator, roughness, engine failure); gauges follow by time and severity; lights follow by thresholds; the instructor's typed values still win (EP-11). The console split into sections with a Faults section; `index.js` split into screen and phone. A second example, "Oil pressure dropping on departure". Thresholds without a page show "(estimate)" (EP-Q10 working answer).
-- Built in V2.492, not yet seen by Patrick or Dad in the app. Every rate and threshold is an estimate, flagged "(estimate)" on the console. Its one test: `tests/unit/ep-tabletop/systems.test.js`.
+- Built in V2.509, not yet seen by Patrick or Dad in the app. Every rate and threshold is an estimate, flagged "(estimate)" on the console. Its one test: `tests/unit/ep-tabletop/systems.test.js`.
 
 ## Step 4. Lights that flicker and the visual cues (Phase 2)
 - [x] Flicker, a small cockpit shake, smoke haze and fire glow as overlays, cue words per fault, all applied by the instructor and only then seen by the student (EP-12). No 3D cues (future list). Built, not yet seen by Patrick or Dad in the app. Cue controls are a Cues section on the console; new causes "Smoke or fumes" and "Generator flickering". Every cue number is a picture choice (see the code README).
