@@ -5,7 +5,17 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (17 Oct 2026, evening): Phase 5 Step 5.1 merged (`V2.517`, #1077); 3d-work #117 merged
+## Latest (17 Oct 2026, late evening): the look audit and Patrick's rulings (3d-work #118)
+- **The audit:** Fable (high) judged the look from `3d-work` `scratch/increment-5/look-audit/` (photos, existing renders,
+  Patrick's screenshots; no new renders, no manual text). Report and the orchestrator's check against the code:
+  `ct156/briefs/5-look-audit-fable-report-17oct.md`. Wrong in it: the helmets (already coloured parts), the rescue
+  markings (dropped by Patrick, G7), the shadow and anisotropy (partly there); overstated: "near-black mirror" paint.
+- **Rulings:** `3d-work` `ct156/fix-list.md` W26 (Wear removed; dirt level waits on a preview), W27 (Step 5.1b, app-side
+  look; the spinner stays chrome), W28 (Step 5.2 additions and order).
+- **Next:** plan Step 5.1b with Patrick; check why CI did not run on #1077; after 5.1b, the soot-and-grime preview
+  picture; then the Step 5.2 plan.
+
+## Earlier (17 Oct 2026, evening): Phase 5 Step 5.1 merged (`V2.517`, #1077); 3d-work #117 merged
 - **Built and live:** app #1077, `V2.517`, tag `v2.517-ct156-showcase-flight` (what changed, checked and unseen: the PR
   body; decisions ALL-46 and MS-7 to MS-9). 3d-work #117 merged the Phase 5 plan with the rows marked built, W26
   proposed and Patrick's evening pictures 11 (W19) and 12 (W21).
