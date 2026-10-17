@@ -462,7 +462,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_WING.…exitArcFt | `150` | exit arc error threshold: 150 ft (estimate) |
 | FW_WING.…onCircleFt | `150` | on-circle offset threshold: 150 ft (estimate) |
 | FW_WING.…downEndFt | `50` | return-to-stack threshold: 50 ft (estimate) |
-| FW_WING.…highFt | `100` | "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233) |
+| FW_WING.…highFt | `100` | "already high": more than 100 ft above Lead, the guard, the miss and lag-abeam escape above instead of below (Patrick 14 Oct 2026, TS-233) |
 | FW_WING.…cueClosureFtps | `15` | closure trigger threshold: 15 ft/s (Fable D6; estimate) |
 | FW_WING.…cueDwellSec | `2` | closure dwell time before firing: 2 s (Fable D6; estimate) |
 | FW_WING.…topClosureFtps | `5` | closure threshold to top out and descend: 5 ft/s (Fable D6; estimate) |

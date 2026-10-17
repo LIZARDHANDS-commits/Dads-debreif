@@ -567,7 +567,7 @@ export function createFormation(options = {}) {
     const label = `${FW_MOVES[key].label}${FW_MOVES[key].sided ? (dir > 0 ? ' left' : ' right') : ''}`;
     state.current = {
       key: `fw:${key}`, dir: FW_MOVES[key].sided ? dir : 0, label,
-      note: `Fighting wing: Lead flies ${fwMoveWords(key, dir, bankDeg)}. #2 flies it live (spec 7e): he reads Lead 0.4 s late, aims at Lead, and his guard keeps him outside 500 ft slant, making the miss below Lead (above only if already above) and reversing onto Lead's circle when the line of sight rises. Lead never waits.`,
+      note: `Fighting wing: Lead flies ${fwMoveWords(key, dir, bankDeg)}. #2 flies it live (spec 7e): he reads Lead 0.4 s late, aims at Lead, and his guard keeps him outside 500 ft slant, making the miss below Lead (above only if already more than 100 ft above) and reversing onto Lead's circle when the line of sight rises. Lead never waits.`,
       firstId: null, shape: 'formation', formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, fwLive: null, fwLiveWing: true,
       flag: null, startSec: state.tSec, endSec: t, errorRun: null, gWarm: null,
     };

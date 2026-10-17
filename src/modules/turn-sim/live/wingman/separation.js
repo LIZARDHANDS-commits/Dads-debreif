@@ -168,7 +168,7 @@ function searchTurnBound(sit, hold1G, vertGBounded, predFor, nom, omegaCmd, targ
  *    against dead-reckoned Lead (leadNow, leadV) with extrapolated bank turn rate (S03, S05) and 1.3x tighter inside 550 ft.
  *  - Completely silent at or above 600 ft when behind the wing line.
  *  - Inside 600 -> 500 ft: cubic barrier x = clip((600 - p)/100, 0, 1), urgency u_guard = x^3 (2 s decay, S36), graded bleed
- *    request S39, smooth cap opening S40 (550 -> 500 ft), least-change vertical escape bound S38 (below unless > 0 ft high,
+ *    request S39, smooth cap opening S40 (550 -> 500 ft), least-change vertical escape bound S38 (below unless more than 100 ft high,
  *    D16), and least-change horizontal turn bound S37 with side choice S41 held >= 3 s.
  */
 export function stepFwGuard(prev, sit, raw) {
@@ -187,7 +187,7 @@ export function stepFwGuard(prev, sit, raw) {
   const leadAsIs = { p: leadNow, v: leadV, omega: seen.turn.omega };
   const leadTighter = { p: leadNow, v: leadV, omega: scale3(seen.turn.omega, FG.tighter) };
   const thenSec = 2.5;
-  const vertSign = seen.heightFt > 0 ? 1 : -1;
+  const vertSign = seen.heightFt > W.yoyo.highFt ? 1 : -1; // below unless already more than 100 ft above Lead (TS-233)
 
   const predFor = (om, vg) => {
     const me = { p: ownP, v: ownV, omega: scale3(out, om), thenSec, targetDz: raw.dz ?? W.stackFt };
