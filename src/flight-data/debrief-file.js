@@ -20,7 +20,10 @@ export const MAX_LABEL_CHARS = MAX_NAME_CHARS;
 export const MAX_NOTE_CHARS = 2000;
 /** Room for the Debrief's saved radar and lightning (settings.savedWeather, task 12f): its own 36 MiB and a margin for its quoting. */
 export const SAVED_WEATHER_BYTES = 37 * 1024 * 1024;
-/** Four track files at their limit, allowing for JSON escaping, plus DFPs, settings and the saved radar (189 MiB). */
+/**
+ * Four track files at their limit, allowing for JSON escaping, plus DFPs, settings and the saved radar (189 MiB). An
+ * exercise (DB-37) keeps the same limit: 16 ordinary tracks fit (a 96-minute track is about 2.5 MB).
+ */
 export const MAX_DEBRIEF_BYTES = MAX_TRACKS * MAX_FILE_BYTES * 1.25 + 2 * 1024 * 1024 + SAVED_WEATHER_BYTES;
 
 /** The limits a flight is cleaned with today (clean.js, flight.js). */
@@ -41,16 +44,16 @@ export class DebriefFileError extends Error {
  * The debrief file's text for a flight from loadFlight, its DFPs
  * ([{ t, label, note }]) and the debrief's settings (plain values).
  */
-export function toDebriefFile(flight, dfps, settings) {
+export function toDebriefFile(flight, dfps, settings, { maxTracks = MAX_TRACKS } = {}) {
   try {
-    return JSON.stringify(debriefFile(flight, dfps, settings));
+    return JSON.stringify(debriefFile(flight, dfps, settings, maxTracks));
   } catch (e) {
     if (e instanceof DebriefFileError) throw new DebriefFileError(e.reason, true);
     throw e;
   }
 }
 
-function debriefFile(flight, dfps, settings) {
+function debriefFile(flight, dfps, settings, maxTracks) {
   const files = flight?.files;
   if (!Array.isArray(files)) throw new DebriefFileError('there are no tracks to save');
   const file = {
@@ -61,7 +64,7 @@ function debriefFile(flight, dfps, settings) {
     dfps: checkDfps(dfps),
     settings: settings ?? {},
   };
-  checkTracks(file.tracks);
+  checkTracks(file.tracks, maxTracks);
   return file;
 }
 
@@ -71,8 +74,10 @@ function debriefFile(flight, dfps, settings) {
  * anything else in the file's settings is dropped, as is any bad value.
  * Returns { files, dfps, settings, sameCleaning }; pass `files` to loadFlight.
  * `sameCleaning` is false if the file was saved with other cleaning limits.
+ * `maxTracks`: the most tracks (and the highest ship number) a file may hold; four unless the caller opens exercises
+ * (DB-37, load.js MAX_SHIPS).
  */
-export function readDebriefFile(text, { settings: allowed = {} } = {}) {
+export function readDebriefFile(text, { settings: allowed = {}, maxTracks = MAX_TRACKS } = {}) {
   if (typeof text !== 'string') throw new DebriefFileError('it is not a text file');
   if (text.length > MAX_DEBRIEF_BYTES) throw new DebriefFileError('it is too big');
   let file;
@@ -84,7 +89,7 @@ export function readDebriefFile(text, { settings: allowed = {} } = {}) {
   if (!isObject(file) || file.format !== FORMAT) throw new DebriefFileError('it is not a debrief file');
   if (Number.isInteger(file.version) && file.version > VERSION) throw new DebriefFileError('it was saved by a newer version of the tool');
   if (file.version !== VERSION) throw new DebriefFileError('it is not a debrief file this tool understands');
-  checkTracks(file.tracks);
+  checkTracks(file.tracks, maxTracks);
   return {
     files: file.tracks.map(tr => ({ slot: tr.slot, name: tr.name, text: tr.kml })),
     dfps: checkDfps(file.dfps),
@@ -93,13 +98,13 @@ export function readDebriefFile(text, { settings: allowed = {} } = {}) {
   };
 }
 
-function checkTracks(tracks) {
-  if (!Array.isArray(tracks) || !tracks.length || tracks.length > MAX_TRACKS) {
-    throw new DebriefFileError(`it needs 1 to ${MAX_TRACKS} tracks`);
+function checkTracks(tracks, maxTracks = MAX_TRACKS) {
+  if (!Array.isArray(tracks) || !tracks.length || tracks.length > maxTracks) {
+    throw new DebriefFileError(`it needs 1 to ${maxTracks} tracks`);
   }
   const seen = new Set();
   tracks.forEach((tr, i) => {
-    if (!isObject(tr) || !Number.isInteger(tr.slot) || tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)
+    if (!isObject(tr) || !Number.isInteger(tr.slot) || tr.slot < 1 || tr.slot > maxTracks || seen.has(tr.slot)
       || !isText(tr.name, MAX_NAME_CHARS)
       || typeof tr.kml !== 'string' || tr.kml.length > MAX_FILE_BYTES) {
       throw new DebriefFileError(`track ${i + 1} is damaged`);

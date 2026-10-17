@@ -2,6 +2,11 @@
 // Padlock), which ship it rides and which ship Padlock keeps in view. They are read from, and written back to, the
 // layout settings the Debrief already keeps (cam3d, cockpitShip3d, cockpitSeat3d) plus aim3d and padlockShip3d, so a
 // choice saved before the bar opens as it did. Plain values, no page access. Display only: no flight math.
+// In an exercise (DB-37) cockpitShip3d is any of the 16 ships, and its flight is the watched flight.
+import { MAX_SHIPS } from '../../../flight-data/load.js';
+
+/** A ship's flight in an exercise (1 to 4; exercise.js flightOf, kept here so this file needs nothing from the page). */
+const flightOfSlot = (slot) => Math.ceil(slot / 4);
 
 /** The mounts, in bar order. cam3d holds 'followLead' or 'formation' for Overview, 'chase' or 'cockpit' otherwise. */
 export const MOUNTS = Object.freeze([
@@ -37,14 +42,16 @@ export const SEATS = Object.freeze([
 
 export const SLOTS = Object.freeze([1, 2, 3, 4]);
 export const shipLabel = (slot) => (slot === 1 ? 'Lead' : `#${slot}`);
+/** Every ship an exercise can have (DB-37): the camera may ride or lock on to any of them. */
+const ALL_SHIPS = Array.from({ length: MAX_SHIPS }, (_, i) => i + 1);
 
 /** The settings keys the bar owns, with their allowed values (index.js checks saved ones against these). */
 export const CAMERA_ALLOWED = Object.freeze({
   cam3d: ['followLead', 'formation', 'chase', 'cockpit'],
   aim3d: ['boresight', 'freelook', 'padlock'],
-  cockpitShip3d: [...SLOTS],
+  cockpitShip3d: [...ALL_SHIPS],
   cockpitSeat3d: SEATS.map((s) => s.id),
-  padlockShip3d: [0, ...SLOTS],
+  padlockShip3d: [0, ...ALL_SHIPS],
 });
 
 /** The bar's state from the layout values: { mount, preset, aim, ship, seat, padlock (0 = automatic) }. */
@@ -65,19 +72,21 @@ export const ridesShip = (v) => v.cam3d === 'chase' || v.cam3d === 'cockpit';
 
 /**
  * The ship Padlock keeps in view, or null when there is none: the chosen one if it is loaded and isn't the ridden ship,
- * else Lead for a wingman and #2 for Lead (the lowest other loaded ship). loaded: the slots with a track.
+ * else Lead for a wingman and #2 for Lead (the lowest other loaded ship of the ridden ship's own flight; in a four-ship
+ * load that is every ship). loaded: the slots with a track.
  */
 export function padlockTarget(v, loaded) {
   const ship = v.cockpitShip3d;
-  const others = SLOTS.filter((s) => s !== ship && loaded.includes(s));
+  const others = ALL_SHIPS.filter((s) => s !== ship && loaded.includes(s));
   if (!others.length) return null;
   if (v.padlockShip3d && others.includes(v.padlockShip3d)) return v.padlockShip3d;
-  return others[0]; // Lead for a wingman (1 is lowest), #2 for Lead
+  const own = others.filter((s) => flightOfSlot(s) === flightOfSlot(ship));
+  return own[0] ?? others[0]; // Lead for a wingman (1 is lowest), #2 for Lead
 }
 
 /** The next (step 1) or previous (-1) ship to lock on to, among the loaded ships other than the ridden one. */
 export function cycleTarget(v, loaded, step) {
-  const others = SLOTS.filter((s) => s !== v.cockpitShip3d && loaded.includes(s));
+  const others = ALL_SHIPS.filter((s) => s !== v.cockpitShip3d && loaded.includes(s));
   if (!others.length) return null;
   const now = padlockTarget(v, loaded);
   const i = others.indexOf(now);

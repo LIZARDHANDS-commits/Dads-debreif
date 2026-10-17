@@ -1,6 +1,6 @@
 # Debrief Viewer
 
-Load up to four ForeFlight tracks (or the example flight), see them on the map and play them back. The spec is [`docs/modules/debrief/spec.md`](../../../docs/modules/debrief/spec.md); the plan is [`docs/modules/debrief/plan.md`](../../../docs/modules/debrief/plan.md).
+Load up to four ForeFlight tracks (or the example flight), see them on the map and play them back. Five to 16 tracks load as an exercise of up to four flights (DB-37). The spec is [`docs/modules/debrief/spec.md`](../../../docs/modules/debrief/spec.md); the plan is [`docs/modules/debrief/plan.md`](../../../docs/modules/debrief/plan.md).
 
 | File | What's in it |
 |---|---|
@@ -45,9 +45,14 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `view3d/input.js` | Turning the 3D view by hand: drag to orbit, the wheel or + and − to zoom. In the Cockpit camera a drag turns the head (ui-kit `COCKPIT_HEAD` limits) and in Chase it swings round the ship, only in Freelook; the wheel does nothing in either. |
 | `view3d/camera-bar.js`, `camera-modes.js`, `aim.js` | The camera bar over the 3D picture and its keys (DB-22); the bar's choices and how they map to the saved settings (plain values); the Chase camera's place and Padlock's head turn. The pill helpers are ui-kit `camera-bar.js`. |
 | `view3d/cockpit.js` | The Cockpit camera's ridden ship (DB-21): an attitude table at the fix times (heading from the track or crabbed into the model wind, the readouts' bank, pitch from core `attitudeDegFromClimb`) joined smoothly between the seconds, the panel's numbers, and in a GPS gap the fill's estimates or the straight line with dashes. No page access. |
+| `drop.js` | The simulated drop (DB-36): the Drop box's settings and ranges, the ship's place and velocity at the release (chord over ±1.5 s, or the reason there is none), the wind and ground the fall uses and the words for each, the fall, miss, drift and CARP through core `drop.js` (never a second copy of the falling math), the drop zone's shape, the flags (the G-12's published figures, never walls), and what goes into the debrief file and back out (range-checked). No page access. |
+| `drop-panel.js` | The Drop box in the Formation column, opened from Tools: load, ship, Drop now, At time…, the drop zone (Place on map, circle or box), the wind (model or typed), More (the load's numbers, each an estimate) and the answer in words. |
+| `map2d/drop-layer.js`, `view3d/drop-overlay.js` | The drop drawn on the 2D map and over the 3D picture: drop zone (blue, dashed), CARP and release line (green), release (yellow), trail, impact (red cross) with its miss, and the falling load with its canopy. Pictures only. |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
 | `standards-panel.js` | The Debrief settings menu (ui-kit's settings menu, closed at first): the standards editor, which edits `app.standards`, the one copy the Turn Sim reads too. |
+| `exercise.js` | Large exercises (DB-37): a ship's flight and number (slots 1 to 16, four to a flight), `subFlight` (one flight numbered 1 to 4, as the four-ship code knows it), `perFlight` and `fillPerFlight` (the altitude check and the gap fill run one flight at a time), `readoutsByFlight` and `formationByFlight` (the four-ship judging once per flight), the call signs and aircraft (`readCrew`, file rules), and `shipLook` (each flight's colour family and "<call sign> <n>" labels; #1 to #4 for four or fewer). No page access. |
+| `flights-panel.js` | The Formation column's readouts: today's card for four or fewer, or one block per flight in an exercise, only the watched flight's open (DB-37). |
 | `debrief-session.js` | What a saved debrief carries besides the tracks (DFPs, standards, time), flattened for flight-data's debrief file and read back. Tested in Node. |
 | `file-panel.js` | "Save, open, CSV": Save debrief, Open debrief, Export CSV, Close flight, and the example track files as downloads. |
 | `data/cymj.js` | Moose Jaw values the debrief still needs: field elevation and the VNC chart anchor. |

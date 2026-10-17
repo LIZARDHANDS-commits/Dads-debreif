@@ -74,12 +74,17 @@ export function drawAltitudeScale(ctx, P, ctr, ships, datum) {
 }
 
 // V6's flat marker, or a dot for a ship that isn't moving (no nose to point).
+// A ship's colour, outline and name: its own (an exercise's, DB-37, set on the ship by the view) or #1 to #4's.
+const shipColor = (s) => s.color ?? SHIP_COLORS[s.slot];
+const shipOutlined = (s) => s.outlined ?? OUTLINED_SHIPS.has(s.slot);
+const shipName = (s) => s.label ?? `#${s.slot}`;
+
 export function drawMarker(ctx, P, s, on) {
   const c = P(s);
-  const color = SHIP_COLORS[s.slot];
+  const color = shipColor(s);
   ctx.save();
   ctx.fillStyle = color;
-  ctx.strokeStyle = OUTLINED_SHIPS.has(s.slot) ? OUTLINE_COLOR : '#061018';
+  ctx.strokeStyle = shipOutlined(s) ? OUTLINE_COLOR : '#061018';
   ctx.lineWidth = 2.5;
   if (s.hdg === null) {
     ctx.beginPath();
@@ -98,7 +103,7 @@ export function drawMarker(ctx, P, s, on) {
 }
 export function labelShip(ctx, c, s, on) {
   ctx.font = '600 12px system-ui, sans-serif';
-  outlined(ctx, s.estimated ? `#${s.slot} est.` : `#${s.slot}`, c.x + 12, c.y - 14, SHIP_COLORS[s.slot]);
+  outlined(ctx, s.estimated ? `${shipName(s)} est.` : shipName(s), c.x + 12, c.y - 14, shipColor(s));
   if (s.estimated) {
     // On a filled gap's best guess (DB-20): the estimated attitude, said to be one.
     if (on.attLabels3d && s.hdg !== null) {
@@ -160,16 +165,24 @@ export function drawCaption(ctx, camera, on, datum, groundSource = 'tracks') {
 }
 
 // The Cockpit and Chase cameras' caption (DB-21, DB-22): whose seat (or which ship the Chase is behind), that the attitude is an estimate, a GPS gap and whether its path is
-// estimated, and what the wind and the altimeter are. words: cockpit.js COCKPIT_CAPTION.
-export function drawCockpitCaption(ctx, { slot, seat, chase = false, gap, windKnown }, words) {
+// estimated, what the wind and the altimeter are, and an optional note on a line of its own (the T-38A's static gauges,
+// DB-33). words: cockpit.js COCKPIT_CAPTION.
+export function drawCockpitCaption(ctx, { slot, seat, chase = false, gap, windKnown, note = null, name = null }, words) {
   ctx.save();
   ctx.font = '12px system-ui, sans-serif';
-  const where = chase ? `Chase: behind #${slot}` : `Cockpit: #${slot} ${seat === 'rear' ? 'rear' : 'front'} seat`;
+  const who = name ?? `#${slot}`; // an exercise's "Viper 3" (DB-37)
+  const where = chase ? `Chase: behind ${who}` : `Cockpit: ${who} ${seat === 'rear' ? 'rear' : 'front'} seat`;
   outlined(ctx, `${where} · ${words.always}`, 14, 22, TEXT);
   outlined(ctx, `${windKnown ? 'nose into the model wind' : '(no wind)'} · ${words.altitude}`, 14, 40, TEXT);
+  let y = 58;
   if (gap) {
     ctx.font = '600 12px system-ui, sans-serif';
-    outlined(ctx, gap === 'filled' ? words.filled : words.gap, 14, 58, '#ffcc66');
+    outlined(ctx, gap === 'filled' ? words.filled : words.gap, 14, y, '#ffcc66');
+    y += 18;
+  }
+  if (note) { // a line of its own under the rest, in the same style (the T-38A's static gauges, DB-33)
+    ctx.font = '12px system-ui, sans-serif';
+    outlined(ctx, note, 14, y, TEXT);
   }
   ctx.restore();
 }

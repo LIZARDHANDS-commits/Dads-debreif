@@ -2,6 +2,7 @@
 // second (an external receiver relayed to the iPad and stamped on arrival) is snapped back to its GPS seconds, and a
 // time shift; the flight retimed that way; and what the screen says about it. Plain values, no page access.
 import { retimeFlight, clampShift, TIMING } from '../../flight-data/timing.js';
+import { MAX_SHIPS } from '../../flight-data/load.js';
 
 /** The Timestamps choices; 'auto' (the default) snaps only a track found off the second. */
 export const TIMESTAMP_CHOICES = Object.freeze([
@@ -18,7 +19,7 @@ export const SHIFT_LIMITS = Object.freeze({ min: -TIMING.maxShiftS, max: TIMING.
 export function readTimings(value) {
   const out = {};
   if (!value || typeof value !== 'object') return out;
-  for (let slot = 1; slot <= 4; slot++) {
+  for (let slot = 1; slot <= MAX_SHIPS; slot++) {
     const v = value[slot];
     if (!v || typeof v !== 'object') continue;
     const one = {};
@@ -48,23 +49,25 @@ export function withTimings(flight, timings) {
 const secs = (s, places) => `${s < 0 ? '−' : ''}${Math.abs(s).toFixed(places)} s`;
 const signed = (s) => `${s > 0 ? '+' : ''}${secs(s, 1)}`;
 
-const ships = (list) => list.map((tr) => `#${tr.slot}`).join(', ');
+const NUMBER = (slot) => `#${slot}`;
 
-/** The words for the ships retimed, in order: snapped (with the offsets unless `short`), then each shift. */
-function timingParts(flight, { short = false } = {}) {
+/** The words for the ships retimed, in order: snapped (with the offsets unless `short`), then each shift. label: a ship's name (DB-37). */
+function timingParts(flight, { short = false, label = NUMBER } = {}) {
+  // Past four ships (an exercise, DB-37), a count: "8 ships' timestamps snapped", or "8 ships snapped" in the short words.
+  const ships = (list) => (list.length > 4 ? `${list.length} ships${short ? '' : "'"}` : list.map((tr) => label(tr.slot)).join(', '));
   if (!flight) return { snapped: '', shifted: [] };
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   const snapped = tracks.filter((tr) => tr.timing?.snapped);
-  const about = short ? '' : ` (about ${snapped.map((tr) => secs(tr.timing.offsetS, 2)).join(', ')})`;
+  const about = short || snapped.length > 4 ? '' : ` (about ${snapped.map((tr) => secs(tr.timing.offsetS, 2)).join(', ')})`;
   return {
     snapped: snapped.length ? `${ships(snapped)}${short ? '' : ' timestamps'} snapped to GPS seconds${about}` : '',
-    shifted: tracks.filter((tr) => tr.timing?.shiftS).map((tr) => `#${tr.slot} shifted ${signed(tr.timing.shiftS)}`),
+    shifted: tracks.filter((tr) => tr.timing?.shiftS).map((tr) => `${label(tr.slot)} shifted ${signed(tr.timing.shiftS)}`),
   };
 }
 
 /** The status line's words, e.g. "#3, #4 timestamps snapped to GPS seconds (about 0.24 s, 0.26 s), #4 shifted −0.3 s", or ''. */
-export function timingSummary(flight) {
-  const { snapped, shifted } = timingParts(flight);
+export function timingSummary(flight, label = NUMBER) {
+  const { snapped, shifted } = timingParts(flight, { label });
   return [snapped, ...shifted].filter(Boolean).join(', ');
 }
 
@@ -97,8 +100,8 @@ export function timingLines(track) {
 }
 
 /** The CSV's note after "time (Zulu)", e.g. " (#3, #4 snapped to GPS seconds; #4 shifted −0.3 s)", or ''. */
-export function timingHeaderNote(flight) {
-  const { snapped, shifted } = timingParts(flight, { short: true });
+export function timingHeaderNote(flight, label = NUMBER) {
+  const { snapped, shifted } = timingParts(flight, { short: true, label });
   const words = [snapped, ...shifted].filter(Boolean).join('; ');
   return words ? ` (${words})` : '';
 }
