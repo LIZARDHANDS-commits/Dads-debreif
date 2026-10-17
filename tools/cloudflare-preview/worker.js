@@ -36,7 +36,8 @@ export default {
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('GET only', { status: 405, headers: { allow: 'GET, HEAD' } });
     let key = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '');
     if (key === '' || key.endsWith('/')) key += 'index.html';
-    if (key.split('/').includes('..')) return new Response('not found', { status: 404 });
+    // deploy.sh's own list of file hashes (__manifest) is not one of the tool's files.
+    if (key.split('/').includes('..') || key.startsWith('__')) return new Response('not found', { status: 404 });
     const body = await env.FILES.get(key, { type: 'stream' });
     if (body === null) return new Response('not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
     const ext = key.includes('.') ? key.slice(key.lastIndexOf('.') + 1).toLowerCase() : '';

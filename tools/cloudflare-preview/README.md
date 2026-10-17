@@ -11,6 +11,6 @@ A test copy of the tool on Cloudflare's free plan, at `https://dads-ooda-preview
 
 **Free plan limits:**
 - Workers: 100,000 requests a day for the whole account, the relay included. A first visit asks for about 170 files.
-- KV: 100,000 reads and 1,000 writes a day. Each deploy writes every file, about 170, so about 5 deploys a day.
+- KV: 100,000 reads and 1,000 writes a day. A deploy writes only the files that changed since the last one (deploy.sh keeps their hashes under `__manifest`), usually a handful; the first one after a cleared store writes them all, about 170.
 
 Over a limit, Cloudflare refuses until midnight UTC; nothing is billed.
