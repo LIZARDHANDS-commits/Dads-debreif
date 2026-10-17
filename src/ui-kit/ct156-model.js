@@ -3401,7 +3401,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       }, 2);
       for (const s of ['1', '-1']) add(decalGeo.usTip[s], tip, detail);
       if (us.def.wingText) {
-        add(decalGeo.usWingText, kit.lazyDecal('usWingText', 640, Math.round((640 * US_WING_TEXT.chord) / US_WING_TEXT.span), (ctx, w, h) => plainDigits(ctx, us.def.wingText, w, h, 0.8, 0.98, '#f4f6f8'), 2), detail);
+        add(decalGeo.usWingText, kit.lazyDecal(`usWingText-${paint}`, 640, Math.round((640 * US_WING_TEXT.chord) / US_WING_TEXT.span), (ctx, w, h) => plainDigits(ctx, us.def.wingText, w, h, 0.8, 0.98, '#f4f6f8'), 2), detail);
       }
       const m = US_MARKS.name[paint];
       const nameMat = kit.lazyDecal(`usName-${paint}`, 640, Math.round((640 * m.hFt) / m.wFt), (ctx, w, h) => plainDigits(ctx, us.def.name, w, h, 0.62, 0.98, us.def.nameColour), 2);
