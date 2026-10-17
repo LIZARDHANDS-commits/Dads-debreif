@@ -253,8 +253,8 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
   const graphicsSwitch = available.view3d
     ? controls.choice('graphicsQuality', { label: 'Graphics', options: [{ value: 'high', label: 'High' }, { value: 'low', label: 'Performance' }] })
     : null;
-  // The CT-156's look beside Graphics (Patrick, 15 Oct 2026: "Yeah add em"): weathering, relief and wear, live, saved for
-  // every view, with Reset to defaults (ct156-look-settings.js); folded away until opened.
+  // The CT-156's look beside Graphics (Patrick, 15 Oct 2026: "Yeah add em"): weathering and relief (wear gone, W27), live,
+  // saved for every view, with Reset to defaults (ct156-look-settings.js); folded away until opened.
   const lookMenu = available.view3d
     ? h('details', { class: 'bar-ct156-look' }, h('summary', {}, 'Look (3D)'), ct156LookControls())
     : null;

@@ -532,8 +532,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // Real aircraft size, and the scale slider when it is off (Patrick, 5 Oct).
   const scaleSlider = lc.slider('planeScale', { label: 'Scale', min: 0.5, max: 4, step: 0.25, format: (v) => `×${v}` });
   const sizeGroup = h('div', { class: 'ts-size' }, lc.checkbox('realSize', { label: 'Real aircraft size' }), scaleSlider);
-  // The CT-156's look beside Graphics (Patrick, 15 Oct 2026: "Yeah add em"): weathering, relief and wear, live, saved for
-  // every view, with Reset to defaults (ct156-look-settings.js).
+  // The CT-156's look beside Graphics (Patrick, 15 Oct 2026: "Yeah add em"): weathering and relief (wear gone, W27), live,
+  // saved for every view, with Reset to defaults (ct156-look-settings.js).
   const lookMenu = menu('Look (3D)', 'ts-ct156-look', [ct156LookControls()]);
   const bar = h(
     'div',

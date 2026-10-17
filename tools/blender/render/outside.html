@@ -19,7 +19,7 @@ window.view = ({ w = 1200, h = 800, eye, at, fov = 30, t = 1, parked = false, pi
   sun = [0.3, 0.6, 2], hemi = 1.6, sunI = 2.0, look = null, envRot = 0, env = true, hideGlass = false, dusk = false }) => {
   const d = ship.userData.ct156; for (const k of Object.keys(d)) if (d[k] && d[k].isObject3D) d[k].visible = !hide.includes(k);
   if (hideGlass) d.canopy.visible = false;
-  setCt156Look(look ?? { weathering: 0.7, relief: 1, wear: 1 }, { save: false });
+  setCt156Look(look ?? { weathering: 0.7, relief: 1 }, { save: false });
   for (const m of mats()) {
     if (m.envMapRotation) m.envMapRotation.set(0, 0, envRot * Math.PI / 180);
     if (m.envMapIntensity !== undefined) {
