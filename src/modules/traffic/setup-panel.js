@@ -64,14 +64,18 @@ const SHUFFLE_TRIES = 40;
  * Five starts at random points of the routes (patterns and entries, not splits), at least RANDOM_SPACING_FT
  * apart over the ground; an entry's last point is left out, as it is a point of the pattern it joins.
  * If the routes are too small for that, the spacing halves until five fit. Same seed, same starts.
+ * Only routes the scenario's `type` flies: a route tied to another type (the Astra pattern's `type` 'CT-102B') is left
+ * out, so Random never puts a CT-156 on the Astra pattern (spec 4.19 item 6; plan Step 5c Phase 3). A route with no
+ * `type` is any type's, as before.
  * @param {Array<any>} routes @param {number} seed
  */
-export function randomStarts(routes, seed, count = RANDOM_COUNT, { only = null, avoid = [] } = {}) {
+export function randomStarts(routes, seed, count = RANDOM_COUNT, { only = null, avoid = [], type = 'CT-156' } = {}) {
   const dice = createDice(seed);
   const spots = [];
   for (const r of routes ?? []) {
     if (!r || r.kind === 'split' || !Array.isArray(r.points)) continue;
     if (only && r.id !== only) continue;
+    if (r.type && r.type !== type) continue;
     const last = r.kind === 'entry' ? r.points.length - 1 : r.points.length;
     for (let i = 0; i < last; i++) spots.push({ routeId: r.id, startIndex: i, x: r.points[i].x, y: r.points[i].y });
   }
@@ -115,7 +119,7 @@ export function scenarioAircraft(id, { routes, builtIn = [], seed = 1, type = 'C
   if (id === 'moose-jaw') return builtIn.filter((a) => have.has(a.routeId)).map((a) => ({ ...a }));
   const scenario = SCENARIOS.find((s) => s.id === id);
   if (!scenario) throw new RangeError(`unknown scenario ${id}`);
-  const starts = id === 'random' ? randomStarts(routes, seed) : id === 'busy' ? busyStarts(routes, seed) : scenario.starts.filter((s) => have.has(s.routeId));
+  const starts = id === 'random' ? randomStarts(routes, seed, RANDOM_COUNT, { type }) : id === 'busy' ? busyStarts(routes, seed, type) : scenario.starts.filter((s) => have.has(s.routeId));
   return starts.map((s, i) => {
     const area = /** @type {{ area?: { radialDeg: number, distNm: number, altFt: number } }} */ (s).area;
     return { id: `A${i + 1}`, type, routeId: s.routeId, startIndex: s.startIndex, startsAtSec: s.startsAtSec, ...(area ? { area: { ...area } } : {}) };
@@ -128,10 +132,10 @@ export function scenarioAircraft(id, { routes, builtIn = [], seed = 1, type = 'C
  * RANDOM_SPACING_FT from each other and from the first two. Without Pattern 1 and Entry 2 it is only random starts.
  * @param {Array<any>} routes @param {number} seed
  */
-export function busyStarts(routes, seed) {
+export function busyStarts(routes, seed, type = 'CT-156') {
   const pat = (routes ?? []).find((r) => r?.id === 'PAT1');
   const ent = (routes ?? []).find((r) => r?.id === 'ENT2');
-  if (!pat || !ent || pat.points.length < 9 || ent.points.length < 4) return randomStarts(routes, seed, BUSY_COUNT);
+  if (!pat || !ent || pat.points.length < 9 || ent.points.length < 4) return randomStarts(routes, seed, BUSY_COUNT, { type });
   const overhead = { routeId: 'PAT1', startIndex: 8, startsAtSec: 0 }; // Final Entry
   const straightIn = { routeId: 'ENT2', startIndex: 3, startsAtSec: BUSY_STRAIGHT_IN_SEC }; // Final
   const pfl = { routeId: 'PAT1', startIndex: 0, startsAtSec: 0, area: BUSY_PFL_AREA };
