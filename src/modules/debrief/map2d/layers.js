@@ -9,6 +9,12 @@ import { spacingPairs, line39, coneOutlines, trailRuns, TRAIL_WINDOW_S } from '.
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { arrowVector } from '../weather/wind-arrows.js';
 
+/**
+ * How ships look and are named on the map: #1 to #4's colours, outlines and numbers, unless the view passes an
+ * exercise's (exercise.js shipLook, DB-37: each flight's colour family and "<call sign> <n>").
+ */
+const FOUR_SHIP_LOOK = Object.freeze({ color: (slot) => SHIP_COLORS[slot], outlined: (slot) => OUTLINED_SHIPS.has(slot), label: (slot) => `#${slot}` });
+
 /** V6's grid spacing (line 2690). */
 export const GRID_FT = 5000;
 const GRID_COLOR = 'rgba(155, 184, 198, 0.16)';
@@ -81,7 +87,7 @@ function runsPath(runs) {
  * The tracks. 'full' uses the paths built once per flight; 'history' and
  * 'window' (last 60 s) build only the part up to the time being shown.
  */
-export function drawTracks(ctx, map, paths, { flight = null, mode = 'full', t = 0 } = {}) {
+export function drawTracks(ctx, map, paths, { flight = null, mode = 'full', t = 0, look = FOUR_SHIP_LOOK } = {}) {
   const px = 1 / map.view.scale; // one CSS pixel in feet
   const shown = mode === 'full' || !flight
     ? paths
@@ -91,12 +97,12 @@ export function drawTracks(ctx, map, paths, { flight = null, mode = 'full', t = 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   for (const { slot, path } of shown) {
-    if (OUTLINED_SHIPS.has(slot)) {
+    if (look.outlined(slot)) {
       ctx.strokeStyle = OUTLINE_COLOR;
       ctx.lineWidth = (TRACK_WIDTH_PX + 2) * px;
       ctx.stroke(path);
     }
-    ctx.strokeStyle = SHIP_COLORS[slot];
+    ctx.strokeStyle = look.color(slot);
     ctx.lineWidth = TRACK_WIDTH_PX * px;
     ctx.stroke(path);
   }
@@ -151,7 +157,7 @@ export function fillShapes(fills) {
  * best-guess line. The trail modes apply as to the tracks: 'full' all of them; 'history' up to t; 'window' the last
  * 60 s (a fill partly in that time is drawn up to t).
  */
-export function drawFills(ctx, map, shapes, { mode = 'full', t = 0 } = {}) {
+export function drawFills(ctx, map, shapes, { mode = 'full', t = 0, look = FOUR_SHIP_LOOK } = {}) {
   if (!shapes.length) return;
   const px = 1 / map.view.scale;
   const from = mode === 'window' ? t - TRAIL_WINDOW_S : -Infinity;
@@ -163,7 +169,7 @@ export function drawFills(ctx, map, shapes, { mode = 'full', t = 0 } = {}) {
     if (mode !== 'full' && (fill.fromT >= t || fill.toT <= from)) continue;
     const partial = mode !== 'full' && (fill.toT > t || fill.fromT < from);
     const paths = partial ? fillPaths(fill.samples.filter((s) => s.t <= t && s.t >= from)) : shape;
-    const color = SHIP_COLORS[slot];
+    const color = look.color(slot);
     if (!shape.ground) {
       ctx.globalAlpha = FILL_ZONE_ALPHA;
       ctx.fillStyle = color;
@@ -177,7 +183,7 @@ export function drawFills(ctx, map, shapes, { mode = 'full', t = 0 } = {}) {
     ctx.globalAlpha = 1;
     ctx.setLineDash(FILL_DASH.map((d) => d * px));
     ctx.lineCap = 'round';
-    if (OUTLINED_SHIPS.has(slot)) {
+    if (look.outlined(slot)) {
       ctx.strokeStyle = OUTLINE_COLOR;
       ctx.lineWidth = (TRACK_WIDTH_PX + 2) * px;
       ctx.stroke(paths.line);
@@ -200,13 +206,13 @@ const LABEL_COLORS = { good: '#3ecf8e', caution: '#f5c542' };
  * "#2 est." (DB-20). `labels` maps a ship to its standards
  * label, { text, tone }, drawn after the number: green on parameters (#21).
  */
-export function drawShips(ctx, map, ships, labels = {}) {
+export function drawShips(ctx, map, ships, labels = {}, look = FOUR_SHIP_LOOK) {
   ctx.save();
   ctx.font = '600 13px system-ui, sans-serif';
   ctx.textBaseline = 'middle';
   for (const s of ships) {
     const [x, y] = map.worldToScreen(s.xFt, s.yFt);
-    const color = SHIP_COLORS[s.slot];
+    const color = look.color(s.slot);
     const moving = s.hdg != null;
     ctx.beginPath();
     if (moving) silhouettePath(ctx, x, y, s.hdg);
@@ -224,7 +230,7 @@ export function drawShips(ctx, map, ships, labels = {}) {
       ctx.fill();
       ctx.stroke();
     }
-    const label = s.estimated ? `#${s.slot} est.` : `#${s.slot}`;
+    const label = s.estimated ? `${look.label(s.slot)} est.` : look.label(s.slot);
     const lx = x + (moving ? SILHOUETTE_HALF_SPAN_PX : MARKER_RADIUS_PX) + 4;
     ctx.lineWidth = 3;
     ctx.strokeStyle = OUTLINE_COLOR;
@@ -271,13 +277,13 @@ function silhouettePath(ctx, x, y, hdg) {
 const dashed = (ctx, on) => ctx.setLineDash(on ? [9, 7] : []);
 
 /** Lead's or #3's 3/9 line in its colour, dashed, with its name (V6 drawKml39Line). */
-export function draw39Line(ctx, map, ship, name) {
+export function draw39Line(ctx, map, ship, name, look = FOUR_SHIP_LOOK) {
   const ends = line39(ship, ship.hdg);
   if (!ends) return;
   const [a, b] = ends.map(([x, y]) => map.worldToScreen(x, y));
   const [x, y] = map.worldToScreen(ship.xFt, ship.yFt);
   ctx.save();
-  ctx.strokeStyle = SHIP_COLORS[ship.slot];
+  ctx.strokeStyle = look.color(ship.slot);
   ctx.globalAlpha = 0.85;
   ctx.lineWidth = 2;
   dashed(ctx, true);
@@ -288,7 +294,7 @@ export function draw39Line(ctx, map, ship, name) {
   dashed(ctx, false);
   ctx.globalAlpha = 1;
   ctx.font = '11px system-ui, sans-serif';
-  outlinedText(ctx, name, x + 14, y + 26, SHIP_COLORS[ship.slot]);
+  outlinedText(ctx, name, x + 14, y + 26, look.color(ship.slot));
   ctx.restore();
 }
 
@@ -428,13 +434,13 @@ export function drawSpacingLines(ctx, map, ships) {
 }
 
 /** A bubble of `radiusFt` round each ship, in its colour (V6 drawKmlSafetyBubble). */
-export function drawBubbles(ctx, map, ships, radiusFt) {
+export function drawBubbles(ctx, map, ships, radiusFt, look = FOUR_SHIP_LOOK) {
   const r = radiusFt * map.view.scale;
   ctx.save();
   ctx.lineWidth = 1.5;
   for (const s of ships) {
     const [x, y] = map.worldToScreen(s.xFt, s.yFt);
-    const color = SHIP_COLORS[s.slot];
+    const color = look.color(s.slot);
     ctx.beginPath();
     ctx.arc(x, y, r, 0, 2 * Math.PI);
     ctx.fillStyle = color;
@@ -456,14 +462,14 @@ const CLOCK_RADIUS_PX = 34;
  * 12, 3, 6 and 9 (V6 drawKmlClockMarksKml), now drawn paused too (#26). A
  * ship that isn't moving has no nose, so no clock (V6 drew it north-up).
  */
-export function drawClockMarks(ctx, map, ships) {
+export function drawClockMarks(ctx, map, ships, look = FOUR_SHIP_LOOK) {
   ctx.save();
   ctx.lineWidth = 1.4;
   ctx.globalAlpha = 0.6;
   for (const s of ships) {
     if (s.hdg == null) continue;
     const [x, y] = map.worldToScreen(s.xFt, s.yFt);
-    ctx.strokeStyle = SHIP_COLORS[s.slot];
+    ctx.strokeStyle = look.color(s.slot);
     ctx.beginPath();
     for (let i = 0; i < 12; i++) {
       // 12 o'clock is the heading; screen angles run clockwise from east.

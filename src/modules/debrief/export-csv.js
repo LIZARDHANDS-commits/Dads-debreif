@@ -8,6 +8,7 @@ import { readoutsAt } from './readouts.js';
 import { puckHeaderNote } from './puck.js';
 import { timingHeaderNote } from './gps-timing.js';
 import { altitudeHeaderNote } from './altitude.js';
+import { isExercise, flightGroups, subFlight, slotOf } from './exercise.js';
 
 /**
  * Each ship's columns, in order: the header after "#n " and how the value is written.
@@ -59,19 +60,28 @@ const isoZ = (t) => new Date(t * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
  * the start of the shared window to its end. options.recordedG as the readouts.
  * options.leadWindAt(t, leadAltFt): the model wind { dirDeg, kt } at that
  * second, or null, so #1's est. IAS is the one the Lead line shows (F1).
+ * options.label(slot): a ship's name for its headers ("#2"; an exercise's "Viper 2", DB-37). In an exercise each
+ * flight's readouts are worked out on that flight alone, as the screen does, so each flight's Lead takes the wind.
  */
-export function csvRows(flight, { recordedG = false, leadWindAt = null } = {}) {
+export function csvRows(flight, { recordedG = false, leadWindAt = null, label = (slot) => `#${slot}` } = {}) {
   if (!flight) return [];
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   // A ship moved from its GPS puck (DB-23) says so on its position headers; the positions are the moved ones, as on screen.
   // A ship whose heights were corrected from the ground (DB-28) says so on its altitude header, after any puck note.
-  const named = (tr, name) => `#${tr.slot} ${name}${POSITION_COLUMNS.has(name) ? puckHeaderNote(tr) : ''}${name === 'alt ft' ? altitudeHeaderNote(tr) : ''}`;
+  const named = (tr, name) => `${label(tr.slot)} ${name}${POSITION_COLUMNS.has(name) ? puckHeaderNote(tr) : ''}${name === 'alt ft' ? altitudeHeaderNote(tr) : ''}`;
   // Ships whose timestamps were snapped or shifted (DB-25) are named on the time column.
-  const header = [`time (Zulu)${timingHeaderNote(flight)}`, ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => named(tr, name)))];
+  const header = [`time (Zulu)${timingHeaderNote(flight, label)}`, ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => named(tr, name)))];
   const rows = [header];
+  // One flight (a four-ship load) or each flight of an exercise, with its ships numbered 1 to 4 for readoutsAt.
+  const parts = isExercise(flight) ? flightGroups(flight).map(({ f }) => ({ f, sub: subFlight(flight, f) })) : [{ f: 1, sub: flight }];
+  const back = isExercise(flight) ? (f, n) => slotOf(f, n) : (f, n) => n;
   for (let t = Math.ceil(flight.startT); t <= flight.endT; t++) {
-    const leadSample = leadWindAt && flight.tracks[1] ? sampleAt(flight.tracks[1], t) : null;
-    const { ships } = readoutsAt(flight, t, { recordedG, leadWind: leadSample ? leadWindAt(t, leadSample.altFt) : null });
+    const ships = [];
+    for (const { f, sub } of parts) {
+      const leadSample = leadWindAt && sub.tracks[1] ? sampleAt(sub.tracks[1], t) : null;
+      const one = readoutsAt(sub, t, { recordedG, leadWind: leadSample ? leadWindAt(t, leadSample.altFt) : null });
+      for (const s of one.ships) ships.push({ ...s, slot: back(f, s.slot) });
+    }
     const cells = [isoZ(t)];
     for (const tr of tracks) {
       const ship = ships.find((s) => s.slot === tr.slot);

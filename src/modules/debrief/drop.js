@@ -14,6 +14,7 @@ import { compassDegFromVector, unitVectorFromCompassDeg } from '../../core/angle
 import { formatZuluSeconds } from '../../core/time.js';
 import { sampleAt } from '../../flight-data/flight.js';
 import { GAP_HOLE_S, TURN_WINDOW_S } from './readouts.js';
+import { MAX_SHIPS } from '../../flight-data/load.js';
 
 /** The two loads (core DROP_LOADS), in the order the box lists them. */
 export const LOAD_OPTIONS = Object.freeze([
@@ -69,7 +70,7 @@ export const DROP_DEFAULTS = Object.freeze({
 /** The settings' allowed values, for createSettings (the rest are type-checked numbers). */
 export const DROP_ALLOWED = Object.freeze({
   dropLoad: LOAD_OPTIONS.map((o) => o.value),
-  dropShip: [1, 2, 3, 4],
+  dropShip: Array.from({ length: MAX_SHIPS }, (_, i) => i + 1), // #1 to #4, or any ship of an exercise (DB-37)
   dropShape: ['circle', 'box'],
   dropRunIn: ['track', 'set'],
   dropWind: ['model', 'typed'],
@@ -139,14 +140,15 @@ export const RELEASE_MIN_FIXES = 3;
  * Where the ship was and how it was moving at the release moment t: { x, y, z (MSL, the corrected height, DB-28), vx, vy,
  * vz (ft/s over the ground), gsKt, trackDeg, slot } from the chord over ±RELEASE_WINDOW_S (the smoothed velocity est. G
  * uses), or { reason } when the track can't tell: no track, outside it, in or next to a GPS gap, or too few fixes round the moment.
+ * `name`: the ship's name in the words ("#2"; an exercise's "Viper 2", DB-37), kept on the result.
  */
-export function releaseAt(track, t, slot) {
+export function releaseAt(track, t, slot, name = `#${slot}`) {
   const f = track?.fixes;
-  if (!f || f.length < 2) return { reason: `#${slot} isn't loaded` };
-  if (!isNum(t) || t < f[0].t || t > f[f.length - 1].t) return { reason: `#${slot}'s track doesn't cover that moment` };
+  if (!f || f.length < 2) return { reason: `${name} isn't loaded` };
+  if (!isNum(t) || t < f[0].t || t > f[f.length - 1].t) return { reason: `${name}'s track doesn't cover that moment` };
   const t0 = Math.max(f[0].t, t - RELEASE_WINDOW_S);
   const t1 = Math.min(f[f.length - 1].t, t + RELEASE_WINDOW_S);
-  const why = `too few good fixes round the release to know #${slot}'s velocity`;
+  const why = `too few good fixes round the release to know ${name}'s velocity`;
   if (t1 - t0 < RELEASE_WINDOW_S) return { reason: why };
   let count = 0;
   for (let i = 0; i < f.length; i++) {
@@ -163,7 +165,7 @@ export function releaseAt(track, t, slot) {
   const vy = (b.yFt - a.yFt) / dt;
   const vz = (b.altFt - a.altFt) / dt;
   if (![p.xFt, p.yFt, p.altFt, vx, vy, vz].every(isNum)) return { reason: why };
-  return { slot, t, x: p.xFt, y: p.yFt, z: p.altFt, vx, vy, vz, gsKt: Math.hypot(vx, vy) * FTPS_TO_KT, trackDeg: compassDegFromVector(vx, vy) };
+  return { slot, name, t, x: p.xFt, y: p.yFt, z: p.altFt, vx, vy, vz, gsKt: Math.hypot(vx, vy) * FTPS_TO_KT, trackDeg: compassDegFromVector(vx, vy) };
 }
 
 /**
@@ -461,7 +463,7 @@ export function dropWords(result, { placed = false } = {}) {
     tone = 'none';
     lines.push('Place on map sets the point of impact, to see the miss.');
   }
-  lines.push(`Released by #${r.slot ?? '?'} at ${formatZuluSeconds(r.t)}: ${ft(r.aglFt)} above the ground (${ft(r.z)} MSL), ground speed ${Math.round(r.gsKt)} kt, true airspeed ${Math.round(r.tasKt)} kt (est. IAS ${Math.round(r.iasKt)} kt).`);
+  lines.push(`Released by ${r.name ?? `#${r.slot ?? '?'}`} at ${formatZuluSeconds(r.t)}: ${ft(r.aglFt)} above the ground (${ft(r.z)} MSL), ground speed ${Math.round(r.gsKt)} kt, true airspeed ${Math.round(r.tasKt)} kt (est. IAS ${Math.round(r.iasKt)} kt).`);
   if (result.landed) {
     let drift = '';
     if (Number.isFinite(result.driftFt) && result.driftFt < 5) drift = ', no wind drift';
@@ -520,7 +522,7 @@ export const DROP_FILE_RULES = Object.freeze({
   ...Object.fromEntries(FILE_LAYOUT_KEYS.map((k) => [
     `${FILE_PREFIX}${k}`,
     STRING_KEYS.includes(k) ? { type: 'string', oneOf: [...DROP_ALLOWED[k]] }
-      : k === 'dropShip' ? { type: 'number', min: 1, max: 4 }
+      : k === 'dropShip' ? { type: 'number', min: 1, max: MAX_SHIPS }
         : { type: 'number', min: NUMBER_RANGE[k].min, max: NUMBER_RANGE[k].max },
   ])),
 });

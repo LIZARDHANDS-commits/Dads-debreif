@@ -12,11 +12,12 @@ import { ALTITUDE_CHOICES, altitudeLine, altitudeSourceWords } from './altitude.
 import { shipName } from './state.js';
 
 /**
- * layout: the remembered layout settings (puckOpen). swatch(slot): the ship's colour swatch.
+ * layout: the remembered layout settings (puckOpen). swatch(slot): the ship's colour swatch. label(slot): its name ("#2", or
+ * an exercise's "Viper 2", DB-37).
  * on: { set(slot, seat), setTimestamps(slot, 'auto' | 'recorded'), setShift(slot, seconds), setAltitude(slot, 'auto' | 'recorded') }.
  * Returns { element, setCollapsed, render(flight, pucks, timings, altitudes), setChecks(flight) }.
  */
-export function createPuckPanel({ layout, swatch, on }) {
+export function createPuckPanel({ layout, swatch, on, label = (slot) => `#${slot}` }) {
   const panel = createPanel({ title: 'GPS source', collapsed: !layout.get().puckOpen, onToggle: (collapsed) => layout.update({ puckOpen: !collapsed }) });
   panel.element.classList.add('puck-panel');
   panel.element.hidden = true;
@@ -33,7 +34,7 @@ export function createPuckPanel({ layout, swatch, on }) {
   const setChecks = (flight) => {
     for (const tr of Object.values(flight?.tracks ?? {})) {
       const el = checks.get(tr.slot);
-      if (el) el.textContent = altitudeLine(tr);
+      if (el) el.textContent = altitudeLine(tr, label);
     }
     source.textContent = altitudeSourceWords(flight);
   };
@@ -61,25 +62,25 @@ export function createPuckPanel({ layout, swatch, on }) {
       if (!flight) return;
       for (const tr of Object.values(flight.tracks).sort((a, b) => a.slot - b.slot)) {
         const name = shipName(tr.slot, tr.name);
-        const puck = pick(`GPS puck for #${tr.slot}`, PUCK_CHOICES, pucks[tr.slot] ?? '', (v) => on.set(tr.slot, v));
+        const puck = pick(`GPS puck for ${label(tr.slot)}`, PUCK_CHOICES, pucks[tr.slot] ?? '', (v) => on.set(tr.slot, v));
         const found = timingFound(tr);
         // Only a track found off the second has a choice to make; any other says what was found.
         const stamps = tr.timing?.kind === 'off'
-          ? pick(`Timestamps for #${tr.slot}`, TIMESTAMP_CHOICES, timings[tr.slot]?.recorded ? 'recorded' : 'auto', (v) => on.setTimestamps(tr.slot, v))
+          ? pick(`Timestamps for ${label(tr.slot)}`, TIMESTAMP_CHOICES, timings[tr.slot]?.recorded ? 'recorded' : 'auto', (v) => on.setTimestamps(tr.slot, v))
           : h('span', { class: 'puck-found' }, found);
         const shift = h('input', {
           type: 'number', min: String(SHIFT_LIMITS.min), max: String(SHIFT_LIMITS.max), step: String(SHIFT_LIMITS.step),
-          value: String(timings[tr.slot]?.shiftS ?? 0), 'aria-label': `Time shift for #${tr.slot}, seconds`,
+          value: String(timings[tr.slot]?.shiftS ?? 0), 'aria-label': `Time shift for ${label(tr.slot)}, seconds`,
         });
         shift.addEventListener('change', () => {
           shift.value = String(clampShift(shift.value)); // kept within the range, to 0.1 s
           on.setShift(tr.slot, shift.value);
         });
-        const altitude = pick(`Altitude for #${tr.slot}`, ALTITUDE_CHOICES, altitudes[tr.slot]?.recorded ? 'recorded' : 'auto', (v) => on.setAltitude(tr.slot, v));
+        const altitude = pick(`Altitude for ${label(tr.slot)}`, ALTITUDE_CHOICES, altitudes[tr.slot]?.recorded ? 'recorded' : 'auto', (v) => on.setAltitude(tr.slot, v));
         const check = h('p', { class: 'puck-alt-check' });
         checks.set(tr.slot, check);
         rows.append(h('div', { class: 'puck-ship-block' },
-          h('div', { class: 'puck-ship', title: `#${tr.slot} ${name}`.trim() }, swatch(tr.slot), `#${tr.slot}`, name ? h('span', { class: 'ship-name' }, ` ${name}`) : ''),
+          h('div', { class: 'puck-ship', title: `${label(tr.slot)} ${name}`.trim() }, swatch(tr.slot), label(tr.slot), name ? h('span', { class: 'ship-name' }, ` ${name}`) : ''),
           h('label', { class: 'puck-row' }, h('span', {}, 'GPS puck'), puck),
           h('label', { class: tr.timing?.kind === 'off' ? 'puck-row puck-row-stacked' : 'puck-row', title: tr.timing?.kind === 'off' ? found : null }, h('span', {}, 'Timestamps'), stamps),
           h('label', { class: 'puck-row' }, h('span', {}, `Shift (s, ±${SHIFT_LIMITS.max})`), shift),

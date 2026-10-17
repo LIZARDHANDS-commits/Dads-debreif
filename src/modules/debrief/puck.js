@@ -3,6 +3,7 @@
 // page access.
 import { movePuck } from '../../flight-data/puck.js';
 import { GLARESHIELD_FT, REAR_HUMP_FT } from '../../ui-kit/ct156-cockpit.js';
+import { MAX_SHIPS } from '../../flight-data/load.js';
 
 /** The choices, in the order the menu shows them; '' is Not set (the default: positions as recorded). */
 export const PUCK_CHOICES = Object.freeze([
@@ -33,7 +34,7 @@ export function puckSeat(value) {
 export function readPucks(value) {
   const out = {};
   if (!value || typeof value !== 'object') return out;
-  for (let slot = 1; slot <= 4; slot++) {
+  for (let slot = 1; slot <= MAX_SHIPS; slot++) {
     const seat = puckSeat(value[slot]);
     if (seat) out[slot] = seat;
   }
@@ -70,13 +71,17 @@ export function puckMoveFt(seat) {
 /** "rear-cockpit", for the words. */
 const seatWords = (seat) => `${seat}-cockpit`;
 
-/** The status line's words for the ships moved, e.g. "#2 moved from its rear-cockpit GPS puck", or ''. */
-export function puckSummary(flight) {
+/**
+ * The status line's words for the ships moved, e.g. "#2 moved from its rear-cockpit GPS puck", or ''. label(slot): a
+ * ship's name ("#2"; "Viper 2" in an exercise, DB-37).
+ */
+export function puckSummary(flight, label = (slot) => `#${slot}`) {
   if (!flight) return '';
   const moved = Object.values(flight.tracks).filter((tr) => tr.puck?.seat).sort((a, b) => a.slot - b.slot);
   if (!moved.length) return '';
-  if (moved.length === 1) return `#${moved[0].slot} moved from its ${seatWords(moved[0].puck.seat)} GPS puck`;
-  return `${moved.map((tr) => `#${tr.slot}`).join(', ')} moved from their GPS pucks`;
+  if (moved.length === 1) return `${label(moved[0].slot)} moved from its ${seatWords(moved[0].puck.seat)} GPS puck`;
+  if (moved.length > 4) return `${moved.length} ships moved from their GPS pucks`; // an exercise (DB-37): a count
+  return `${moved.map((tr) => label(tr.slot)).join(', ')} moved from their GPS pucks`;
 }
 
 /** One ship's status-details line when its puck is set, or null. */

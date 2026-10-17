@@ -1011,3 +1011,72 @@
   width: 4.5em;
   min-width: 0;
 }
+
+/* Large exercises (DB-37): the flights' call signs and aircraft, one Formation block per flight, the camera's flight pills
+   and the Drop box's Ship list for an exercise. A four-ship load shows none of these. */
+[data-module='debrief'] .crew-box {
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .crew-box[hidden],
+[data-module='debrief'] .flight-blocks[hidden],
+[data-module='debrief'] .debrief-cam-flights[hidden],
+[data-module='debrief'] .drop-ship > [hidden] {
+  display: none;
+}
+
+[data-module='debrief'] .crew-box summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+[data-module='debrief'] .crew-table input,
+[data-module='debrief'] .crew-table select {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-module='debrief'] .crew-table td,
+[data-module='debrief'] .crew-table th {
+  padding-right: var(--space-1);
+}
+
+[data-module='debrief'] .crew-table .crew-flight {
+  text-align: center;
+}
+
+/* The call sign box stays short (16 characters at most) so the aircraft names show whole in the Flight column. */
+[data-module='debrief'] .crew-table input {
+  width: 4.75rem;
+}
+
+[data-module='debrief'] .flight-blocks {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* The swatch and call sign sit together on the left, as the other panels' titles do; the arrow stays on the right. */
+[data-module='debrief'] .flight-block .panel-toggle {
+  font-size: var(--text-sm);
+  justify-content: flex-start;
+  gap: var(--space-2);
+  text-align: left;
+}
+
+[data-module='debrief'] .flight-block .panel-toggle::after {
+  margin-left: auto;
+}
+
+[data-module='debrief'] .flight-block-swatch {
+  display: inline-flex;
+}
+
+[data-module='debrief'] .debrief-cam-flights {
+  display: contents;
+}
+
+[data-module='debrief'] .drop-ship {
+  display: contents;
+}

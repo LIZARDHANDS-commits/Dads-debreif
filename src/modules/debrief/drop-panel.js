@@ -5,12 +5,14 @@
 import { h, clear } from '../../ui-kit/dom.js';
 import { LOAD_OPTIONS, DROP_LIMITS } from './drop.js';
 
+/** The Ship list for a load of four or fewer, as always; an exercise lists every loaded ship by its label (setShips, DB-37). */
 const SHIPS = [1, 2, 3, 4].map((n) => ({ value: n, label: n === 1 ? '#1 Lead' : `#${n}` }));
 
 /**
  * controls: the debrief's createControls; layout: its remembered settings.
  * on: { dropNow(), dropAt(text) → message or '', clear(), place(), cancelPlace(), preset() }.
- * Returns { element, render(words, state) } with words from dropWords and state { flight, placing, placed, nowText, is3d }.
+ * Returns { element, render(words, state), setShips(list) } with words from dropWords and state { flight, placing, placed,
+ * nowText, is3d }; setShips([{ value, label }]) gives the Ship list its ships (null: #1 Lead to #4, as always).
  */
 export function createDropPanel({ controls, layout, on }) {
   const status = h('p', { class: 'drop-status', role: 'status' });
@@ -98,6 +100,24 @@ export function createDropPanel({ controls, layout, on }) {
     h('button', { type: 'button', class: 'button', onclick: () => on.preset() }, "Back to the load's preset"));
 
   const loadControl = controls.select('dropLoad', { label: 'Load', options: LOAD_OPTIONS });
+  // The Ship list: the shared select for #1 Lead to #4, as always; an exercise's own list of its loaded ships by label (DB-37).
+  const fourShips = controls.select('dropShip', { label: 'Ship', options: SHIPS });
+  const shipSelect = h('select', { id: 'debrief-drop-ship-ex' });
+  shipSelect.addEventListener('change', () => layout.update({ dropShip: Number(shipSelect.value) }));
+  const exerciseShips = h('div', { class: 'control control-select', hidden: true }, h('label', { for: shipSelect.id }, 'Ship'), shipSelect);
+  const shipControl = h('div', { class: 'drop-ship' }, fourShips, exerciseShips);
+  let shipsKey = '';
+  function setShips(list) {
+    fourShips.hidden = Boolean(list);
+    exerciseShips.hidden = !list;
+    const key = list ? list.map((s) => `${s.value}:${s.label}`).join('|') : '';
+    if (key !== shipsKey) {
+      shipsKey = key;
+      clear(shipSelect);
+      for (const s of list ?? []) shipSelect.append(h('option', { value: String(s.value) }, s.label));
+    }
+    if (list) shipSelect.value = String(layout.get().dropShip);
+  }
   loadControl.classList.add('drop-wide');
   const element = h(
     'section',
@@ -107,7 +127,7 @@ export function createDropPanel({ controls, layout, on }) {
       h('button', { type: 'button', class: 'button', 'aria-label': 'Close drop', onclick: () => layout.update({ dropOpen: false }) }, 'Close')),
     status,
     lines,
-    h('div', { class: 'drop-controls' }, loadControl, controls.select('dropShip', { label: 'Ship', options: SHIPS })),
+    h('div', { class: 'drop-controls' }, loadControl, shipControl),
     h('div', { class: 'drop-row' }, dropNow, atTimeButton, clearButton),
     atRow,
     zoneBox,
@@ -131,7 +151,11 @@ export function createDropPanel({ controls, layout, on }) {
   let last = '';
   return {
     element,
-    showFor,
+    showFor: (values) => {
+      showFor(values);
+      if (shipsKey) shipSelect.value = String(values.dropShip);
+    },
+    setShips,
     /** words: dropWords's; state: { flight, placing, placed, nowText, is3d, hasRelease }. */
     render(words, state) {
       lastNowText = state.nowText ?? '';
