@@ -104,9 +104,10 @@ The full policy is `docs/TESTING.md`; each module adds its own in `docs/modules/
 
 ## Git and names
 
-- **Check `docs/BULLETIN-FOR-DAD.md` at session start and after every `git pull` / `git merge`:** if there is a message from Patrick for Dad, show it to Dad at the very top of your reply (including checking out the new **Model Showcase** at `#/showcase`).
+- **Check `docs/pat/bulletin-for-dad.md` at session start and after every `git pull` / `git merge`:** if there is a message from Patrick for Dad, show it to Dad at the very top of your reply (including that all of his work is incorporated on `main` and to check out the new **Model Showcase** at `#/showcase`).
+- **Single-writer tracking split (`docs/dad/` vs `docs/pat/`, Read-Both / Write-Own):** both sides read everything, but **Dad's sessions only edit `docs/dad/*` and `docs/modules/<module>/*`**, and **Patrick's sessions only edit `docs/pat/*` (plus `Pat's claude work/`) and `docs/modules/<module>/*`**. Never edit `docs/PLAN.md` on feature branches.
 - Agents work on a branch and open a pull request; they never push straight to main.
-- **Always branch fresh from `origin/main` (`git fetch origin && git switch -c <branch> origin/main`):** all previous PR stacks (`#946`–`#1067`) are merged into `main`. Never stack new branches onto older feature branches, and keep doc updates inside your module's own folder (`docs/modules/<module>/*`) rather than editing `docs/PLAN.md` on feature branches so parallel PRs never collide.
+- **Always branch fresh from `origin/main` (`git fetch origin && git switch -c <branch> origin/main`):** all previous PR stacks (`#946`–`#1067`) are merged into `main`. Never stack new branches onto older feature branches.
 - **Dad's sessions** follow this rule book too. They pull main, work on a branch, and open a pull request for Patrick to review. They never merge, and Patrick's threads leave Dad's pull requests for Patrick to merge himself. GitHub enforces it: only Patrick and his Claude threads can update main.
 - Once Patrick has approved the spec or decision behind a change, its pull request merges when its checks are green, without asking, with a short note on the pull request saying what changed, what was checked and what is unseen. Patrick hears only about problems.
 - Every branch, commit, pull request and merge has a plain-English name that says what changed, for example "Traffic: break turn follows the wind". Decision, patch or task numbers may follow in brackets, but never replace the words.
@@ -127,18 +128,20 @@ The full policy is `docs/TESTING.md`; each module adds its own in `docs/modules/
 - Every claim about a manual gives the page; a guess is marked as a guess.
 - With every screen spec, show a picture of the screen (and V6's), and list what moves or disappears.
 - During long runs, give short status lines that say what is running. When handing something over to look at, give the version shown on screen and say if a hard refresh is needed.
-- Anything waiting on Patrick goes on the one waiting list in `docs/PLAN.md`.
+- Anything waiting on Patrick goes in `docs/dad/waiting-on-patrick.md` (for Dad's sessions) or `docs/pat/status-and-plan.md` (for Patrick's sessions).
 
 ## How the docs are laid out
 
-Read `docs/PLAN.md` first for the big picture, then only your module's folder, starting with its README. `docs/README.md` is the full layout guide.
+Read `docs/pat/bulletin-for-dad.md` and `docs/dad/` (for Dad's sessions) or `docs/pat/` and `docs/dad/waiting-on-patrick.md` (for Patrick's sessions), then only your module's folder, starting with its README. `docs/README.md` is the full layout guide.
 
 ```
 AGENTS.md            this rule book
-CLAUDE.md            one line that loads this file
+CLAUDE.md            loads this file and docs/pat/bulletin-for-dad.md
 docs/
   README.md          layout guide: what lives where, what to read first
-  PLAN.md            overall plan: module order, gates, waiting list
+  dad/               Dad's status-and-plan.md and waiting-on-patrick.md (written only by Dad's Claude)
+  pat/               Patrick's bulletin-for-dad.md and status-and-plan.md (written only by Patrick's sessions)
+  PLAN.md            overall plan and reset history (read-only on feature branches)
   FUTURE.md          whole-tool ideas, not being built
   REQUIREMENTS.md    whole-tool requirements (ALL-R)
   TESTING.md         testing policy
@@ -149,4 +152,4 @@ docs/
 archive/             history only, never instructions
 ```
 
-A decision that affects more than one module goes in `docs/DECISIONS.md`; a module's own decisions take its prefix (DB-, SOF-, TR-, TF-, TS-, SH-) and the next free number. Skills live in one folder, `.agent/skills/` (Antigravity reads it there); `.claude/skills` is a link to it so Claude Code reads the same files. Never make a second copy.
+A decision that affects more than one module goes in `docs/DECISIONS.md`; a module's own decisions take its prefix (DB-, SOF-, EP-, RS-, TR-, TF-, TS-, SH-) and the next free number. Skills live in one folder, `.agent/skills/` (Antigravity reads it there); `.claude/skills` is a link to it so Claude Code reads the same files. Never make a second copy.

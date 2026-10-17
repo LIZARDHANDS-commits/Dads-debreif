@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && git config core.hooksPath .githooks 2>/dev/null || true; { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci --no-audit --no-fund --loglevel=error; } >&2 || echo 'npm ci failed; run it by hand before testing' >&2; if [ -f docs/BULLETIN-FOR-DAD.md ]; then cat docs/BULLETIN-FOR-DAD.md; fi",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && git config core.hooksPath .githooks 2>/dev/null || true; { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci --no-audit --no-fund --loglevel=error; } >&2 || echo 'npm ci failed; run it by hand before testing' >&2; if [ -f docs/pat/bulletin-for-dad.md ]; then cat docs/pat/bulletin-for-dad.md; fi",
             "timeout": 300
           }
         ]

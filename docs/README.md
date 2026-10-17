@@ -2,19 +2,34 @@
 
 The repo is the single source of truth for everything about the tool: rules, plans, requirements, decisions, testing, specs and code. Claude and Antigravity both read it. The rule book is `../AGENTS.md`.
 
+## Single-Writer Tracking Split (`docs/dad/` and `docs/pat/`)
+
+To prevent merge conflicts between Dad's sessions and Patrick's sessions, tracking, status logs, waiting lists, and handovers are split into two single-writer folders (**Read-Both, Write-Own**):
+
+| Folder | Who Writes It | What It Holds |
+|---|---|---|
+| **`dad/`** (`dad/status-and-plan.md`, `dad/waiting-on-patrick.md`) | **Only Dad's Claude** | Dad's active status, completed PR log, next steps, and questions/items waiting on Patrick |
+| **`pat/`** (`pat/bulletin-for-dad.md`, `pat/status-and-plan.md`) | **Only Patrick's Claude / Antigravity** | Patrick's live messages/approvals for Dad, Patrick's active work, and ramp/flight measurement queues |
+| **`modules/<module>/`** | **The module's writer** | Single source of truth for each simulator (`README.md`, `spec.md`, `requirements.md`, `decisions.md`, `testing.md`, `plan.md`, `future.md`) |
+
+- **On `/sync`:** Dad's Claude reads `pat/bulletin-for-dad.md` (and shows Patrick's message to Dad first); Patrick's sessions read `dad/waiting-on-patrick.md`.
+- **On `/save`:** Dad's Claude writes only to `dad/*` and `modules/<module>/*`; Patrick's sessions write only to `pat/*` and `modules/<module>/*`. Neither side edits `PLAN.md` on feature branches.
+
 ## What to read first
 
 1. `../AGENTS.md`, the rule book.
-2. `PLAN.md`, for the big picture: which module is being worked on, the order, and what is waiting on Patrick.
+2. `pat/bulletin-for-dad.md` (for Dad's sessions) or `dad/waiting-on-patrick.md` (for Patrick's sessions).
 3. Only your module's folder in `modules/`, starting with its `README.md`.
 
 You don't need to read other modules' folders or `archive/` to do your work.
 
 ## What lives where
 
-| File | What it holds | Who changes it |
+| File / Folder | What it holds | Who changes it |
 |---|---|---|
-| `PLAN.md` | The overall plan: every module's status, the order, the gates, the waiting-on-Patrick list | Updated as work finishes; the order changes only with Patrick's yes |
+| `dad/` | Dad's status, plan, and waiting-on-Patrick list (`status-and-plan.md`, `waiting-on-patrick.md`) | Only Dad's Claude |
+| `pat/` | Patrick's bulletin for Dad and Patrick's status/measurement queue (`bulletin-for-dad.md`, `status-and-plan.md`) | Only Patrick's sessions |
+| `PLAN.md` | Whole-tool overview and history from the October 2026 reset (points to `dad/` and `pat/` for live waiting lists) | Read-only on feature branches (never edited by routine PRs) |
 | `FUTURE.md` | Whole-tool ideas and possible new modules, not being built | Anyone adds; Patrick moves an idea up into a plan |
 | `REQUIREMENTS.md` | What the whole tool must do (ALL-R1 to ALL-R28) | Only with Patrick's yes |
 | `TESTING.md` | The testing policy: what tests check, when they run, the sign-off checklist | Only with Patrick's yes |
@@ -30,12 +45,12 @@ You don't need to read other modules' folders or `archive/` to do your work.
 | `README.md` | Where the module stands, what's next, and its open questions |
 | `spec.md` | How the module works. Refreshed against the requirements when the module's work resumes |
 | `requirements.md` | What the module must do, plus the V6 feature ideas (ideas, not requirements) |
-| `decisions.md` | The module's own decisions, with its prefix: DB- (Debrief), SOF- (SOF), TR- (Traffic), TF- (Turn Fight), TS- (Turn Sim), SH- (shared parts) |
+| `decisions.md` | The module's own decisions, with its prefix: DB- (Debrief), SOF- (SOF), EP- (EP Tabletop), RS- (Run-In Sim), TR- (Traffic), TF- (Turn Fight), TS- (Turn Sim), SH- (shared parts) |
 | `testing.md` | What the module's tests check, its sign-off checklist, and what happens to each test file |
 | `plan.md` | Ordered steps to the module's next sign-off, each with its task list |
 | `future.md` | Ideas for this module that are not being built |
 
-The modules are `debrief`, `sof`, `traffic`, `turn-fight`, `turn-sim` and `shared` (the flight core, app frame and home screen, weather, airfields, storage and the screen kit). `pt-pt-sim` and `briefing-board` are future modules with a README only: they need a full spec and a question session with Patrick first.
+The modules are `debrief`, `ep-tabletop`, `model-showcase`, `run-in-sim`, `sof`, `traffic`, `turn-fight`, `turn-sim` and `shared` (the flight core, app frame and home screen, weather, airfields, storage and the screen kit). `pt-pt-sim` and `briefing-board` are future modules with a README only: they need a full spec and a question session with Patrick first.
 
 ## How a change keeps the docs true
 

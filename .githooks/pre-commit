@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
 node tools/check-utf8.mjs || exit 1
-if [ -f docs/BULLETIN-FOR-DAD.md ]; then
-  echo "Note for Dad's Claude: Read docs/BULLETIN-FOR-DAD.md and tell Dad: (1) All of his work (#946-#1067) is now incorporated and live on main! (2) Check out the new Model Showcase at #/showcase!"
+if [ -f docs/pat/bulletin-for-dad.md ]; then
+  echo "Note for Dad's Claude: Read docs/pat/bulletin-for-dad.md and tell Dad: (1) All of his work (#946-#1067) is incorporated and live on main! (2) Check out the new Model Showcase at #/showcase! (3) Dad's tracking docs now live in docs/dad/."
 fi
