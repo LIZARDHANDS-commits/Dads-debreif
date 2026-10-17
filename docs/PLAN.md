@@ -1,5 +1,9 @@
 # Dad's Debrief Tool: the overall plan
 
+> **Update from Patrick for Dad (17 Oct 2026 — `V2.513`, see [BULLETIN-FOR-DAD.md](BULLETIN-FOR-DAD.md)):**
+> 1. **All of your work is incorporated and live on `main`!** All 25 of your pull requests (`#946` through `#1067` — including Advanced Mission Sets / Run-In Simulator with the 60° bank anthem cut & infinity-sign figure 8, point-parallel air refuelling, 16-ship Debrief, CARP drop, C-130J-30 & T-38A Talon 3D models, Debrief 3D satellite ground tiles & airborne start altitude, EP Tabletop phone QR & Any setup, SOF 3D MRMS radar & NOAA lightning, Traffic CT-102B Astra II, and the Cloudflare relay) are merged into `main` and live at `https://lizardhands-commits.github.io/Dads-debreif/` (hard refresh `Ctrl+Shift+R`).
+> 2. **Check out the new Model Showcase (`#/showcase`)!** Click **Model Showcase** on the Home screen (or open `#/showcase`) to inspect the CT-156 Harvard II 3D model on its own—on its gear or flying, High or Performance detail, wear & grime sliders, movable controls/flaps/gear/canopy/speedbrake/lights, and views from outside or either cockpit seat.
+
 This is the one overall plan. Each module has its own plan with the ordered steps and checkboxes: [Debrief](modules/debrief/plan.md), [SOF](modules/sof/plan.md), [Traffic](modules/traffic/plan.md), [Turn Fight](modules/turn-fight/plan.md), [Turn Sim](modules/turn-sim/plan.md) and [Shared](modules/shared/plan.md). Only what is in a plan gets built; a new idea goes on that module's `future.md`, or on [FUTURE.md](FUTURE.md), until Patrick moves it up (`AGENTS.md:33`). The one list of everything waiting on Patrick is at the end of this file (`AGENTS.md:103`).
 
 ## What the tool is
