@@ -473,7 +473,7 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
   const run = plan.run;
   const dive = plan.dive;
   const events = {};
-  const tl = record ? { t: [], x: [], y: [], z: [], vx: [], vy: [], vz: [], bank: [], g: [], kias: [], phase: [] } : null;
+  const tl = record ? { t: [], x: [], y: [], z: [], vx: [], vy: [], vz: [], bank: [], g: [], kias: [], phase: [], pathS: [] } : null;
   let p = pilot;
   let t = t0;
   let ph = phase;
@@ -497,6 +497,7 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
     const s = pp.s;
     tl.t.push(t); tl.x.push(s.x); tl.y.push(s.y); tl.z.push(s.z); tl.vx.push(s.vx); tl.vy.push(s.vy); tl.vz.push(s.vz);
     tl.bank.push(pp.bankDeg); tl.g.push(pp.g); tl.kias.push(kias); tl.phase.push(ph);
+    tl.pathS.push(esc.pathS); // how far along the pattern (RS-24: which lap a live anthem press falls in)
   };
   // The release's "along" measure: along the run-in (flat, flyover) or down the dive line (dive), 0 at the release.
   const relMeasure = (s) => {
@@ -643,6 +644,9 @@ export function solveExit(plan) {
     for (let i = 0; i < n; i++) candidates.push({ te: states[i].t + k * lapSec, leg: legs[i], legNext: legs[i + 1], teNext: states[i + 1].t + k * lapSec });
   }
   let soonest = null;
+  // A live anthem press (RS-24): no exit before the press, so the orbit already flown stays as it was.
+  const minExit = plan.minExitSec ?? -Infinity;
+  for (let i = candidates.length - 1; i >= 0; i--) if (candidates[i].te < minExit) candidates.splice(i, 1);
   for (const c of candidates) {
     if (!Number.isFinite(c.leg)) continue;
     if (!soonest || c.te + c.leg < soonest.te + soonest.leg) soonest = c;
@@ -716,10 +720,20 @@ export function solvePattern(plan) {
   const fromIp = f.release.t + (plan.run === 'flyover' ? 0 : plan.fallSec);
   const need = setup.totSec - fromIp; // the time to be at the IP
   const tMin = timeOf(range[0]);
-  if (need < tMin) return need < tMin - need ? { k: 0, param: null, range, slope } : { k: 0, param: range[0], range, slope };
-  const k = Math.floor((need - tMin) / lapSec);
+  // A live anthem press (RS-24): at least plan.minLaps standard laps (those already begun stay as flown); too little time
+  // for them, the shortest last lap after them (it arrives as soon as it can, and the card says how late).
+  // A live press may also need the lap at minLaps to keep at least plan.minParamFt of outbound leg (the part already
+  // flown, and the look ahead), and no more laps than plan.maxLaps (when the lap it is in could not become a standard one).
+  const minK = plan.minLaps ?? 0;
+  const maxK = plan.maxLaps ?? Infinity;
+  const lo = (k) => (k === minK && plan.minParamFt ? Math.max(range[0], plan.minParamFt) : range[0]);
+  const live = Boolean(plan.live); // a live press: the aircraft is already in the pattern, so "leave at once" is not an option
+  if (need < tMin && !live) return need < tMin - need ? { k: 0, param: null, range, slope } : { k: 0, param: range[0], range, slope };
+  let k = Math.min(maxK, Math.max(0, Math.floor((need - tMin) / lapSec)));
+  if (k < minK) return { k: minK, param: lo(minK), range: [lo(minK), range[1]], slope };
   const rest = need - k * lapSec;
-  return { k, param: clamp(hold ? (rest - o.radiusFt * K) / perLegFt : rest / K, range[0], range[1]), range, slope };
+  const r = [lo(k), range[1]];
+  return { k, param: clamp(hold ? (rest - o.radiusFt * K) / perLegFt : rest / K, r[0], r[1]), range: r, slope };
 }
 
 /**
@@ -797,9 +811,14 @@ function arrivalOf(plan, flight, fall) {
  * The whole pass: the plan, the orbit exit, the flight (stored at PASS_STEP_SEC), the load's fall and the result.
  * Returns { plan, exit, flight, fall, result, computeMs }.
  */
-export function flyPass(setup, world) {
+export function flyPass(setup, world, { minLaps = 0, maxLaps = null, minParamFt = null, minExitSec = null, live = false } = {}) {
   const started = globalThis.performance?.now?.() ?? Date.now();
   const plan = buildPlan(setup, world);
+  if (minLaps > 0) plan.minLaps = minLaps; // RS-24: a live anthem press keeps the laps already begun
+  if (maxLaps !== null) plan.maxLaps = maxLaps;
+  if (minParamFt !== null) plan.minParamFt = minParamFt;
+  if (live) plan.live = true;
+  if (minExitSec !== null) plan.minExitSec = minExitSec;
   if (plan.orbit.lap) {
     const { exit, flight, fall } = flyPattern(plan);
     const result = resultOf(plan, exit, flight, fall);
@@ -833,6 +852,8 @@ export function flyPass(setup, world) {
       if (!(next > lo && next < hi)) next = (lo + hi) / 2;
     }
     if (next < 0) break;
+    if (minExitSec !== null) next = Math.max(next, minExitSec);
+    if (next === sec) break;
     sec = next;
   }
   const { flight, fall } = best;
@@ -840,6 +861,63 @@ export function flyPass(setup, world) {
   const result = resultOf(plan, exit, flight, fall);
   const computeMs = (globalThis.performance?.now?.() ?? Date.now()) - started;
   return { plan, exit, flight, fall, result, computeMs };
+}
+
+/**
+ * A live "Anthem starts" press (RS-24): the pass worked out again so its time over target is setup.totSec (the anthem's
+ * last note), with the past unchanged. The pattern's laps begun by pressSec stay as flown (the solver may only change a
+ * lap not yet begun: flyPass's minLaps; one more when the pilot's look ahead already sees the next lap), or on the
+ * circle the orbit before the press (minExitSec); the stored flight up to the press is kept exactly (any difference
+ * from the new working-out there is spliced out and its size kept in `splicedFt`). Already on its way in (out of the
+ * orbit, or in its last lap): nothing is left to change, so the same flight is timed against the new time over target.
+ * Returns a pass in flyPass's shape.
+ */
+export function flyPassFrom(prev, setup, world, pressSec) {
+  const tl = prev.flight.timeline;
+  const dt = tl.t[1] - tl.t[0] || PASS_STEP_SEC;
+  const i = clamp(Math.round(pressSec / dt), 0, tl.t.length - 1);
+  const o = prev.plan.orbit;
+  const committed = (why) => {
+    const plan = { ...prev.plan, setup: { ...prev.plan.setup, totSec: setup.totSec }, notes: [...prev.plan.notes, why] };
+    return { ...prev, plan, result: resultOf(plan, prev.exit, prev.flight, prev.fall), committed: true, splicedFt: 0 };
+  };
+  if (tl.phase[i] !== PHASE.ORBIT) return committed('Already on its way in when the anthem started: nothing left in the orbit to change.');
+  let options;
+  if (o.lap) {
+    const stdFt = o.pattern === 'hold' ? makePath(holdLap({ ip: prev.plan.ip, u: prev.plan.u, dir: o.dir, r: o.radiusFt, legFt: o.legFt })).total : TAU * o.radiusFt;
+    const s = tl.pathS[i] ?? 0;
+    const w = prev.plan.windAt(tl.z[i]);
+    const look = Math.max(500, Math.hypot(tl.vx[i] + w.x, tl.vy[i] + w.y) * PILOT.lookaheadSec);
+    const margin = 3 * look + 300; // his look ahead and its search window
+    const kOld = prev.exit.pattern?.k ?? 0;
+    let j = Math.min(Math.floor(s / stdFt), kOld); // the lap it is in (lap kOld is the last, adjusted one)
+    if (o.pattern === 'hold') {
+      // The lap it is in can still be the adjusted last one while its outbound leg ends ahead of where he is looking: the
+      // turn before that leg is the same whatever its length. Becoming a standard lap instead keeps the past only if the
+      // standard leg still reaches past that point too.
+      const minLegFt = Math.max(0, s - j * stdFt + margin - Math.PI * o.radiusFt);
+      const legNow = j < kOld ? o.legFt : (prev.exit.pattern?.legSec ?? 0) * o.tasFtps;
+      if (minLegFt < legNow) {
+        options = { minLaps: j, minParamFt: minLegFt, maxLaps: minLegFt <= o.legFt ? null : j };
+      } else if (j < kOld) {
+        options = { minLaps: j + 1 };
+      } else {
+        return committed('Already past the end of its last outbound leg when the anthem started: nothing left in the pattern to change.');
+      }
+    } else {
+      if ((j + 1) * stdFt - s < margin) j += 1; // the look ahead already reaches the next loop
+      if (j >= kOld) return committed('Already in its last loop when the anthem started: nothing left in the pattern to change.');
+      options = { minLaps: j + 1 };
+    }
+  } else {
+    options = { minExitSec: pressSec + dt };
+  }
+  const next = flyPass(setup, world, { ...options, live: true });
+  const nt = next.flight.timeline;
+  let splicedFt = 0;
+  for (let k = 0; k <= i && k < nt.t.length; k++) splicedFt = Math.max(splicedFt, Math.hypot(nt.x[k] - tl.x[k], nt.y[k] - tl.y[k], nt.z[k] - tl.z[k]));
+  for (const key of Object.keys(nt)) if (Array.isArray(tl[key])) nt[key] = tl[key].slice(0, i + 1).concat(nt[key].slice(i + 1));
+  return { ...next, committed: false, splicedFt };
 }
 
 /**

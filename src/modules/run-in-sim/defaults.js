@@ -151,6 +151,11 @@ export const DEFAULTS = Object.freeze({
   planGroundKt: 0,
   // Air refuelling (RS-15 to RS-22, approved)
   ...AAR_DEFAULTS,
+  // The anthem flyover (RS-24, RS-25; Flyover only): Canada by default (an estimate: Moose Jaw is in Canada), or the US,
+  // or none; each anthem's length (estimates of how long each is sung; the tempo follows).
+  anthem: 'canada',
+  anthemCanadaSec: 70,
+  anthemUsSec: 90,
   // Display
   showLines: true,
   showCarp: true,
@@ -188,6 +193,7 @@ export const ALLOWED = Object.freeze({
   releaseMode: ['carp', 'distance'],
   escapeDir: ['left', 'right', 'straight'],
   aarDir: ['left', 'right'],
+  anthem: ['canada', 'us', 'none'],
   camera: CAMERAS.map((c) => c.id),
   playSpeed: [...PLAY_SPEEDS],
   viewMode: ['3d', '2d'],
@@ -239,6 +245,8 @@ export const RANGES = Object.freeze({
   aarTurnRangeNm: { min: 1, max: 40, step: 0.1 },
   aarRcvKias: { min: 120, max: 316, step: 5 },
   aarIpNm: { min: 2, max: 60, step: 0.5 },
+  anthemCanadaSec: { min: 30, max: 240, step: 1 },
+  anthemUsSec: { min: 30, max: 240, step: 1 },
   aarOffsetNm: { min: 0.2, max: 15, step: 0.1 },
 });
 

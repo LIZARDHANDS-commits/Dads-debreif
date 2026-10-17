@@ -8,6 +8,7 @@ import { clock, REFERENCES } from './pass.js';
 import { runOf } from './defaults.js';
 import { AAR_REFERENCES as AAR_REFS } from './refuel.js';
 import { FT_PER_NM } from '../../core/units.js';
+import { ANTHEMS } from './anthems.js';
 
 const ft10 = (n) => `${(Math.round(n / 10) * 10).toLocaleString('en-CA')} ft`;
 const kt = (n) => `${Math.round(n)} KIAS`;
@@ -24,6 +25,13 @@ export function headline(pass) {
   const r = pass.result;
   if (pass.plan.run === 'flyover') {
     if (r.overTopFt === null) return 'Never passed the target';
+    if (pass.anthem) {
+      // RS-24: the anthem's last note is the time over target.
+      const where = pass.plan.setup.target.id === 'stadium' ? 'the stadium' : 'the target';
+      if (r.lateSec === null || !Number.isFinite(r.lateSec)) return `Over ${where}: no anthem timing`;
+      if (Math.abs(r.lateSec) < 0.5) return `Over ${where} on the last note`;
+      return `Over ${where} ${Math.round(Math.abs(r.lateSec))} s ${r.lateSec > 0 ? 'after' : 'before'} the last note`;
+    }
     const t = lateWords(r.lateSec);
     return `${t[0].toUpperCase()}${t.slice(1)}, ${ft10(r.overTopFt)} over the top`;
   }
@@ -62,8 +70,10 @@ export function cardFor(pass, n, { selected, onSelect, showFlags = true }) {
   const tag = (...a) => (showFlags ? tagOf(...a) : null);
   const rel = r.release;
   const unknown = !r.lowest.known;
+  const an = pass.anthem ? ANTHEMS[pass.anthem.id] : null;
   const timing = h('div', { class: 'rs-block' },
-    row('Time over target', `+${clock(pass.plan.setup.totSec)} · ${lateWords(r.lateSec)}`),
+    an ? row('Anthem', `${an.label}, ${clock(pass.anthem.lengthSec)}, started at +${clock(pass.anthem.startSec)} · ${pass.anthem.live ? 'pressed' : 'planned to end on the time over target'}`) : null,
+    row(an ? 'Last note (time over target)' : 'Time over target', `+${clock(pass.plan.setup.totSec)} · ${lateWords(r.lateSec)}`),
     rel ? row(plan.run === 'flyover' ? 'Over the target' : 'Release', `${ft10(rel.aglFt)} AGL · ${kt(rel.kias)}`) : null,
     rel && plan.run !== 'flyover' ? row('Planned', `${ft10(r.planned.aglFt)} AGL · ${kt(r.planned.kias)}`) : null,
     rel && plan.run === 'bombDive' ? row('Dive angle at release', `${Math.abs(rel.climbDeg).toFixed(1)}° (plan ${r.planned.diveDeg}°)`) : null,
@@ -81,7 +91,12 @@ export function cardFor(pass, n, { selected, onSelect, showFlags = true }) {
     flags.orbitBank ? row('Steepest bank in the orbit', `${Math.round(r.orbitBankDeg)}° (set ${plan.setup.orbit.bankDeg}°)`, tag(flags.orbitBank.over, `under ${REFERENCES.orbitBankDeg}°`, `over ${REFERENCES.orbitBankDeg}°`)) : null);
   const legs = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'Legs'), r.legs.map((l) => row(l.label, clock(l.sec))));
   card.append(timing, escape, legs);
-  if (r.notes.length) card.append(h('ul', { class: 'rs-notes' }, r.notes.map((t) => h('li', {}, t))));
+  const notes = [...r.notes];
+  if (pass.anthem?.live && r.lateSec !== null && r.lateSec >= 0.5 && Number.isFinite(r.arrivalSec)) {
+    // RS-24: why a live press was late, in the flying's terms.
+    notes.push(`From where it was when the anthem started (+${clock(pass.anthem.startSec)}), the soonest it could cross was ${Math.round(r.arrivalSec - pass.anthem.startSec)} s later: it has to finish the part of the orbit it has begun and fly the run-in, longer than the ${Math.round(pass.anthem.lengthSec)} s anthem. Choosing the anthem before flying times it from the start; timing by speed on the run-in is on the future list.`);
+  }
+  if (notes.length) card.append(h('ul', { class: 'rs-notes' }, notes.map((t) => h('li', {}, t))));
   return card;
 }
 

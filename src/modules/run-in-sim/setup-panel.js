@@ -61,6 +61,12 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   // RS-19: where the receiver takes off from (CYMJ, the runway into the ground wind).
   const takeoffWords = h('span', { class: 'rs-fixed-value' });
   const takeoffLine = h('div', { class: 'control rs-fixed' }, h('span', { class: 'rs-fixed-label' }, 'Receiver takes off from'), takeoffWords);
+  // The anthem flyover (RS-24, RS-25), on the Flyover only: the anthem, its length under More, and a word on the tunes.
+  const anthemCheck = h('p', { class: 'rs-estimate' });
+  const anthemBox = h('div', { class: 'rs-anthem' },
+    controls.select('anthem', { label: 'National anthem (its last note is the time over target)', options: [['canada', 'Canada: O Canada'], ['us', 'US: The Star-Spangled Banner'], ['none', 'None']] }),
+    more(num('anthemCanadaSec', 'O Canada\'s length (the tempo follows)', 's'), num('anthemUsSec', 'The Star-Spangled Banner\'s length (the tempo follows)', 's')),
+    anthemCheck);
   const top = h('div', { class: 'rs-top' },
     controls.select('run', { label: 'Run', options: RUNS.map((r) => [r.id, r.label]) }),
     h('div', { class: 'control rs-fixed' }, h('span', { class: 'rs-fixed-label' }, 'Aircraft'), aircraftName),
@@ -70,7 +76,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     targetHeadingBox,
     targetMore,
     h('div', { class: 'control rs-place' }, placeLabel, mapButton, placeWords),
-    totBox, rvBox);
+    totBox, anthemBox, rvBox);
 
   // ---- Orbit ----
   const orbit = box('Orbit');
@@ -217,6 +223,10 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const run = runOf(v.run);
     const aar = run.id === 'aar';
     for (const el of [targetBox, targetMore, totBox, ...runInPanels, planMore]) show(el, !aar);
+    show(anthemBox, run.id === 'flyover');
+    anthemCheck.textContent = v.anthem === 'canada'
+      ? 'ⓘ Default Canada (an estimate) and 1:10 (an estimate). O Canada\'s tune beyond its first line is written from memory and not yet checked: tell us any wrong note. It plays at ×1 only.'
+      : v.anthem === 'us' ? 'ⓘ 1:30 (an estimate). The tune is from a public-domain transcription. It plays at ×1 only.' : '';
     for (const el of [aarNote, takeoffLine, rvBox, ...aarPanels]) show(el, aar);
     placeLabel.textContent = aar ? 'Place (the roll-out point)' : 'Place';
     const where = aar ? 'refuelling' : 'release';

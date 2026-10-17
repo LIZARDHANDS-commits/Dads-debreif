@@ -7,6 +7,9 @@
 // listeners, so the shell stops it all when the module closes.
 // The air refuelling run (RS-15 to RS-18; approved: Patrick's yes, relayed by Dad, 17 Oct 2026) is worked out and
 // flown by refuel.js instead of pass.js, with its own card (card.js refuelCardFor), marks and two more cameras.
+// The anthem flyover (RS-24, RS-25): on the Flyover, the chosen anthem's last note is the time over target (planned); the
+// bar's Anthem starts button makes the press the anthem's start and works the pass out again from there with the past
+// kept (pass.js flyPassFrom), playback carrying on; the tune plays in the browser at ×1 (anthem-player.js).
 import { h, clear } from '../../ui-kit/dom.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { createSettings } from '../../storage/settings.js';
@@ -19,7 +22,9 @@ import { TRAFFIC_VERSION } from '../traffic/version.js';
 import { DEFAULTS, ALLOWED, CAMERAS, AAR_CAMERAS, PLAY_SPEEDS, runPatch, setupFrom, runOf, placeFor } from './defaults.js';
 import { TARGETS } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
-import { buildPlan, flyPass, clock } from './pass.js';
+import { buildPlan, flyPass, flyPassFrom, clock } from './pass.js';
+import { ANTHEMS } from './anthems.js';
+import { createAnthemPlayer } from './anthem-player.js';
 import { buildRefuelPlan, flyRefuel } from './refuel.js';
 import { areaFor, aarGroundCentre } from './area.js';
 import { createSetup } from './setup-panel.js';
@@ -104,10 +109,15 @@ function mount(root, app) {
   const timeWords = h('span', { class: 'rs-time' }, '0:00');
   const playBtn = h('button', { type: 'button', class: 'rs-btn rs-play', 'aria-label': 'Play' }, '▶');
   const speeds = createPillGroup({ prefix: 'rs', label: 'Playback speed', items: PLAY_SPEEDS.map((s) => ({ id: s, label: `×${s}` })), onPick: (s) => settings.update({ playSpeed: s }) });
+  // The anthem flyover (RS-24, RS-25): the button, and a word when the tune is muted.
+  const anthemBtn = h('button', { type: 'button', class: 'rs-btn rs-anthem-btn', hidden: true, title: 'Start the anthem now: the aircraft is timed to cross on its last note' }, 'Anthem starts');
+  const anthemNote = h('span', { class: 'rs-faint rs-anthem-note', hidden: true });
+  const player = createAnthemPlayer();
+  let anthemStopped = false; // pressed again while it played: quiet until the next press or pass
   const cams = createPillGroup({ prefix: 'rs', label: 'Camera', items: CAMERAS.map((c) => ({ id: c.id, label: c.label })), onPick: (c) => settings.update({ camera: c }) });
   const bar = h('div', { class: 'rs-playbar' },
     h('div', { class: 'rs-timeline' }, marks, scrub),
-    h('div', { class: 'rs-controls' }, playBtn, speeds.element, timeWords, h('span', { class: 'rs-spacer' }), cams.element));
+    h('div', { class: 'rs-controls' }, playBtn, speeds.element, timeWords, anthemBtn, anthemNote, h('span', { class: 'rs-spacer' }), cams.element));
 
   const cards = h('div', { class: 'rs-cards' });
   const result = h('aside', { class: 'rs-result', 'aria-label': 'Result' },
@@ -196,7 +206,8 @@ function mount(root, app) {
     clear(marks);
     if (pass) {
       const ev = pass.flight.events;
-      const at = pass.plan.kind === 'aar' ? [[pass.plan.takeoff ? 'Takeoff' : 'Start', pass.plan.takeoff ? (ev.takeoff ?? 0) : 0], ['IP', ev.ip], ['Tanker turns', ev.turn], ['Roll-out', ev.rollOut], ['Pre-contact', ev.preContact]] : [['Orbit', 0], ['IP', ev.ip], ['Roll-in', ev.rollIn], [pass.plan.run === 'flyover' ? 'TOT' : 'Release', ev.release], [pass.plan.run === 'flyover' ? null : 'TOT', pass.result.arrivalSec], ['Escape', ev.release !== undefined ? ev.release + 2 : undefined]];
+      const an = pass.anthem;
+      const at = an ? [['Orbit', 0], ['IP', ev.ip], ['Anthem starts', an.startSec], ['TOT · Last note', pass.result.arrivalSec ?? ev.release], ['Escape', ev.release !== undefined ? ev.release + 2 : undefined]] : pass.plan.kind === 'aar' ? [[pass.plan.takeoff ? 'Takeoff' : 'Start', pass.plan.takeoff ? (ev.takeoff ?? 0) : 0], ['IP', ev.ip], ['Tanker turns', ev.turn], ['Roll-out', ev.rollOut], ['Pre-contact', ev.preContact]] : [['Orbit', 0], ['IP', ev.ip], ['Roll-in', ev.rollIn], [pass.plan.run === 'flyover' ? 'TOT' : 'Release', ev.release], [pass.plan.run === 'flyover' ? null : 'TOT', pass.result.arrivalSec], ['Escape', ev.release !== undefined ? ev.release + 2 : undefined]];
       // Marks at the same moment share one label; the rest take the first of two rows where they don't print over another
       // (their width estimated at about 6.5 px a letter of the 11 px type; a label past 85% hangs to the left of its mark),
       // and one with no room on either joins the mark before it.
@@ -238,7 +249,28 @@ function mount(root, app) {
       cards.append(card);
     });
   }
+  /** The anthem's sound kept in step with playback (RS-25): at ×1, while playing, inside the anthem; else quiet. */
+  function syncAnthem() {
+    const pass = current();
+    const an = pass?.anthem;
+    const flyover = values().run === 'flyover' && values().anthem !== 'none';
+    anthemBtn.hidden = !flyover;
+    anthemBtn.disabled = !pass || pass.plan.run !== 'flyover';
+    anthemBtn.textContent = player.playing() ? 'Stop the anthem' : 'Anthem starts';
+    const into = an ? t - an.startSec : null;
+    const inside = an && into >= 0 && into < an.lengthSec;
+    const fast = values().playSpeed !== 1;
+    anthemNote.hidden = !(inside && playing && fast);
+    anthemNote.textContent = 'The anthem plays at ×1 only';
+    if (inside && playing && !fast && !anthemStopped) {
+      const at = player.positionSec();
+      if (!player.playing() || at === null || Math.abs(at - into) > 0.4) player.play(an.id, an.lengthSec, into);
+    } else if (player.playing()) {
+      player.stop();
+    }
+  }
   function render() {
+    syncAnthem();
     const pass = current();
     if (values().viewMode !== '2d') world?.show(pass, t, values().camera);
     planView.set({ pass, t });
@@ -273,12 +305,52 @@ function mount(root, app) {
   }
   function pause() {
     playing = false;
+    player.stop(); // the anthem stops on pause (RS-25)
     playBtn.textContent = '▶';
     playBtn.setAttribute('aria-label', 'Play');
     stopLoop?.();
     stopLoop = null;
   }
-  app.listen(playBtn, 'click', () => (playing ? pause() : play()));
+  app.listen(playBtn, 'click', () => {
+    player.unlock(); // the browser lets sound start only from a press on the page
+    if (playing) pause();
+    else play();
+  });
+  // A live anthem press (RS-24): the press is the anthem's start, its last note the time over target; the pass is worked out
+  // again from that moment with the past kept, and playback carries on from it. Pressed while it plays: the tune stops.
+  app.listen(anthemBtn, 'click', () => {
+    player.unlock();
+    if (player.playing()) {
+      anthemStopped = true;
+      player.stop();
+      render();
+      return;
+    }
+    const pass = current();
+    const v = values();
+    if (!pass || pass.plan.run !== 'flyover' || v.anthem === 'none') return;
+    const id = v.anthem;
+    const lengthSec = id === 'us' ? v.anthemUsSec : v.anthemCanadaSec;
+    const pressSec = t;
+    try {
+      const next = flyPassFrom(pass, { ...setupFrom(v), totSec: pressSec + lengthSec }, ground, pressSec);
+      next.anthem = { id, lengthSec, startSec: pressSec, live: true };
+      next.n = pass.n;
+      next.stale = false;
+      passes[selected] = next;
+      plan = next.plan;
+      anthemStopped = false;
+      status.textContent = `Anthem started at +${clock(pressSec)}: worked out again from there`;
+      syncPlan();
+      syncPass();
+      renderCards();
+      t = pressSec;
+      play();
+    } catch (err) {
+      status.textContent = 'The anthem timing could not be worked out.';
+      console.error('Advanced Mission Sets: the anthem timing failed', err);
+    }
+  });
   app.listen(scrub, 'input', () => {
     t = Number(scrub.value) || 0;
     render();
@@ -288,6 +360,7 @@ function mount(root, app) {
   // ---- Flying the pass ----
   // replace: a re-fly after a change of setting takes the latest pass's place; the button adds a new pass to compare.
   function fly({ replace = false } = {}) {
+    player.unlock();
     reflyWake?.();
     reflyWake = null;
     setup.flyButton.disabled = true;
@@ -299,6 +372,12 @@ function mount(root, app) {
         const v = values();
         const s = setupFrom(v);
         const pass = s.aar ? flyRefuel(s, ground) : flyPass(s, ground);
+        // The planned anthem (RS-24): on the Flyover its last note is the time over target, so it starts its length before.
+        if (s.run === 'flyover' && v.anthem !== 'none') {
+          const lengthSec = v.anthem === 'us' ? v.anthemUsSec : v.anthemCanadaSec;
+          pass.anthem = { id: v.anthem, lengthSec, startSec: Math.max(0, s.totSec - lengthSec), live: false };
+        }
+        anthemStopped = false;
         // The refuelling run's worked-out start and turn range, for the Setup's "set to hit" (RS-16).
         if (s.aar) Object.assign(pass.exit, { startNm: pass.result.worked.startNm, turnRangeNm: pass.result.worked.turnRangeNm, ipSec: pass.result.takeoff?.ipSec ?? null });
         const swap = replace && passes.length > 0;
@@ -448,6 +527,7 @@ function mount(root, app) {
   return () => {
     closed = true;
     pause();
+    player.dispose();
     world?.dispose();
     map.dispose();
     planView.dispose();
