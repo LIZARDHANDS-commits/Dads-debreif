@@ -16,7 +16,8 @@ import { getPflBadge } from './map2d.js';
 /** The spawner's number boxes as the person sees them, by setting (for the line that names the box to fix). */
 const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
 
-import { SPAWN_TYPES } from './types.js';
+import { SPAWN_TYPES, typeProfile, numbersAreEstimates } from './types.js';
+import { ASTRA_POINT } from './astra-circuit.js';
 import { conflictSpawnPlan } from './scenario-timing.js';
 import { onProfileAltFt } from './nav-plans.js';
 import { legDistances, pointDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
@@ -49,7 +50,26 @@ export const SPOT_CHOICES = Object.freeze({
     { label: 'Downwind', point: 11 },
     { label: 'Perch', point: 12 },
   ]),
+  // The CT-102B Astra II's pattern (spec 4.19 item 6, plan Step 5c Phase 3): the same four spots as the overhead break's,
+  // from its own route points (astra-circuit.js ASTRA_POINT), and the take-off from the runway. Downwind is where its
+  // break rolls out. The outer pattern's five (spec 4.19 item 11, V2.490) are offered only when the route has their
+  // points (spotChoices), so a setup saved with the seven-point route keeps its old spots.
+  PAT_ASTRA: Object.freeze([
+    { label: 'Initial', point: ASTRA_POINT.initial + 1 },
+    { label: 'In the break', point: ASTRA_POINT.break + 1 },
+    { label: 'Downwind', point: ASTRA_POINT.downwind + 1 },
+    { label: 'Perch', point: ASTRA_POINT.perch + 1 },
+    { label: 'Take-off', point: ASTRA_POINT.threshold + 1 },
+    { label: 'Upwind', point: ASTRA_POINT.upwind + 1 },
+    { label: 'Crosswind', point: ASTRA_POINT.crosswind + 1 },
+    { label: 'Outside downwind', point: ASTRA_POINT.outerDownwind + 1 },
+    { label: '90 to initial', point: ASTRA_POINT.ninetyToInitial + 1 },
+    { label: '45 to initial', point: ASTRA_POINT.fortyFiveToInitial + 1 },
+  ]),
 });
+
+/** True for a type that flies a pattern of its own (the CT-102B's PAT_ASTRA), not Pattern 1 (types.js patternRouteId). */
+export const hasOwnPattern = (type) => typeProfile(type).patternRouteId !== 'PAT1';
 
 /** The spots for a route: its SPOT_CHOICES (those it has), or every point by its own name. [{ label, point }] */
 export function spotChoices(route) {
@@ -131,12 +151,15 @@ export function spawnSpec(values, routes) {
   if (!routes.length) return { problem: 'There are no routes to fly yet. Make one with + New route.' };
   const routeId = spawnRouteId(values.spawnRoute, routes);
   const route = routes.find((r) => r.id === routeId);
+  // Type and route are tied (spec 4.19 item 6): a route flown by one type only gets that type; a type with a pattern of
+  // its own is never put on another route.
+  if (!route.type && hasOwnPattern(values.spawnType)) return { problem: `The ${values.spawnType} flies its own pattern: choose it in the Route list.` };
   const { spawnStartPoint: startPoint, spawnDelayS: delaySec } = values;
   if (!Number.isInteger(startPoint) || startPoint < 1) return { problem: 'The start point is a whole number from 1: point 1 is the first point.' };
   if (startPoint > route.points.length) return { problem: `${route.name} has ${route.points.length} points: choose a start point from 1 to ${route.points.length}.` };
   const [, mostDelay] = LIMITS.spawnDelayS;
   if (!Number.isFinite(delaySec) || delaySec < 0 || delaySec > mostDelay) return { problem: `The delay is a number of seconds from now, from 0 to ${feet(mostDelay)}.` };
-  return { spec: { type: values.spawnType, routeId, startPoint, delaySec } };
+  return { spec: { type: route.type ?? values.spawnType, routeId, startPoint, delaySec } };
 }
 
 /** The second aircraft of a pair: the same as the first, `pairGapS` seconds later, or { problem } when that gap doesn't make sense. */
@@ -201,25 +224,42 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   let pflChosen = false; // "PFL from area" is picked in the Route list; it is not a route the setting can hold
   let siChosen = false; // "SI pattern" is picked: its spots are on two routes (SI_SPOTS)
+  // Type and route are tied (spec 4.19 item 6): picking the Astra pattern sets the Type to CT-102B; picking CT-102B shows
+  // only its own route (no PFL from area, no SI pattern, no rejoin boxes: none is flown by the Astra); picking any other
+  // route, the SI pattern or PFL from area puts the Type back to CT-156.
+  const typeOfChoice = (value) => setup.routes.find((r) => r.id === value)?.type ?? null;
   const routeSelect = h('select', {
     id: 'traffic-spawn-route',
     onchange: () => {
       pflChosen = routeSelect.value === PFL_FROM_AREA;
       siChosen = routeSelect.value === SI_PATTERN_CHOICE;
-      if (!pflChosen && !siChosen) settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
+      const tiedType = pflChosen || siChosen ? null : typeOfChoice(routeSelect.value);
+      const type = tiedType ?? (hasOwnPattern(settings.get().spawnType) ? 'CT-156' : settings.get().spawnType);
+      if (!pflChosen && !siChosen) settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1, ...(type !== settings.get().spawnType ? { spawnType: type } : {}) });
+      else if (type !== settings.get().spawnType) settings.update({ spawnType: type });
       showRouteParts();
       conflictButtonFollows();
     },
   });
+  /** The routes the Route list offers for the chosen type: a type with its own pattern, only that pattern; otherwise all. */
+  const routesForType = () => {
+    const type = settings.get().spawnType;
+    const all = setup.routes.filter((r) => r && r.kind !== 'split');
+    if (!hasOwnPattern(type)) return all;
+    return all.filter((r) => r.id === typeProfile(type).patternRouteId);
+  };
+  /** A type is offered only while the setup has the route it flies (spec 4.19 item 8: a missing Astra route hides the Astra). */
+  const typeAvailable = (type) => !hasOwnPattern(type) || setup.routes.some((r) => r.id === typeProfile(type).patternRouteId);
   const fillRoutes = () => {
     clear(routeSelect);
-    const visibleRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    for (const route of visibleRoutes) routeSelect.appendChild(h('option', { value: route.id }, route.name));
-    const hasSi = SI_SPOTS.every((s) => setup.routes.some((r) => r.id === s.routeId));
+    const ownPattern = hasOwnPattern(settings.get().spawnType);
+    for (const route of routesForType()) routeSelect.appendChild(h('option', { value: route.id }, route.name));
+    const hasSi = !ownPattern && SI_SPOTS.every((s) => setup.routes.some((r) => r.id === s.routeId));
     if (hasSi) routeSelect.appendChild(h('option', { value: SI_PATTERN_CHOICE }, 'SI pattern'));
     else siChosen = false;
-    routeSelect.appendChild(h('option', { value: PFL_FROM_AREA }, 'PFL from area'));
-    routeSelect.value = pflChosen ? PFL_FROM_AREA : siChosen ? SI_PATTERN_CHOICE : spawnRouteId(settings.get().spawnRoute, flownRoutes());
+    if (!ownPattern) routeSelect.appendChild(h('option', { value: PFL_FROM_AREA }, 'PFL from area'));
+    else pflChosen = false;
+    routeSelect.value = pflChosen ? PFL_FROM_AREA : siChosen ? SI_PATTERN_CHOICE : spawnRouteId(settings.get().spawnRoute, ownPattern ? routesForType() : flownRoutes());
   };
 
   // The advanced choices: a delay before the aircraft starts, and adding a pair. Closed until asked for.
@@ -357,6 +397,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   // Spawn a conflict (Patrick, 4 Oct 19:24Z): a new aircraft on the spawner's route, started where and when it will
   // meet the selected aircraft, so that one of them has to manage it (scenario-timing.js conflictSpawnPlan).
   const routeName = (id) => setup.routes.find((r) => r.id === id)?.name ?? id;
+  /** The type the conflict's aircraft is: the route's own (the Astra pattern's CT-102B), else the Type chosen, else the CT-156. */
+  const conflictType = (routeId) => typeOfChoice(routeId) ?? (hasOwnPattern(settings.get().spawnType) ? 'CT-156' : settings.get().spawnType);
   function spawnConflict() {
     const targetId = selectedAircraftId;
     const target = sim.state().aircraft.find((a) => a.id === targetId);
@@ -364,25 +406,27 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
     // The SI pattern's conflicts come in on the SI Rejoin (its base and final); any other choice is its own route.
     const routeId = siChosen ? 'ENT2' : spawnRouteId(settings.get().spawnRoute, flownRoutes());
-    say(`Working out where an aircraft on ${routeName(routeId)} meets ${targetId}…`);
+    // The messages name the type that is added (spec 4.19 item 6: either type onto either route; plan Step 5c Phase 4).
+    const type = conflictType(routeId);
+    say(`Working out where a ${type} on ${routeName(routeId)} meets ${targetId}…`);
     // A moment later, so the line above shows while it works (it flies everyone ahead on a copy of the run).
     timers.after(0, () => {
       let plan = null;
       try {
-        plan = conflictSpawnPlan(sim, setup, targetId, routeId, { type: settings.get().spawnType });
+        plan = conflictSpawnPlan(sim, setup, targetId, routeId, { type });
       } catch (err) {
         console.error('Spawn a conflict failed:', err);
       }
-      if (!plan) return say(`No start on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
+      if (!plan) return say(`No start for a ${type} on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
       try {
         // Anywhere along the route (TR-66), not only at its spots (Patrick, 4 Oct).
-        const id = sim.spawn({ type: settings.get().spawnType, routeId, startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
+        const id = sim.spawn({ type, routeId, startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
         const route = setup.routes.find((r) => r.id === routeId);
         const after = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;
         const nm = (plan.backFt / FT_PER_NM).toFixed(1);
         const toEnd = routeId === 'ENT2' ? 'from the threshold' : routeId === 'ENT1' ? 'back from the Merge' : 'before the end of the route';
         const when = plan.delaySec > 0 ? `in ${Math.round(plan.delaySec)} s` : 'now';
-        say(`Added ${id} on ${routeName(routeId)}, ${nm} NM ${toEnd} (past ${after}), ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
+        say(`Added ${id}, a ${type}, on ${routeName(routeId)}, ${nm} NM ${toEnd} (past ${after}), ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
       } catch (err) {
         if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);
         say(engineProblem(err));
@@ -471,6 +515,30 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (!pflChosen) fillSpots();
   }
 
+  // Type: the CT-156 and the CT-102B Astra II, the Astra only while the setup has its pattern (typeAvailable).
+  const typeField = controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) });
+  const typeSelect = typeField.querySelector?.('select') ?? null;
+  const offerTypes = () => {
+    SPAWN_TYPES.forEach((type, i) => {
+      const option = typeSelect?.options?.[i];
+      if (option) { option.hidden = !typeAvailable(type); option.disabled = !typeAvailable(type); }
+    });
+    if (!typeAvailable(settings.get().spawnType)) settings.update({ spawnType: 'CT-156' });
+  };
+  // The Type changed: the Route list follows (a type with its own pattern starts on it; back to a CT-156 route otherwise).
+  let shownType = settings.get().spawnType;
+  const typeFollows = (values) => {
+    if (values.spawnType === shownType) return;
+    shownType = values.spawnType;
+    const own = hasOwnPattern(values.spawnType) ? typeProfile(values.spawnType).patternRouteId : null;
+    const current = setup.routes.find((r) => r.id === values.spawnRoute);
+    if (own && values.spawnRoute !== own) settings.update({ spawnRoute: own, spawnStartPoint: 1 });
+    else if (!own && current?.type) settings.update({ spawnRoute: defaultSpawnRouteId(setup.routes.filter((r) => !r.type)), spawnStartPoint: 1 });
+    fillRoutes();
+    showRouteParts();
+    conflictButtonFollows();
+  };
+
   // "Spawn aircraft" opens and closes like Traffic settings, closed at first (Patrick, 4 Oct).
   const spawnPanel = createPanel({ title: 'Spawn aircraft', collapsed: true });
   spawnPanel.element.classList.add('panel-pop'); // stands out as clickable (Patrick, 5 Oct)
@@ -478,7 +546,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
     h('div', { class: 'spawner-head' }, callsignBadge),
-    controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
+    typeField,
     h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
     spotsHint,
     spots,
@@ -504,10 +572,14 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     controls.guard(button, keys);
   }
 
+  offerTypes();
   fillRoutes();
   showRouteParts();
   showSpotsHint();
-  settings.subscribe?.(() => showSpotsHint());
+  settings.subscribe?.((values) => {
+    typeFollows(values ?? settings.get());
+    showSpotsHint();
+  });
 
   // ---- the aircraft list and the conflicts ------------------------------------
   const listBody = h('ul', { class: 'aircraft-list' });
@@ -645,7 +717,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
         removeBtn.setAttribute('aria-label', `Remove ${row.id}`);
         nameChildren.push(removeBtn);
         const children = [
-          h('span', { class: 'aircraft-name', title: `${row.id}: ${row.type} on ${row.routeName}${row.config ? ` (${row.config})` : ''}` }, ...nameChildren),
+          // " · est." while the type's numbers are estimates (spec 4.19 item 5).
+          h('span', { class: 'aircraft-name', title: `${row.id}: ${row.type} on ${row.routeName}${row.config ? ` (${row.config})` : ''}${numbersAreEstimates(row.type) ? ' · est.' : ''}` }, ...nameChildren),
           ' ',
           h('span', { class: 'aircraft-detail' }, detailText(row)),
         ];
@@ -720,7 +793,10 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             !canGoAround,
           );
           // The card's menu (Patrick, 4 Oct 23:23Z): pick Pattern, Landing behaviour or Manoeuvres and that menu's buttons show.
-          const menu = cardMenus.get(row.id) ?? 'manoeuvres';
+          // A type with its own pattern (the Astra) has Landing behaviour only: the OHB/SI choice and the Manoeuvres
+          // (Breakout, Closed pattern, High Key, PFL) are the CT-156's (spec 4.19 item 6, TR-R20); Remove stays.
+          const ownPattern = hasOwnPattern(row.type);
+          const menu = ownPattern ? 'landing' : cardMenus.get(row.id) ?? 'manoeuvres';
           const menuSelect = h(
             'select',
             {
@@ -735,9 +811,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
                 write(state);
               },
             },
-            h('option', { value: 'pattern' }, 'Pattern'),
-            h('option', { value: 'landing' }, 'Landing behaviour'),
-            h('option', { value: 'manoeuvres' }, 'Manoeuvres'),
+            ...(ownPattern
+              ? [h('option', { value: 'landing' }, 'Landing behaviour')]
+              : [h('option', { value: 'pattern' }, 'Pattern'), h('option', { value: 'landing' }, 'Landing behaviour'), h('option', { value: 'manoeuvres' }, 'Manoeuvres')]),
           );
           menuSelect.value = menu;
           // Pattern: OHB, or the SI pattern lap after lap (Traffic spec 4.15); takes effect at the next outer downwind.
@@ -831,6 +907,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     },
     /** The routes changed (one was made, renamed or removed): the spawner's route list follows. */
     routesChanged() {
+      offerTypes();
       fillRoutes();
       showRouteParts();
     },

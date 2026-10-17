@@ -79,6 +79,47 @@ The two copies of the queue name some rows differently; both names are given. Pa
 - **Full-stop landings roll out and taxi in** (built v2.10.124, TR-115, spec 4.17) (Patrick, 10 Oct 20:38Z): an aircraft landing "for the stop" slows to 20 kt down to the end of the runway, then taxis off at 20 kt along the taxi lines, crosses the other runway and stops in front of the Bandit hangar before it is removed. Aircraft doing touch-and-goes fly a low approach while one is on the runway for the stop. Today a full stop disappears at touchdown (`sim.js`, the lap wrap). The taxi lines are only drawn today (`airfield-core-ground.js`); no aircraft follows them.
 - **Mid-air collisions eject and crash** (built v2.10.125, TR-116, spec 4.18) (Patrick, 10 Oct 21:15Z: "incorporate the collision from fight sim - if the aircraft actually do collide/touch, they eject and crash"): two aircraft that touch (Fight Sim's 35 ft CT-156 hitbox, `turn-fight/energy/judge.js` `checkMidAirCollision`) both eject, as a PFL that can't make the runway does (TR-75), and both aircraft crash. Today Traffic aircraft fly through each other.
 
+## A CT-102B Astra II pattern beside the CT-156's (Dad, 13 Oct 2026; moved up to plan Step 5c, Patrick's go-ahead 13 Oct)
+
+Dad's words: "Once we have the painted decent model, I'd like it next in the traffic SIM. The simple answer to create a CT-102 pattern that is about 50%-75% smaller. The pattern should be flown at 3000 feet and 180 knots. The perch and land should be 90 knots. This pattern ground track should be a toggle of on and off as well as all the same spawn features, as well as features to spawn conflicts to either potential pattern. This may require a FABLE assessment."
+
+His answers the same day: the size is **fitted to the numbers** (it comes out wherever 180 and 90 knots and the bank angles put it, and the ratio to the CT-156's is reported), the pattern is **offset from the CT-156 pattern**, and the 3,000 ft is **MSL** (about 1,100 ft above Moose Jaw's runway, field elevation 1,892 ft).
+
+- **Numbers (Dad's, need Patrick's yes or an Astra manual page before they're anything but working values):** pattern 3,000 ft MSL at 180 KIAS; perch and landing 90 KIAS. Which side, how far offset, which runway, the bank angles and the descent from the perch are open.
+- **What it needs:** the Astra II model in Traffic (shared plan Step 3c, item 6 delivery first); a second pattern ground track with its own on/off toggle; all of today's spawn features for CT-102s; and conflict spawns into either pattern, including one aircraft type crossing the other's pattern.
+- **Flying the Astra:** Traffic's aircraft fly on the shared T-6 numbers in `src/core/`. The Astra II needs its own performance numbers (turboprop thrust, drag, stall, limits) from a manual in the project files or Patrick's ruling, and no second copy of a formula: the same point mass with an Astra parameter set.
+- **Assessment:** Dad suggests a Fable assessment. The rule book allows Fable for a one-off architecture review once Patrick has been told: how a second aircraft type and a second pattern fit Traffic's flying layer (one simulated pilot and one path follower per aircraft), the spawns and the conflict logic, without disturbing the CT-156 pattern.
+
+### Left out of the first Astra build (plan Step 5c, 13 Oct 2026)
+
+Each waits for Patrick's yes or for Astra numbers. None is built; the Astra's card does not offer them (spec 4.19 item 6).
+
+- **An Astra PFL and engine failure.** No Astra glide data (glide ratio by configuration, flap and gear speeds). Needs a manual page or Patrick's ruling.
+- **An Astra closed pattern and High Key.** Built on the CT-156's 140 KIAS climbs and 3,500 and 4,500 ft heights.
+- **An Astra breakout and the 4,500 ft rejoin.** CT-156 numbers (4,500 ft, 220 KIAS, ENT1).
+- **An Astra straight-in and SI pattern.**
+- **Randomize behaviour for Astras.** Randomize is filtered by type in the meantime so a CT-156 is never put on the Astra pattern.
+- **A Mixed circuit scenario** (say three Astras in their pattern with the Busy circuit). A new scenario, so a plan item, if Patrick wants it (TR-161).
+- **An Astra hitbox.** The CT-156's 35 ft is used (TR-116); the Astra is 27.6 ft long and 33.8 ft across, close enough.
+- **Astra cockpit instruments** (its own panel, side-by-side seats beyond the camera points).
+- **Runway 11R and Southport** (where the Astra really flies).
+
+### Astra outer pattern: upwind, outside downwind, 90 or 45 to initial (Dad, 13 Oct 2026; moved up to plan Step 5c Phase 4b, Patrick approved, relayed by Dad, 13 Oct 2026)
+
+Dad's words: "additionally the astras will have the upwind and outside downwind 90 to initial 45 to initial all inside and tighter than the ct156 pattern".
+
+How it reads, until Dad or Patrick says otherwise: like the CT-156's Pattern 1 (climb out, upwind, crosswind, outside downwind, 45° leg, initial, break), the Astra gets its own outer legs at 3,000 ft MSL and 180 KIAS: after take-off or a go-around it climbs out along the runway, turns crosswind onto an **outside downwind**, and comes back to its **initial** either by a **90 to initial** (a 90° turn onto a leg square to the runway, then 90° onto initial) or a **45 to initial** (a 135° turn onto a 45° leg, then 45° onto initial), then breaks as now. Every leg sits inside the CT-156's (its outside downwind is about 2.0 NM out, `moose-jaw.json` PAT1) and 500 ft below it. Today the Astra's lap is the closed loop: climbing turn straight onto the inner downwind (spec 4.19 item 3).
+
+The physics (shared turn formula, radius = true speed squared / (g x tan bank); 180 KIAS is about 188 KTAS at 3,000 ft): coming back round to initial from an outside downwind is a 180° reversal, so the outside downwind is at least two turn radii out.
+
+| Outer-pattern turns | Turn radius | Outside downwind at least | Against the CT-156's 2.0 NM |
+|---|---|---|---|
+| 30° at 180 KIAS (Patrick's 30°, 13 Oct) | about 5,430 ft | about 1.8 NM, about 2.0 NM with a 45° leg | not tighter |
+| 45° at 180 KIAS | about 3,140 ft | about 1.0 NM, about 1.2 NM with a 45° leg | inside, about 0.6 |
+| 30° at 140 KIAS | about 3,280 ft | about 1.1 NM, about 1.3 NM with a 45° leg | inside, about 0.6 |
+
+All three are physics, not manual numbers; the leg lengths are estimates. The question for Patrick is which one (or his idea). **Dad picked 45° at 180 KIAS** (13 Oct 2026) and Patrick approved it (relayed by Dad, 13 Oct 2026): spec 4.19 item 11, TR-164.
+
 ## Rough spots left for later (found by the V2.350 refactor)
 
 - **Two gear-and-flap rules.** The tag's rule (`behaviour.js` `configOf`) reads the pattern stage and the field elevation; the drag's rule (`path-follower.js` `resolveAircraftConfig`) reads the phase and the threshold's height (both 1,892 ft since TR-149). They share their speeds and the 50 ft since refactor step 2, but can disagree for a moment at a phase change, so the tag can show a different configuration from the one being flown. Making them one changes the tag, so it waits for Patrick.

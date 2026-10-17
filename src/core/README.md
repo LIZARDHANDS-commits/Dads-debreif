@@ -4,7 +4,7 @@ The small functions behind every number the tool shows: units, angles and headin
 
 | File | What's in it |
 |---|---|
-| `units.js` | Feet per nautical mile, knots to feet per second, feet per metre, gravity, Earth radius |
+| `units.js` | Feet per nautical mile, knots to feet per second, feet per metre, gravity, sea-level air density, Earth radius |
 | `angles.js` | Headings, bearings, clock positions, aspect angle, heading crossing angle, compass conversion, compass bearing of a vector |
 | `geo.js` | The debrief map: latitude/longitude to feet and back, map tiles; distance along and off a leg |
 | `terrain-tiles.js` | The public Terrarium elevation tiles: their address and credit, decoding a tile's pixels into heights, the tiles covering a box, and a store that answers the height at a point (SOF terrain and Traffic's 3D ground, TR-117) |
@@ -15,7 +15,9 @@ The small functions behind every number the tool shows: units, angles and headin
 | `tennis.js` | The tennis ball, one solver for the map and the 3D view |
 | `standards.js` | Formation standards (spread, offset, lead) for the Debrief, with the SMM's as the default preset (D114-D116) |
 | `wind.js` | Crab angle, heading and ground speed in a wind (compass degrees in and out); the wind as a vector |
-| `t6-performance.js` | The one T-6A performance model: V-n limits and stall line, roll and G onset, IAS and TAS, thrust and drag, pitch attitude, energy height, glide, the engine-out zoom, and the stick-shaker pull and split S, checked against reference data |
+| `aircraft-performance.js` | One aircraft's performance set from its numbers (`makePerformance`): the formulas behind the stall line, G available, roll and G onset limits, top speed, thrust and drag, pitch attitude, glide and stick-shaker pull; and IAS to TAS and back, and KIAS from Mach |
+| `t6-performance.js` | The one T-6A performance model: its numbers (V-n limits and stall line, roll and G onset, thrust and drag, pitch attitude, glide) built into its set with `makePerformance`, every function under its old name; energy height, the engine-out zoom and the split S, checked against reference data |
+| `ct102b-performance.js` | The CT-102B Astra II's set (Traffic spec 4.19): the same formulas with the Astra's numbers, each with its source status; most are estimates |
 | `closest-approach.js` | Closest approach of two aircraft, the danger test that holds until the range opens, which side to dodge, and when two aircraft first get inside a cylinder of each other (ALL-27); every limit passed in |
 | `point-mass.js` | One step of an aircraft flown by G and bank as a point, through loops and straight up or down |
 | `t6a-turn-data.js` | The sustained turn points, read by eye, and the thrust and drag fitted to them |
