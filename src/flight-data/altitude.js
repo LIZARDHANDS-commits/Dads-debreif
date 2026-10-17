@@ -147,7 +147,7 @@ export function altitudeCheck(flight, { refAt = null } = {}) {
     } else if (p.start.length + p.end.length >= ALTITUDE_CHECK.minPhaseFixes) {
       // Too few fixes in each phase alone: all of them together, one constant (low confidence). Under minPhaseFixes in all, nothing: a
       // track whose logging started in the air can carry one or two slow steps there (a GPS hiccup at start-up) that read as ground
-      // fixes thousands of feet up; taken as its ground, the whole formation was moved by it (Dad's Cobra flight, 14 Oct 2026, V2.493).
+      // fixes thousands of feet up; taken as its ground, the whole formation was moved by it (Dad's Cobra flight, 14 Oct 2026, V2.511).
       const c = median([...p.start.map((fx) => fx.altFt - ref.at(fx, 'start')), ...p.end.map((fx) => fx.altFt - ref.at(fx, 'end'))].filter(isNum));
       if (isNum(c)) {
         used = 'all';
