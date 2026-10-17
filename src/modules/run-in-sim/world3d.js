@@ -5,7 +5,7 @@
 // release point) and, as it flies, the
 // trail behind the aircraft and the load's trail to its impact mark. Built the way the EP Tabletop builds its world
 // (src/modules/ep-tabletop/world3d.js). A picture only: it shows the stored pass at the time it is given.
-// The air refuelling run (RS-15 to RS-18, proposed, built ahead of Patrick's yes): no target; the anchor, the receiver's
+// The air refuelling run (RS-15 to RS-18, approved: Patrick's yes, relayed by Dad, 17 Oct 2026): no target; the anchor, the receiver's
 // track, the tanker's turn point and the roll-out point; the KC-130J (kc130j.js) and the stand-in receiver (the CT-156)
 // with their trails; and two more cameras, From the tanker and Behind the drogue.
 //
@@ -13,7 +13,7 @@
 // doesn't come leaves the plain ground colour; no WebGL leaves a message in place of the view (index.js), and the plan
 // view, the settings and the result still work.
 import { loadThree, addLights, webglSupported, worldToScreen } from '../../ui-kit/three-aircraft.js';
-import { createCt156Model, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, PAINT_DEFAULT, setGear, CT156_GEAR_TRAVEL_S } from '../../ui-kit/ct156-model.js';
 import { createCockpitMount, aimCockpitCamera, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { createDrapedGround } from '../../ui-kit/draped-ground.js';
@@ -22,6 +22,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { targetSizes, DECK_THICK_FT, TOWER } from './targets.js';
 import { orbitOutline } from './pass.js';
 import { refuelOutline, turnRangeLine, DROGUE } from './refuel.js';
+import { buildAirports } from '../../ui-kit/airfield3d.js';
 import { createKc130j } from './kc130j.js';
 
 /** The haze: the ground fades to the horizon colour from 15 NM out to 40 NM (estimates for the look). */
@@ -35,6 +36,8 @@ const CAMERA = Object.freeze({ chaseBackFt: 260, chaseUpFt: 55, overheadFt: 3000
  * (past labelFt) an aircraft gets a label. The tanker is drawn nose up by noseUpDeg (an estimate for the look).
  */
 const AAR_CAMERA = Object.freeze({ tankerBackFt: 66, tankerUpFt: 4, drogueBackFt: 100, drogueUpFt: 14, labelFt: 1500, fovDeg: 45, noseUpDeg: 2 });
+/** The refuelling run's take-off: the gear starts up this long after lift-off, s (an estimate: once climbing away). */
+const GEAR_UP_AFTER_SEC = 3;
 /** Degrees of look per pixel dragged (an estimate for feel). */
 const DRAG_DEG_PER_PX = 0.25;
 /** The trails keep one point in this many of the pass's steps (0.2 s). */
@@ -74,7 +77,9 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
   };
 
   // ---- The ground ----
-  let projection = area.projection;
+  let projection = area.projection; // the flying's frame (about the place)
+  let groundProjection = area.ground?.projection ?? projection; // the ground squares' frame (the refuelling run's is offset, RS-19)
+  let groundOffset = area.ground?.offset ?? { x: 0, y: 0 };
   let homeFt = fallbackFt;
   let groundDirty = true;
   let reliefRevision = -1;
@@ -89,6 +94,8 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
   };
   const ground = createDrapedGround({ T: THREE, timers, doc, plan: area.plan, imagery: area.imagery, polygonOffset: true, onChange: () => { groundDirty = true; nudge(); } });
   ground.setHeight(homeFt);
+  ground.group.position.x = groundOffset.x;
+  ground.group.position.y = groundOffset.y;
   scene.add(ground.group);
 
   // ---- The target ----
@@ -179,6 +186,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
   function buildPlan(plan, display) {
     clearGroup(planGroup);
     marks = [];
+    if (airports) airports.root.visible = false; // shown again by the refuelling run's lines
     if (!plan) return;
     if (plan.kind === 'aar') {
       buildRefuelPlan(plan, display);
@@ -227,13 +235,28 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
     marks.push({ words: 'Tanker turns here', p: o.turnStart }, { words: 'Roll-out point', p: o.rollOut },
       { words: `Offset ${(o.offset.ft / FT_PER_NM).toFixed(1)} NM ${o.offset.side}`, p: mid });
     if (o.runway) {
-      // RS-19: CYMJ's runway on the ground, and the IP.
-      planGroup.add(line([{ ...o.runway.a, z: o.runway.a.z + 3 }, { ...o.runway.b, z: o.runway.b.z + 3 }], lineMat(COLOURS.rollOut)));
+      // RS-19: CYMJ's runways, drawn by the shared airfield builder (ui-kit airfield3d.js, as the EP Tabletop draws them) at
+      // the runway's height the flying uses, and the IP.
+      showAirports(o.runway.a.z);
       marks.push({ words: `CYMJ ${o.runway.name}`, p: o.runway.a }, { words: 'IP', p: o.ip });
       planGroup.add(dot(o.ip, COLOURS.ip, 40));
     } else {
       marks.push({ words: 'Receiver starts', p: o.start });
     }
+  }
+
+  // ---- The airfields (the refuelling run's take-off, RS-19) ----
+  let airports = null;
+  let airportsKey = '';
+  function showAirports(fieldFt) {
+    const key = `${projection.lat}|${projection.lon}|${Math.round(fieldFt)}`;
+    if (key !== airportsKey) {
+      airports?.dispose();
+      airports = buildAirports(THREE, { toXY: projection.toXY, scale: 1, groundFt: fieldFt, doc, halfFt: 60 * FT_PER_NM, liftFt: 1, aboveGround: true });
+      scene.add(airports.root);
+      airportsKey = key;
+    }
+    airports.root.visible = true;
   }
 
   // ---- The trails ----
@@ -316,6 +339,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
   scene.add(ship);
   const cockpit = createCockpitMount(THREE, { doc });
   let hud = null;
+  let gearSet = false; // the gear has been lowered for a take-off (RS-19); the run-in's passes never touch it
   // The refuelling run's tanker (RS-15): a picture only; shown with a refuelling pass.
   const tanker = createKc130j(THREE, { onReady: () => nudge() });
   tanker.group.visible = false;
@@ -437,7 +461,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
     }
     if (groundDirty) {
       groundDirty = false;
-      ground.paint({ projection });
+      ground.paint({ projection: groundProjection });
     }
     const inCockpit = view.camera === 'cockpit' && view.pose;
     cockpit.mount(inCockpit ? ship : null, 'front');
@@ -477,9 +501,14 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
   resizer?.observe(host);
 
   return {
-    /** A new place: the ground repainted round it. fallback: the height where no tile came. */
-    setArea(nextProjection, nextFallbackFt) {
-      projection = nextProjection;
+    /** A new place (or the refuelling run's ground centre): area.js areaFor()'s; the ground repainted round it. fallback: the height where no tile came. */
+    setArea(nextArea, nextFallbackFt) {
+      projection = nextArea.projection;
+      groundProjection = nextArea.ground?.projection ?? projection;
+      groundOffset = nextArea.ground?.offset ?? { x: 0, y: 0 };
+      ground.group.position.x = groundOffset.x;
+      ground.group.position.y = groundOffset.y;
+      airportsKey = ''; // the airfields are placed again in the new frame
       homeFt = nextFallbackFt;
       ground.setHeight(homeFt);
       groundDirty = true;
@@ -526,6 +555,13 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
         ship.position.set(view.pose.x, view.pose.y, view.pose.z);
         ship.rotation.set((bankDeg * Math.PI) / 180, (-pitchDeg * Math.PI) / 180, headingRad, 'ZYX');
         hud = { pitchDeg, bankDeg, altFt: view.pose.z, kias, headingDeg: (((90 - (headingRad * 180) / Math.PI) % 360) + 360) % 360, g, vsFpm: vz * 60 };
+        // The gear (RS-19): down on the runway, coming up a few seconds after lift-off over the model's travel time (the
+        // seconds before it starts up are an estimate); up for every other pass, as before.
+        const liftOff = pass.plan.takeoff ? pass.flight.events.takeoff : undefined;
+        if (liftOff !== undefined || gearSet) {
+          gearSet = liftOff !== undefined;
+          setGear(ship, liftOff === undefined ? 0 : Math.max(0, Math.min(1, 1 - (t - liftOff - GEAR_UP_AFTER_SEC) / CT156_GEAR_TRAVEL_S)));
+        }
         if (pass.tanker) {
           // The tanker at the same moment (RS-15): its nose along its air velocity, its bank from its turn, a little nose up.
           const tt = pass.tanker;
@@ -555,6 +591,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
       canvas.removeEventListener('dblclick', ahead);
       cockpit.dispose();
       tanker.dispose();
+      airports?.dispose();
       clearGroup(targetGroup);
       clearGroup(planGroup);
       clearGroup(trailGroup);

@@ -1,4 +1,4 @@
-// The KC-130J tanker for the air refuelling run (RS-15; PROPOSED, BUILT AHEAD OF PATRICK'S YES, Dad, 17 Oct 2026): the
+// The KC-130J tanker for the air refuelling run (RS-15; approved: Patrick's yes, relayed by Dad, 17 Oct 2026): the
 // shared C-130J model (ui-kit c130j-model.js, Blender's, DB-35) with its two wing pods, hoses and baskets drawn on it as
 // simple shapes, from refuel.js's DROGUE numbers (estimates for the picture). A picture only: no flight numbers. Until
 // the model file is in, or for good if it doesn't come, the model's own stand-in shows (the CT-156 drawn at the

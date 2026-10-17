@@ -1,5 +1,5 @@
 // Air refuelling: the point-parallel rendezvous and the join to pre-contact (spec "Air refuelling"; RS-15 to RS-18).
-// PROPOSED, BUILT AHEAD OF PATRICK'S YES (Dad, 17 Oct 2026: "Build anyway"). Plain values only, no page: index.js calls
+// APPROVED: Patrick's yes (relayed by Dad, 17 Oct 2026: "pat says build"). Plain values only, no page: index.js calls
 // flyRefuel() when the refuelling run is flown, and the playback reads the stored timelines it returns.
 //
 // 1. The tanker (RS-15): a KC-130J with NO performance set (RS-Q1), so it is not flown: it is moved along its anchor over
@@ -16,7 +16,7 @@
 // 3. The join (RS-17): the receiver, the CT-156 on the T-6A set flown by the run-in pilot (pilot.js) on core's point mass,
 //    climbs to the drogue's height, holds the line through the pre-contact point along the tanker's track (the L1
 //    follower) and closes at the set overtake, easing off so it could brake at JOIN.brakeKtPerSec, to nothing at the point.
-// RS-19 (Dad, 17 Oct 2026, proposed, built ahead of Patrick's yes): by default the receiver's flight starts with its
+// RS-19 (Dad, 17 Oct 2026; approved: Patrick's yes, relayed by Dad): by default the receiver's flight starts with its
 //    take-off from CYMJ (the runway into the wind; 29L when calm), the climb-out the Traffic module flies, and the transit
 //    to the IP on the refuelling track at the rendezvous height; the tanker holds in its orbit, and its turn inbound is
 //    worked out from the receiver's flight flown ahead (its IP time plus its run down the track to the trail point).
@@ -32,15 +32,17 @@ import { windTriangle } from '../../core/wind.js';
 import { densityRatio } from '../../core/atmosphere.js';
 import { iasToTasKt, tasToIasKt } from '../../core/t6-performance.js';
 import { pointMassState, stepPointMass } from '../../core/point-mass.js';
-import { turnRadiusFromBankFt, bankDegFromTurnRate, closureKt } from '../../core/flight-math.js';
-import { unitVectorFromCompassDeg, compassDegToHeadingRad, degToRad, wrapPi } from '../../core/angles.js';
+import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, bankDegFromTurnRate, closureKt } from '../../core/flight-math.js';
+import { unitVectorFromCompassDeg, compassDegToHeadingRad, compassDegFromVector, degToRad, wrapPi } from '../../core/angles.js';
 import { FT_PER_NM, KT_TO_FTPS } from '../../core/units.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { dropWind } from '../debrief/drop.js';
 import { CIRCUIT } from '../traffic/circuit.js';
 import { THRESHOLD_29L, DEPARTURE_END_29L, cymjLatLon } from '../../airfields/cymj-runways.js';
+import { FIELD_ELEV_FT } from '../traffic/airfield.js';
+import { WHEELS_BELOW_ORIGIN_FT } from '../debrief/view3d/ground.js';
 import { AIRCRAFT } from './aircraft.js';
-import { makePath, pointOnPath, samplePath, holdLap, turnSeg } from './ground-path.js';
+import { makePath, pointOnPath, samplePath, holdLap } from './ground-path.js';
 import { PILOT, pilotAt, pilotStep, wantedLift, airData } from './pilot.js';
 import { PASS_STEP_SEC, speedAlong, windWords, climbToward } from './pass.js';
 
@@ -94,6 +96,7 @@ export const AAR_PHASE = Object.freeze({ RV: 0, JOIN: 1, STABLE: 2, GROUND: 3, D
 const left = (h) => ({ x: -h.y, y: h.x });
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const nm = (ft) => ft / FT_PER_NM;
+const TAU = Math.PI * 2;
 
 /**
  * The plan: the anchor, the speeds and the numbers worked out to hit (RS-16).
@@ -115,29 +118,49 @@ export function buildRefuelPlan(setup, world) {
   const notes = [];
   const worked = {};
 
-  // The anchor (RS-15, RS-20): a racetrack as wide as the offset (two of the set bank's turn radii at the tanker's true
-  // airspeed unless set by hand), its refuelling leg from the origin along the track. holdLap's lap starts at its "IP"
-  // (here the refuelling leg's far end): the turn there, the reciprocal leg, the turn back, and the refuelling leg. The
-  // last lap's turn inbound is at the set bank (radius R) whatever the offset, so a hand-set offset rolls the tanker out
-  // to the side of the receiver's track by the difference; then it carries on along the track.
+  // The turn inbound, flown in the air mass (RS-21, standard aerodynamics): constant true airspeed and the set bank, so
+  // the heading turns at core turnRateFromBankRadPerSec's rate from the heading that holds the reciprocal leg's track to
+  // the one that holds the refuelling track (core windTriangle on each), and the ground track is that circle through the
+  // air plus the wind times the time (the drift). airTurn() gives where it is τ seconds into the turn from its start.
   const Vt = tasFt(a.tankerKias, H);
   const R = turnRadiusFromBankFt(Vt, a.bankDeg);
-  const offsetFt = a.byHand.offsetNm !== null ? a.byHand.offsetNm * FT_PER_NM : 2 * R;
+  const wT = windAt(H);
+  const wW = windWords(wT);
+  const headingFor = (track) => compassDegToHeadingRad(windTriangle(compassDegFromVector(track.x, track.y), Vt / KT_TO_FTPS, wW.fromDeg, wW.kt).headingDeg);
+  const turnSign = a.dir < 0 ? 1 : -1; // anticlockwise (left) +1
+  const psiA = headingFor({ x: -u.x, y: -u.y });
+  const psiB = headingFor(u);
+  const turnRad = ((((turnSign * (psiB - psiA)) % TAU) + TAU) % TAU) || TAU;
+  const omega = turnRateFromBankRadPerSec(Vt, a.bankDeg);
+  const turnSec = turnRad / omega;
+  const airTurn = (tau) => {
+    const psi = psiA + turnSign * omega * tau;
+    return {
+      dx: (R / turnSign) * (Math.sin(psi) - Math.sin(psiA)) + wT.x * tau,
+      dy: -(R / turnSign) * (Math.cos(psi) - Math.cos(psiA)) + wT.y * tau,
+      psi,
+    };
+  };
+  const D = airTurn(turnSec);
+  const side = a.dir < 0 ? left(u) : { x: u.y, y: -u.x }; // the side the reciprocal leg lies on
+  const offsetHitFt = -(D.dx * side.x + D.dy * side.y); // the offset that rolls the tanker out on the receiver's track
+  const alongShiftFt = D.dx * u.x + D.dy * u.y; // how far along the track the turn carries it (the drift's share and the crabs')
+
+  // The anchor (RS-15, RS-20): a racetrack as wide as the offset (worked out to hit for this wind, or set by hand), its
+  // refuelling leg from the origin along the track. holdLap's lap starts at its "IP" (here the refuelling leg's far end):
+  // the turn there, the reciprocal leg, the turn back, and the refuelling leg. In orbit it keeps that shape over the
+  // ground, so in a wind its drawn bank changes round its turns (flagged past the set bank); only the last lap's turn
+  // inbound is flown in the air mass: it starts where it rolls the tanker out at the origin (the reciprocal leg longer or
+  // shorter by the drift along the track), and a hand-set offset rolls it out to the side by the difference.
+  const offsetFt = a.byHand.offsetNm !== null ? a.byHand.offsetNm * FT_PER_NM : offsetHitFt;
   const legFt = a.legNm * FT_PER_NM;
   const farEnd = { x: u.x * legFt, y: u.y * legFt };
   const lapSegs = holdLap({ ip: farEnd, u, dir: a.dir, r: offsetFt / 2, legFt });
   const lap = makePath(lapSegs);
-  const turnStart = { ...lapSegs[1].b }; // the reciprocal leg's end, abeam the origin: where the turn inbound starts
-  const inbound = turnSeg(turnStart, { x: -u.x, y: -u.y }, R, Math.PI, a.dir);
-  const rollOutPt = { x: inbound.c.x + R * Math.cos(inbound.a0 + inbound.sweep), y: inbound.c.y + R * Math.sin(inbound.a0 + inbound.sweep) };
-  const finalSegs = [lapSegs[0], lapSegs[1], inbound, { kind: 'line', a: rollOutPt, b: { x: rollOutPt.x + u.x * legFt, y: rollOutPt.y + u.y * legFt } }];
-  const finalLap = makePath(finalSegs);
-  const sTurn = finalLap.segs[2].start; // where the turn inbound starts along the last lap
-  const sRollOut = sTurn + finalLap.segs[2].len; // where it rolls out
-  const wT = windAt(H);
+  const turnStart = { x: side.x * offsetFt - u.x * alongShiftFt, y: side.y * offsetFt - u.y * alongShiftFt };
+  const rollOutPt = { x: turnStart.x + D.dx, y: turnStart.y + D.dy };
+  const preSegs = [lapSegs[0], { kind: 'line', a: { ...lapSegs[1].a }, b: { ...turnStart } }]; // the last lap up to the turn inbound
   const gsAt = (dir) => Math.max(1, speedAlong({ x: dir.x, y: dir.y, z: 0 }, wT, Vt));
-  const tableF = timeTable(finalLap, gsAt);
-  const turnSec = timeAt(tableF, sRollOut) - timeAt(tableF, sTurn);
 
   // The receiver's speed (RS-16): the tanker's ground speed along the track plus the overtake, then through the receiver's
   // own wind to true airspeed, then to KIAS at its height (like with like).
@@ -146,8 +169,10 @@ export function buildRefuelPlan(setup, world) {
   const gsWant = tankerGs + a.overtakeKt * KT_TO_FTPS;
   const tasR = Math.hypot(gsWant * u.x - wR.x, gsWant * u.y - wR.y) / KT_TO_FTPS;
   worked.rcvKias = clamp(tasToIasKt(tasR, Hr, sigmaAt(Hr)), MIN_RCV_KIAS, ac.maxKias(Hr));
-  worked.offsetFt = 2 * R; // the offset worked out to hit: the tanker rolls out on the receiver's track
+  worked.offsetFt = offsetHitFt; // the offset worked out to hit for this wind: the tanker rolls out on the receiver's track
   worked.turnSec = turnSec;
+  worked.alongShiftFt = alongShiftFt;
+  worked.wind = { fromDegM: (((wW.fromDeg - (a.magVarDegE ?? 0)) % 360) + 360) % 360, kt: wW.kt, atFt: H };
   const rcvKias = a.byHand.rcvKias ?? worked.rcvKias;
 
   // The take-off (RS-19): CYMJ's runway into the ground wind, 29L when calm (the Traffic module's default), in this run's
@@ -169,14 +194,17 @@ export function buildRefuelPlan(setup, world) {
     const th = use29 ? th29 : end29;
     const end = use29 ? end29 : th29;
     const dir = use29 ? dir29 : { x: -dir29.x, y: -dir29.y };
-    runway = { name: use29 ? '29L' : '11R', th, end, dir, lenFt: d29, z: groundAt(th.x, th.y) };
+    // Its height: CYMJ's 1,892 ft (Patrick's number, Traffic airfield.js) or the shared terrain's at the threshold if higher,
+    // so the runway is never under the drawn ground; the aircraft's centre stands WHEELS_BELOW_ORIGIN_FT over it on its
+    // wheels (the Debrief's 5.4 ft, an estimate there).
+    runway = { name: use29 ? '29L' : '11R', th, end, dir, lenFt: d29, z: Math.max(FIELD_ELEV_FT, groundAt(th.x, th.y)) };
   }
   const ipFt = a.ipNm * FT_PER_NM;
 
   return {
     kind: 'aar', setup, run: setup.run, ac, u, r, groundFt, groundAt, known: world.known ?? (() => false),
     sigmaAt, tasFt, windAt, windMsl: H, notes, worked,
-    aar: a, H, Hr, Vt, R, legFt, farEnd, lap, lapSegs, finalSegs, finalLap, sTurn, sRollOut, turnStart, rollOutPt, inbound,
+    aar: a, H, Hr, Vt, R, legFt, farEnd, lap, lapSegs, preSegs, turnStart, rollOutPt, airTurn, turnSec, psiB, turnSign,
     offsetFt, gsAt, tankerGs, rcvKias, trailFt: a.trailNm * FT_PER_NM,
     takeoff: a.start === 'takeoff', runway, ipFt, ip: { x: -u.x * ipFt, y: -u.y * ipFt },
     // Filled by flyRefuel: the receiver's start, the tanker's turn and roll-out times and its schedule.
@@ -224,25 +252,41 @@ function distAt(tb, T) {
 function tankerSchedule(plan, tRollOut) {
   const table1 = timeTable(plan.lap, plan.gsAt);
   const lapSec = table1.t[table1.t.length - 1];
-  const before = timeAt(timeTable(plan.finalLap, plan.gsAt), plan.sRollOut);
+  const pre = makePath(plan.preSegs);
+  const preTable = timeTable(pre, plan.gsAt);
+  const before = preTable.t[preTable.t.length - 1] + plan.turnSec; // from a lap's start to the roll-out on the last lap
   const laps = 1 + Math.max(0, Math.ceil((tRollOut - before) / lapSec - 1e-9));
   const segs = [];
   for (let k = 0; k < laps - 1; k++) segs.push(...plan.lapSegs);
-  segs.push(...plan.finalSegs);
+  segs.push(...plan.preSegs);
   const path = makePath(segs);
   const table = timeTable(path, plan.gsAt);
-  const sRo = (laps - 1) * plan.lap.total + plan.sRollOut;
-  return { path, table, laps, lapSec, t0: Math.max(0, timeAt(table, sRo) - tRollOut), end: table.t[table.t.length - 1] };
+  const end = table.t[table.t.length - 1]; // the turn inbound starts here (path time)
+  return { path, table, laps, lapSec, end, t0: Math.max(0, end + plan.turnSec - tRollOut) };
 }
 
 /** Where the tanker is at time t: { x, y, z, dir (its ground track, unit), gs (ft/s), ax, ay (its air velocity), headingRad (its nose) }. */
 export function tankerAt(plan, t) {
   const sc = plan.schedule;
   const T = sc.t0 + t;
-  const s = T <= sc.end ? distAt(sc.table, T) : sc.path.total + (T - sc.end) * plan.gsAt(pointOnPath(sc.path, sc.path.total).dir);
+  const w = plan.windAt(plan.H);
+  if (T > sc.end) {
+    // The turn inbound in the air mass (RS-21), then on along the refuelling track from the roll-out point.
+    const tau = Math.min(T - sc.end, plan.turnSec);
+    const q = plan.airTurn(tau);
+    const ax = plan.Vt * Math.cos(q.psi);
+    const ay = plan.Vt * Math.sin(q.psi);
+    const after = T - sc.end - plan.turnSec;
+    const gx = ax + w.x, gy = ay + w.y;
+    const gs = Math.hypot(gx, gy) || 1;
+    const dir = { x: gx / gs, y: gy / gs };
+    const x = plan.turnStart.x + q.dx + (after > 0 ? gx * after : 0);
+    const y = plan.turnStart.y + q.dy + (after > 0 ? gy * after : 0);
+    return { x, y, z: plan.H, dir, gs, ax, ay, headingRad: q.psi };
+  }
+  const s = distAt(sc.table, T);
   const q = pointOnPath(sc.path, s);
   const gs = plan.gsAt(q.dir);
-  const w = plan.windAt(plan.H);
   const ax = gs * q.dir.x - w.x;
   const ay = gs * q.dir.y - w.y;
   return { x: q.x, y: q.y, z: plan.H, dir: q.dir, gs, ax, ay, headingRad: Math.atan2(ay, ax) };
@@ -284,13 +328,13 @@ function receiverStart(plan, alongFt, kias) {
 function receiverOnRunway(plan) {
   const rw = plan.runway;
   const ktas = iasToTasKt(TAKEOFF.startKias, rw.z, plan.sigmaAt(rw.z));
-  const s = pointMassState({ x: rw.th.x, y: rw.th.y, altFt: rw.z, ktas, headingRad: Math.atan2(rw.dir.y, rw.dir.x) });
+  const s = pointMassState({ x: rw.th.x, y: rw.th.y, altFt: rw.z + WHEELS_BELOW_ORIGIN_FT, ktas, headingRad: Math.atan2(rw.dir.y, rw.dir.x) });
   return { ...pilotAt(s, { aircraft: plan.ac, sigmaAt: plan.sigmaAt }), throttle: 1, trim: 1 };
 }
 
 /**
  * One step on the runway (RS-19): core's point mass at full power on the set, the runway carrying the weight (1 G, wings
- * level), the wheels held on the ground under it; it moves with the wind as in the air (a crab on the runway isn't
+ * level), the wheels held on the runway; it moves with the wind as in the air (a crab on the runway isn't
  * modelled: a few feet across in a crosswind over the few seconds).
  */
 function runwayStep(plan, p, dt) {
@@ -298,7 +342,7 @@ function runwayStep(plan, p, dt) {
   const w = plan.windAt(next.z);
   next.x += w.x * dt;
   next.y += w.y * dt;
-  next.z = plan.groundAt(next.x, next.y);
+  next.z = plan.runway.z + WHEELS_BELOW_ORIGIN_FT; // on its wheels on the runway
   next.vz = 0;
   return { ...p, s: next, bankDeg: 0, rollRateDps: 0, g: 1, gRate: 0, throttle: 1, trim: 1, climbRateRadPerSec: 0 };
 }
@@ -613,7 +657,8 @@ function resultOf(plan, flight) {
   const flag = (id, words, over) => flags.push({ id, words, over });
   flag('closure', `Peak closure on the join against ${AAR_REFERENCES.closureKt} kt (an estimate)`, peakClosure > AAR_REFERENCES.closureKt);
   flag('nearClosure', `Closure inside ${AAR_REFERENCES.nearFt} ft of pre-contact against ${AAR_REFERENCES.nearClosureKt} kt (an estimate)`, nearClosure > AAR_REFERENCES.nearClosureKt);
-  flag('tankerBank', `The tanker's steepest bank against its set ${plan.aar.bankDeg}°`, Math.round(tankerBank) > plan.aar.bankDeg);
+  // The turn inbound is flown at the set bank in the air mass (RS-21); the orbit keeps its ground shape, so this reads its turns.
+  flag('tankerBank', `The tanker's steepest bank (its orbit keeps its ground shape) against its set ${plan.aar.bankDeg}°`, Math.round(tankerBank) > plan.aar.bankDeg);
   flag('wingLine', 'The receiver ahead of the tanker\'s wing line after the roll-out', wingLine > 0);
   flag('peakG', `The receiver's peak G against the ${ac.gLimit} G limit`, peakG > ac.gLimit);
   flag('vmo', 'The receiver\'s fastest against VMO', overVmo > 0);
@@ -657,11 +702,16 @@ const timeLegB = (plan) => plan.legFt / plan.tankerGs;
 export function refuelOutline(plan) {
   if (!plan || plan.kind !== 'aar') return null;
   const anchor = samplePath(plan.lap, 300).map((q) => ({ ...q, z: plan.H }));
-  const inbound = samplePath(makePath([plan.inbound]), 300).map((q) => ({ ...q, z: plan.H }));
+  const inbound = [];
+  for (let k = 0; k <= 48; k++) {
+    const q = plan.airTurn((plan.turnSec * k) / 48); // the turn inbound over the ground, drift and all (RS-21)
+    inbound.push({ x: plan.turnStart.x + q.dx, y: plan.turnStart.y + q.dy, z: plan.H });
+  }
   const start = plan.takeoff ? -plan.ipFt : plan.startAlong ?? -(plan.trailFt + plan.tankerGs * plan.aar.rvSec);
   const track = [{ x: plan.u.x * start, y: plan.u.y * start, z: plan.Hr }, { x: 0, y: 0, z: plan.Hr }];
   const ts = plan.turnStart;
-  const foot = { x: 0, y: 0 }; // the turn point lies abeam the origin, so its foot on the receiver's track is the origin
+  const along = ts.x * plan.u.x + ts.y * plan.u.y;
+  const foot = { x: plan.u.x * along, y: plan.u.y * along }; // the turn point's foot on the receiver's track
   return {
     anchor, inbound, track, turnStart: { ...ts, z: plan.H }, rollOut: { ...plan.rollOutPt, z: plan.H }, start: track[0],
     offset: { a: { ...ts, z: plan.H }, b: { ...foot, z: plan.H }, ft: plan.offsetFt, side: plan.aar.dir < 0 ? 'left' : 'right' },

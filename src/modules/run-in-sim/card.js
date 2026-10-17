@@ -85,12 +85,14 @@ export function cardFor(pass, n, { selected, onSelect, showFlags = true }) {
   return card;
 }
 
-// ---- The air refuelling run's card (spec "Air refuelling", "The result card"; RS-16, RS-17; proposed, built ahead of
-// Patrick's yes, Dad, 17 Oct 2026). It leads with the trail at the tanker's roll-out against the plan, then the
+// ---- The air refuelling run's card (spec "Air refuelling", "The result card"; RS-16, RS-17; approved:
+// Patrick's yes, relayed by Dad, 17 Oct 2026). It leads with the trail at the tanker's roll-out against the plan, then the
 // rendezvous as worked out, the roll-out, the join and its flags (RS-6: references, never walls), the tanker (a
 // picture) and the stand-in receiver. Overtake and closure are the rate the range shrinks (ground against ground). ----
 
 const nm1 = (ft) => `${(ft / FT_PER_NM).toFixed(1)} NM`;
+/** The wind the offset and turn range were worked for (RS-21): "for 30 kt from 050°M at 10,000 ft", or "for calm air". */
+export const workedForWords = (wind) => (!wind || wind.kt < 0.5 ? 'for calm air' : `for ${Math.round(wind.kt)} kt from ${String(Math.round(wind.fromDegM) % 360 || 360).padStart(3, '0')}°M at ${ft10(wind.atFt)}`);
 const sideWords = (ft) => (Math.abs(ft) < 5 ? 'on the track' : `${ft10(Math.abs(ft))} ${ft > 0 ? 'right' : 'left'}`);
 
 /** The refuelling card's lead line. */
@@ -123,10 +125,11 @@ export function refuelCardFor(pass, n, { selected, onSelect, showFlags = true })
   const late = r.lateSec === null ? '' : Math.abs(r.lateSec) < 0.5 ? ', on time' : ` (${lateWords(r.lateSec)})`;
   // RS-20 (Dad, 17 Oct 2026: "Giving turn range and offset would help too"): the turn range and the offset lead.
   const to = r.takeoff;
-  const offsetWords = `${nm1(r.offsetFt)}, the tanker's inbound track ${r.offsetSide} of the receiver's · ${r.offsetByHand ? `set by hand (to hit: ${nm1(w.offsetFt)})` : 'two turn radii, set to hit'}`;
+  const offsetWords = `${nm1(r.offsetFt)}, the tanker's inbound track ${r.offsetSide} of the receiver's · ${r.offsetByHand ? `set by hand (to hit: ${nm1(w.offsetFt)})` : 'set to hit'}`;
   const rv = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'The rendezvous (worked out to hit)'),
     row('Turn range', `${Number.isFinite(w.turnRangeNm) ? `${w.turnRangeNm.toFixed(1)} NM` : '--'}, the tanker turns at +${clock(w.tTurn)} · ${set(w.turnByHand)}`),
     row('Offset', offsetWords),
+    row('Worked out', `${workedForWords(w.wind)}; the turn inbound flown at ${plan.aar.bankDeg}° in the air, drifting with the wind`),
     to ? row('Receiver takes off', to.liftOffSec === null ? 'never left the runway' : `CYMJ ${to.runway}, lifted off at +${clock(to.liftOffSec)}`) : null,
     to ? row('Receiver at the IP', to.ipSec === null ? 'never passed it' : `+${clock(to.ipSec)}${to.ipPlanSec !== null ? ` (plan +${clock(to.ipPlanSec)})` : ''}`) : null,
     r.orbitLaps !== null ? row('Tanker in its orbit before turning', `${r.orbitLaps.toFixed(1)} laps`) : null,
@@ -155,7 +158,7 @@ export function refuelCardFor(pass, n, { selected, onSelect, showFlags = true })
   card.append(rv, atRo, join, who);
   const notes = [
     'The tanker\'s flying is a picture, not a performance claim: the KC-130J has no performance set yet (RS-Q1). The receiver is a stand-in: the CT-156, no probe.',
-    'Proposed, built ahead of Patrick\'s yes (Dad, 17 Oct 2026). Every refuelling number is an estimate (ATP-56 not read).',
+    'Approved: Patrick\'s yes (relayed by Dad, 17 Oct 2026: "pat says build"). Every refuelling number is still an estimate (ATP-56 not read).',
     ...r.notes,
   ];
   card.append(h('ul', { class: 'rs-notes' }, notes.map((t) => h('li', {}, t))));

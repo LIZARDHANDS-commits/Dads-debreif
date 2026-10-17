@@ -1,10 +1,10 @@
-// Checks: the air refuelling run (proposed, built ahead of Patrick's yes; Dad, 17 Oct 2026), from its defaults in still
+// Checks: the air refuelling run (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build')), from its defaults in still
 //   air over flat ground: the stand-in receiver takes off from CYMJ and leaves the runway, passes the IP, ends the join at
 //   the pre-contact point behind the tanker's left basket, it is never ahead of the tanker's wing line from the tanker's
 //   roll-out on, and the tanker never goes below its set height (what a pilot would recognise: it got airborne, it made
 //   the IP, it joined, it never overran, the tanker held its height).
 // Serves: RS-R11, RS-R12 and RS-R14 (docs/modules/run-in-sim/testing.md; plan Steps 7 and 7b).
-// Expected values: the pre-contact point the test works out from the settings (the set pre-contact distance behind the
+// Expected values: the ground at CYMJ's field height (Patrick's 1,892 ft), the pre-contact point the test works out from the settings (the set pre-contact distance behind the
 //   basket, and the basket's place on the tanker, the drogue's numbers), the IP the test works out from the settings (the
 //   set distance back along the set track from the place), the ground the test lays and the tanker's set height; nothing
 //   from the code's own output or V6. The IP is passed within 0.5 NM: the pilot leads his turn onto the track there by up
@@ -19,7 +19,7 @@ import { TOLERANCES } from '../../helpers/tolerances.js';
 import { FT_PER_NM } from '../../../src/core/units.js';
 
 test('the stand-in receiver takes off, passes the IP and joins to pre-contact behind the left basket, never ahead of the wing line', () => {
-  const groundFt = 1800; // flat ground, about Moose Jaw's height
+  const groundFt = 1892; // flat ground at CYMJ's field height (Patrick's 1,892 ft)
   const world = { groundAt: () => groundFt, known: () => true };
   const settings = { ...DEFAULTS, ...runPatch('aar'), windTopKt: 0, windGroundKt: 0 };
   const { flight, tanker } = flyRefuel(setupFrom(settings), world);
@@ -32,7 +32,7 @@ test('the stand-in receiver takes off, passes the IP and joins to pre-contact be
     highest = Math.max(highest, tl.z[i] - groundFt);
     assert.ok(tl.z[i] >= groundFt - 1, `above the ground at ${tl.t[i].toFixed(1)} s`);
   }
-  assert.ok(Math.abs(tl.z[0] - groundFt) < 1, 'it starts on the runway');
+  assert.ok(tl.z[0] - groundFt >= 0 && tl.z[0] - groundFt < 10, 'it starts on the runway (its centre a few feet over its wheels)');
   assert.ok(highest > 1000, 'it leaves the runway and climbs away');
 
   // It passes the IP: the set distance back from the place along the set track (magnetic plus the place's variation).

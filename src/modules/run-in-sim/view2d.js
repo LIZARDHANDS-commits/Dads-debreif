@@ -10,7 +10,7 @@
 //    aircraft's path, the dive line, the release, the load's fall to its impact and the escape, with heights labelled.
 // A picture only: it reads the plan and the stored pass (pass.js) and draws them at the time it is given. Canvas, no
 // library. When the satellite tiles don't come, the plan draws on the plain ground colour.
-// The air refuelling run (RS-18; proposed, built ahead of Patrick's yes, Dad, 17 Oct 2026): the plan shows the anchor,
+// The air refuelling run (RS-18; approved: Patrick's yes, relayed by Dad, 17 Oct 2026): the plan shows the anchor,
 // the receiver's track, the turn and roll-out points and both flown tracks; the profile shows both along the refuelling
 // track (heights MSL against distance from the roll-out point), the whole rendezvous or the join, or the receiver behind
 // the tanker (its height against its distance behind the tanker's wing line, with the hose, basket and pre-contact point).

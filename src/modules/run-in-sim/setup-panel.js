@@ -4,7 +4,7 @@
 // Orbit (a holding pattern, a figure 8 or a circle, RS-11), Run-in, Release, Escape, Wind and Display. Each box shows only the few settings the user sets for that run
 // (RS-9); the numbers the computer works out show greyed with "set to hit", and More sets one by hand. Every setting
 // starts at a default, and each box says its defaults are estimates. The main button is "Fly the pass".
-// The air refuelling run (spec "Air refuelling"; RS-18; proposed, built ahead of Patrick's yes, Dad, 17 Oct 2026) shows
+// The air refuelling run (spec "Air refuelling"; RS-18; approved: Patrick's yes, relayed by Dad, 17 Oct 2026) shows
 // its own: the Rendezvous time, and the Tanker and anchor, Rendezvous and Join boxes; the run-in's Target, Time over
 // target, Orbit, Run-in, Release and Escape hide. The worked-out numbers show greyed "set to hit" (RS-16).
 import { h } from '../../ui-kit/dom.js';
@@ -13,6 +13,7 @@ import { RUNS, RANGES, runOf, AAR_PLACE } from './defaults.js';
 import { TARGETS, HAS_HEADING } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { clock } from './pass.js';
+import { workedForWords } from './card.js';
 import { FT_PER_NM } from '../../core/units.js';
 
 const ESTIMATE = 'Defaults here are estimates until Patrick or a manual page gives them (RS-Q2).';
@@ -53,7 +54,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   const targetBox = controls.select('target', { label: 'Target', options: Object.values(TARGETS).map((t) => [t.id, t.label]) });
   const totBox = h('div', { class: 'rs-tot' }, num('totSec', 'Time over target, seconds after the start', 's'), totWords);
   // The refuelling run's (RS-18): the picture's words under the Aircraft, the place's meaning and the rendezvous time.
-  const aarNote = h('p', { class: 'rs-estimate rs-aar-note' }, 'The tanker\'s flying is a picture, not a performance claim: the KC-130J has no performance set yet (RS-Q1). The receiver is a stand-in, the CT-156 (no probe). Proposed, built ahead of Patrick\'s yes (Dad, 17 Oct 2026).');
+  const aarNote = h('p', { class: 'rs-estimate rs-aar-note' }, 'The tanker\'s flying is a picture, not a performance claim: the KC-130J has no performance set yet (RS-Q1). The receiver is a stand-in, the CT-156 (no probe). Approved: Patrick\'s yes (relayed by Dad, 17 Oct 2026: "pat says build"); every number an estimate.');
   const placeLabel = h('span', { class: 'rs-fixed-label' }, 'Place');
   const rvWords = h('span', { class: 'rs-faint' });
   const rvBox = h('div', { class: 'rs-tot' }, num('aarRvSec', 'Rendezvous time: the tanker rolls out, seconds after the start', 's'), rvWords);
@@ -318,7 +319,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const w = plan?.worked;
     rcvHit.value.textContent = v.aarRcvKiasByHand ? `${v.aarRcvKias} KIAS (set by hand)` : w ? `${Math.round(w.rcvKias)} KIAS at ${ft10(v.aarHeightFt - v.aarSplitFt)}` : '—';
     const side = v.aarDir === 'left' ? 'left' : 'right';
-    offsetHit.value.textContent = v.aarOffsetByHand ? `${v.aarOffsetNm.toFixed(1)} NM ${side} (set by hand)` : w ? `${nm1(w.offsetFt)} ${side}: two turn radii` : '—';
+    offsetHit.value.textContent = v.aarOffsetByHand ? `${v.aarOffsetNm.toFixed(1)} NM ${side} (set by hand)` : w ? `${nm1(w.offsetFt)} ${side}, ${workedForWords(w.wind)}` : '—';
     ipHit.value.textContent = exit?.ipSec !== undefined && exit.ipSec !== null ? `+${clock(exit.ipSec)}` : 'when the run is flown';
     startHit.value.textContent = exit?.startNm !== undefined ? `${exit.startNm.toFixed(1)} NM back from the roll-out point` : 'when the run is flown';
     turnHit.value.textContent = exit?.turnRangeNm !== undefined

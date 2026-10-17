@@ -2,7 +2,7 @@
 // pattern or circle,
 // the IP, the run-in, the dive line's track, the release point), the flown track so far, the aircraft, the load's impact,
 // the wind arrow and a scale. A click on it opens the map (map-picker.js) to tap a new place. A picture only.
-// The air refuelling run (RS-18; proposed, built ahead of Patrick's yes): the anchor, the receiver's track, the tanker's
+// The air refuelling run (RS-18; approved: Patrick's yes, relayed by Dad, 17 Oct 2026): the anchor, the receiver's track, the tanker's
 // turn point and the roll-out point, and both flown tracks, the tanker's in orange.
 import { createCanvasSurface } from '../../ui-kit/canvas-view.js';
 import { FT_PER_NM, KT_TO_FTPS } from '../../core/units.js';

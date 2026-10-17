@@ -37,22 +37,32 @@ Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a st
 ## Step 6. Sign-off
 - [ ] Run the checklist in `testing.md` and send Patrick the result.
 
-## Step 7. Air refuelling: the point-parallel rendezvous (proposed, built ahead of Patrick's yes)
-Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim"; his picks: the rendezvous first, the point-parallel, the CT-156 as a stand-in receiver. **Built ahead of Patrick's yes: Dad chose "Build anyway" (17 Oct 2026) after being told the plan waits on Patrick.** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; Step 4 (the en-route rendezvous) stays on `future.md`.
-- [x] Written down first: `spec.md` "Air refuelling" with its screen picture (`air-refuelling-screen.png`), RS-15 to RS-18 (proposed), RS-R10 to RS-R13, `testing.md`'s one test (17 Oct 2026).
+## Step 7. Air refuelling: the point-parallel rendezvous (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim"; his picks: the rendezvous first, the point-parallel, the CT-156 as a stand-in receiver. **Built first on Dad's "Build anyway" (17 Oct 2026); Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build') followed.** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; Step 4 (the en-route rendezvous) stays on `future.md`.
+- [x] Written down first: `spec.md` "Air refuelling" with its screen picture (`air-refuelling-screen.png`), RS-15 to RS-18, RS-R10 to RS-R13, `testing.md`'s one test (17 Oct 2026).
 - [x] The tanker: the KC-130J from the C-130J model with its two wing-pod drogues, flying its anchor at a set height and true airspeed, a picture with no performance set (RS-15) (V2.503).
 - [x] The point-parallel worked out to hit (RS-16) and the join to pre-contact behind the left drogue (RS-17); the card, the two new cameras and the 2D plan and profile with both tracks (RS-18) (V2.503).
 - [x] One light test: in still air from the defaults the receiver ends at pre-contact behind the tanker, never ahead of its wing line, and the tanker never below its height (`tests/unit/run-in-sim/refuel.test.js`, V2.503).
-- [ ] Patrick's yes on RS-15 to RS-18, and numbers or a manual page (ATP-56) for the estimates.
+- [x] Patrick's yes on RS-15 to RS-18 (relayed by Dad, 17 Oct 2026: 'pat says build').
+- [ ] Numbers or a manual page (ATP-56) for the estimates.
 - [ ] Dad or Patrick sees it in the app; the sign-off checklist in Dad's and Patrick's words (air-refuelling-plan.md Step 5).
 
-## Step 7b. Take-off, IP and the turn inbound from the orbit; turn range and offset (proposed, built ahead of Patrick's yes)
+## Step 7b. Take-off, IP and the turn inbound from the orbit; turn range and offset (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
 Dad, 17 Oct 2026: "Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit"; "Giving turn range and offset would help too".
-- [x] Written down first: spec "Change: take off from Moose Jaw...", RS-19 and RS-20 (proposed), RS-R14 and RS-R15 (17 Oct 2026).
+- [x] Written down first: spec "Change: take off from Moose Jaw...", RS-19 and RS-20, RS-R14 and RS-R15 (17 Oct 2026).
 - [x] The take-off from CYMJ, the climb-out and the transit to the IP; the tanker in its orbit turning inbound, worked out from the receiver's flight (RS-19) (V2.504).
 - [x] Turn range and offset leading the card, the offset by hand, both drawn (RS-20) (V2.504).
 - [x] The one test updated: it leaves the runway, passes the IP, ends at pre-contact (V2.504).
-- [ ] Patrick's yes on RS-19 and RS-20.
+- [x] Patrick's yes on RS-19 and RS-20 (relayed by Dad, 17 Oct 2026: 'pat says build').
+
+## Step 7c. The turn inbound in the air mass; the take-off's ground; the name (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "Is turn range/offset scalable based on altitude airspeed wind"; "takeoff isn't working"; "can we also change the name of the module to Advanced Mission Sets".
+- [x] Written into the spec and RS-21 to RS-23.
+- [x] The turn inbound flown in the air mass, the offset and turn range worked out for the wind, the wind on the card (RS-21) (V2.505).
+- [x] The ground centred near CYMJ for the take-off, CYMJ's runways drawn, the CT-156 on its wheels with its gear (RS-22) (V2.505).
+- [x] The name Advanced Mission Sets on the home card, the screen and the tab (RS-23) (V2.505).
+- [x] The one test kept: its ground now at CYMJ's 1,892 ft (V2.505).
+- [x] Patrick's yes on RS-21 to RS-23 (relayed by Dad, 17 Oct 2026: 'pat says build').
 
 ## Not in this plan
 

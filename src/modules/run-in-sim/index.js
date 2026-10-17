@@ -5,7 +5,7 @@
 // right (card.js). "Fly the pass" works the whole pass out first (pass.js) into a stored timeline; playing and scrubbing
 // only read it. "Training only" always shows (RS-2). Everything mount() starts runs on the shell's scheduler and
 // listeners, so the shell stops it all when the module closes.
-// The air refuelling run (RS-15 to RS-18; proposed, built ahead of Patrick's yes, Dad, 17 Oct 2026) is worked out and
+// The air refuelling run (RS-15 to RS-18; approved: Patrick's yes, relayed by Dad, 17 Oct 2026) is worked out and
 // flown by refuel.js instead of pass.js, with its own card (card.js refuelCardFor), marks and two more cameras.
 import { h, clear } from '../../ui-kit/dom.js';
 import { FT_PER_NM } from '../../core/units.js';
@@ -21,7 +21,7 @@ import { TARGETS } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { buildPlan, flyPass, clock } from './pass.js';
 import { buildRefuelPlan, flyRefuel } from './refuel.js';
-import { areaFor } from './area.js';
+import { areaFor, aarGroundCentre } from './area.js';
 import { createSetup } from './setup-panel.js';
 import { cardFor, refuelCardFor } from './card.js';
 import { createPlanView } from './plan-view.js';
@@ -51,7 +51,10 @@ function mount(root, app) {
 
   // ---- The ground (shared with the flying: the engine reads its heights) ----
   const place = () => ({ lat: values().placeLat, lon: values().placeLon });
-  let area = areaFor(place());
+  // The refuelling run from the take-off centres its ground near CYMJ (RS-19, area.js aarGroundCentre); the flying stays
+  // in the place's feet, the terrain is read in the ground's own (offset) frame.
+  const groundCentre = () => (values().run === 'aar' && !values().aarAirborne ? aarGroundCentre(place()) : null);
+  let area = areaFor(place(), groundCentre());
   let terrainWake = null;
   const terrain = createTerrain3d({
     timers: app.scheduler, doc: document, plan: area.plan, maxTiles: 100,
@@ -67,8 +70,11 @@ function mount(root, app) {
       });
     },
   });
-  terrain.setView(area.projection, FALLBACK_FT);
-  const ground = { groundAt: (x, y) => terrain.heightFt(x, y), known: (x, y) => terrain.known(x, y) };
+  terrain.setView(area.ground.projection, FALLBACK_FT);
+  const ground = {
+    groundAt: (x, y) => terrain.heightFt(x - area.ground.offset.x, y - area.ground.offset.y),
+    known: (x, y) => terrain.known(x - area.ground.offset.x, y - area.ground.offset.y),
+  };
 
   // ---- The screen ----
   let passes = [];
@@ -111,7 +117,7 @@ function mount(root, app) {
 
   root.append(h('section', { class: 'rs' },
     h('header', { class: 'rs-bar' },
-      h('h1', {}, 'Run-in Simulator'),
+      h('h1', {}, 'Advanced Mission Sets'), // the name people see (Dad, 17 Oct 2026; it was the Run-in Simulator)
       h('span', { class: 'rs-training' }, 'Training only · inert loads · generic targets'),
       status,
       h('span', { class: 'rs-version' }, TRAFFIC_VERSION)),
@@ -137,7 +143,7 @@ function mount(root, app) {
       render();
     }).catch((err) => {
       view.append(h('p', { class: 'rs-3d-note' }, 'The 3D view could not load. The plan view, the settings and the result still work.'));
-      console.warn('Run-in Simulator: 3D view failed to load', err);
+      console.warn('Advanced Mission Sets: 3D view failed to load', err);
     });
   }
 
@@ -306,7 +312,7 @@ function mount(root, app) {
         play();
       } catch (err) {
         status.textContent = 'The pass could not be worked out.';
-        console.error('Run-in Simulator: the pass failed', err);
+        console.error('Advanced Mission Sets: the pass failed', err);
       } finally {
         setup.flyButton.disabled = false;
       }
@@ -335,7 +341,7 @@ function mount(root, app) {
         plan = s.aar ? buildRefuelPlan(s, ground) : buildPlan(s, ground);
       } catch (err) {
         plan = null;
-        console.warn('Run-in Simulator: the plan could not be worked out', err);
+        console.warn('Advanced Mission Sets: the plan could not be worked out', err);
       }
       setup.update(values(), plan, current()?.stale === false ? current().exit : null);
       syncTarget();
@@ -402,10 +408,11 @@ function mount(root, app) {
       settings.update(prefill);
       return;
     }
-    if (v.placeLat !== was.placeLat || v.placeLon !== was.placeLon) {
-      area = { ...area, projection: areaFor(place()).projection };
-      terrain.setView(area.projection, FALLBACK_FT);
-      world?.setArea(area.projection, FALLBACK_FT);
+    if (v.placeLat !== was.placeLat || v.placeLon !== was.placeLon || v.run !== was.run || v.aarAirborne !== was.aarAirborne) {
+      const next = areaFor(place(), groundCentre());
+      area = { ...area, projection: next.projection, ground: next.ground };
+      terrain.setView(area.ground.projection, FALLBACK_FT);
+      world?.setArea(area, FALLBACK_FT);
       map.refresh();
       view2d.refit();
     }
@@ -451,4 +458,4 @@ function mount(root, app) {
   };
 }
 
-export default { id: 'run-in-sim', title: 'Run-in Simulator', mount };
+export default { id: 'run-in-sim', title: 'Advanced Mission Sets', mount };

@@ -16,9 +16,9 @@ export const RUNS = Object.freeze([
   Object.freeze({ id: 'flyover', label: 'Flyover', aircraft: 'ct156', load: null }),
   Object.freeze({ id: 'bombFlat', label: 'Practice bomb, flat', aircraft: 'ct156', load: 'bdu33' }),
   Object.freeze({ id: 'bombDive', label: 'Practice bomb, dive', aircraft: 'ct156', load: 'bdu33' }),
-  // Air refuelling (RS-15 to RS-18): PROPOSED, BUILT AHEAD OF PATRICK'S YES (Dad, 17 Oct 2026: "Build anyway"). The CT-156
+  // Air refuelling (RS-15 to RS-22): approved, Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'). The CT-156
   // is the stand-in receiver; the KC-130J tanker is a picture with no performance set (RS-Q1). refuel.js flies it.
-  Object.freeze({ id: 'aar', label: 'Air refuelling, point-parallel (proposed)', aircraft: 'ct156', load: null, tanker: 'kc130j' }),
+  Object.freeze({ id: 'aar', label: 'Air refuelling, point-parallel', aircraft: 'ct156', load: null, tanker: 'kc130j' }),
 ]);
 export const RUN_IDS = Object.freeze(RUNS.map((r) => r.id));
 export const runOf = (id) => RUNS.find((r) => r.id === id) ?? RUNS[0];
@@ -149,7 +149,7 @@ export const DEFAULTS = Object.freeze({
   planTopKt: 0,
   planGroundDegM: 270,
   planGroundKt: 0,
-  // Air refuelling (RS-15 to RS-18, proposed)
+  // Air refuelling (RS-15 to RS-22, approved)
   ...AAR_DEFAULTS,
   // Display
   showLines: true,
@@ -299,7 +299,7 @@ export function setupFrom(v) {
       trackDegT: t(v.aarTrackDegM), heightFt: v.aarHeightFt, tankerKias: v.aarTankerKias, bankDeg: v.aarBankDeg,
       legNm: v.aarLegNm, dir: v.aarDir === 'left' ? -1 : 1, rvSec: v.aarRvSec, splitFt: v.aarSplitFt,
       trailNm: v.aarTrailNm, overtakeKt: v.aarOvertakeKt, preContactFt: v.aarPreContactFt,
-      start: v.aarAirborne ? 'airborne' : 'takeoff', ipNm: v.aarIpNm, placeLat: v.placeLat, placeLon: v.placeLon,
+      start: v.aarAirborne ? 'airborne' : 'takeoff', ipNm: v.aarIpNm, placeLat: v.placeLat, placeLon: v.placeLon, magVarDegE: v.magVarDegE,
       byHand: {
         turnRangeNm: v.aarTurnRangeByHand ? v.aarTurnRangeNm : null, rcvKias: v.aarRcvKiasByHand ? v.aarRcvKias : null,
         offsetNm: v.aarOffsetByHand ? v.aarOffsetNm : null,

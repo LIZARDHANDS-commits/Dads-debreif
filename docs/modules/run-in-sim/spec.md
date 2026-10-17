@@ -1,4 +1,6 @@
-# Run-in Simulator: spec
+# Advanced Mission Sets (the Run-in Simulator): spec
+
+**Named Advanced Mission Sets by Dad, 17 Oct 2026** ("can we also change the name of the module to Advanced Mission Sets"): the name on the home card, the screen and the tab. The route, folder, files, ids and RS- numbers keep "run-in-sim"; the wording below is as written before.
 
 Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a stadium, a bridge, mountains etc in a 3d enviroment. the user should see an orbit and a run in and be able to set those parameters along with speed alt winds. to see how the flyover, inert bomb drop, DZ offload will go, Diving drop or flat, as well as the escape manuver". Patrick approved the plan (relayed by Dad, 16 Oct 2026: "got the yes"). **Patrick approved this spec (relayed by Dad, 16 Oct 2026: "yea pat approves"), adding: "the user should sset a few parameters the then the computer sets the offset or whatever variable needs adjusting to hit"** (RS-9, below).
 
@@ -130,9 +132,9 @@ Written down before code, as the rule book asks. Search first: everything below 
 
 It is built once the Debrief's drop (core `drop.js`) and the C-130J model are on main; until then its branch sits on theirs.
 
-## Air refuelling: the point-parallel rendezvous (proposed, built ahead of Patrick's yes)
+## Air refuelling: the point-parallel rendezvous (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
 
-**Status: proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026: "Build anyway", told the plan waits on Patrick's yes).** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; decisions RS-15 to RS-18; requirements RS-R10 to RS-R13. Dad's ask (17 Oct 2026): "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first, the **point-parallel**; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). Not in this piece: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous (plan Step 4, `future.md`).
+**Status: approved, Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'); built first on Dad's "Build anyway" the same day.** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; decisions RS-15 to RS-18; requirements RS-R10 to RS-R13. Dad's ask (17 Oct 2026): "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first, the **point-parallel**; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). Not in this piece: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous (plan Step 4, `future.md`).
 
 **No number here has a manual source yet.** ATP-56 (the NATO air-to-air refuelling publication) would be the reference; it has not been read. Every number below is an **estimate** until Patrick or a manual page gives it, and says so in the code.
 
@@ -204,9 +206,9 @@ Picture: `air-refuelling-screen.png` in this folder, the built screen (V2.504, h
 - **The join doesn't stabilise within 10 minutes:** the card says so, with the receiver's last distance from pre-contact.
 - **No outside data:** as the run-in, nothing is fetched but the shared terrain, satellite and model files.
 
-### Change: take off from Moose Jaw, meet at the IP, the tanker turns inbound from its orbit (RS-19, RS-20; proposed, built ahead of Patrick's yes)
+### Change: take off from Moose Jaw, meet at the IP, the tanker turns inbound from its orbit (RS-19, RS-20; approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
 
-Dad, 17 Oct 2026: **"Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit"**, and **"Giving turn range and offset would help too"**. Proposed changes to RS-15 to RS-18 (RS-19 and RS-20), built ahead of Patrick's yes as the rest of this run. They replace the airborne start as the run's default; the airborne start (the first version, above) stays under More as "Start the receiver airborne on the track".
+Dad, 17 Oct 2026: **"Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit"**, and **"Giving turn range and offset would help too"**. Changes to RS-15 to RS-18 (RS-19 and RS-20), approved with the rest of this run: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'). They replace the airborne start as the run's default; the airborne start (the first version, above) stays under More as "Start the receiver airborne on the track".
 
 **The receiver's flight (RS-19).** It starts at Moose Jaw (CYMJ) on the runway into the wind at the ground: 29L, or 11R when the ground wind blows from the 11R side; 29L when calm, the Traffic module's default (Patrick's measured runway points, `src/airfields/cymj-runways.js`; field 1,892 ft, Patrick's number). Then:
 - **The take-off.** The run starts with the receiver rolling at the 29L (or 11R) threshold at 85 KIAS, the take-off number the Traffic module uses for lift-off (Traffic spec item 21, an estimate there). **The ground roll from a standstill is not modelled:** the T-6A set has nothing for the wheels on the runway, and its thrust fit is not meant for low speeds (at 10 kt it gives about 0.8 G of push, about four times a real ground roll's). The set is clean only (no take-off flap), so the receiver keeps its wheels on the runway, accelerating at full power on the set, until its clean stall line gives 1.3 G (about 98 KIAS; an estimate), then lifts off. The card gives the lift-off time.
@@ -232,3 +234,21 @@ Dad, 17 Oct 2026: **"Can we have the tanker in orbit while the ct156 is initial 
 | IP | 15 NM back from the roll-out point on the track | estimate |
 | Place for this run | 32 NM NNW of CYMJ (50.7871 N, 105.9892 W) | estimate |
 | Offset | two of the tanker's turn radii (3.4 NM at the defaults), or by hand | geometry; hand value an estimate |
+
+### Change: the turn inbound flown in the air mass, and the take-off's ground (RS-21, RS-22; approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+
+Dad, 17 Oct 2026: **"Is turn range/offset scalable based on altitude airspeed wind"**, and **"takeoff isn't working"**.
+
+**The turn inbound in the air mass (RS-21).** Before, the offset was two of the tanker's turn radii at its true airspeed and set bank (so it scaled with height, airspeed and bank, not with wind), and the turn inbound was a fixed circle over the ground (so in a wind its drawn bank changed: 30.7° against 25° in 30 kt). Now, standard aerodynamics: the tanker flies the turn inbound at its set bank and true airspeed **in the air mass**. Its heading turns at the rate that bank gives (core `turnRateFromBankRadPerSec`) from the heading that holds the reciprocal leg's track to the one that holds the refuelling track (core `windTriangle` on each), and its ground track is that circle through the air plus the wind times the time, so it drifts with the wind over the turn. **The offset worked out to hit** is the across-track part of that drift-and-turn, so the tanker rolls out on the receiver's track; the along-track part moves the turn point along the reciprocal leg so it still rolls out at the roll-out point; **the turn range** is still the range over the ground at the turn, timed on the receiver's flight. In a pure head- or tailwind the whole rendezvous drifts with the air, so the offset and turn range come out the same as in calm air (only where it happens over the ground moves); a crosswind changes both (from the receiver's right, a narrower offset and a shorter turn range; from the left, wider and longer). Height and airspeed scale them through the turn radius. **The orbit keeps its ground shape** (its legs and turns over the ground, as before; flying it in the air mass too was not cheap with the shared ground-path pieces), so its drawn bank still changes round its turns in a wind and the card flags it past the set bank; the turn inbound itself is now always at the set bank. Hand-set offset and turn range work as before. The card and Setup say the wind they were worked for: "for 30 kt from 050°M at 10,000 ft", or "for calm air".
+
+**The take-off's ground (RS-22).** The 3D ground's two squares (the sharp inner 20 NM, the outer 80 NM) were centred on the place, 32 NM from CYMJ, so the take-off sat on the coarse outer picture (and on the live preview showed no ground at all). For this run from the take-off they are centred **8 NM from CYMJ toward the place** (half way if the place is nearer than 16 NM; an estimate for the look), so the airfield and the climb-out sit in the sharp square and the anchor and the join in the outer one; the flying is unchanged (its frame stays the place's). **CYMJ's runways are drawn in 3D** by the shared airfield builder (`src/ui-kit/airfield3d.js` `buildAirports`, as the EP Tabletop draws them), on this run only, at the runway's height the flying uses: CYMJ's 1,892 ft, or the terrain's at the threshold if higher. On the runway the CT-156's centre stands 5.4 ft over its wheels (the Debrief's `WHEELS_BELOW_ORIGIN_FT`, an estimate there), its gear is down, and it starts up 3 s after lift-off (an estimate) over the model's 6 s travel. The 2D plan and the corner plan already take in the whole route (V2.504).
+
+| Wind-aware results (still air unless said; every number an estimate) | Offset | Turn range | Roll-out trail / across |
+|---|---|---|---|
+| Defaults (10,000 ft, 200 KIAS, 25°) | 3.39 NM | 7.57 NM | 0.992 NM / 0 ft |
+| 15,000 ft | 3.97 NM | 8.69 NM | 0.997 NM / 0 ft |
+| Tanker 240 KIAS | 4.87 NM | 10.20 NM | 0.999 NM / 0 ft |
+| 30 kt headwind (from 320°M) | 3.39 NM | 7.57 NM | 0.997 NM / 0 ft |
+| 30 kt tailwind (from 140°M) | 3.39 NM | 7.57 NM | 0.991 NM / 0 ft |
+| 30 kt crosswind from the right (050°M) | 2.73 NM | 6.82 NM | 0.996 NM / 0 ft |
+| 30 kt crosswind from the left (230°M) | 4.10 NM | 8.28 NM | 0.996 NM / 0 ft |
