@@ -56,6 +56,9 @@ Dad's words: "I noticed on SOF, radar is shown in blocks... do these longer bloc
 - **Relay passes the ADS-B emitter category (8 Oct 2026):** add `category` to `relay/lib.js` `trimOne` (checked as A0–D7) and carry it in `traffic.js`, so rotorcraft (A7) are known even when their type is missing; check the helicopter type list against ICAO Doc 8643.
 - **Performance radar on virga days (14 Oct 2026):** moved onto the plan; Dad picked "Add one low height" (SOF-70, V2.495).
 - **Lightning at every base, Canada and US (Dad, 14 Oct 2026: "How can we show lighting strikes in our SOF viewer for both canada and us...come up with a plan"):** the plan offered to Dad. Checked from the session, 14 Oct 2026:
+
+- **Performance radar on virga days (14 Oct 2026):** moved onto the plan; Dad picked "Add one low height" (SOF-70, V2.495).
+- **Lightning at every base, Canada and US (Dad, 14 Oct 2026: "How can we show lighting strikes in our SOF viewer for both canada and us...come up with a plan"):** steps 1 to 3 moved onto the plan (Weather fidelity 5, SOF-71); the lightning probability shading and GOES GLM stay here. Checked from the session, 14 Oct 2026:
   - NOAA's MRMS bucket (already read for the 3D radar) carries NLDN cloud-to-ground lightning density over 1, 5, 15 and 30 minutes on a 1 km grid, a new file every minute. A file is 3 to 9 KB, and our own GRIB2 reader decodes it.
   - It reaches past the border: at 2317Z it held a strike cell at 51.07 N 111.65 W (Alberta), where ECCC's layer showed lightning from 2220Z to 2250Z.
   - ECCC's `Lightning_2.5km_Density` is Canada only: it was empty over about 1,000 MRMS cells of West Texas storms at the same time.

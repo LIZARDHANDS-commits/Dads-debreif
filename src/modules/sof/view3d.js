@@ -205,7 +205,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['satellite', 'Satellite', satelliteTitle()],
     ['radar', 'Radar', 'Radar with its real heights from NOAA MRMS (3D radar detail: Performance columns to the measured echo tops, or High’s see-through volume at 12 heights); when MRMS cannot be had, see-through blocks standing in the model cloud over each return, said in words (the radar picture on the ground has its own switch in the map’s Layers menu)'],
     ['rain', 'Rain to ground', 'A faint, streaked rain curtain under each radar block in the model cloud, from its base to the ground (only when the MRMS heights are unavailable; the radar does not say whether the precipitation reaches the ground)'],
-    ['lightning', 'Lightning', 'Lightning cells as thin bolts from the ground to the model cloud top'],
+    ['lightning', 'Lightning', 'Lightning as thin neon bolts 3,000 ft tall where it struck, NOAA strikes dimmer the older'],
     ['fronts', 'Fronts', `${FRONTS_CREDIT}: surface fronts on the ground with a faint wall, and the H and L pressure centres`],
   ]);
   const toggles = { ...Object.fromEntries(MODEL_GROUPS.map((key) => [key, true])), winds: false, flow: true, satellite: true, radar: true, rain: true, lightning: true, fronts: true }; // all on to begin with but the barbs

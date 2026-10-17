@@ -14,8 +14,8 @@ import {
   listingUrls, parseListing, newestFile, fileUrl, targetFor, heightsLine, fallbackWords, hhmmZ, levelsWords,
 } from './mrms-model.js';
 
-/** A request failure in plain words for the key. */
-function fetchWords(err) {
+/** A request failure in plain words for the key (also the lightning strikes' feed's, strikes-feed.js). */
+export function fetchWords(err) {
   if (err instanceof MapFetchError) {
     if (err.code === 'timeout') return 'timed out';
     if (err.code === 'too-big') return 'reply too big';

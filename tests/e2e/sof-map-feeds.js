@@ -127,8 +127,10 @@ export async function serveMap(page, { rewrite = (xml) => xml } = {}) {
     map.requests.push(route.request().url());
     return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"error":true,"reason":"test stand-in"}' });
   });
-  // The 3D view's radar heights (mrms-feed.js, SOF-67) list NOAA's MRMS bucket once 3D opens: an empty listing, so the
-  // view falls back to the model-cloud blocks and says why, and no test depends on live radar.
+  // The 3D view's radar heights (mrms-feed.js, SOF-67) list NOAA's MRMS bucket once 3D opens, and NOAA's lightning strikes (strikes-feed.js,
+  // SOF-71) list its NLDN folder as the SOF opens (Moose Jaw's backup, a US base's source): an empty listing for every folder, so the 3D view
+  // falls back to the model-cloud blocks and says why, the strikes read "Lightning strikes unavailable (NOAA: no file listed in the last 30
+  // minutes)" and their near-home answer "can't tell", never "No lightning", and no test depends on live radar or lightning.
   await page.route(MRMS, (route) => {
     map.requests.push(route.request().url());
     return route.fulfill({ status: 200, contentType: 'application/xml', headers: CORS, body: '<ListBucketResult></ListBucketResult>' });
