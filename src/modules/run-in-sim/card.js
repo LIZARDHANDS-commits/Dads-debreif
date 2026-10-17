@@ -121,11 +121,17 @@ export function refuelCardFor(pass, n, { selected, onSelect, showFlags = true })
   const kts = (k) => (k === null || !Number.isFinite(k) ? '--' : `${Math.round(k)} kt`);
   const set = (byHand) => (byHand ? 'set by hand' : 'set to hit');
   const late = r.lateSec === null ? '' : Math.abs(r.lateSec) < 0.5 ? ', on time' : ` (${lateWords(r.lateSec)})`;
+  // RS-20 (Dad, 17 Oct 2026: "Giving turn range and offset would help too"): the turn range and the offset lead.
+  const to = r.takeoff;
+  const offsetWords = `${nm1(r.offsetFt)}, the tanker's inbound track ${r.offsetSide} of the receiver's · ${r.offsetByHand ? `set by hand (to hit: ${nm1(w.offsetFt)})` : 'two turn radii, set to hit'}`;
   const rv = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'The rendezvous (worked out to hit)'),
-    row('Tanker turns', `+${clock(w.tTurn)} at ${Number.isFinite(w.turnRangeNm) ? `${w.turnRangeNm.toFixed(1)} NM` : '--'} · ${set(w.turnByHand)}`),
-    row('Offset (two turn radii)', nm1(w.offsetFt)),
+    row('Turn range', `${Number.isFinite(w.turnRangeNm) ? `${w.turnRangeNm.toFixed(1)} NM` : '--'}, the tanker turns at +${clock(w.tTurn)} · ${set(w.turnByHand)}`),
+    row('Offset', offsetWords),
+    to ? row('Receiver takes off', to.liftOffSec === null ? 'never left the runway' : `CYMJ ${to.runway}, lifted off at +${clock(to.liftOffSec)}`) : null,
+    to ? row('Receiver at the IP', to.ipSec === null ? 'never passed it' : `+${clock(to.ipSec)}${to.ipPlanSec !== null ? ` (plan +${clock(to.ipPlanSec)})` : ''}`) : null,
+    r.orbitLaps !== null ? row('Tanker in its orbit before turning', `${r.orbitLaps.toFixed(1)} laps`) : null,
     row('Receiver', `${Math.round(w.rcvKiasFlown)} KIAS · ${set(w.rcvByHand)}`),
-    row('Receiver starts', `${w.startNm.toFixed(1)} NM back from the roll-out point`),
+    to ? null : row('Receiver starts', `${w.startNm.toFixed(1)} NM back from the roll-out point`),
     row('Tanker rolls out', `+${clock(w.tRollOut)}${late}`));
   const ro = r.rollOut;
   const atRo = ro ? h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'At the roll-out'),

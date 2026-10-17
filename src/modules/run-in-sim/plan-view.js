@@ -8,7 +8,7 @@ import { createCanvasSurface } from '../../ui-kit/canvas-view.js';
 import { FT_PER_NM, KT_TO_FTPS } from '../../core/units.js';
 import { compassDegFromVector } from '../../core/angles.js';
 import { orbitOutline } from './pass.js';
-import { refuelOutline } from './refuel.js';
+import { refuelOutline, turnRangeLine } from './refuel.js';
 
 const COLOURS = Object.freeze({ bg: 'rgba(5, 12, 20, 0.86)', plan: '#cfe3f2', runIn: '#42bfe9', release: '#ff9f43', ip: '#f5c542', escape: '#3ecf8e', text: '#dfe8f0', target: '#ffffff', tanker: '#ff9f43' });
 
@@ -32,7 +32,7 @@ export function createPlanView(canvas, { timers, onOpen }) {
     const pass = state.pass && (state.pass.plan.kind === 'aar') === Boolean(aar) ? state.pass : null;
     // The extent: the orbit, the IP and the target (or the anchor and the receiver's track), and the flown track.
     const outline = aar ? [aar.anchor] : orbitOutline(plan);
-    const pts = aar ? [...aar.anchor, ...aar.track] : [{ x: 0, y: 0 }, plan.ip, ...outline.flat()];
+    const pts = aar ? [...aar.anchor, ...aar.track, ...(aar.runway ? [aar.runway.a, aar.runway.b] : [])] : [{ x: 0, y: 0 }, plan.ip, ...outline.flat()];
     const tl = pass?.flight.timeline;
     if (tl) for (let i = 0; i < tl.t.length; i += 40) pts.push({ x: tl.x[i], y: tl.y[i] });
     const tt = pass?.tanker;
@@ -93,9 +93,17 @@ export function createPlanView(canvas, { timers, onOpen }) {
   };
   /** The refuelling run: the receiver's track, the turn and roll-out points, both flown tracks (the join in green). */
   const drawRefuel = (aar, pass, { path, spot }) => {
+    path(aar.inbound, COLOURS.tanker, [4, 3]);
     path(aar.track, COLOURS.runIn);
+    path([aar.offset.a, aar.offset.b], COLOURS.ip); // RS-20: the offset
     spot(aar.turnStart, COLOURS.ip);
     spot(aar.rollOut, COLOURS.target);
+    if (aar.runway) {
+      path([aar.runway.a, aar.runway.b], COLOURS.target); // RS-19: CYMJ's runway and the IP
+      spot(aar.ip, COLOURS.ip, 2.5);
+    }
+    const tr = turnRangeLine(pass);
+    if (tr) path([tr.centre, tr.rcv], COLOURS.ip, [2, 2]); // RS-20: the turn range
     const tl = pass?.flight.timeline;
     const tt = pass?.tanker;
     if (!tl || !tt) return;

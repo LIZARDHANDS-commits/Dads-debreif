@@ -9,7 +9,7 @@
 // target, Orbit, Run-in, Release and Escape hide. The worked-out numbers show greyed "set to hit" (RS-16).
 import { h } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
-import { RUNS, RANGES, runOf } from './defaults.js';
+import { RUNS, RANGES, runOf, AAR_PLACE } from './defaults.js';
 import { TARGETS, HAS_HEADING } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { clock } from './pass.js';
@@ -57,10 +57,14 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   const placeLabel = h('span', { class: 'rs-fixed-label' }, 'Place');
   const rvWords = h('span', { class: 'rs-faint' });
   const rvBox = h('div', { class: 'rs-tot' }, num('aarRvSec', 'Rendezvous time: the tanker rolls out, seconds after the start', 's'), rvWords);
+  // RS-19: where the receiver takes off from (CYMJ, the runway into the ground wind).
+  const takeoffWords = h('span', { class: 'rs-fixed-value' });
+  const takeoffLine = h('div', { class: 'control rs-fixed' }, h('span', { class: 'rs-fixed-label' }, 'Receiver takes off from'), takeoffWords);
   const top = h('div', { class: 'rs-top' },
     controls.select('run', { label: 'Run', options: RUNS.map((r) => [r.id, r.label]) }),
     h('div', { class: 'control rs-fixed' }, h('span', { class: 'rs-fixed-label' }, 'Aircraft'), aircraftName),
     aarNote,
+    takeoffLine,
     targetBox,
     targetHeadingBox,
     targetMore,
@@ -161,18 +165,24 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
       controls.choice('aarDir', { label: 'Anchor turns', options: [['left', 'Left'], ['right', 'Right']] })),
     aarNoteLine());
   const rvBoxPanel = box('Rendezvous');
+  const ipBox = num('aarIpNm', 'IP: on the track, this far back from the roll-out point', 'NM');
+  const ipHit = hit('Receiver at the IP');
+  const offsetHand = controls.checkbox('aarOffsetByHand', { label: 'Set the offset by hand (the turn range is still worked out)' });
+  const offsetBox = num('aarOffsetNm', 'Offset: the tanker\'s inbound track from the receiver\'s', 'NM');
+  const airborneBox = controls.checkbox('aarAirborne', { label: 'Start the receiver airborne on the track (the first version; the rendezvous time is set)' });
   const rcvHit = hit('Receiver\'s speed');
   const startHit = hit('Receiver starts');
-  const offsetHit = hit('Offset (two of the tanker\'s turn radii)');
+  const offsetHit = hit('Offset');
   const turnHit = hit('Tanker turns');
   const turnHand = controls.checkbox('aarTurnRangeByHand', { label: 'The tanker turns at a range set by hand' });
   const turnRangeBox = num('aarTurnRangeNm', 'Turn range (over the ground)', 'NM');
   const rcvHand = controls.checkbox('aarRcvKiasByHand', { label: 'Set the receiver\'s speed by hand' });
   const rcvKiasBox = num('aarRcvKias', 'Receiver\'s speed', 'KIAS');
   rvBoxPanel.panel.body.append(
+    ipBox,
     num('aarTrailNm', 'Trail at the roll-out', 'NM'),
-    rcvHit.el, startHit.el, offsetHit.el, turnHit.el,
-    more(num('aarSplitFt', 'Receiver below the tanker', 'ft'), turnHand, turnRangeBox, rcvHand, rcvKiasBox),
+    turnHit.el, offsetHit.el, ipHit.el, rcvHit.el, startHit.el,
+    more(num('aarSplitFt', 'Receiver below the tanker', 'ft'), offsetHand, offsetBox, turnHand, turnRangeBox, rcvHand, rcvKiasBox, airborneBox),
     aarNoteLine());
   const joinBox = box('Join');
   joinBox.panel.body.append(
@@ -206,7 +216,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const run = runOf(v.run);
     const aar = run.id === 'aar';
     for (const el of [targetBox, targetMore, totBox, ...runInPanels, planMore]) show(el, !aar);
-    for (const el of [aarNote, rvBox, ...aarPanels]) show(el, aar);
+    for (const el of [aarNote, takeoffLine, rvBox, ...aarPanels]) show(el, aar);
     placeLabel.textContent = aar ? 'Place (the roll-out point)' : 'Place';
     const where = aar ? 'refuelling' : 'release';
     windTopLabels[0].textContent = `At the ${where} height, from`;
@@ -289,21 +299,31 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   /** The refuelling run's lines: the boxes' summaries and the numbers worked out to hit (RS-16). */
   function updateRefuel(v, plan, exit) {
     aircraftName.textContent = 'KC-130J tanker (a picture) · CT-156 stand-in receiver';
-    placeWords.textContent = v.placeIsDefault ? 'Moose Jaw area' : `${v.placeLat.toFixed(3)}, ${v.placeLon.toFixed(3)}`;
+    placeWords.textContent = v.placeIsDefault ? AAR_PLACE.words : `${v.placeLat.toFixed(3)}, ${v.placeLon.toFixed(3)}`;
     rvWords.textContent = `+${clock(v.aarRvSec)}`;
+    const takeoff = !v.aarAirborne;
+    show(rvBox, !takeoff);
+    show(takeoffLine, takeoff);
+    show(ipBox, takeoff);
+    show(ipHit.el, takeoff);
+    show(startHit.el, !takeoff);
+    show(offsetBox, v.aarOffsetByHand);
+    takeoffWords.textContent = plan?.runway ? `CYMJ ${plan.runway.name} (into the wind; 29L when calm)` : 'CYMJ (the runway into the wind)';
     show(targetHeadingBox, false);
     tankerBox.sum.textContent = `${deg3(v.aarTrackDegM)} · ${ft10(v.aarHeightFt)} MSL · ${v.aarTankerKias} KIAS`;
-    rvBoxPanel.sum.textContent = `${v.aarTrailNm.toFixed(1)} NM trail · ${ft10(v.aarSplitFt)} below`;
+    rvBoxPanel.sum.textContent = takeoff ? `IP ${v.aarIpNm.toFixed(1)} NM · ${v.aarTrailNm.toFixed(1)} NM trail` : `airborne · ${v.aarTrailNm.toFixed(1)} NM trail`;
     joinBox.sum.textContent = `${v.aarOvertakeKt} kt overtake · ${v.aarPreContactFt} ft behind the basket`;
     show(turnRangeBox, v.aarTurnRangeByHand);
     show(rcvKiasBox, v.aarRcvKiasByHand);
     const w = plan?.worked;
     rcvHit.value.textContent = v.aarRcvKiasByHand ? `${v.aarRcvKias} KIAS (set by hand)` : w ? `${Math.round(w.rcvKias)} KIAS at ${ft10(v.aarHeightFt - v.aarSplitFt)}` : '—';
-    offsetHit.value.textContent = w ? nm1(w.offsetFt) : '—';
+    const side = v.aarDir === 'left' ? 'left' : 'right';
+    offsetHit.value.textContent = v.aarOffsetByHand ? `${v.aarOffsetNm.toFixed(1)} NM ${side} (set by hand)` : w ? `${nm1(w.offsetFt)} ${side}: two turn radii` : '—';
+    ipHit.value.textContent = exit?.ipSec !== undefined && exit.ipSec !== null ? `+${clock(exit.ipSec)}` : 'when the run is flown';
     startHit.value.textContent = exit?.startNm !== undefined ? `${exit.startNm.toFixed(1)} NM back from the roll-out point` : 'when the run is flown';
     turnHit.value.textContent = exit?.turnRangeNm !== undefined
       ? `+${clock(exit.sec)} at ${exit.turnRangeNm.toFixed(1)} NM${exit.byHand ? ' (range set by hand)' : ''}`
-      : w ? `+${clock(v.aarRvSec - w.turnSec)} · its range when the run is flown` : '—';
+      : w && !takeoff ? `+${clock(v.aarRvSec - w.turnSec)} · its range when the run is flown` : 'when the run is flown';
     show(turnHit.el, true);
   }
 

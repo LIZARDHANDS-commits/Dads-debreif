@@ -8,6 +8,7 @@
 // The air refuelling run (RS-15 to RS-18; proposed, built ahead of Patrick's yes, Dad, 17 Oct 2026) is worked out and
 // flown by refuel.js instead of pass.js, with its own card (card.js refuelCardFor), marks and two more cameras.
 import { h, clear } from '../../ui-kit/dom.js';
+import { FT_PER_NM } from '../../core/units.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createPillGroup } from '../../ui-kit/camera-bar.js';
@@ -293,7 +294,7 @@ function mount(root, app) {
         const s = setupFrom(v);
         const pass = s.aar ? flyRefuel(s, ground) : flyPass(s, ground);
         // The refuelling run's worked-out start and turn range, for the Setup's "set to hit" (RS-16).
-        if (s.aar) Object.assign(pass.exit, { startNm: pass.result.worked.startNm, turnRangeNm: pass.result.worked.turnRangeNm });
+        if (s.aar) Object.assign(pass.exit, { startNm: pass.result.worked.startNm, turnRangeNm: pass.result.worked.turnRangeNm, ipSec: pass.result.takeoff?.ipSec ?? null });
         const swap = replace && passes.length > 0;
         pass.n = swap ? passes[0].n : (passes[0]?.n ?? 0) + 1;
         pass.stale = false;
@@ -391,6 +392,7 @@ function mount(root, app) {
     const aarDone = current()?.plan.kind === 'aar' ? current().result.worked : null;
     if (v.aarTurnRangeByHand && !was.aarTurnRangeByHand && Number.isFinite(aarDone?.turnRangeNm)) prefill.aarTurnRangeNm = Math.round(aarDone.turnRangeNm * 10) / 10;
     if (v.aarRcvKiasByHand && !was.aarRcvKiasByHand && plan?.kind === 'aar') prefill.aarRcvKias = Math.round(plan.worked.rcvKias / 5) * 5;
+    if (v.aarOffsetByHand && !was.aarOffsetByHand && plan?.kind === 'aar') prefill.aarOffsetNm = Math.round((plan.worked.offsetFt / FT_PER_NM) * 10) / 10;
     // A camera the run hasn't got goes back to Chase (the refuelling run's two show only on it; it has no Target).
     if (!cameraFits(v)) {
       settings.update({ camera: 'chase' });

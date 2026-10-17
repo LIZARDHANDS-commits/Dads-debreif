@@ -21,7 +21,7 @@ import { attitudeDegFromClimb } from '../../core/t6-performance.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { targetSizes, DECK_THICK_FT, TOWER } from './targets.js';
 import { orbitOutline } from './pass.js';
-import { refuelOutline, DROGUE } from './refuel.js';
+import { refuelOutline, turnRangeLine, DROGUE } from './refuel.js';
 import { createKc130j } from './kc130j.js';
 
 /** The haze: the ground fades to the horizon colour from 15 NM out to 40 NM (estimates for the look). */
@@ -216,20 +216,35 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
     if (!display.showLines) return;
     const o = refuelOutline(plan);
     planGroup.add(line(o.anchor, lineMat(COLOURS.plan, true)));
+    planGroup.add(line(o.inbound, lineMat(COLOURS.tanker, true)));
     planGroup.add(line(o.track, lineMat(COLOURS.runIn)));
     planGroup.add(dot(o.turnStart, COLOURS.ip, 40));
     planGroup.add(dot(o.rollOut, COLOURS.rollOut, 40));
     planGroup.add(dot(o.start, COLOURS.runIn, 40));
-    marks.push({ words: 'Tanker turns here', p: o.turnStart }, { words: 'Roll-out point', p: o.rollOut }, { words: 'Receiver starts', p: o.start });
+    // RS-20: the offset, square to the track from the tanker's inbound track to the receiver's, at the turn point.
+    planGroup.add(line([o.offset.a, o.offset.b], lineMat(COLOURS.ip)));
+    const mid = { x: (o.offset.a.x + o.offset.b.x) / 2, y: (o.offset.a.y + o.offset.b.y) / 2, z: o.offset.a.z };
+    marks.push({ words: 'Tanker turns here', p: o.turnStart }, { words: 'Roll-out point', p: o.rollOut },
+      { words: `Offset ${(o.offset.ft / FT_PER_NM).toFixed(1)} NM ${o.offset.side}`, p: mid });
+    if (o.runway) {
+      // RS-19: CYMJ's runway on the ground, and the IP.
+      planGroup.add(line([{ ...o.runway.a, z: o.runway.a.z + 3 }, { ...o.runway.b, z: o.runway.b.z + 3 }], lineMat(COLOURS.rollOut)));
+      marks.push({ words: `CYMJ ${o.runway.name}`, p: o.runway.a }, { words: 'IP', p: o.ip });
+      planGroup.add(dot(o.ip, COLOURS.ip, 40));
+    } else {
+      marks.push({ words: 'Receiver starts', p: o.start });
+    }
   }
 
   // ---- The trails ----
   const trailGroup = new THREE.Group();
   scene.add(trailGroup);
   let trails = null; // { before, after, load, impact, nBefore, nAfter, releaseT, fall }
+  let passMarks = []; // the refuelling run's turn range label (RS-20)
   function buildTrails(pass, display) {
     clearGroup(trailGroup);
     trails = null;
+    passMarks = [];
     if (!pass || !display.showTrails) return;
     const tl = pass.flight.timeline;
     const aar = pass.plan.kind === 'aar';
@@ -252,6 +267,17 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
     };
     trails = { before: mk(before, COLOURS.trail), after: mk(after, COLOURS.escape), nBefore: before.length, nAfter: after.length, releaseT: relT, fall: pass.fall, load: null, impact: null, tanker: null };
     if (aar) {
+      // RS-20: the turn range, a ring round the tanker's turn point and a line to where the receiver was when it turned.
+      const tr = turnRangeLine(pass);
+      if (tr) {
+        const ringPts = [];
+        for (let k = 0; k <= 96; k++) ringPts.push(new THREE.Vector3(tr.centre.x + tr.ft * Math.cos((k / 96) * Math.PI * 2), tr.centre.y + tr.ft * Math.sin((k / 96) * Math.PI * 2), tr.centre.z));
+        const ring3 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts), lineMat(COLOURS.ip, true));
+        ring3.computeLineDistances();
+        trailGroup.add(ring3);
+        trailGroup.add(line([tr.centre, tr.rcv], lineMat(COLOURS.ip)));
+        passMarks = [{ words: `Turn range ${(tr.ft / FT_PER_NM).toFixed(1)} NM`, p: { x: (tr.centre.x + tr.rcv.x) / 2, y: (tr.centre.y + tr.rcv.y) / 2, z: tr.centre.z } }];
+      }
       const tt = pass.tanker;
       const pts = [];
       for (let i = 0; i < tt.x.length; i += TRAIL_EVERY) pts.push(new THREE.Vector3(tt.x[i], tt.y[i], tt.z[i]));
@@ -369,7 +395,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
 
   function placeLabels(w, h) {
     const own = view.tankerPose && (view.camera === 'tanker' || view.camera === 'drogue');
-    const items = own ? [] : [...marks];
+    const items = own ? [] : [...marks, ...passMarks];
     // From afar (Target, Overhead, Side) the aircraft is a speck: a label shows where it is.
     if (view.tankerPose && view.pose) {
       // The refuelling run: each aircraft labelled when it is far from the camera.

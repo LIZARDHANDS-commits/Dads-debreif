@@ -21,8 +21,8 @@ import { createPillGroup } from '../../ui-kit/camera-bar.js';
 import { FT_PER_NM, KT_TO_FTPS } from '../../core/units.js';
 import { compassDegFromVector } from '../../core/angles.js';
 import { footprintOf, targetCut } from './targets.js';
-import { orbitOutline } from './pass.js';
-import { refuelOutline, DROGUE, RECEIVER } from './refuel.js';
+import { orbitOutline, clock } from './pass.js';
+import { refuelOutline, turnRangeLine, DROGUE, RECEIVER } from './refuel.js';
 
 const COLOURS = Object.freeze({
   ground: '#1b2a35', halo: 'rgba(5, 10, 18, 0.85)', plan: '#e8f4ff', runIn: '#42bfe9', release: '#ff9f43', ip: '#f5c542',
@@ -286,14 +286,39 @@ export function createView2d({ timers, getProjection, onZoom }) {
     };
     const o = refuelOutline(plan);
     line(o.anchor, COLOURS.plan, 1.5, [6, 4]);
+    line(o.inbound, COLOURS.tanker, 1.5, [6, 4]);
     line(o.track, COLOURS.runIn, 2.5);
-    spot(o.start, COLOURS.runIn, 4);
-    mark(o.start, 'Receiver starts', COLOURS.runIn);
     spot(o.turnStart, COLOURS.ip);
     mark(o.turnStart, 'Tanker turns', COLOURS.ip);
     spot(o.rollOut, COLOURS.target);
     mark(o.rollOut, 'Roll-out point', COLOURS.target);
+    // RS-20: the offset, square to the track from the tanker's inbound track to the receiver's, at the turn point.
+    line([o.offset.a, o.offset.b], COLOURS.ip, 2);
+    const [ox, oy] = S({ x: (o.offset.a.x + o.offset.b.x) / 2, y: (o.offset.a.y + o.offset.b.y) / 2 });
+    label(ctx, `Offset ${(o.offset.ft / FT_PER_NM).toFixed(1)} NM ${o.offset.side}`, ox + 9, oy + 18, COLOURS.ip);
+    if (o.runway) {
+      // RS-19: CYMJ's runway (the climb-out is the flown track) and the IP.
+      line([o.runway.a, o.runway.b], COLOURS.target, 4);
+      mark(o.runway.a, `CYMJ ${o.runway.name}`, COLOURS.target);
+      spot(o.ip, COLOURS.ip, 4.5);
+      mark(o.ip, `IP ${(plan.ipFt / FT_PER_NM).toFixed(1)} NM`, COLOURS.ip);
+    } else {
+      spot(o.start, COLOURS.runIn, 4);
+      mark(o.start, 'Receiver starts', COLOURS.runIn);
+    }
     const pass = passFor(state.pass, plan);
+    // RS-20: the turn range, a ring round the tanker's turn point and a line to where the receiver was when it turned.
+    const tr = pass ? turnRangeLine(pass) : null;
+    if (tr) {
+      const [cx, cy] = S(tr.centre);
+      halo(ctx, () => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, tr.ft * v.view.scale, 0, Math.PI * 2);
+      }, COLOURS.ip, 1.2, [4, 4]);
+      line([tr.centre, tr.rcv], COLOURS.ip, 1.5, [4, 3]);
+      const [tx, ty] = S({ x: (tr.centre.x + tr.rcv.x) / 2, y: (tr.centre.y + tr.rcv.y) / 2 });
+      label(ctx, `Turn range ${(tr.ft / FT_PER_NM).toFixed(1)} NM at +${clock(tr.t)}`, tx + 9, ty - 6, COLOURS.ip);
+    }
     const tl = pass?.flight.timeline;
     const tt = pass?.tanker;
     if (!tl || !tt) return;
@@ -686,7 +711,8 @@ export function createView2d({ timers, getProjection, onZoom }) {
       const pad = (x1 - x0) * 0.04 + 500;
       x0 -= pad;
       x1 += pad;
-      yMin = plan.Hr - 400;
+      // The whole rendezvous from the take-off (RS-19) reaches down to the runway; the join stays near the two heights.
+      yMin = state.zoom === 'whole' && rcv.length ? Math.min(plan.Hr - 400, ...rcv.map((p) => p.z)) - 200 : plan.Hr - 400;
       yMax = plan.H + 300;
     }
     const L = 64;
@@ -735,7 +761,7 @@ export function createView2d({ timers, getProjection, onZoom }) {
       const words = `heights ×${Math.round(up / across)} against distance`;
       ctx.fillText(words, width - R - ctx.measureText(words).width, height - 6);
     }
-    const title = behind ? 'Profile behind the tanker: the stand-in receiver from the roll-out on (the tanker fixed at 0)' : 'Profile along the refuelling track: both aircraft (heights MSL; the ground is far below)';
+    const title = behind ? 'Profile behind the tanker: the stand-in receiver from the roll-out on (the tanker fixed at 0)' : `Profile along the refuelling track: both aircraft (heights MSL${state.zoom === 'whole' ? ', from the take-off' : '; the ground is far below'})`;
     if (profTitle.firstChild.textContent !== title) profTitle.firstChild.textContent = title;
     if (cutNote.textContent) cutNote.textContent = '';
 
@@ -801,14 +827,14 @@ export function createView2d({ timers, getProjection, onZoom }) {
     ctx.restore();
   }
 
-  const planView = createCanvasView(planCanvas, { timers, draw: drawPlan, minSpan: 400, maxSpan: 60 * FT_PER_NM, label: 'Plan of the pass on the satellite map, north up, at true scale. Drag to pan, the wheel or + and - to zoom.' });
+  const planView = createCanvasView(planCanvas, { timers, draw: drawPlan, minSpan: 400, maxSpan: 120 * FT_PER_NM /* room for the refuelling run from CYMJ to its anchor, RS-19 */, label: 'Plan of the pass on the satellite map, north up, at true scale. Drag to pan, the wheel or + and - to zoom.' });
   const profile = createCanvasSurface(profCanvas, { timers, draw: drawProfile, label: 'Profile of the pass along the run-in through the aim point: height above the target\'s ground against distance from the target.' });
 
   function fit() {
     const plan = state.plan;
     if (!plan || !shown) return;
     const aar = refuelOutline(plan);
-    const pts = aar ? [...aar.anchor, ...aar.track] : [{ x: 0, y: 0 }, plan.ip, ...orbitOutline(plan).flat()];
+    const pts = aar ? [...aar.anchor, ...aar.track, ...(aar.runway ? [aar.runway.a, aar.runway.b] : [])] : [{ x: 0, y: 0 }, plan.ip, ...orbitOutline(plan).flat()];
     const shownPass = passFor(state.pass, plan);
     const tl = shownPass?.flight.timeline;
     if (tl) for (let i = 0; i < tl.t.length; i += 40) pts.push({ x: tl.x[i], y: tl.y[i] });
