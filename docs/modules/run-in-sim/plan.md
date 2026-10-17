@@ -83,6 +83,12 @@ Dad, 17 Oct 2026: "as well as the cutting of ground track the aircraft increase 
 - [x] The figure 8 as an infinity sign, its legs crossing at the IP; time over target by the last loop as before (V2.508).
 - [ ] Dad or Patrick looks at both in the app.
 
+## Step 9. Stadium crowd, field and fireworks (3D polish built ahead of Patrick's yes: Dad, 17 Oct 2026, chose "Build it now, flagged" after being told the rule book says no more 3D polish in a module still being built)
+Dad, 17 Oct 2026: "can you include fireworks at the stadium at the end of the song, just for a better visual confirmation. as well as people in the seats with rows, and a football field marking with the goal posts".
+- [x] Written down first: spec "Change: the stadium's crowd, field and fireworks", RS-28 (proposed, built ahead of Patrick's yes) (17 Oct 2026).
+- [x] The Stadium bowl only: stepped stands with the seated crowd in rows (one instanced mesh), the football field with its lines, end zones and goal posts (Canadian for O Canada and when no anthem, US for the Star-Spangled Banner), and fireworks over the stadium from the anthem's last note, driven only by playback time; a Display switch "Stadium crowd, field and fireworks" (default on) (`stadium-scene.js`). Nothing about the flying, the time line, the card or the other targets changes. No new test (the rule book: no new 3D tests in a module still being built).
+- [ ] Patrick's yes on RS-28 (or his word to take it out); Dad or Patrick sees it in the app.
+
 ## Not in this plan
 
 Live weapons, real-world target data, threats, formation runs, the user flying by hand and winds aloft from the models (`future.md`). For air refuelling: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous.

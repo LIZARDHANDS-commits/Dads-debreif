@@ -160,6 +160,7 @@ export const DEFAULTS = Object.freeze({
   showLines: true,
   showCarp: true,
   showTrails: true,
+  showStadium: true, // the Stadium bowl's crowd, field and fireworks (RS-28; a look only)
   showFlags: true,
   // The view (RS-13): the 3D view, or the 2D plan and profile; the profile shows the release to the impact (near), close
   // round the target (target) or the whole run-in (whole).
