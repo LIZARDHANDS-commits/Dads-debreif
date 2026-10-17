@@ -13,7 +13,7 @@
 // doesn't come leaves the plain ground colour; no WebGL leaves a message in place of the view (index.js), and the plan
 // view, the settings and the result still work.
 import { loadThree, addLights, webglSupported, worldToScreen } from '../../ui-kit/three-aircraft.js';
-import { createCt156Model, PAINT_DEFAULT, setGear, CT156_GEAR_TRAVEL_S } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, disposeCt156Model, PAINT_DEFAULT, setGear, CT156_GEAR_TRAVEL_S } from '../../ui-kit/ct156-model.js';
 import { createCockpitMount, aimCockpitCamera, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { createDrapedGround } from '../../ui-kit/draped-ground.js';
@@ -53,7 +53,7 @@ const COLOURS = Object.freeze({
  * refreshes it); area: area.js areaFor(); fallbackFt: the ground's height where no tile came.
  * Returns a Promise of the view's api, or of null without WebGL.
  */
-export async function createRunInWorld({ host, timers, terrain, area, fallbackFt, doc = globalThis.document }) {
+export async function createRunInWorld({ host, timers, terrain, area, fallbackFt, paint = PAINT_DEFAULT, doc = globalThis.document }) {
   if (!webglSupported({ document: doc })) return null;
   const THREE = await loadThree();
   const canvas = doc.createElement('canvas');
@@ -332,9 +332,15 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
   }
 
   // ---- The aircraft ----
-  const ship = createCt156Model(THREE, { color: '#58a6ff', paint: PAINT_DEFAULT, number: 1 });
-  ship.scale.setScalar(CT156_FT_PER_UNIT);
-  ship.rotation.order = 'ZYX';
+  // The paint is the Display box's (RS-28, proposed): the RCAF Harvard, or the USAF or USN markings. A change builds the ship again.
+  const makeShip = (shipPaint) => {
+    const model = createCt156Model(THREE, { color: '#58a6ff', paint: shipPaint, number: 1 });
+    model.scale.setScalar(CT156_FT_PER_UNIT);
+    model.rotation.order = 'ZYX';
+    return model;
+  };
+  let shipPaint = paint;
+  let ship = makeShip(shipPaint);
   ship.visible = false;
   scene.add(ship);
   const cockpit = createCockpitMount(THREE, { doc });
@@ -576,6 +582,21 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
         view.pose = null;
       }
       draw();
+    },
+    /** The aircraft's paint (RS-28, proposed): 'harvard', 'usaf' or 'usn'; the ship is built again where it was. The caller redraws (show). */
+    setPaint(next) {
+      if (next === shipPaint) return;
+      shipPaint = next;
+      const old = ship;
+      cockpit.mount(null, 'front'); // the cockpit group lets go of the old ship first
+      ship = makeShip(next);
+      ship.position.copy(old.position);
+      ship.rotation.copy(old.rotation);
+      ship.visible = old.visible;
+      scene.add(ship);
+      scene.remove(old);
+      disposeCt156Model(old);
+      gearSet = true; // the new ship's gear is set again at the next picture (show) if the pass has a take-off
     },
     redraw: draw,
     /** Something changed on the ground (a tile arrived): a fresh picture soon. */

@@ -141,7 +141,7 @@ function mount(root, app) {
   if (!webglSupported({ document })) {
     view.append(h('p', { class: 'rs-3d-note' }, 'This browser can\'t draw 3D (no WebGL). The plan view, the settings and the result still work.'));
   } else {
-    createRunInWorld({ host: view, timers: app.scheduler, terrain, area, fallbackFt: FALLBACK_FT }).then((w) => {
+    createRunInWorld({ host: view, timers: app.scheduler, terrain, area, fallbackFt: FALLBACK_FT, paint: values().paint }).then((w) => {
       if (closed) {
         w?.dispose();
         return;
@@ -453,7 +453,7 @@ function mount(root, app) {
 
   // ---- Settings ----
   let before = values();
-  const ON_SCREEN_ONLY = new Set(['camera', 'playSpeed', 'showLines', 'showCarp', 'showTrails', 'showFlags', 'viewMode', 'profileZoom']);
+  const ON_SCREEN_ONLY = new Set(['camera', 'playSpeed', 'showLines', 'showCarp', 'showTrails', 'showFlags', 'paint', 'viewMode', 'profileZoom']);
   settings.subscribe((v) => {
     const was = before;
     before = v;
@@ -504,6 +504,7 @@ function mount(root, app) {
       scheduleRefly();
       renderCards();
     }
+    if (v.paint !== was.paint) world?.setPaint(v.paint); // the Display box's Paint (RS-28, proposed)
     if (v.viewMode !== was.viewMode || v.profileZoom !== was.profileZoom) syncView();
     if (changed.some((k) => k.startsWith('show'))) {
       syncPlan();

@@ -293,3 +293,9 @@ From V2.508 a cut is flown this way:
 - the run-in speed worked out to hit as before (RS-27), held from the press.
 
 **The card** says, for example, "Cut right at 60° bank at +0:34, onto the run-in 3.2 NM out, run-in 255 KIAS", and a note names a cut that would have crossed nearer the last note but more than 300 ft abeam. The peak G is flagged against the CT-156's limit as before (a reference, never a wall). **The views** show the flown cut, with the run-in line drawn from where it joined (marked as the IP).
+
+### Change: the aircraft's paint, RCAF, USAF or USN (RS-28; proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026))
+
+Dad, 17 Oct 2026: **"Can we make a paint scheme for USAF and USN"**, with reference photos and profile drawings of the T-6A and T-6B.
+
+The shared CT-156 model gets two more paints (ALL-45), and the **Display** box gets a **Paint** choice: RCAF Harvard (the default, as before), USAF or USN. Choosing one builds the aircraft again where it is and redraws; nothing is replanned or reflown (the paint changes no number). The choice is saved with the other settings. The USAF is white above and dark navy below with a thin red pinstripe at the break, a black glare panel, "U.S. AIR FORCE" under the front cockpit, the star-and-bar and the tail code; the USN is white above and red-orange below with "NAVY", a big tail letter and a side number on the nose. The colours, the places and sizes of the marks, the tail code and letter and the serials are all **estimates** from Dad's pictures (none of which is copied); see ALL-45 for the list.
