@@ -233,13 +233,13 @@ export function mergeShafts(list, { cell = cellFt(), tolFt = SHAFT_MERGE_FT, col
   });
 }
 
-/** The lightning bolts: one per lit cell, from the ground to the model cloud top above it, or LIGHTNING_DEFAULT_AGL_FT above the ground with none. At most MAX_BOLTS. `groundAt` as for `shafts`. */
+/** The lightning bolts: one per lit cell, from the ground to the model cloud top above it, or LIGHTNING_DEFAULT_AGL_FT above the ground with none. At most MAX_BOLTS. `groundAt` as for `shafts`. A cell's `alpha` (its age's strength, NOAA's strikes) is carried to its bolt. */
 export function bolts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, groundAt = /** @type {(x: number, y: number) => number} */ (() => groundFt), max = MAX_BOLTS } = {}) {
   return thin(cells, max).map((c) => {
     const cloud = column(c.u, c.v);
     const ground = groundAt(c.x, c.y);
     const top = cloud && isNumber(cloud.topFt) && cloud.topFt > ground + 2000 ? cloud.topFt : ground + LIGHTNING_DEFAULT_AGL_FT;
-    return { x: c.x, y: c.y, baseFt: ground, topFt: top, modelTop: Boolean(cloud) };
+    return { x: c.x, y: c.y, baseFt: ground, topFt: top, modelTop: Boolean(cloud), ...(isNumber(c.alpha) ? { alpha: c.alpha } : {}) };
   });
 }
 

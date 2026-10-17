@@ -10,6 +10,7 @@ import { windBarb } from './map-model.js';
 import { trailAlpha, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { showsName } from './aircraft-kind.js';
 import { ICON_SCALE } from './scene3d-model.js';
+import { LIGHTNING_MARK } from './map-lightning.js';
 
 const FONT = '600 12px system-ui, sans-serif';
 const HALO_WIDTH = 3;
@@ -46,6 +47,50 @@ export function drawGeoImage(ctx, image, bbox, project, alpha = 1) {
     } else {
       // A pixel of overlap hides the seams between strips.
       ctx.drawImage(image, 0, strip.sy, image.width, strip.sh, Math.min(x1, x2), Math.min(y1, y2) - 0.5, Math.abs(x2 - x1), Math.abs(y2 - y1) + 1);
+    }
+  }
+  ctx.restore();
+}
+
+/** A strike's cross (SOF-71): arms this long from the middle and this wide, in CSS pixels, on a dark outline this much wider. Estimates for the look. */
+const STRIKE_ARM_PX = 5;
+const STRIKE_LINE_PX = 2;
+const STRIKE_OUTLINE_PX = 2;
+const rgb = ([r, g, b]) => `rgb(${r}, ${g}, ${b})`;
+
+/**
+ * NOAA's lightning strikes as small crosses (SOF-71, spec "2D map"): `marks` from strikes-model.js `strikeMarks` ({ lat, lon, alpha }, oldest first, so the newest
+ * lie on top), each a yellow cross on a near-black outline in ECCC's lightning mark's colours (map-lightning.js LIGHTNING_MARK, 3 : 1 or better on each base map at
+ * full strength), faded by its age. Off-screen strikes are skipped. `size` is { width, height } in CSS pixels.
+ */
+export function drawStrikes(ctx, marks, project, size) {
+  if (!marks.length) return;
+  const pad = STRIKE_ARM_PX + STRIKE_OUTLINE_PX;
+  ctx.save();
+  ctx.lineCap = 'square';
+  const cross = (x, y) => {
+    ctx.moveTo(x - STRIKE_ARM_PX, y);
+    ctx.lineTo(x + STRIKE_ARM_PX, y);
+    ctx.moveTo(x, y - STRIKE_ARM_PX);
+    ctx.lineTo(x, y + STRIKE_ARM_PX);
+  };
+  // One path per strength, outline first, so a busy storm is a handful of strokes, not thousands.
+  const byAlpha = new Map();
+  for (const m of marks) {
+    const [x, y] = project(m.lat, m.lon);
+    if (x < -pad || y < -pad || x > size.width + pad || y > size.height + pad) continue;
+    if (!byAlpha.has(m.alpha)) byAlpha.set(m.alpha, []);
+    byAlpha.get(m.alpha).push([x, y]);
+  }
+  for (const alpha of [...byAlpha.keys()].sort((a, b) => a - b)) {
+    const points = byAlpha.get(alpha);
+    ctx.globalAlpha = alpha;
+    for (const [width, colour] of [[STRIKE_LINE_PX + 2 * STRIKE_OUTLINE_PX, LIGHTNING_MARK.outline], [STRIKE_LINE_PX, LIGHTNING_MARK.fill]]) {
+      ctx.beginPath();
+      for (const [x, y] of points) cross(x, y);
+      ctx.lineWidth = width;
+      ctx.strokeStyle = rgb(colour);
+      ctx.stroke();
     }
   }
   ctx.restore();
