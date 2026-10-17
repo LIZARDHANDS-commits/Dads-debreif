@@ -18,6 +18,11 @@
 //   is on the nose and under the right wing, the serial (156122) low on the fin, as Patrick's photo of 156102.
 // paint 'ship': the plain look, everything in `color`; up close only the serial on the fin, the position lights, the
 //   exhaust stacks and the canopy frames (TS-156).
+// paints 'usaf' and 'usn': the T-6A/B Texan II's US markings (ALL-45, proposed; Dad, 17 Oct 2026), the same shape: white upper
+//   surfaces, fin and canopy frames, a dark blue (USAF) or red-orange (USN) lower fuselage and lower wings, a black glare panel,
+//   the US star-and-bar, the red danger triangles and the tail code or letter. The colour breaks are drawn by the shader
+//   (paintZones, ct156-blender.js), so the shape and the Blender files are untouched. Every colour and every place is an
+//   estimate from Dad's reference pictures (US_PAINTS, US_MARKS below); none of his pictures is copied.
 //
 // Shared geometry, textures and materials are built once per THREE module and
 // reference-counted: disposeCt156Model frees a ship's own materials and textures, and the
@@ -27,15 +32,17 @@
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
-import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, ct156PanelSheen, onCt156Level, loadDelivered, loadPicture, paintBands, paintGrain, shadeWhenLoaded, warnUnlessReported } from './ct156-blender.js';
+import { aoShaded, CT156_PICTURES, ct156Files, ct156Generation, ct156Level, ct156PanelSheen, onCt156Level, loadDelivered, loadPicture, paintBands, paintGrain, paintZones, shadeWhenLoaded, warnUnlessReported } from './ct156-blender.js';
 import { addLookProbe } from './ct156-look.js';
 import { CT156_PILOT_SLOTS, ct156PilotParts } from './ct156-pilot.js';
 
-/** The paint setting every module offers: Paint: Harvard / Ship colours, Harvard the default. */
+/** The paint setting every module offers: Paint: Harvard / Ship colours / USAF / USN, Harvard the default. */
 export const PAINT_DEFAULT = 'harvard';
 export const PAINT_OPTIONS = Object.freeze([
   Object.freeze({ value: 'harvard', label: 'Harvard' }),
   Object.freeze({ value: 'ship', label: 'Ship colours' }),
+  Object.freeze({ value: 'usaf', label: 'USAF' }), // the T-6A Texan II's US Air Force markings (ALL-45, proposed)
+  Object.freeze({ value: 'usn', label: 'USN' }), // the T-6B Texan II's US Navy markings (ALL-45, proposed)
 ]);
 
 export const CT156_UNIT_LENGTH = 1.44; // x from -0.78 (tail) to 0.66 (spinner tip)
@@ -661,9 +668,9 @@ function outlinedText(ctx, text, cx, cy, px, outline = px * 0.07) {
 
 /**
  * Plain white digits with no outline, centred in a w by h canvas: as tall as `tall` of its height, narrowed (never
- * widened) to fit `wide` of its width, as the CT-156's own stencilled numbers (G4, G10, G20).
+ * widened) to fit `wide` of its width, as the CT-156's own stencilled numbers (G4, G10, G20). `fill`: the letters' colour (white).
  */
-function plainDigits(ctx, text, w, h, tall = 0.9, wide = 0.96) {
+function plainDigits(ctx, text, w, h, tall = 0.9, wide = 0.96, fill = '#ffffff') {
   ctx.font = '700 100px Arial, Helvetica, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
@@ -674,7 +681,7 @@ function plainDigits(ctx, text, w, h, tall = 0.9, wide = 0.96) {
   ctx.save();
   ctx.translate(w / 2, h / 2);
   ctx.scale(k * sx, k);
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = fill;
   ctx.fillText(text, -(m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2, (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2);
   ctx.restore();
 }
@@ -792,6 +799,77 @@ function tailCanvas(number, side) {
     }
   };
 }
+
+// ---------- the US paints' markings (ALL-45, proposed) ----------
+// Colours and places are estimates from Dad's reference pictures (17 Oct 2026), described and redrawn; none of them is copied.
+
+/** The US national insignia (a public government marking), drawn twice as wide as tall on a clear ground: a white star in a blue disc,
+ *  a white bar each side with a red stripe through it, all outlined in blue (disc diameter D, bars D/2 long and D/2 deep, the outline D/8). */
+function usInsigniaCanvas(ctx, w, h) {
+  const D = Math.min(w / 2.25, h * 0.92), edge = D / 8, cx = w / 2, cy = h / 2, bar = D / 4;
+  const blue = '#1c2e72';
+  ctx.fillStyle = blue;
+  ctx.fillRect(cx - D - edge, cy - bar - edge, 2 * (D + edge), 2 * (bar + edge));
+  ctx.fillStyle = '#f4f6f8';
+  ctx.fillRect(cx - D, cy - bar, 2 * D, 2 * bar);
+  ctx.fillStyle = '#c4202e';
+  ctx.fillRect(cx - D, cy - D / 12, 2 * D, D / 6);
+  ctx.fillStyle = blue;
+  ctx.beginPath(); ctx.arc(cx, cy, D / 2, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f4f6f8';
+  ctx.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const r = (k % 2 ? 0.382 : 1) * D * 0.4, a = -Math.PI / 2 + (k * Math.PI) / 5;
+    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  ctx.closePath(); ctx.fill();
+}
+
+/** The US paints' fin marks, on the fin's decal (FIN_DECAL) like tailCanvas: the big tail code or letter, and for the USAF its squadron line, and the small serial low on the fin. */
+function usTailCanvas(paint, number, side) {
+  return (ctx, w) => {
+    const k = w / FIN_DECAL.size; // pixels per unit
+    const dark = '#16181d';
+    // Text of `str`, its box wU by hU units centred at (x, z) on the fin, the letters `tall` of the box's height.
+    const text = (str, x, z, wU, hU, tall) => {
+      const [px, py] = finPx(w, side, x, z);
+      ctx.save();
+      ctx.translate(px - (wU * k) / 2, py - (hU * k) / 2);
+      plainDigits(ctx, str, wU * k, hU * k, tall, 0.98, dark);
+      ctx.restore();
+    };
+    const num = Number(ct156TailNumber(number).replace(/\D/g, '')) || 122;
+    if (paint === 'usaf') {
+      text('RA', FIN_DECAL.x, 0.106, 0.1, 0.046, 1); // the tail code (an estimate: "RA")
+      text('99 FTS', -0.6, 0.068, 0.082, 0.016, 0.95); // the squadron line (an estimate)
+      text(`03-${3500 + (num % 100)}`, -0.605, FIN_SERIAL.z, 0.08, 0.0185, 0.95); // an invented serial, low on the fin
+    } else {
+      text('E', FIN_DECAL.x, 0.098, 0.07, 0.085, 1); // the one big tail letter (an estimate: "E")
+      text(`165${900 + (num % 100)}`, -0.605, FIN_SERIAL.z, 0.08, 0.0185, 0.95); // an invented BuNo, low on the fin
+    }
+  };
+}
+
+/** The US paints (ALL-45, proposed), every colour an estimate from photos. `lower`: the lower fuselage and lower wings;
+ *  `pinstripe`: the red line at the fuselage's colour break (USAF only); `name`: the lettering on the side, its colour and place. */
+const US_PAINTS = Object.freeze({
+  usaf: Object.freeze({ lower: '#2b2f5c', pinstripe: '#b3202a', name: 'U.S. AIR FORCE', nameColour: '#f4f6f8' }),
+  usn: Object.freeze({ lower: '#e8432e', pinstripe: null, name: 'NAVY', nameColour: '#16181d' }),
+});
+const US_WHITE = '#eceff2';
+const US_BLACK = '#0d0e11';
+// The fuselage's colour break, a level line 1.1 ft under the spinner's axis falling 0.46 ft toward the tail cone (units; an
+// estimate), and the glare panel's edges: from the windscreen's foot to 0.5 units, narrowing forward (units; an estimate).
+const US_BREAK = '( -0.048 - 0.02 * clamp( ( -0.2 - zp.x ) / 0.5, 0.0, 1.0 ) )';
+const US_GLARE = 'ct156Aa( 0.5 - zp.x ) * ct156Aa( zp.x - 0.285 ) * ct156Aa( ( 0.034 - 0.02 * clamp( ( zp.x - 0.3 ) / 0.2, 0.0, 1.0 ) ) - abs( zp.y ) ) * ct156Aa( zp.z - 0.025 )';
+// The marks' places, as SIDE_MARKS: bt feet behind the spinner's tip of the mark's middle, z feet above the spinner's axis, its patch in feet (estimates).
+const US_MARKS = Object.freeze({
+  insignia: Object.freeze({ bt: 22.3, z: -0.46, wFt: 2.8, hFt: 1.4 }), // the star-and-bar on the rear fuselage, both sides
+  name: Object.freeze({ usaf: Object.freeze({ bt: 12.4, z: -1.55, wFt: 5, hFt: 0.75 }), usn: Object.freeze({ bt: 18.7, z: -0.55, wFt: 2.4, hFt: 0.6 }) }), // "U.S. AIR FORCE" under the front cockpit; "NAVY" behind the wing root
+  nose: Object.freeze({ bt: 6.0, z: -0.45, wFt: 1.7, hFt: 0.75 }), // the USN side number on the nose, aft of the exhaust stack
+});
+// The star-and-bar on the wings: the upper left and the lower right, at the Harvard roundel's places (WING_MARK), 3.2 ft by 1.6 ft, the star toward the leading edge.
+const US_WING_MARK = Object.freeze({ span: 0.14, chord: 0.07 });
 
 // ---------- shared kit (geometry, materials, textures) ----------
 
@@ -2791,11 +2869,20 @@ function buildKit(THREE) {
       const sec = sectionOf(WING, UNDERWING_MARKS.s);
       return wingPatch(THREE, sec.le - UNDERWING_MARKS.x * sec.chord - UNDERWING_MARKS.size / 2 + 0.004, side * (UNDERWING_MARKS.s - 0.006), UNDERWING_MARKS.size, UNDERWING_MARKS.size, [1, 0], [0, 1], -1);
     }),
+    // The US paints' marks (US_MARKS, ALL-45, proposed): small patches, drawn only by the USAF and USN paints.
+    usInsignia: both((side) => patch(THREE, 0.66 - US_MARKS.insignia.bt / SIDE_FT, US_MARKS.insignia.z / SIDE_FT, US_MARKS.insignia.wFt / SIDE_FT, US_MARKS.insignia.hFt / SIDE_FT, side, fuseSurf)),
+    usName: Object.fromEntries(Object.entries(US_MARKS.name).map(([paint, m]) => [paint, both((side) => patch(THREE, 0.66 - m.bt / SIDE_FT, m.z / SIDE_FT, m.wFt / SIDE_FT, m.hFt / SIDE_FT, side, fuseSurf))])),
+    usNose: both((side) => patch(THREE, 0.66 - US_MARKS.nose.bt / SIDE_FT, US_MARKS.nose.z / SIDE_FT, US_MARKS.nose.wFt / SIDE_FT, US_MARKS.nose.hFt / SIDE_FT, side, fuseSurf)),
+    // The star-and-bar on the upper left wing and under the right wing: the Harvard roundel's places and directions (roundelWing, roundelUnder).
+    usWingTop: wingPatch(THREE, WING_MARK[0], WING_MARK[1], US_WING_MARK.span, US_WING_MARK.chord, [0, -1], [1, 0], 1),
+    usWingUnder: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], US_WING_MARK.span, US_WING_MARK.chord, [0, 1], [1, 0], -1),
   };
-  for (const v of Object.values(decalGeo)) {
+  const keepDecal = (v) => {
     if (v.isBufferGeometry) keep(v);
-    else { keep(v[1]); keep(v['-1']); }
-  }
+    else if (v[1]) { keep(v[1]); keep(v['-1']); }
+    else Object.values(v).forEach(keepDecal);
+  };
+  Object.values(decalGeo).forEach(keepDecal);
 
   const two = THREE.DoubleSide; // both faces lit the right way round, whichever way a part's triangles were wound
   const mat = (params) => keep(new THREE.MeshStandardMaterial({ fog: false, ...params }));
@@ -2907,8 +2994,28 @@ function buildKit(THREE) {
     marks: decalMat(tex.marks),
     dot: decalMat(tex.dot),
   };
+  // The US paints' materials (ALL-45, proposed): white upper surfaces, the lower fuselage and wings by the shader's zones
+  // (paintZones: the fuselage below the colour break; the wings where the surface faces down), the pinstripe and the glare panel.
+  const lin = (hex) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; };
+  const usWhite = { color: US_WHITE, roughness: 0.4, metalness: 0.12, envMapIntensity: 0.6 };
+  mats.usWhite = gloss(usWhite);
+  mats.usFrame = mat({ color: '#e6e9ec', roughness: 0.5, side: two });
+  mats.us = {};
+  for (const [paint, def] of Object.entries(US_PAINTS)) {
+    mats.us[paint] = {
+      lower: gloss({ color: def.lower, roughness: 0.42, metalness: 0.12, envMapIntensity: 0.7 }),
+      fuselage: paintZones(gloss(usWhite), { zones: [
+        [`ct156Aa( ${US_BREAK} - zp.z )`, lin(def.lower)],
+        ...(def.pinstripe ? [[`ct156Aa( zp.z - ${US_BREAK} ) * ct156Aa( ${US_BREAK} + 0.0018 - zp.z )`, lin(def.pinstripe)]] : []),
+        [US_GLARE, lin(US_BLACK)],
+      ] }),
+      wing: paintZones(gloss(usWhite), { zones: [['ct156Aa( -0.12 - zn.z )', lin(def.lower)]] }),
+    };
+  }
   const kit = {
     THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, offLevel: () => {},
+    // A decal material from a canvas drawing, made the first time a paint asks for it and kept in the kit (the US paints' marks).
+    lazyDecal: (key, w, h, draw, sharp = 1) => (mats[key] ??= decalMat(keep(canvasTexture(THREE, w, h, draw, sharp)))),
     dispose: () => ((kit.disposed = true), kit.offLevel(), own.forEach((o) => o.dispose())),
   };
   kit.shadedCopies = []; // [copy, the list that owns it]: the shaded materials a level switch frees
@@ -3068,8 +3175,8 @@ function watchScene(THREE, scene) {
 /**
  * Returns a THREE.Group: nose +X, left +Y, up +Z, nose-to-tail length lengthFt.
  * color: CSS colour of the ship, for the 'ship' paint (everything in it); 'harvard' is navy all over (G14, 13 Oct 2026).
- * number: the ship number, drawn on the fin and nose ('harvard' only).
- * paint: 'harvard' (default, and for any unknown value) or 'ship'.
+ * number: the ship number, drawn on the fin and nose ('harvard' and 'usn'; on the 'usaf' fin only as the serial).
+ * paint: 'harvard' (default, and for any unknown value), 'ship', 'usaf' or 'usn' (the US markings, ALL-45, proposed).
  * @param {any} THREE
  * @param {{ color?: string, number?: string | number, paint?: string, lengthFt?: number }} [options]
  */
@@ -3242,60 +3349,82 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     disc = add(geo.disc, mats.disc);
   } else {
     const tailNumber = ct156TailNumber(number);
+    const us = US_PAINTS[paint] ? { paint, def: US_PAINTS[paint], mats: mats.us[paint] } : null; // the USAF and USN markings (ALL-45, proposed); null is the Harvard
     // The wing numbers plain white, no outline, their digits about 2.5 ft tall in their 2.55 ft patch (G4, G20).
-    const wingTex = own(canvasTexture(THREE, 380, 220, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.97), 2));
+    const wingTex = us ? null : own(canvasTexture(THREE, 380, 220, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.97), 2));
     // The nose number plain white, 0.57 ft tall with plain-bar 1s (noseDigits; Patrick 13 Oct 2026, from A24, over G10's 0.37 ft).
-    const noseTex = own(canvasTexture(THREE, 256, 128, (ctx, w, h) => noseDigits(ctx, tailNumber, w, h), 2));
+    const noseTex = us ? null : own(canvasTexture(THREE, 256, 128, (ctx, w, h) => noseDigits(ctx, tailNumber, w, h), 2));
     const decal = (tx) => own(new THREE.MeshStandardMaterial({
       map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: tx, emissiveIntensity: 0.6, fog: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     }));
 
     // Always drawn: the airframe, the canopy glass, the cheat line, the spinner and the prop disc.
-    fuselage = add(geo.fuselage, mats.navy);
-    add(geo.airframe, [mats.navy, mats.wingLe]);
+    // The US paints (us) differ only in the colours of these parts and in the marks below; the Harvard is the same as it always was.
+    fuselage = add(geo.fuselage, us ? us.mats.fuselage : mats.navy);
+    add(geo.airframe, [us ? us.mats.wing : mats.navy, mats.wingLe]);
     // The fin and rudder navy like the rest, as the real ship (G14, Patrick 13 Oct 2026; were the ship's colour).
-    add(geo.fin, [mats.navy, mats.finLe]);
-    surfaces = addSurfaces(mats.navy, mats.navy);
-    add(geo.cheat, mats.cheat);
+    add(geo.fin, [us ? mats.usWhite : mats.navy, mats.finLe]);
+    surfaces = addSurfaces(us ? us.mats.wing : mats.navy, us ? mats.usWhite : mats.navy);
+    if (!us) add(geo.cheat, mats.cheat);
     add(geo.spinner, mats.chrome);
     add(geo.spinnerRing, mats.blade);
     disc = add(geo.disc, mats.disc);
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
-    add(decalGeo.roundelWing, mats.roundel, detail);
-    add(decalGeo.roundelUnder, mats.roundel, detail);
-    const wingNumMat = decal(wingTex);
-    add(decalGeo.wingNum, wingNumMat, detail);
-    add(decalGeo.wingNumUnder, wingNumMat, detail);
-    const tailMats = Object.fromEntries(['1', '-1'].map((s) => [s, decal(own(canvasTexture(THREE, 512, 512, tailCanvas(number, Number(s)))))]));
-    const noseMat = decal(noseTex);
-    for (const s of ['1', '-1']) {
-      add(decalGeo.tail[s], tailMats[s], detail);
-      add(decalGeo.nose[s], noseMat, detail);
-      add(decalGeo.roundelSide[s], mats.roundel, detail);
-      add(decalGeo.canada[s], mats.canada, detail);
-      add(decalGeo.triA[s], mats.tri, detail);
-      add(decalGeo.triB[s], mats.tri, detail);
-      add(decalGeo.triC[s], mats.tri, detail);
-      add(decalGeo.marks[s], mats.marks, detail);
-      add(decalGeo.marksTop[s], mats.marks, detail);
-      add(decalGeo.dotAft[s], mats.dot, detail);
-      add(decalGeo.dotRoot[s], mats.dot, detail);
+    if (us) {
+      // The star-and-bar on the rear fuselage, both sides, and on the upper left wing and under the right wing; the lettering
+      // on the side; the tail marks; and for the USN the side number on the nose (US_MARKS, estimates).
+      const insignia = kit.lazyDecal('usInsignia', 512, 256, usInsigniaCanvas, 2);
+      add(decalGeo.usWingTop, insignia, detail);
+      add(decalGeo.usWingUnder, insignia, detail);
+      const m = US_MARKS.name[paint];
+      const nameMat = kit.lazyDecal(`usName-${paint}`, 640, Math.round((640 * m.hFt) / m.wFt), (ctx, w, h) => plainDigits(ctx, us.def.name, w, h, 0.62, 0.98, us.def.nameColour), 2);
+      const noseMat = paint === 'usn' ? decal(own(canvasTexture(THREE, 256, 96, (ctx, w, h) => plainDigits(ctx, tailNumber, w, h, 0.8, 0.96, '#16181d'), 2))) : null;
+      for (const s of ['1', '-1']) {
+        add(decalGeo.tail[s], decal(own(canvasTexture(THREE, 512, 512, usTailCanvas(paint, number, Number(s))))), detail);
+        add(decalGeo.usInsignia[s], insignia, detail);
+        add(decalGeo.usName[paint][s], nameMat, detail);
+        if (noseMat) add(decalGeo.usNose[s], noseMat, detail);
+        add(decalGeo.triA[s], mats.tri, detail);
+        add(decalGeo.triB[s], mats.tri, detail);
+        add(decalGeo.triC[s], mats.tri, detail);
+      }
+    } else {
+      add(decalGeo.roundelWing, mats.roundel, detail);
+      add(decalGeo.roundelUnder, mats.roundel, detail);
+      const wingNumMat = decal(wingTex);
+      add(decalGeo.wingNum, wingNumMat, detail);
+      add(decalGeo.wingNumUnder, wingNumMat, detail);
+      const tailMats = Object.fromEntries(['1', '-1'].map((s) => [s, decal(own(canvasTexture(THREE, 512, 512, tailCanvas(number, Number(s)))))]));
+      const noseMat = decal(noseTex);
+      for (const s of ['1', '-1']) {
+        add(decalGeo.tail[s], tailMats[s], detail);
+        add(decalGeo.nose[s], noseMat, detail);
+        add(decalGeo.roundelSide[s], mats.roundel, detail);
+        add(decalGeo.canada[s], mats.canada, detail);
+        add(decalGeo.triA[s], mats.tri, detail);
+        add(decalGeo.triB[s], mats.tri, detail);
+        add(decalGeo.triC[s], mats.tri, detail);
+        add(decalGeo.marks[s], mats.marks, detail);
+        add(decalGeo.marksTop[s], mats.marks, detail);
+        add(decalGeo.dotAft[s], mats.dot, detail);
+        add(decalGeo.dotRoot[s], mats.dot, detail);
+      }
     }
     add(geo.stubs, [mats.exhaust, mats.soot], detail);
     add(geo.vent, mats.vent, detail);
     add(geo.antenna, mats.antenna, detail);
     add(geo.beacon, mats.beacon, detail);
-    speedBrake = addSpeedBrake(mats.navy);
-    gear = addGear(mats.navy);
+    speedBrake = addSpeedBrake(us ? us.mats.lower : mats.navy);
+    gear = addGear(us ? us.mats.lower : mats.navy);
     navLights = add(geo.lights, mats.lights, detail);
     strobes = add(geo.strobes, mats.lights[2], detail);
     gearLights = add(geo.gearLights, mats.lamp, detail);
     gearLights.visible = false; // lit only with all three legs down (setGear)
     floor = add(geo.floor, mats.floor, detail);
     coamings = add(geo.coamings, mats.coaming, detail);
-    add(geo.frames, mats.frame, detail);
-    bowFront = add(geo.bowFront, mats.frame, detail);
+    add(geo.frames, us ? mats.usFrame : mats.frame, detail); // the US paints' canopy frames are white (an estimate)
+    bowFront = add(geo.bowFront, us ? mats.usFrame : mats.frame, detail);
     helmetFront = add(geo.helmetFront, mats.pilot, detail);
     helmetRear = add(geo.helmetRear, mats.pilot, detail);
     seats = add(geo.seats, mats.headbox, detail);

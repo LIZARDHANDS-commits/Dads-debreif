@@ -22,7 +22,7 @@ Debrief, EP Tabletop, SOF, Traffic, Turn Fight and Formation.
 | Live instruments: EADI, gauges, annunciators, master lamps (EP Tabletop drives them) | Stays code, drawn onto the instrument faces the master file names |
 | Head lean to see Lead past the bow; camera, field of view, zoom | Stays code; it uses the bow's blocking shapes (the occluders) from the file |
 | Gear sequence (6 s), aileron, elevator, rudder, flap and speed-brake travel (ALL-34, ALL-35), prop spin | Stays code; the hinges come from the file |
-| Paint schemes, ship numbers and serials | Stays code |
+| Paint schemes, ship numbers and serials | Stays code (two more paints, `usaf` and `usn`, added in code on 17 Oct 2026: ALL-45, proposed, built ahead of Patrick's yes; the shape is untouched) |
 | Lights, canopy glass | Stays code |
 | Pilots | Blender (in the master since 12 Oct 2026, collection Pilots) |
 | Fingerprints | Replaced by the delivery check (plan 3.4, 13 Oct 2026): the app loads a model file only when every part carries the name of the delivery in `public/models/ct156/delivery.json`, written by `npm run models:import` (`tools/blender/README.md`) |
