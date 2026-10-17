@@ -3031,10 +3031,23 @@ function turnProp(root) {
   }
   if (d.propStopped) {
     if (d.prop) d.prop.rotation.x = rad(PROP_REST_DEG);
+    turnSpinner(d);
     return;
   }
   if (d.prop) d.prop.rotation.x = rad(PROP_REST_DEG) + d.propTurn;
   if (d.disc) d.disc.rotation.x = d.propTurn;
+  turnSpinner(d);
+}
+
+/**
+ * The spinner turns with the prop (W13, Patrick 17 Oct 2026: "the black holes on the prop spinner need to line up with
+ * the prop blades and the spinner SPINS so the holes should spin"). The master's blade cut-outs are baked at 0, 90, 180
+ * and 270 degrees, one straight up, on the master's blade axes, and the prop group's arms sit at the same quarter turns,
+ * so the spinner takes the prop group's own angle (PROP_REST_DEG and the turn): the cut-outs stay on the blades stopped
+ * and turning. The spinner stays in the model's group, not the prop's, so it is drawn far off and from the seats.
+ */
+function turnSpinner(d) {
+  if (d.spinner && d.prop) d.spinner.rotation.x = d.prop.rotation.x;
 }
 
 /** Shows or hides a ship's fine detail by its size on screen, with a gap between the two numbers so it doesn't flicker. */
@@ -3200,7 +3213,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return { sides, elevator: pivot('elevator', geo.elevator, paintMat), rudder: pivot('rudder', geo.rudder, rudderMat) };
   };
 
-  let fuselage, canopy, navLights, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
+  let fuselage, canopy, spinner = null, navLights, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -3262,7 +3275,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.fin, [mats.navy, mats.finLe]);
     surfaces = addSurfaces(mats.navy, mats.navy);
     add(geo.cheat, mats.cheat);
-    add(geo.spinner, mats.chrome);
+    spinner = add(geo.spinner, mats.chrome);
     add(geo.spinnerRing, mats.blade);
     disc = add(geo.disc, mats.disc);
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
@@ -3307,6 +3320,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     // about the blade's own outward axis through the hub (PROP_PITCH; 3d-work hinge.blade1 to blade4).
     prop = new THREE.Group();
     prop.rotation.x = rad(PROP_REST_DEG);
+    spinner.rotation.x = prop.rotation.x;
     propPitch = [0, 1, 2, 3].map((k) => {
       const arm = new THREE.Group();
       arm.rotation.x = (k * Math.PI) / 2;
@@ -3337,7 +3351,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const lamps = { kit, glow: gearLights, meshes: gear.lampMeshes, lit: false };
   kit.lampShips.add(lamps);
   showLamps(lamps);
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, spinner, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 
@@ -3381,6 +3395,7 @@ export function setPropStopped(root, stopped) {
     o.visible = on ? true : (d.bladesShownRunning?.[i] ?? true);
   });
   if (on) d.prop.rotation.x = rad(PROP_REST_DEG); // at once: turnProp runs after three.js has updated the matrices, so it would show a picture late
+  turnSpinner(d);
   if (d.disc) d.disc.visible = !on;
 }
 
