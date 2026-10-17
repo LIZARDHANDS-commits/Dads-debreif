@@ -49,7 +49,7 @@ const intoRootFrame = ({ x, y, z }) => Object.freeze({ x: x * Math.cos(DATUM_RAD
 const fromRootFrame = ({ x, y, z }) => ({ x: x * Math.cos(DATUM_RAD) - z * Math.sin(DATUM_RAD), y, z: z * Math.cos(DATUM_RAD) + x * Math.sin(DATUM_RAD) });
 import { drawAttitude } from './hud.js';
 import { attachCockpitModel, detachCockpitModel } from './ct156-cockpit-model.js';
-import { loadCt156Points, paintGrain } from './ct156-blender.js';
+import { loadCt156Points, paintGrain, ct156Level } from './ct156-blender.js';
 import { browserStorage, createStore } from '../storage/store.js';
 
 /** Feet per model unit (the model's 1.44 units are the T-6A's 33 ft 4 in). */
@@ -741,10 +741,32 @@ export const ENGINE_LIVE = Object.freeze({
   fuelRightLb: { full: 600 },
   volts: { full: 40 },
   amps: { full: 100 },
+  ioatC: { full: 100 }, // the inlet's outside air, as a number only (the TRQ display's IOAT)
 });
 
+/** The torque a cockpit shows when its module passes no power at all (Traffic, Turn Fight, the Debrief, Run-in): a cruise setting, an ESTIMATE. */
+export const CT156_CRUISE_TORQUE_PCT = 55;
+
+/**
+ * Engine and systems numbers for the live displays from the torque alone (W20, Patrick 17 Oct 2026: "the TQ should rad
+ * what the TQ setting is from th performance model" and "i want the torque to show up on the torque guage too with
+ * realistic-ish numbers for the other dials"), for a module that passes no `hud.engine` of its own. Running: NP at 100 %,
+ * N1 60 to 98 %, ITT 520 to 740 °C and fuel flow 140 to 580 pph rising with the torque from 0 to 100 %, oil 105 psi and
+ * 78 °C, hydraulics 3,050 psi, 450 lb a side, 28.0 V and 35 A, IOAT +8 °C. Stopped (the Showcase on the ground): no
+ * torque, NP, N1, flow, oil pressure or hydraulics, the temperatures at the outside air's +8 °C, 24.0 V on the battery.
+ * Typical PT6A-68 readings to make a picture: every figure an ESTIMATE, no manual page behind any of them.
+ * @param {number} torquePct
+ * @param {{ running?: boolean }} [state]
+ */
+export function ct156EngineFromTorque(torquePct, { running = true } = {}) {
+  const fuel = { fuelLeftLb: 450, fuelRightLb: 450 };
+  if (!running) return { torquePct: 0, npPct: 0, n1Pct: 0, ittC: 8, fuelFlowPph: 0, oilPsi: 0, oilTempC: 8, hydPsi: 0, ...fuel, volts: 24, amps: 0, ioatC: 8, lights: [] };
+  const tq = Math.max(0, Math.min(110, Number(torquePct) || 0)), t = Math.min(1, tq / 100);
+  return { torquePct: tq, npPct: 100, n1Pct: 60 + 38 * t, ittC: 520 + 220 * t, fuelFlowPph: 140 + 440 * t, oilPsi: 105, oilTempC: 78, hydPsi: 3050, ...fuel, volts: 28, amps: 35, ioatC: 8, lights: [] };
+}
+
 const ATLAS = Object.freeze({ width: 1024, height: 1024 });
-/** The live engine displays' and caution panel's windows in their own shared picture (liveEngine only), each its box's shape. */
+/** The engine displays' and caution panel's windows in their own shared picture (every cockpit's, engineOf), each its box's shape. */
 const ENGINE_WINDOWS = Object.freeze({
   TRQ: { x: 0, y: 0, w: 400, h: 400 },
   ITT: { x: 408, y: 0, w: 360, h: 360 },
@@ -1120,7 +1142,7 @@ function engineDisplay(ctx, s, name, e = null) {
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ta) * r * 0.8, cy + Math.sin(ta) * r * 0.8); ctx.stroke();
     label(ctx, `${txt('torquePct')} %`, cx, cy + r * 0.2, px, INK);
     label(ctx, 'TORQUE', cx, cy + r * 0.62, px * 0.75, DIM);
-    for (const [t, v, value] of /** @type {Array<[string, number, boolean]>} */ ([['NP', 0.12, false], [`${txt('npPct')} %`, 0.21, true], ['IOAT', 0.33, false], ['— °C', 0.42, true]])) label(ctx, t, ...at(0.82, v), px * (value ? 0.9 : 0.7), value ? INK : DIM);
+    for (const [t, v, value] of /** @type {Array<[string, number, boolean]>} */ ([['NP', 0.12, false], [`${txt('npPct')} %`, 0.21, true], ['IOAT', 0.33, false], [`${txt('ioatC')} °C`, 0.42, true]])) label(ctx, t, ...at(0.82, v), px * (value ? 0.9 : 0.7), value ? INK : DIM);
     arcGauge(ctx, ...at(0.27, 0.72), s.h * 0.12, 'ITT', bands('ittC'), frac('ittC'), txt('ittC'));
     arcGauge(ctx, ...at(0.73, 0.72), s.h * 0.12, 'N1', bands('n1Pct'), frac('n1Pct'), txt('n1Pct'));
   } else if (name === 'ITT') {
@@ -2718,7 +2740,7 @@ function attachScreens(THREE, c) {
   loadCt156Points().then((pts) => {
     if (!pts?.screens || c.group.userData.disposed) return;
     const list = Object.entries(pts.screens).map(([name, s]) => ({ name, key: name.split('.')[1], ...s }));
-    const engineKind = (s) => c.engineMat && (s.kind === 'eng' || s.kind === 'annun');
+    const engineKind = (s) => s.kind === 'eng' || s.kind === 'annun';
     const span = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     // The static faces' picture: one window per name (front and rear share), packed from the rectangles' sizes.
     const sizes = new Map();
@@ -2928,20 +2950,20 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   for (const g of [...lowerFaces, ...consoleTops, ...striped]) occluders.push({ geometry: g, slot: 'grey' });
   group.userData.shadeHash = cockpitPiecesHash(occluders);
   if (keepPieces) group.userData.occluders = occluders.map(({ geometry, slot }) => ({ geometry: geometry.clone(), slot }));
-  // liveEngine: the engine displays' own shared picture, and each lip lamp's own colour (hidden while unlit).
-  const engine = liveEngine ? canvasTexture(ATLAS.width, ATLAS.height) : null;
-  const engineMat = engine ? own(new THREE.MeshBasicMaterial({ map: engine.texture, side: THREE.DoubleSide, fog: false })) : null;
+  // The engine displays' own shared picture: every cockpit draws them in it (W20), live at High (or always, with
+  // liveEngine), at Performance as the static picture has them (engineOf). With liveEngine, each lip lamp's own colour
+  // too (hidden while unlit).
+  const engine = canvasTexture(ATLAS.width, ATLAS.height);
+  const engineMat = own(new THREE.MeshBasicMaterial({ map: engine.texture, side: THREE.DoubleSide, fog: false }));
   const lampMeshes = [];
-  if (engine) {
-    for (const { geometry, name, colour } of lampQuads) {
-      const mesh = add(geometry, own(new THREE.MeshBasicMaterial({ color: colour, side: THREE.DoubleSide, fog: false })));
-      mesh.name = `ct156-cockpit-lamp-${name}`;
-      mesh.visible = false;
-      lampMeshes.push({ mesh, name });
-    }
-    drawEngineLive(engine.ctx, null);
-    engine.texture.needsUpdate = true;
+  for (const { geometry, name, colour } of lampQuads) {
+    const mesh = add(geometry, own(new THREE.MeshBasicMaterial({ color: colour, side: THREE.DoubleSide, fog: false })));
+    mesh.name = `ct156-cockpit-lamp-${name}`;
+    mesh.visible = false;
+    lampMeshes.push({ mesh, name });
   }
+  drawEngineLive(engine.ctx, null);
+  engine.texture.needsUpdate = true;
   codeFaces.push(add(joinTextured(THREE, lowerFaces), plainFace));
   add(joinTextured(THREE, consoleTops), consoleMat);
   // The standby compasses' card (both seats show the same heading).
@@ -3059,6 +3081,17 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     return { ...hud, vsFpm: vs };
   };
   let shownAt = -Infinity;
+  /**
+   * What the engine displays show: with liveEngine (the EP Tabletop) its own `hud.engine`, exactly as before; otherwise,
+   * at High, `hud.engine` when a module passes one, else numbers made from its torque (hud.torquePct, or Formation's
+   * hud.torque.pct; CT156_CRUISE_TORQUE_PCT for a module with no power) and hud.engineRunning (false: stopped); at
+   * Performance, or with no HUD, the static picture's dashes.
+   */
+  const engineOf = (hud) => {
+    if (liveEngine) return hud?.engine ?? null;
+    if (!hud || ct156Level() !== 'high') return null;
+    return hud.engine ?? ct156EngineFromTorque(hud.torquePct ?? hud.torque?.pct ?? CT156_CRUISE_TORQUE_PCT, { running: hud.engineRunning !== false });
+  };
   drawLive(live.ctx, null);
   live.texture.needsUpdate = true;
   // Real-time shadows where a view switches them on (aircraft-shadows.js): the bows' and frames' shadows across the
@@ -3075,8 +3108,10 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
      * SPEED BRAKE light }; null shows dashes), in both seats' panels (the same aircraft's numbers). Redraws only when what it
      * shows changed, and not within PANEL_REDRAW_MS of the last redraw. Returns true when it redrew. The standby
      * compasses' card turns to headingDeg on every call (no redraw).
-     * With liveEngine, `hud.engine` also drives the engine displays and the caution panel: ENGINE_LIVE's numbers, and
-     * `lights`, the names lit (ANNUNCIATOR_NAMES and MASTER_LAMPS); anything missing shows as the static picture does.
+     * The engine displays and the caution panel (engineOf): with liveEngine `hud.engine` (ENGINE_LIVE's numbers, and
+     * `lights`, the names lit: ANNUNCIATOR_NAMES and MASTER_LAMPS; anything missing shows as the static picture does);
+     * otherwise, at High, `hud.engine` or numbers made from hud.torquePct / hud.torque.pct and hud.engineRunning.
+     * Also hud.flaps for the flap gauge; the clock shows the time in ZULU and the label plate the ship's serial.
      */
     update(hud, nowMs = globalThis.performance?.now?.() ?? Date.now()) {
       if (Number.isFinite(hud?.headingDeg)) card.texture.offset.x = compassCardOffset(hud.headingDeg);
@@ -3084,18 +3119,17 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
       // The clock's ZULU time and the label plate's serial (the ship this cockpit is in: a ship's root holds the group).
       const faces = { zulu: new Date().toISOString().slice(11, 16), serial: ct156Serial(group.parent?.userData?.ct156?.number), flaps: hud?.flaps ?? 'UP' };
       const flapKey = typeof faces.flaps === 'number' ? Math.round(faces.flaps * 50) : faces.flaps;
-      const key = [panelKey(hud), faces.zulu, faces.serial, flapKey, engine ? engineKey(hud?.engine) : ''].join('|');
+      const eng = engineOf(hud);
+      const key = [panelKey(hud), faces.zulu, faces.serial, flapKey, engineKey(eng)].join('|');
       if (key === shownKey || nowMs - shownAt < PANEL_REDRAW_MS) return false;
       shownKey = key;
       shownAt = nowMs;
       drawLive(live.ctx, { ...hud, ...faces });
       live.texture.needsUpdate = true;
-      if (engine) {
-        drawEngineLive(engine.ctx, hud?.engine ?? null);
-        engine.texture.needsUpdate = true;
-        const lit = new Set(hud?.engine?.lights ?? []);
-        for (const { mesh, name } of lampMeshes) mesh.visible = lit.has(name);
-      }
+      drawEngineLive(engine.ctx, eng);
+      engine.texture.needsUpdate = true;
+      const lit = new Set(eng?.lights ?? []);
+      for (const { mesh, name } of lampMeshes) mesh.visible = lit.has(name);
       return true;
     },
     dispose() {

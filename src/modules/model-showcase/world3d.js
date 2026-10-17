@@ -44,8 +44,8 @@ const SETTLE_MS = 25_000;
 const MIN_DRAW_MS = 33;
 /** What the seat's panel reads (a picture of the panel only): standing on the ground, and in the air (the numbers are the picture's, not flight). */
 const HUD = Object.freeze({
-  ground: { pitchDeg: T6A_PITCH.onGearDeg, bankDeg: 0, kias: 0, altFt: 1892, headingDeg: 0, g: 1, vsFpm: 0, speedBrake: false },
-  flying: { pitchDeg: 0, bankDeg: FLYING_BANK_DEG, kias: 150, altFt: 5000, headingDeg: 90, g: 1, vsFpm: 0, speedBrake: false },
+  ground: { pitchDeg: T6A_PITCH.onGearDeg, bankDeg: 0, kias: 0, altFt: 1892, headingDeg: 0, g: 1, vsFpm: 0, speedBrake: false, torquePct: 0, engineRunning: false },
+  flying: { pitchDeg: 0, bankDeg: FLYING_BANK_DEG, kias: 150, altFt: 5000, headingDeg: 90, g: 1, vsFpm: 0, speedBrake: false, torquePct: 55, engineRunning: true },
 });
 
 /**
