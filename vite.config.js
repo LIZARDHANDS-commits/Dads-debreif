@@ -3,6 +3,28 @@ import { defineConfig } from 'vite';
 import { serviceWorker } from './tools/service-worker.mjs';
 import { TRAFFIC_VERSION } from './src/modules/traffic/version.js';
 
+// Computes the effective V2.xxx display version so feature branches never need
+// to edit src/modules/traffic/version.js or index.html (preventing PR conflicts).
+// Uses the higher of the fallback in version.js and (first-parent commit count - 659).
+function effectiveDisplayVersion() {
+  const match = /^V2\.(\d+)$/.exec(TRAFFIC_VERSION);
+  const fallbackNum = match ? Number(match[1]) : 512;
+  try {
+    const count = Number(
+      execSync('git rev-list --count --first-parent HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim(),
+    );
+    if (Number.isFinite(count) && count > 659) {
+      const gitNum = count - 659;
+      return `V2.${Math.max(fallbackNum, gitNum)}`;
+    }
+  } catch {
+    // Fallback to TRAFFIC_VERSION when git history is unavailable.
+  }
+  return TRAFFIC_VERSION;
+}
+
 // The version sent with bug reports and shown in the footer's tooltip: build date plus commit.
 function appVersion(built) {
   const date = built.slice(0, 10);
@@ -18,17 +40,31 @@ function appVersion(built) {
 }
 
 // Writes the version and build time into index.html as <meta name="app-version">
-// and <meta name="app-built">, and stamps the header's .version-badge from
-// src/modules/traffic/version.js so PRs only ever need to update version.js.
+// and <meta name="app-built">, and stamps the resolved V2.xxx display version
+// into both index.html and src/modules/traffic/version.js so feature branches
+// never collide on version bumps.
 function versionMeta() {
   const built = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const version = appVersion(built);
+  const displayVersion = effectiveDisplayVersion();
   return {
     name: 'app-version-meta',
+    transform(code, id) {
+      if (id.replace(/\\/g, '/').endsWith('/src/modules/traffic/version.js')) {
+        return {
+          code: code.replace(
+            /export const TRAFFIC_VERSION = '[^']*';/,
+            `export const TRAFFIC_VERSION = '${displayVersion}';`,
+          ),
+          map: null,
+        };
+      }
+      return null;
+    },
     transformIndexHtml: (html) => ({
       html: html.replace(
         /<span class="version-badge">[^<]*<\/span>/,
-        `<span class="version-badge">${TRAFFIC_VERSION}</span>`,
+        `<span class="version-badge">${displayVersion}</span>`,
       ),
       tags: [
         { tag: 'meta', attrs: { name: 'app-version', content: version }, injectTo: 'head' },

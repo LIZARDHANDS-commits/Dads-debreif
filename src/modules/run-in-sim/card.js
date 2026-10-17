@@ -20,15 +20,31 @@ export function lateWords(lateSec) {
   return `${Math.round(Math.abs(lateSec))} s ${lateSec > 0 ? 'late' : 'early'}`;
 }
 
+const firstLower = (t) => t.charAt(0).toLowerCase() + t.slice(1); // keeps "IP" and "KIAS" in capitals
+
 /** What a live anthem press did (RS-26, RS-27), in a pilot's words. */
 export function pressWords(press) {
   const kt = press.kias ? `run-in ${Math.round(press.kias)} KIAS` : '';
   const at = `+${clock(press.atSec)}`;
+  const out = press.joinNm ? `the run-in ${press.joinNm.toFixed(1)} NM out` : 'the run-in';
   if (press.kind === 'orbit') return `Stayed in its orbit, ${kt}`;
-  if (press.kind === 'ip') return `Cut to the IP at ${at}, ${kt}`;
-  if (press.kind === 'inside') return `Cut to the run-in ${press.joinNm.toFixed(1)} NM out at ${at}, ${kt}`;
+  // V2.508: the cut turns at the cut bank toward the run-in line, skipping the IP.
+  if (press.kind === 'cut') return `Cut ${press.side > 0 ? 'right' : 'left'} at ${press.bankDeg}° bank at ${at}, onto ${out}, ${kt}`;
+  if (press.kind === 'point') {
+    const turned = Math.round(Math.abs(press.turnDeg ?? 0) / 10) * 10;
+    const round = turned >= 180 ? `, turning round ${turned}° ${press.turnDeg > 0 ? 'left' : 'right'} onto the line` : '';
+    return `Cut direct to ${out} at ${at}${round}, ${kt}`;
+  }
   if (press.kind === 'speed') return `Already on its way in at ${at}: ${kt}`;
   return 'Nothing left to change';
+}
+
+/** V2.508: the cut nearer the note that crossed too far to the side to be picked (RS-26), in a pilot's words. */
+export function nearMissWords(m) {
+  const out = m.joinNm ? `the run-in ${m.joinNm.toFixed(1)} NM out` : 'the run-in';
+  const what = m.kind === 'cut' ? `Cutting ${m.side > 0 ? 'right' : 'left'} at ${m.bankDeg}° bank onto ${out}` : m.kind === 'point' ? `Cutting direct to ${out}` : 'Holding the run-in';
+  const when = Math.abs(m.errSec) < 0.5 ? 'on the last note' : `${Math.round(Math.abs(m.errSec))} s ${m.errSec > 0 ? 'after' : 'before'} the last note`;
+  return `${what} at ${Math.round(m.kias)} KIAS would have crossed ${when}, but ${Math.round(m.abeamFt / 10) * 10} ft to the side of the target (the turn onto the line too tight to settle), past the ${m.limitFt} ft a cut may cross abeam (an estimate), so it wasn't picked.`;
 }
 
 /** The card's lead line for a pass. */
@@ -106,10 +122,11 @@ export function cardFor(pass, n, { selected, onSelect, showFlags = true }) {
   const notes = [...r.notes];
   if (pass.anthem?.live && r.lateSec !== null && r.lateSec >= 0.5 && Number.isFinite(r.arrivalSec)) {
     // RS-24, RS-26, RS-27: why a live press was late, in the flying's terms.
-    notes.push(`From where it was when the anthem started (+${clock(pass.anthem.startSec)}), the soonest it could cross was ${Math.round(r.arrivalSec - pass.anthem.startSec)} s later (${pass.press ? pressWords(pass.press).toLowerCase() : 'staying in its orbit'}): getting back to the run-in and down it takes longer than the ${Math.round(pass.anthem.lengthSec)} s anthem, even at the fastest the T-6A holds level there. Choosing the anthem before flying times it from the start.`);
+    notes.push(`From where it was when the anthem started (+${clock(pass.anthem.startSec)}), the soonest it could cross was ${Math.round(r.arrivalSec - pass.anthem.startSec)} s later (${pass.press ? firstLower(pressWords(pass.press)) : 'staying in its orbit'}): getting back to the run-in and down it takes longer than the ${Math.round(pass.anthem.lengthSec)} s anthem, even at the fastest the T-6A holds level there. Choosing the anthem before flying times it from the start.`);
   } else if (pass.anthem?.live && r.lateSec !== null && r.lateSec <= -0.5) {
     notes.push(`Early even at the slowest run-in speed (${Math.round(pass.press?.kias ?? 0)} KIAS) with the cut it picked.`);
   }
+  if (pass.anthem?.live && pass.press?.nearMiss) notes.push(nearMissWords(pass.press.nearMiss));
   if (notes.length) card.append(h('ul', { class: 'rs-notes' }, notes.map((t) => h('li', {}, t))));
   return card;
 }

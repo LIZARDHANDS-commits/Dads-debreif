@@ -80,7 +80,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
 - **Third-party skills, plugins and connectors** go in only after they are read and scanned, pinned to a version, and without hooks (Patrick, 12 Oct 2026).
 - **Simple screens:** every setting starts with a default; a module opens with only its essentials showing, and extras sit behind a switch or a "More".
 - **Before deleting or rewriting code,** list what it did, then check the new code on the module's default start.
-- **Version label:** the version on screen changes with every published change. Set it in one place only: `src/modules/traffic/version.js` (`TRAFFIC_VERSION`). Do not edit `index.html` for version bumps—`src/app.js`, `src/shell/home.js`, and `vite.config.js` read `TRAFFIC_VERSION` from `src/modules/traffic/version.js` automatically.
+- **Version label:** the version on screen changes with every published change. `vite.config.js` computes and stamps the next `V2.xxx` version number automatically from Git history (`git rev-list --count --first-parent HEAD`) into both `index.html` and `src/modules/traffic/version.js` at dev/build time. **Do not edit `src/modules/traffic/version.js` or `index.html` on feature branches**—leaving them untouched prevents version-line merge conflicts between parallel PRs.
 - **Safety items** (weather limits, closed fields, stale reports) have their failure and stale-data behaviour written into the spec.
 - **The 3D view is a bonus:** keep what is built, but no more 3D tests or polish in a module still being built.
 - **Dad's V6 stays untouched** in `original/`. Never edit `original/shell.html` or `original/assets/`. `python3 tools/rebuild_original.py out.html` rebuilds the original file and checks it.
@@ -104,7 +104,9 @@ The full policy is `docs/TESTING.md`; each module adds its own in `docs/modules/
 
 ## Git and names
 
+- **Check `docs/BULLETIN-FOR-DAD.md` at session start and after every `git pull` / `git merge`:** if there is a message from Patrick for Dad, show it to Dad at the very top of your reply (including checking out the new **Model Showcase** at `#/showcase`).
 - Agents work on a branch and open a pull request; they never push straight to main.
+- **Always branch fresh from `origin/main` (`git fetch origin && git switch -c <branch> origin/main`):** all previous PR stacks (`#946`–`#1067`) are merged into `main`. Never stack new branches onto older feature branches, and keep doc updates inside your module's own folder (`docs/modules/<module>/*`) rather than editing `docs/PLAN.md` on feature branches so parallel PRs never collide.
 - **Dad's sessions** follow this rule book too. They pull main, work on a branch, and open a pull request for Patrick to review. They never merge, and Patrick's threads leave Dad's pull requests for Patrick to merge himself. GitHub enforces it: only Patrick and his Claude threads can update main.
 - Once Patrick has approved the spec or decision behind a change, its pull request merges when its checks are green, without asking, with a short note on the pull request saying what changed, what was checked and what is unseen. Patrick hears only about problems.
 - Every branch, commit, pull request and merge has a plain-English name that says what changed, for example "Traffic: break turn follows the wind". Decision, patch or task numbers may follow in brackets, but never replace the words.

@@ -1,3 +1,5 @@
 // Traffic Sim version label: the same number as the home screen (Patrick, 10 Oct 21:46Z: "match home"), changed with
 // every published change. The DADS v2.10.x counter retired at v2.10.125.
-export const TRAFFIC_VERSION = 'V2.511';
+// Note: vite.config.js automatically computes and stamps the next V2.xxx version from git history at dev/build time,
+// so feature branches do not need to edit this file (eliminating version.js merge conflicts).
+export const TRAFFIC_VERSION = 'V2.512';
