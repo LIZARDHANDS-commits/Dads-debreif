@@ -28,6 +28,15 @@ export const runOf = (id) => RUNS.find((r) => r.id === id) ?? RUNS[0];
  * field would do).
  */
 export const DEFAULT_PLACE = Object.freeze({ lat: 50.2950, lon: -105.5000, words: 'Moose Jaw area' });
+/**
+ * The air refuelling run's default place, the tanker's roll-out point (RS-19): 32 NM from CYMJ along the default
+ * refuelling track (320°M, 329°T), so the take-off, the climb-out and the transit to the IP point the way the receiver
+ * flies (an estimate; open prairie north-west of Moose Jaw). Worked from CYMJ's origin (src/airfields/cymj-runways.js)
+ * with core geo.js.
+ */
+export const AAR_PLACE = Object.freeze({ lat: 50.7871, lon: -105.9892, words: '32 NM NNW of Moose Jaw' });
+/** The default place for a run. */
+export const placeFor = (runId) => (runId === 'aar' ? AAR_PLACE : DEFAULT_PLACE);
 
 /** The settings each run starts with (the spec's Defaults table; all ESTIMATES, RS-Q2). Changing the Run puts these back. */
 export const RUN_DEFAULTS = Object.freeze({
@@ -62,6 +71,13 @@ export const AAR_DEFAULTS = Object.freeze({
   aarTrailNm: 1, // the trail at the roll-out (air-refuelling-plan.md)
   aarOvertakeKt: 20, // the overtake on the join, and so the receiver's rendezvous speed over the tanker's
   aarPreContactFt: 15, // pre-contact: the receiver's nose this far behind the left basket
+  // RS-19: the receiver takes off from CYMJ and meets at the IP (on the track, this far back from the roll-out point);
+  // the airborne start of the first version under More.
+  aarAirborne: false,
+  aarIpNm: 15,
+  // RS-20: the offset, two turn radii unless set by hand
+  aarOffsetByHand: false,
+  aarOffsetNm: 3.4, // the hand box starts near the worked-out two turn radii (3.4 NM at the defaults)
   // Worked out to hit unless set by hand (RS-16)
   aarTurnRangeByHand: false,
   aarTurnRangeNm: 7.5,
@@ -222,13 +238,19 @@ export const RANGES = Object.freeze({
   aarPreContactFt: { min: 5, max: 100, step: 1 },
   aarTurnRangeNm: { min: 1, max: 40, step: 0.1 },
   aarRcvKias: { min: 120, max: 316, step: 5 },
+  aarIpNm: { min: 2, max: 60, step: 0.5 },
+  aarOffsetNm: { min: 0.2, max: 15, step: 0.1 },
 });
 
-/** The patch that changing the Run applies: that run's defaults, and its target's default size. */
-export function runPatch(runId) {
-  if (runId === 'aar') return { run: runId, ...AAR_DEFAULTS };
+/**
+ * The patch that changing the Run applies: that run's defaults, and its target's default size. While the place is still a
+ * default (v.placeIsDefault), the run's own default place comes with it (RS-19: the refuelling run's is 32 NM NNW of CYMJ).
+ */
+export function runPatch(runId, v = DEFAULTS) {
+  const place = v.placeIsDefault ? { placeLat: placeFor(runId).lat, placeLon: placeFor(runId).lon } : {};
+  if (runId === 'aar') return { run: runId, ...AAR_DEFAULTS, ...place };
   const d = RUN_DEFAULTS[runId] ?? RUN_DEFAULTS.bombFlat;
-  return { run: runId, ...d, targetSizeFt: TARGETS[d.target].sizeFt };
+  return { run: runId, ...d, targetSizeFt: TARGETS[d.target].sizeFt, ...place };
 }
 
 /** Compass degrees magnetic to true at a variation (east positive), 0 up to 360. */
@@ -277,7 +299,11 @@ export function setupFrom(v) {
       trackDegT: t(v.aarTrackDegM), heightFt: v.aarHeightFt, tankerKias: v.aarTankerKias, bankDeg: v.aarBankDeg,
       legNm: v.aarLegNm, dir: v.aarDir === 'left' ? -1 : 1, rvSec: v.aarRvSec, splitFt: v.aarSplitFt,
       trailNm: v.aarTrailNm, overtakeKt: v.aarOvertakeKt, preContactFt: v.aarPreContactFt,
-      byHand: { turnRangeNm: v.aarTurnRangeByHand ? v.aarTurnRangeNm : null, rcvKias: v.aarRcvKiasByHand ? v.aarRcvKias : null },
+      start: v.aarAirborne ? 'airborne' : 'takeoff', ipNm: v.aarIpNm, placeLat: v.placeLat, placeLon: v.placeLon,
+      byHand: {
+        turnRangeNm: v.aarTurnRangeByHand ? v.aarTurnRangeNm : null, rcvKias: v.aarRcvKiasByHand ? v.aarRcvKias : null,
+        offsetNm: v.aarOffsetByHand ? v.aarOffsetNm : null,
+      },
     } : null,
   };
 }

@@ -95,6 +95,9 @@ export function samplePath(path, stepFt = 200) {
 }
 
 /** A turn from point p on track h (unit), radius r, through `angle` radians, turnDir −1 left or +1 right. */
+export function turnSeg(p, h, r, angle, turnDir) {
+  return turn(p, h, r, angle, turnDir);
+}
 function turn(p, h, r, angle, turnDir) {
   const side = turnDir < 0 ? left(h) : { x: h.y, y: -h.x };
   const c = { x: p.x + side.x * r, y: p.y + side.y * r };

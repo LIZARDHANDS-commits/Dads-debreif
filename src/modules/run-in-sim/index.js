@@ -15,7 +15,7 @@ import { createTerrain3d } from '../../ui-kit/terrain3d.js';
 import { airportElevationFt } from '../../ui-kit/airfield3d.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { TRAFFIC_VERSION } from '../traffic/version.js';
-import { DEFAULTS, ALLOWED, CAMERAS, AAR_CAMERAS, PLAY_SPEEDS, DEFAULT_PLACE, runPatch, setupFrom, runOf } from './defaults.js';
+import { DEFAULTS, ALLOWED, CAMERAS, AAR_CAMERAS, PLAY_SPEEDS, runPatch, setupFrom, runOf, placeFor } from './defaults.js';
 import { TARGETS } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { buildPlan, flyPass, clock } from './pass.js';
@@ -80,9 +80,9 @@ function mount(root, app) {
   const groundNote = h('p', { class: 'rs-ground-note', role: 'status' });
   const status = h('span', { class: 'rs-status', role: 'status' });
   const map = createMapPicker({
-    timers: app.scheduler, controls, getPlace: place, defaultWords: DEFAULT_PLACE.words,
+    timers: app.scheduler, controls, getPlace: place, defaultWords: placeFor(DEFAULTS.run).words,
     onPlace: (p) => settings.update({ placeLat: p.lat, placeLon: p.lon, placeIsDefault: false }),
-    onDefault: () => settings.update({ placeLat: DEFAULT_PLACE.lat, placeLon: DEFAULT_PLACE.lon, placeIsDefault: true }),
+    onDefault: () => settings.update({ placeLat: placeFor(values().run).lat, placeLon: placeFor(values().run).lon, placeIsDefault: true }), // the run's own (RS-19)
     onClose: () => planCanvas.focus(),
   });
   // The 2D view (RS-13) and the 3D | 2D switch above the view, in the shared button look with aria-pressed.
@@ -189,7 +189,7 @@ function mount(root, app) {
     clear(marks);
     if (pass) {
       const ev = pass.flight.events;
-      const at = pass.plan.kind === 'aar' ? [['Start', 0], ['Turn', ev.turn], ['Roll-out', ev.rollOut], ['Pre-contact', ev.preContact]] : [['Orbit', 0], ['IP', ev.ip], ['Roll-in', ev.rollIn], [pass.plan.run === 'flyover' ? 'TOT' : 'Release', ev.release], [pass.plan.run === 'flyover' ? null : 'TOT', pass.result.arrivalSec], ['Escape', ev.release !== undefined ? ev.release + 2 : undefined]];
+      const at = pass.plan.kind === 'aar' ? [[pass.plan.takeoff ? 'Takeoff' : 'Start', pass.plan.takeoff ? (ev.takeoff ?? 0) : 0], ['IP', ev.ip], ['Tanker turns', ev.turn], ['Roll-out', ev.rollOut], ['Pre-contact', ev.preContact]] : [['Orbit', 0], ['IP', ev.ip], ['Roll-in', ev.rollIn], [pass.plan.run === 'flyover' ? 'TOT' : 'Release', ev.release], [pass.plan.run === 'flyover' ? null : 'TOT', pass.result.arrivalSec], ['Escape', ev.release !== undefined ? ev.release + 2 : undefined]];
       // Marks at the same moment share one label; the rest take the first of two rows where they don't print over another
       // (their width estimated at about 6.5 px a letter of the 11 px type; a label past 85% hangs to the left of its mark),
       // and one with no room on either joins the mark before it.
@@ -371,7 +371,7 @@ function mount(root, app) {
     const was = before;
     before = v;
     if (v.run !== was.run) {
-      const patch = runPatch(v.run);
+      const patch = runPatch(v.run, v);
       if (Object.keys(patch).some((k) => v[k] !== patch[k])) {
         settings.update(patch);
         return; // the patch comes back through here
