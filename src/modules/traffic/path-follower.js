@@ -9,14 +9,18 @@
 //   - bank: what that heading rate needs at this true airspeed, signed (right
 //     positive), eased in and out at the roll-rate setting;
 //   - pitch: the climb angle plus the angle of attack, less the fuselage datum (T6A_PITCH); 2.5° on the wheels.
+// The roll gate and the drawn pitch use the aircraft's own performance set, read by its type (types.js perfFor: the
+// T-6A's for a CT-156 and every type without one, the Astra II's for a CT-102B; plan Step 5c Phase 3). It is looked up,
+// never kept on the aircraft, so a snapshot of the run stays plain data.
 // Speeds: the route's speeds are KIAS; true airspeed comes from KIAS and
 // height (iasToTasKt) in every wind, and ground speed from the wind triangle.
 import { ktToFtps, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, easeValue, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
-import { attitudeDegFromClimb, glideDragPerWeight, glideRatio, T6A_LIMITS } from '../../core/t6-performance.js';
+import { glideDragPerWeight, glideRatio, T6A_LIMITS } from '../../core/t6-performance.js';
 import { gateRoll } from './envelope.js';
+import { perfFor } from './types.js';
 import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT, runwayFrameFt } from './airfield.js';
 import { iasToTasKt } from './weather.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
@@ -411,7 +415,8 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     rateRadPerSec = (wrapDeg180(headingThere(a.distFt + aheadFt) - headingThere(a.distFt - aheadFt)) * Math.PI / 180) / (2 * ATTITUDE_HALF_SEC);
   }
   a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec);
-  const roll = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL, tasFtps, a.iasKt);
+  const perf = perfFor(a.type);
+  const roll = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL, tasFtps, a.iasKt, perf);
   a.bankDeg = Math.abs(roll.bankDeg) < 1e-9 ? 0 : roll.bankDeg;
   a.rollRateDps = Math.abs(roll.rollRateDps) < 1e-9 ? 0 : roll.rollRateDps;
   a.g = gFromBankDeg(a.bankDeg);
@@ -430,7 +435,7 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   const pathClimbFtps = joinRate
     ? climbFtps
     : ((posOnRoute(route, a.distFt + aheadFt, options).alt ?? a.alt) - (posOnRoute(route, a.distFt - aheadFt, options).alt ?? a.alt)) / (2 * ATTITUDE_HALF_SEC);
-  const targetPitch = onWheels ? GROUND_ATTITUDE_DEG : attitudeDegFromClimb(pathClimbFtps, tasFtps, a.iasKt, a.g, a.config);
+  const targetPitch = onWheels ? GROUND_ATTITUDE_DEG : perf.attitudeDegFromClimb(pathClimbFtps, tasFtps, a.iasKt, a.g, a.config);
   if (!Number.isFinite(a.pitchDeg) || !(dt > 0)) {
     a.pitchDeg = targetPitch;
     a.pitchRateDps = 0;
