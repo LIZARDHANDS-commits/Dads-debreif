@@ -3406,7 +3406,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const lamps = { kit, glow: gearLights, meshes: gear.lampMeshes, lit: false };
   kit.lampShips.add(lamps);
   showLamps(lamps);
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, spinner, tub, seat: null, crew: 'full', helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, number, detail, g, fuselage, canopy, spinner, tub, seat: null, crew: 'full', helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
   showCockpitShell(root.userData.ct156);
   return root;
 }

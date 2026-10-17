@@ -40,6 +40,7 @@ import { addLookProbe } from './ct156-look.js';
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_X, CT156_HELMET_Z, CT156_SEAT_BACK_FT, ct156SeatRakeFt, ct156SeatRaiseFt, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
   CT156_TUB_FLOOR_FT, CT156_COAMING_CROWNS_FT, ct156CrownZ, ct156CanopySection, ct156FuselageSection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, ct156PiecesHash, setCockpitView, CT156_DATUM_DEG,
+  ct156Serial,
 } from './ct156-model.js';
 const DATUM_RAD = (CT156_DATUM_DEG * Math.PI) / 180; // the model sits this far nose-down inside a ship's root (ct156-model.js)
 /** A point in the model's frame (nose +X, from the spinner axis) as a point in the ship root's frame (the EADI's): the model is turned nose-down inside the root. */
@@ -762,7 +763,21 @@ const LIVE_WINDOWS = Object.freeze({
   stby: { x: 576, y: 416, w: 220, h: 220 },
   g: { x: 804, y: 416, w: 200, h: 200 },
   lights: { x: 0, y: 704, w: 116, h: 280 },
+  // Faces the delivery marks by kind only (no `live`), drawn here so they can change (LIVE_KINDS): the M850 clock (0.212 by
+  // 0.135 ft), the flap gauge (0.10 square) and the label plate over the engine displays (0.161 by 0.051).
+  clock: { x: 124, y: 704, w: 300, h: 192 },
+  flaps: { x: 432, y: 704, w: 192, h: 192 },
+  label: { x: 632, y: 704, w: 384, h: 122 },
 });
+/**
+ * The delivered rectangles drawn live by their kind (the delivery leaves their `live` empty): the clock shows the time in
+ * ZULU (W20, Patrick 17 Oct 2026: "The time in ZULU (real time) shouild display on the clock"), the flap gauge's needle
+ * follows the flaps (W25), the label plate shows the ship's serial (W23: "this shouldnt say engine ti shold say the tail
+ * number"; Patrick, 17 Oct 2026: "Make it 156-122 and make the tail match": the fin's own serial, ct156Serial).
+ */
+const LIVE_KINDS = Object.freeze(['clock', 'flaps', 'label']);
+/** A delivered rectangle's live window, or undefined when it is a static face. */
+const liveWindowOf = (s) => LIVE_WINDOWS[s.live] ?? (LIVE_KINDS.includes(s.kind) ? LIVE_WINDOWS[s.kind] : undefined);
 
 // The panel's and consoles' face: a matte sage grey, as the CT-156 photos D03 and D09 show it (D12, Patrick 13 Oct 2026:
 // "sage grey", the shade picked off those photos to sit with G15's walls; was the medium grey '#5a5e63' of 12 Oct 2026,
@@ -1189,7 +1204,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, 'CHRONOMETER', cx, b.y + b.h * 0.18, b.h * 0.06, INK);
       ctx.fillStyle = '#8f9a84'; ctx.fillRect(b.x + b.w * 0.14, b.y + b.h * 0.25, b.w * 0.72, b.h * 0.3); // the LCD, unlit
       ctx.fillStyle = '#1d2219'; ctx.font = `bold ${Math.round(b.h * 0.24)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('--:--', cx, b.y + b.h * 0.41);
+      ctx.fillText(h?.zulu ?? '--:--', cx, b.y + b.h * 0.41); // the time in ZULU, HH:MM (update)
       ['GMT', 'LT', 'FT', 'ET'].forEach((t, k) => label(ctx, t, b.x + b.w * (0.22 + k * 0.19), b.y + b.h * 0.6, b.h * 0.05, INK));
       ['SELECT', 'CONTROL'].forEach((t, k) => {
         const x = b.x + b.w * (0.3 + k * 0.4);
@@ -1199,6 +1214,12 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, 'DAVTRON', cx, b.y + b.h * 0.91, b.h * 0.06, INK);
       break;
     }
+    case 'flaps':
+      drawFlapGauge(ctx, b, h?.flaps);
+      break;
+    case 'label':
+      drawPlacard(ctx, 'label', b, h?.serial);
+      break;
     case 'lights': // the nosewheel steering light over the speed brake light
       // The speed brake light is lit while the speed brake is out (Patrick, 11 Oct 2026 20:22Z: "the
       // 'speed brake' light comes on in the cockpit"): the HUD's speedBrake. Lit green, the colour a GUESS (no page
@@ -1397,14 +1418,15 @@ const PLACARD_WORDS = Object.freeze({
   fuelPlacard: [['TOTAL USABLE', 0.2], ['FUEL CAPACITY', 0.2], ['1100 LBS (JP8)', 0.2]], // D10, read off the photo
   gearPlacard: [['EMER', 0.12], ['LDG', 0.12], ['GR', 0.12], ['PULL', 0.1]], // the handle's name (3d-work handover 4.5A, "EMER LDG GR"); the words an estimate
   voPlacard: [['VO', 0.13], ['--- KIAS', 0.09], ['VLO', 0.13], ['--- KIAS', 0.09]], // the speeds unsourced (question for Patrick), dashes
-  label: [['ENGINE', 0.5]], // the label plate over the engine displays: its word an estimate (no photo shows it)
+  label: [[ct156Serial(), 0.5]], // the label plate over the engine displays: the ship's serial (W23; drawn live with the ship's own, LIVE_KINDS)
 });
 
-function drawPlacard(ctx, name, b) {
+/** A placard: `text` in place of its words when given (the label plate's serial). */
+function drawPlacard(ctx, name, b, text = null) {
   ctx.fillStyle = PLACARD;
   roundRect(ctx, b.x, b.y, b.w, b.h, Math.min(b.w, b.h) * 0.08);
   ctx.fill();
-  const lines = PLACARD_WORDS[name] ?? [[name.toUpperCase(), 0.3]];
+  const lines = text ? [[text, 0.5]] : PLACARD_WORDS[name] ?? [[name.toUpperCase(), 0.3]];
   const total = lines.reduce((s, [, k]) => s + k * 1.35, 0);
   let y = b.y + b.h * (0.5 - total / 2);
   for (const [text, k] of lines) {
@@ -1416,8 +1438,13 @@ function drawPlacard(ctx, name, b) {
   }
 }
 
-/** The flap position gauge (both seats): a small dial UP, TO and LDG, the needle at UP (the sims carry no flap numbers). */
-function drawFlapGauge(ctx, b) {
+/** Where the flap gauge's needle points, 0 at UP to 1 at LDG, for each selection (TO half way, as the dial's marks). */
+const FLAP_GAUGE = Object.freeze({ UP: 0, TO: 0.5, LDG: 1 });
+/**
+ * The flap position gauge (both seats): a small dial UP, TO and LDG, the needle at `flaps` (W25): 'UP', 'TO' or 'LDG', or
+ * how far down, 0 (UP) to 1 (LDG), for a needle moving between them; anything else UP (the sims carry no flap numbers).
+ */
+function drawFlapGauge(ctx, b, flaps = 'UP') {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = Math.min(b.w, b.h) / 2.24;
   bezel(ctx, cx, cy, r);
   label(ctx, 'FLAPS', cx, cy + r * 0.45, r * 0.2, DIM);
@@ -1429,7 +1456,8 @@ function drawFlapGauge(ctx, b) {
     ctx.beginPath(); ctx.moveTo(cx + Math.cos(q) * r * 0.85, cy + Math.sin(q) * r * 0.85); ctx.lineTo(cx + Math.cos(q) * r * 0.7, cy + Math.sin(q) * r * 0.7); ctx.stroke();
     label(ctx, t, cx + Math.cos(q) * r * 0.5, cy + Math.sin(q) * r * 0.5, r * 0.2, INK);
   }
-  const q = rad(-60 - 90);
+  const at = typeof flaps === 'number' && Number.isFinite(flaps) ? Math.max(0, Math.min(1, flaps)) : FLAP_GAUGE[flaps] ?? 0;
+  const q = rad(-60 + 120 * at - 90);
   ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, r * 0.07);
   ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(q) * r * 0.8, cy + Math.sin(q) * r * 0.8); ctx.stroke();
 }
@@ -2695,7 +2723,7 @@ function attachScreens(THREE, c) {
     // The static faces' picture: one window per name (front and rear share), packed from the rectangles' sizes.
     const sizes = new Map();
     for (const s of list) {
-      if (LIVE_WINDOWS[s.live] || engineKind(s)) continue;
+      if (liveWindowOf(s) || engineKind(s)) continue;
       const w = span(s.tl, s.tr) * SCREEN_PX_PER_FT, h = span(s.tl, s.bl) * SCREEN_PX_PER_FT, was = sizes.get(s.key);
       sizes.set(s.key, { w: Math.max(w, was?.w ?? 0), h: Math.max(h, was?.h ?? 0), kind: s.kind });
     }
@@ -2709,7 +2737,7 @@ function attachScreens(THREE, c) {
     const placed = {};
     for (const s of list) {
       let into, win, size;
-      if (LIVE_WINDOWS[s.live]) [into, win, size] = ['live', LIVE_WINDOWS[s.live], ATLAS];
+      if (liveWindowOf(s)) [into, win, size] = ['live', liveWindowOf(s), ATLAS];
       else if (engineKind(s)) [into, win, size] = ['engine', ENGINE_WINDOWS[s.kind === 'annun' ? 'annun' : s.key.toUpperCase()], ATLAS];
       else [into, win, size] = ['static', windows[s.key], { width: W, height: Math.max(4, height) }];
       quads[into].push({ corners: [s.tl, s.tr, s.br, s.bl], win, size });
@@ -3053,11 +3081,14 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     update(hud, nowMs = globalThis.performance?.now?.() ?? Date.now()) {
       if (Number.isFinite(hud?.headingDeg)) card.texture.offset.x = compassCardOffset(hud.headingDeg);
       hud = withVerticalSpeed(hud, nowMs);
-      const key = engine ? `${panelKey(hud)}|${engineKey(hud?.engine)}` : panelKey(hud);
+      // The clock's ZULU time and the label plate's serial (the ship this cockpit is in: a ship's root holds the group).
+      const faces = { zulu: new Date().toISOString().slice(11, 16), serial: ct156Serial(group.parent?.userData?.ct156?.number), flaps: hud?.flaps ?? 'UP' };
+      const flapKey = typeof faces.flaps === 'number' ? Math.round(faces.flaps * 50) : faces.flaps;
+      const key = [panelKey(hud), faces.zulu, faces.serial, flapKey, engine ? engineKey(hud?.engine) : ''].join('|');
       if (key === shownKey || nowMs - shownAt < PANEL_REDRAW_MS) return false;
       shownKey = key;
       shownAt = nowMs;
-      drawLive(live.ctx, hud);
+      drawLive(live.ctx, { ...hud, ...faces });
       live.texture.needsUpdate = true;
       if (engine) {
         drawEngineLive(engine.ctx, hud?.engine ?? null);

@@ -137,8 +137,9 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
   rim.position.set(-0.3, 0.9, 0.5).normalize().multiplyScalar(1000);
   scene.add(fill, rim);
 
-  // The aircraft: the shared CT-156, nose along +x, up +z, in feet.
-  const ship = createCt156Model(THREE, { color: '#58a6ff', paint: PAINT_DEFAULT, number: '104' });
+  // The aircraft: the shared CT-156, nose along +x, up +z, in feet. Ship #1: 122 on the nose and wings, 156122 on the fin
+  // and on the label plate over the engine displays (Patrick, 17 Oct 2026: "Make it 156-122 and make the tail match"; was 104).
+  const ship = createCt156Model(THREE, { color: '#58a6ff', paint: PAINT_DEFAULT, number: 1 });
   ship.scale.setScalar(CT156_FT_PER_UNIT);
   ship.rotation.order = 'ZYX';
   scene.add(ship);
