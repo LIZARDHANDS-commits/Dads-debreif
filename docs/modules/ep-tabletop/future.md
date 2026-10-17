@@ -7,7 +7,7 @@
 - **Formation EPs:** the emergency in a formation, with knock it off and the lead change (para 1.20.3.1), using the Formation sim's aircraft.
 - **3D cues:** smoke trail or flames outside the aircraft and oil streaks on the windscreen drawn in 3D (EP-12 keeps cues to overlays while the module is being built).
 
-## Any setup: freeze at any point of a manoeuvre (Dad, 15 Oct 2026)
+## Any setup: freeze at any point of a manoeuvre (Dad, 15 Oct 2026; moved onto the plan as Step 5b, Patrick approved)
 
 Dad's words: "I should be able to make any setup...QR code phone should have a 2d map where they drop the location and altitude. set nose up attitude and bank...basically any point in a manuver... Student responses should basically be to the effect of 'Id do a nose high recovery by rolling to the nearest horizon, max power, then pulling to the horizon, and rolling level' the instructor should have a way to move to that next end point or Enter a spin, or just continue the current attitude and power setting if the studnet does nothing then can repause as the situtaiton develops."
 

@@ -19,9 +19,19 @@
 // panel, EP-R6), the instructor's edits and fault changes not yet applied (`pending`, `pendingFaults`, EP-R4), the developments still to
 // come, the FEVER and TCCC prompts, marks and notes, the Declare boxes and the log (EP-R9). What the panel shows is worked out, not stored:
 // systems.js shownOf (EP-11). Every function returns a new session; none changes the one it is given.
+//
+// "Any setup" (plan Step 5b; EP-17 to EP-19): a scenario with `kind: 'setup'` (scenarios.js ANY_SETUP) starts frozen at its start.setup
+// (steps.js cleanSetup; flight.js createSetupFlight), and has three more actions: freeze (a new setup: the aircraft put there, paused),
+// carryOn (the controls held, time running) and flySteps (the step builder's rows, flown in order, exactly as entered; at the last row's end
+// the session pauses and logs the new position and state in words). Its situation for the student is the freeze. The student's picks
+// don't apply to it (the step builder flies it). Everything arriving in these actions is checked as untrusted (steps.js cleanSetup and
+// cleanRows, as cleanPick).
 import { shownOf, makeFault, changeFault, faultLabel, FAULT_EFFECTS } from './systems.js';
-import { createFlight, flyTo, applyPick, placeFlight, FIELD_IDS } from './flight.js';
+import { createFlight, flyTo, applyPick, placeFlight, FIELD_IDS, createSetupFlight, setupCarryOn, setupFly, takeSaid, stateWords, flightNow, STEP_S } from './flight.js';
 import { cleanPick, manoeuvreById } from './manoeuvres.js';
+import { cleanSetup, cleanRows, rowWords } from './steps.js';
+import { compassDegFromVector } from '../../core/angles.js';
+import { FT_PER_NM } from '../../core/units.js';
 
 /** The step track, in Fig 1.4's order (AETCMAN 11-248 para 1.20.3, cited by paragraph only). */
 export const STEPS = Object.freeze([
@@ -52,8 +62,33 @@ function log(s, text) {
   return { ...s, log: [...s.log, { tS: s.clockS, step: s.step, text }] };
 }
 
-/** A new session for `scenario`: paused at Aircraft control, not started, nothing revealed. */
-export function startSession(scenario) {
+/** Whether a session (or a scenario) is an "Any setup" one. */
+export const isSetup = (x) => (x?.scenario ?? x)?.kind === 'setup';
+
+/** An "Any setup" scenario's start with the situation the student is given set from the frozen flight (where, how high, how fast, which way). */
+function setupStart(start, flight, setup) {
+  const n = flightNow(flight);
+  return {
+    ...start,
+    setup,
+    altFt: Math.round(n.altFt),
+    kias: Math.round(n.kias),
+    headingDegM: Math.round(n.headingDegM) % 360,
+    position: { fromIcao: 'CYMJ', bearingDegT: compassDegFromVector(n.x, n.y), distNm: Math.hypot(n.x, n.y) / FT_PER_NM },
+  };
+}
+
+/** A new session for `scenario`: paused at Aircraft control, not started, nothing revealed. An "Any setup" one starts frozen at its setup. */
+export function startSession(scenario0) {
+  let scenario = scenario0;
+  let flight;
+  if (isSetup(scenario0)) {
+    const setup = cleanSetup(scenario0.start.setup);
+    flight = createSetupFlight(setup, 0);
+    scenario = { ...scenario0, start: setupStart(scenario0.start, flight, setup) };
+  } else {
+    flight = createFlight(scenario0.start);
+  }
   return {
     scenario,
     clockS: 0,
@@ -70,7 +105,7 @@ export function startSession(scenario) {
     prompts: { fever: false, tccc: false },
     marks: {},
     declare: Object.fromEntries(DECLARE_FIELDS.map((f) => [f, ''])),
-    flight: createFlight(scenario.start),
+    flight,
     picks: [],
     log: [{ tS: 0, step: 'A', text: `Scenario: ${scenario.title}` }],
   };
@@ -96,11 +131,18 @@ function putSettings(s, set) {
   return Object.keys(place).length && out.flight ? { ...out, flight: placeFlight(out.flight, place, flightEnv(out)) } : out;
 }
 
-/** The flight stepped to clock `clockS`, with the outcome logged once when it comes (words only, never right or wrong). */
+/**
+ * The flight stepped to clock `clockS`, with the outcome logged once when it comes (words only, never right or wrong). In "Any setup" what
+ * the step builder said on the way (a stall, a row stopped at its cap, the spin) is logged, and when its last row is over the clock stops
+ * there and the session pauses, with the new position and state in words.
+ */
 function flyOn(s, clockS) {
   if (!s.flight) return { ...s, clockS };
-  const flight = flyTo(s.flight, clockS, flightEnv(s));
-  const out = { ...s, clockS, flight };
+  const flown = flyTo(s.flight, clockS, flightEnv(s));
+  const { flight, said, ended } = takeSaid(flown);
+  let out = { ...s, clockS: ended ? flight.n * STEP_S : clockS, flight };
+  for (const words of said) out = log(out, words);
+  if (ended && !flight.outcome) out = log({ ...out, running: false }, `Steps flown; paused: ${stateWords(flight)}`);
   return flight.outcome && !s.flight.outcome ? log(out, flight.outcome.words) : out;
 }
 
@@ -181,7 +223,7 @@ function goStep(s, to) {
 }
 
 /**
- * The instructor's (and the step track's) actions. `a.type`:
+ * The instructor's (and the step track's) actions. Any setup adds freeze { setup }, carryOn and flySteps { rows } (see the header). `a.type`:
  * resume, pause; step { to }; next; backToA; reanalyse; reveal { key }; stage { key, value }; discard; apply; fireNext; delayNext;
  * addDevelopment { when: 'tap' | 'later' | a step id, label }; prompt { which: 'fever' | 'tccc', on }; mark { step, mark }; note { step, text };
  * declare { field, value }; addFault { kind, severity, trend, params }; setFault { id, severity, trend }; clearFault { id };
@@ -292,11 +334,32 @@ export function act(s, a) {
       return log({ ...s, marks: { ...s.marks, [a.step]: { ...s.marks[a.step], note: a.text } } }, `Note, ${stepName(a.step)}: ${a.text}`);
     case 'declare':
       return DECLARE_FIELDS.includes(a.field) ? { ...s, declare: { ...s.declare, [a.field]: String(a.value ?? '') } } : s;
+    case 'freeze': {
+      // Any setup (EP-17): the aircraft put at the setup (checked, cleanSetup), paused, the clock where it is. A new freeze starts afresh.
+      if (!isSetup(s)) return s;
+      const setup = cleanSetup(a.setup);
+      const n = Math.round(s.clockS / STEP_S);
+      const flight = createSetupFlight(setup, n);
+      const out = { ...s, clockS: n * STEP_S, running: false, started: true, flight, scenario: { ...s.scenario, start: setupStart(s.scenario.start, flight, setup) } };
+      return log(out, `Frozen: ${stateWords(flight)}`);
+    }
+    case 'carryOn': {
+      // Any setup (EP-18): the controls held as they are (the G, bank and power), time running; a spin keeps spinning.
+      if (!isSetup(s) || !s.flight || s.flight.outcome) return s;
+      return log({ ...s, flight: setupCarryOn(s.flight), running: true, started: true }, 'Carry on: the controls held');
+    }
+    case 'flySteps': {
+      // Any setup (EP-18): the rows the instructor entered (checked, cleanRows), flown in order exactly as entered, time running.
+      const rows = cleanRows(a.rows);
+      if (!isSetup(s) || !s.flight || s.flight.outcome || !rows.length) return s;
+      return log({ ...s, flight: setupFly(s.flight, rows), running: true, started: true }, `Fly: ${rows.map((r, i) => `${i + 1}. ${rowWords(r)}`).join('; ')}`);
+    }
     case 'pick': {
       // The student's pick (EP-14), or the instructor's for them in one-screen mode: checked (cleanPick), flown at once. Declare marks D on the
-      // step track (systems-plan 4.1); Eject ends the flight. Once the flight has an outcome, a pick changes nothing.
+      // step track (systems-plan 4.1); Eject ends the flight. Once the flight has an outcome, a pick changes nothing. An "Any setup" session
+      // is flown by its step builder, so a pick changes nothing there.
       const pick = cleanPick(a, FIELD_IDS);
-      if (!pick || !s.flight || s.flight.outcome) return s;
+      if (!pick || !s.flight || s.flight.outcome || isSetup(s)) return s;
       const { flight, words: said, resolved } = applyPick(s.flight, pick, flightEnv(s));
       let out = log({ ...s, flight, picks: [...(s.picks ?? []), { clockS: s.clockS, ...resolved }] }, `Pick: ${said}`);
       if (flight.outcome) out = log(out, flight.outcome.words);

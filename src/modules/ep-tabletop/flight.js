@@ -20,9 +20,15 @@
 //   runway, within its length and width: "landed"; anywhere else "touched down off the runway", with where. Words only, never right or wrong.
 //   No round-out or flare is flown: the touchdown is where the path meets the ground (the forced-landing pattern is a later step).
 //
+// "Any setup" (plan Step 5b; EP-17 to EP-19, EP-R11): a flight may instead carry `setup`, the step builder's pilot memory (steps.js). It is
+// frozen at the instructor's state (createSetupFlight: the flight path solved from the set attitude, core attitudeDegFromClimb), then flies
+// with the controls held (Carry on) or the rows the instructor entered (Fly), on the same point mass, roll and G onset and wing limit as
+// the picks. A spin is a set-piece on steps.js SPIN (every number an estimate), not the point mass, which cannot spin. A point mass slowed
+// almost to a stop (nose very high) is kept moving at SETUP_FLOOR_KTAS and its path tipped over (an estimate: no tail slide is flown).
+//
 // Positions are feet from CYMJ's origin (src/airfields/cymj-runways.js CYMJ_ORIGIN, Traffic's frame and world3d.js's), x east, y north,
 // z up (feet above sea level, standard day).
-import { stepPointMass, pointMassState } from '../../core/point-mass.js';
+import { stepPointMass, pointMassState, upFrom } from '../../core/point-mass.js';
 import { easeValue } from '../../core/flight-math.js';
 import {
   excessFnFor, iasToTasKt, tasToIasKt, stallLimitG, rollWithinT6A, T6A_G_ONSET, T6A_LIMITS, T6A_MANOEUVRE, maxKiasT6A, attitudeDegFromClimb,
@@ -30,13 +36,14 @@ import {
 import { windVectorFtps } from '../../core/wind.js';
 import { makeLocalRef, latLonToLocalFt, legOffsetsFt } from '../../core/geo.js';
 import { compassDegFromVector, compassDegToHeadingRad, wrapDeg180, wrapDeg360, DEG } from '../../core/angles.js';
-import { FT_PER_NM, KT_TO_FTPS } from '../../core/units.js';
+import { FT_PER_NM, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { AIRPORTS } from '../../airfields/airports-data.js';
 import { CYMJ_ORIGIN } from '../../airfields/cymj-runways.js';
 // The glide ring is Traffic's formula, imported as it is (the rule book allows a module to import another's file when moving it isn't
 // worth it; this keeps out of Traffic's files while Patrick's sessions are active). Moving it to core is the plan's later preference.
 import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS, calculateGlideFootprint } from '../traffic/pfl-geometry.js';
 import { flyLateral, flyVertical, manoeuvreById, pickWords } from './manoeuvres.js';
+import { flySetup, spinRows, recoveredMemory, setupMemory, carryOnMemory, flyMemory, freezeG, setupWords, SPIN } from './steps.js';
 
 /** The fixed step, seconds (systems-plan section 4.2): the same as the Formation sim's (turn-sim live/flight.js STEP_SEC). */
 export const STEP_S = 0.05;
@@ -207,12 +214,27 @@ function nowOf(f, env) {
     excessAt: (throttle, g) => excessFn(throttle, engine, config)(ktas, pm.z, g),
     windFromDegT: wind.fromDegT, windKt: wind.kt, magVarDegE: MAG_VARIATION_DEG_E,
     fields: FIELDS,
+    // The step builder's pilot (steps.js) also reads the attitude the pilot sees, the roll rate, the G and the clock.
+    pitchDeg: attitudeOf(pm, vFtps, kias, f.g, tiltOf(f), config), rollRateDps: f.rollRate, g: f.g, clockS: f.n * STEP_S,
   };
 }
+
+/**
+ * The pitch attitude the pilot sees (core attitudeDegFromClimb): the flight path plus the angle of attack, which in a bank is tilted with
+ * the wings, so only its cos(bank) share lifts the nose: the G passed in is G × cos(bank), as the Turn Sim's pitchAboveHorizonDeg does
+ * (TR-91). Wings level it is exactly the formula; inverted the angle of attack puts the nose below the path.
+ */
+function attitudeOf(pm, vFtps, kias, g, bankDeg, config) {
+  return attitudeDegFromClimb(pm.vz, vFtps, kias, g * Math.cos(bankDeg * DEG), config);
+}
+/** The bank the attitude is tilted by: an Any setup's (it may be steep or inverted); 0 for the emergencies, whose shown pitch stays exactly as
+ * it was before Step 5b (spec: "nothing about the emergencies changes"; the tilt there is a question for Patrick, up to about 1° in a turn). */
+const tiltOf = (f) => (f.setup ? f.bank : 0);
 
 /** One fixed step. Returns the next flight; once there is an outcome nothing moves. */
 function stepOnce(f, env) {
   if (f.outcome) return f;
+  if (f.setup) return f.setup.spin ? spinStepOnce(f, env) : setupStepOnce(f, env);
   const now = nowOf(f, env);
   const lat = flyLateral(now, f.lateral);
   const ver = flyVertical(now, f.vertical);
@@ -233,7 +255,12 @@ function stepOnce(f, env) {
     ...f, n: f.n + 1, pm, bank: wrapDeg180(rE.bankDeg), rollRate: rE.rollRateDps, g, gRate: g < gE.bankDeg ? 0 : gE.rollRateDps, throttle,
     turnDps: wrapDeg180(headingNow - now.headingDegT) / STEP_S, lateral: lat.mem, vertical: ver.mem,
   };
-  const groundFt = now.groundFt;
+  return groundCheck(f, next, w, now.groundFt);
+}
+
+/** The step's end checked against the ground (the field's elevation): above it, the step as it is; else the flight ends where the path met it. */
+function groundCheck(f, next, w, groundFt) {
+  const { pm } = next;
   if (pm.z > groundFt) return next;
   // Ground contact between the two steps: where the path met the field's elevation.
   const k = (f.pm.z - groundFt) / Math.max(f.pm.z - pm.z, 1e-9);
@@ -246,11 +273,180 @@ function stepOnce(f, env) {
   return { ...next, pm: { ...pm, x: at.x, y: at.y, z: groundFt }, outcome };
 }
 
+// ---- Any setup (steps.js) -----------------------------------------------------------------------------------------------------
+
+/** The point mass needs a speed (core point-mass.js); in a setup it is never let below this, true knots (an estimate, see the header). */
+export const SETUP_FLOOR_KTAS = 20;
+
+/**
+ * Below SETUP_FLOOR_KTAS (a near-vertical zoom run out of speed) the speed is held at the floor and the path tipped over toward the ground
+ * at the rate gravity turns a path at that speed (g ÷ V, standard mechanics): over the way the aircraft was going, or, straight up, toward
+ * the canopy's opposite side (away from the lift). An estimate: the point mass flies no tail slide.
+ */
+function floorSpeed(air) {
+  const v = Math.hypot(air.vx, air.vy, air.vz);
+  const floor = SETUP_FLOOR_KTAS * KT_TO_FTPS;
+  if (v >= floor) return air;
+  let hx = air.vx;
+  let hy = air.vy;
+  if (Math.hypot(hx, hy) < 1e-6) {
+    hx = -air.up.x;
+    hy = -air.up.y;
+  }
+  const hl = Math.hypot(hx, hy) || 1;
+  const gamma = Math.asin(Math.max(-1, Math.min(1, air.vz / Math.max(v, 1e-9))));
+  const tipped = Math.max(-Math.PI / 2 + 1e-3, gamma - (G_FTPS2 / floor) * STEP_S);
+  const vel = { x: (Math.cos(tipped) * hx * floor) / hl, y: (Math.cos(tipped) * hy * floor) / hl, z: Math.sin(tipped) * floor };
+  return { ...air, vx: vel.x, vy: vel.y, vz: vel.z, up: upFrom({ x: vel.x / floor, y: vel.y / floor, z: vel.z / floor }, air.up) };
+}
+
+/** A setup's step on the point mass: the step builder's pilot (steps.js flySetup) asks for bank, G and throttle; the rest as stepOnce. */
+function setupStepOnce(f, env) {
+  const now = nowOf(f, env);
+  const wingG = stallLimitG(now.kias, /** @type {any} */ (now.stallKias));
+  const p = flySetup(now, f.setup);
+  if (p.spinStart) return spinStepOnce(startSpin({ ...f, setup: p.mem }, p.spinStart.dir), env);
+  // The G asked for, then what the wing gives, which always holds: asking more than the wing gives is the stall, said in words.
+  const askG = Math.max(FLIGHT.pilotMinG, p.g);
+  const gE = easeValue(f.g, f.gRate, Math.min(askG, wingG), STEP_S, T6A_G_ONSET);
+  const g = Math.min(gE.bankDeg, wingG);
+  let setup = p.mem;
+  const stalled = setup.stalled ? askG > wingG : askG > wingG + 0.02; // a little room, so a stall said is a stall
+  if (stalled !== setup.stalled) {
+    setup = { ...setup, stalled, said: [...setup.said, stalled ? `Stall at ${Math.round(now.kias)} KIAS: the wing gives ${wingG.toFixed(2)} G, less than the ${askG.toFixed(2)} G held` : `Out of the stall at ${Math.round(now.kias)} KIAS`] };
+  }
+  const target = f.bank + wrapDeg180(p.bankDeg - f.bank); // the near way round
+  const rE = easeValue(f.bank, f.rollRate, target, STEP_S, rollWithinT6A(FLIGHT.pilotRoll, now.ktas));
+  const throttle = Math.min(1, Math.max(0, p.throttle));
+  const engine = engineOf(env.faults);
+  const air = floorSpeed(stepPointMass(f.pm, { g, bankRad: rE.bankDeg * DEG }, STEP_S, excessFn(throttle, engine, now.config)));
+  const w = windVectorFtps(now.windFromDegT, now.windKt);
+  const pm = { ...air, x: air.x + w.x * STEP_S, y: air.y + w.y * STEP_S };
+  const headingNow = compassDegFromVector(pm.vx, pm.vy);
+  const next = {
+    ...f, n: f.n + 1, pm, bank: wrapDeg180(rE.bankDeg), rollRate: rE.rollRateDps, g, gRate: g < gE.bankDeg ? 0 : gE.rollRateDps, throttle,
+    turnDps: wrapDeg180(headingNow - now.headingDegT) / STEP_S, setup,
+  };
+  return groundCheck(f, next, w, now.groundFt);
+}
+
+/** The spin set-piece begins (steps.js SPIN): said in words; the point mass waits until the recovery puts the aircraft back on it. */
+function startSpin(f, dir) {
+  return { ...f, bank: dir * SPIN.bankDeg, rollRate: 0, g: SPIN.g, gRate: 0, setup: { ...f.setup, stalled: false, spin: { dir, phase: 'spin', deg: 0 }, said: [...f.setup.said, `Spin ${dir < 0 ? 'left' : 'right'} (set-piece; its numbers are estimates)`] } };
+}
+
+/**
+ * One step of the spin set-piece (EP-19): the heading turns a turn every SPIN.secondsPerTurn the way it spins, the aircraft sinks
+ * SPIN.ftPerTurn a turn and drifts with the wind; the rows go on (steps.js spinRows). When the recovery is over the aircraft is put back on
+ * the point mass, wings level in the dive (nose SPIN.exitNoseDeg at SPIN.exitKias, its path solved from that attitude), and the recovery
+ * row flies the pull-out. The ground ends it as any flight.
+ */
+function spinStepOnce(f, env) {
+  const sp = f.setup.spin;
+  const turned = (360 / SPIN.secondsPerTurn) * STEP_S;
+  const headingDegT = wrapDeg360(compassDegFromVector(f.pm.vx, f.pm.vy) + sp.dir * turned);
+  const sinkFtps = SPIN.ftPerTurn / SPIN.secondsPerTurn;
+  const wind = windOf(env);
+  const w = windVectorFtps(wind.fromDegT, wind.kt);
+  const h = compassDegToHeadingRad(headingDegT);
+  // The velocity carries the heading and the sink (a token 1 ft/s along the heading: the spin's own small circle is not drawn).
+  const pm = { ...f.pm, x: f.pm.x + w.x * STEP_S, y: f.pm.y + w.y * STEP_S, z: f.pm.z - sinkFtps * STEP_S, vx: Math.cos(h), vy: Math.sin(h), vz: -sinkFtps };
+  const kias = SPIN.kias;
+  const now = {
+    clockS: (f.n + 1) * STEP_S, kias, ktas: iasToTasKt(kias, pm.z), altFt: pm.z, headingDegT, bankDeg: sp.dir * SPIN.bankDeg, g: SPIN.g,
+    throttle: f.throttle, pitchDeg: SPIN.noseDeg, magVarDegE: MAG_VARIATION_DEG_E,
+  };
+  const { mem, exit } = spinRows(now, f.setup, turned);
+  let next = { ...f, n: f.n + 1, pm, bank: sp.dir * SPIN.bankDeg, rollRate: 0, g: SPIN.g, gRate: 0, turnDps: sp.dir * (360 / SPIN.secondsPerTurn), setup: mem };
+  if (exit) {
+    const ktas = iasToTasKt(SPIN.exitKias, pm.z);
+    const climbRad = gammaForAttitude({ pitchDeg: SPIN.exitNoseDeg, kias: SPIN.exitKias, bankDeg: 0, config: configOf(f.gear, f.flaps), g: () => SPIN.g });
+    next = {
+      ...next, pm: pointMassState({ x: pm.x, y: pm.y, altFt: pm.z, ktas, headingRad: h, climbRad }), bank: 0, turnDps: 0,
+      setup: { ...recoveredMemory(mem), said: [...mem.said, `Out of the spin at ${Math.round(pm.z).toLocaleString('en-CA')} ft; the dive pull-out follows`] },
+    };
+  }
+  const ground = nearestField(pm);
+  return groundCheck(f, next, w, ground ? ground.field.elevationFt : 0);
+}
+
+/**
+ * The flight path (radians) that shows `pitchDeg` of attitude at `kias` and `bankDeg` (core attitudeDegFromClimb through attitudeOf), with
+ * the G a function of the path, `g(gammaRad)`. The attitude grows with the path, so it is found by halving the span (40 halvings: far below
+ * a hundredth of a degree). An attitude beyond what any path between ±88° gives takes the nearer end.
+ */
+export function gammaForAttitude({ pitchDeg, kias, bankDeg, config, g }) {
+  const vFtps = Math.max(kias, 1) * KT_TO_FTPS; // the attitude formula reads only the climb's share of the speed, so any speed's scale does
+  const attitudeAt = (gamma) => attitudeOf({ vz: Math.sin(gamma) * vFtps }, vFtps, kias, g(gamma), bankDeg, config);
+  let lo = -88 * DEG;
+  let hi = 88 * DEG;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (attitudeAt(mid) < pitchDeg) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * A flight frozen at the instructor's setup (steps.js cleanSetup; EP-17): at the map drop, the altitude (never below 100 ft above the
+ * nearest field), the heading (out of the area, away from Moose Jaw, when none is set), the speed, the power, the bank, and the flight path
+ * that gives the set attitude with the G it holds (steps.js freezeG; gammaForAttitude). Clean, gear and flaps up. `n` is the step the
+ * clock is at, so the flight starts where the session's clock is. Plain data; nothing moves until the clock runs.
+ */
+export function createSetupFlight(setup, n = 0) {
+  const ground = nearestField(setup);
+  const altFt = Math.max(setup.altFt, (ground ? ground.field.elevationFt : 0) + 100);
+  const headingDegT = setup.headingDegM === null ? compassDegFromVector(setup.x, setup.y) : wrapDeg360(setup.headingDegM + MAG_VARIATION_DEG_E);
+  const config = configOf('up', 'up');
+  const stallKias = stallKiasOf(config);
+  const gOf = (gamma) => freezeG(gamma, setup.bankDeg, setup.kias, stallKias);
+  const climbRad = gammaForAttitude({ pitchDeg: setup.pitchDeg, kias: setup.kias, bankDeg: setup.bankDeg, config, g: gOf });
+  const g = gOf(climbRad);
+  const throttle = setup.powerPct / 100;
+  const pm = pointMassState({ x: setup.x, y: setup.y, altFt, ktas: iasToTasKt(setup.kias, altFt), headingRad: compassDegToHeadingRad(headingDegT), climbRad });
+  return {
+    n, pm, bank: setup.bankDeg, rollRate: 0, g, gRate: 0, throttle, turnDps: 0,
+    gear: 'up', flaps: 'up', configPicked: false,
+    lateral: { kind: 'straight', headingDegT }, vertical: { kind: 'level', altFt, kias: setup.kias },
+    lateralPick: { manoeuvre: 'straightLevel' }, verticalPick: { manoeuvre: 'straightLevel' },
+    outcome: null,
+    setup: setupMemory({ g, bankDeg: setup.bankDeg, throttle }),
+  };
+}
+
+/** What the step builder's pilot reads to start rows or hold the controls now (outside a step). */
+const heldNow = (f) => {
+  const n = flightNow(f);
+  return { g: f.g, bankDeg: f.bank, throttle: f.throttle, clockS: f.n * STEP_S, kias: n.kias, altFt: n.altFt, headingDegT: n.headingDegT, magVarDegE: MAG_VARIATION_DEG_E };
+};
+
+/** Carry on (EP-18): the rows dropped, the controls held as they are now (the G, bank and power); a spin keeps spinning. */
+export function setupCarryOn(f) {
+  if (!f?.setup || f.outcome) return f;
+  return { ...f, setup: carryOnMemory(f.setup, heldNow(f)) };
+}
+
+/** Fly the rows (steps.js cleanRows) from now, in order, exactly as entered. */
+export function setupFly(f, rows) {
+  if (!f?.setup || f.outcome || !rows.length) return f;
+  return { ...f, setup: flyMemory(f.setup, rows, heldNow(f)) };
+}
+
+/** The words the step builder has said since they were last taken, and the flight without them (scenario.js logs them). */
+export function takeSaid(f) {
+  if (!f?.setup || (!f.setup.said.length && !f.setup.ended)) return { flight: f, said: [], ended: false };
+  return { flight: { ...f, setup: { ...f.setup, said: [], ended: false } }, said: f.setup.said, ended: f.setup.ended };
+}
+
 /** The flight stepped to scenario clock `clockS` in whole fixed steps (none backwards). env: { faults, wind }. */
 export function flyTo(f, clockS, env) {
   const target = Math.floor(clockS / STEP_S + 1e-6);
   let out = f;
-  while (out.n < target && !out.outcome) out = stepOnce(out, env);
+  while (out.n < target && !out.outcome) {
+    out = stepOnce(out, env);
+    if (out.setup?.ended) return out; // the step builder's last row is over: the session pauses here (scenario.js)
+  }
   return out.outcome && out.n < target ? { ...out, n: target } : out;
 }
 
@@ -293,6 +489,8 @@ export function applyPick(f, pick, env) {
 export function placeFlight(f, place = {}, env = {}) {
   const { altFt, kias, headingDegM } = place;
   if (f.outcome) return f;
+  // In the spin set-piece only a typed altitude applies (the spin's speed and heading are its own numbers, steps.js SPIN).
+  if (f.setup?.spin) return Number.isFinite(altFt) ? { ...f, pm: { ...f.pm, z: altFt } } : f;
   const now = flightNow(f);
   const alt = Number.isFinite(altFt) ? altFt : now.altFt;
   const ias = Number.isFinite(kias) ? Math.max(0, kias) : now.kias;
@@ -307,22 +505,32 @@ export function placeFlight(f, place = {}, env = {}) {
 
 /**
  * The flight as the panel and the screens read it: position, altitude, speeds (KTAS and KIAS), heading (true and magnetic), track, bank,
- * pitch attitude (core attitudeDegFromClimb, the attitude the pilot sees), climb rate, G, the ground velocity and the turn rate.
+ * pitch attitude (core attitudeDegFromClimb, the attitude the pilot sees, its angle of attack tilted with the bank: attitudeOf), climb
+ * rate, G, the ground velocity and the turn rate. In the spin set-piece the attitude, bank, airspeed, G, sink and turn rate are the
+ * set-piece's numbers (steps.js SPIN, estimates).
  */
 export function flightNow(f) {
   const { pm } = f;
+  const config = configOf(f.gear, f.flaps);
+  const headingDegT = compassDegFromVector(pm.vx, pm.vy);
+  const spin = f.setup?.spin;
+  if (spin && !f.outcome) {
+    const kias = SPIN.kias;
+    return {
+      x: pm.x, y: pm.y, altFt: pm.z, ktas: iasToTasKt(kias, pm.z), kias, headingDegT, headingDegM: wrapDeg360(headingDegT - MAG_VARIATION_DEG_E),
+      climbRad: -Math.PI / 2, climbFpm: pm.vz * 60, bankDeg: f.bank, pitchDeg: SPIN.noseDeg, g: SPIN.g, turnDps: f.turnDps, config,
+    };
+  }
   const vFtps = Math.hypot(pm.vx, pm.vy, pm.vz);
   const ktas = vFtps / KT_TO_FTPS;
   const kias = tasToIasKt(ktas, pm.z);
-  const config = configOf(f.gear, f.flaps);
-  const headingDegT = compassDegFromVector(pm.vx, pm.vy);
   return {
     x: pm.x, y: pm.y, altFt: pm.z, ktas, kias, headingDegT,
     headingDegM: wrapDeg360(headingDegT - MAG_VARIATION_DEG_E),
     climbRad: Math.asin(Math.max(-1, Math.min(1, pm.vz / Math.max(vFtps, 1e-6)))),
     climbFpm: pm.vz * 60,
     bankDeg: f.bank,
-    pitchDeg: attitudeDegFromClimb(pm.vz, vFtps, kias, f.g, config),
+    pitchDeg: attitudeOf(pm, vFtps, kias, f.g, tiltOf(f), config),
     g: f.g,
     turnDps: f.outcome ? 0 : f.turnDps,
     config,
@@ -338,11 +546,35 @@ export function flagsOf(f) {
   return flags;
 }
 
+const sideWords = (deg, right, left) => (Math.round(deg) > 0 ? right : Math.round(deg) < 0 ? left : '');
+
+/**
+ * The new position and state in words (Any setup, EP-R11; the console and the log): "6,240 ft · 132 KIAS · heading 047°M · pitch 3° nose
+ * up · bank 2° right · 1.0 G · climbing 300 ft/min · power 100 % · 10.4 NM south-west of CYMJ". Words only, never right or wrong.
+ */
+export function stateWords(f) {
+  const n = flightNow(f);
+  const pitch = Math.round(n.pitchDeg);
+  const climb = Math.round(n.climbFpm / 50) * 50;
+  return [
+    `${Math.round(n.altFt).toLocaleString('en-CA')} ft`,
+    `${Math.round(n.kias)} KIAS`,
+    `heading ${String(Math.round(n.headingDegM) % 360).padStart(3, '0')}°M`,
+    `pitch ${pitch === 0 ? 'on the horizon' : `${Math.abs(pitch)}° nose ${pitch > 0 ? 'up' : 'down'}`}`,
+    `bank ${Math.abs(Math.round(n.bankDeg))}°${sideWords(n.bankDeg, ' right', ' left')}`,
+    `${n.g.toFixed(1)} G`,
+    climb === 0 ? 'level' : `${climb > 0 ? 'climbing' : 'descending'} ${Math.abs(climb).toLocaleString('en-CA')} ft/min`,
+    `power ${Math.round(f.throttle * 100)} %`,
+    whereWords(n),
+  ].filter(Boolean).join(' · ');
+}
+
 /**
  * What the aircraft is flying now, in words: the lateral pick and the vertical pick ("Turn toward the nearest suitable field (CYMJ) · Glide
  * at best glide"). Where only one half is still "Fly straight and level", that half reads "Fly straight" or "Fly level".
  */
 export function manoeuvreWords(f) {
+  if (f.setup) return setupWords(f.setup);
   const lat = f.lateralPick;
   const ver = f.verticalPick;
   if (lat?.manoeuvre === ver?.manoeuvre) return pickWords(lat);

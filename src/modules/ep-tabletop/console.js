@@ -6,7 +6,9 @@
 //
 // This file is the frame (the header, the scenario picker, the Apply bar) and puts the sections together; each section is its own file
 // (plan Step 3): console-time.js (Time, Next development), console-faults.js (Faults), console-picks.js (Pick for the student, plan Step 5),
-// console-indications.js (Indications), console-cues.js (Cues) and console-marks.js (Prompts and marks, Declare).
+// console-indications.js (Indications), console-cues.js (Cues) and console-marks.js (Prompts and marks, Declare). Plan Step 5b adds
+// console-setup.js (Any setup: the map, the setup, Freeze, Carry on and the step builder), shown only for an "Any setup" session, which
+// hides the picks and the developments (the step builder flies it; it has no developments).
 import { h } from '../../ui-kit/dom.js';
 import { labelOf } from './indications.js';
 import { shownOf, faultLabel } from './systems.js';
@@ -16,6 +18,8 @@ import { createFaultsSection } from './console-faults.js';
 import { createCuesSection } from './console-cues.js';
 import { createPicksSection } from './console-picks.js';
 import { createMarksSection, createDeclareSection } from './console-marks.js';
+import { createSetupSection } from './console-setup.js';
+import { isSetup } from './scenario.js';
 
 export { clockWords };
 
@@ -23,9 +27,10 @@ export { clockWords };
  * dispatch(action): scenario.js act's actions; onClose() when its Hide button is pressed (one-screen mode only).
  * mode: 'screen' (one-screen, starts hidden, with a Hide button) or 'phone' (the whole page on the instructor's phone, laid out in one
  * column with big buttons by the stylesheet). scenarios: the example scenarios to pick from (scenarios.js) and onScenario(id) when one is
- * picked; the picker shows only before Start. Returns { element, update(session) }.
+ * picked; the picker shows only before Start. timers: the page's scheduler scope, for the Any setup map (none: no map).
+ * Returns { element, update(session) }.
  */
-export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', scenarios = [], onScenario = () => {} }) {
+export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', scenarios = [], onScenario = () => {}, timers = null }) {
   const phone = mode === 'phone';
   let atOnce = false;
   // Every change the instructor makes goes through pending (EP-R4), and straight on to Apply when that box is ticked.
@@ -37,6 +42,7 @@ export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', s
   const button = (label, onclick, extra = {}) => h('button', { type: 'button', class: 'ep-btn', onclick, ...extra }, label);
 
   const time = createTimeSection({ dispatch, button });
+  const setup = createSetupSection({ dispatch, button, timers });
   const faults = createFaultsSection({ send, button });
   const picks = createPicksSection({ dispatch, button });
   const indications = createIndicationsSection({ dispatch, button, stage, onAtOnce: (on) => { atOnce = on; } });
@@ -60,7 +66,7 @@ export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', s
       h('p', { class: 'ep-sub' }, phone
         ? 'On your phone: the student\'s screen shows only what you apply and reveal, never this page.'
         : 'One-screen mode: keep this closed while the student watches, or run it from your phone with the "Instructor\'s phone" code.')),
-    time.element, faults.element, picks.element, indications.element, cues.element, developments.element, marks.element, declare.element,
+    time.element, setup.element, faults.element, picks.element, indications.element, cues.element, developments.element, marks.element, declare.element,
     // Always in sight while changes wait, so the student's screen never changes until it is pressed.
     h('div', { class: 'ep-applybar' }, waiting, applyBtn, undoBtn));
 
@@ -77,11 +83,14 @@ export function createConsole({ dispatch, onClose = () => {}, mode = 'screen', s
     const names = [...pendingKeys.map(labelOf), ...pendingFaults.map(([id, f]) => faultLabel((f ?? s.faults.find((x) => x.id === id))?.kind))];
     waiting.textContent = count ? `${count} change${count > 1 ? 's' : ''} waiting: ${names.join(', ')}` : 'No changes waiting';
     time.update(s);
+    setup.update(s);
     faults.update(s);
     picks.update(s);
+    if (isSetup(s)) picks.element.hidden = true;
     indications.update(s, shown);
     cues.update(s, shown);
     developments.update(s);
+    developments.element.hidden = isSetup(s);
     marks.update(s);
     declare.update(s);
   }

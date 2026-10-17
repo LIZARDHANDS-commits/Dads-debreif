@@ -12,6 +12,8 @@
 // The flight (plan Step 5, EP-13) is `flight`: where the aircraft is and how it is flying (position, altitude, KTAS and KIAS, heading,
 // bank, pitch, climb rate, G, the ground velocity and turn rate), the pick it is flying in words, and the outcome in words once it is down.
 // Never the engine's state behind it (that is a cause): the student sees only what the aircraft does.
+// In "Any setup" (plan Step 5b) the flight is the same, but `manoeuvre` is always empty: the rows, a spin the instructor springs and a stall
+// are the instructor's to say (the console and the log say them), so the student reads the aircraft only from the cockpit.
 import { STEPS, panelOf } from './scenario.js';
 import { flightNow, manoeuvreWords } from './flight.js';
 import { windVectorFtps } from '../../core/wind.js';
@@ -99,7 +101,7 @@ export function flightViewOf(s) {
     turnDps: n.turnDps,
     gsxFtps: still ? 0 : f.pm.vx + w.x,
     gsyFtps: still ? 0 : f.pm.vy + w.y,
-    manoeuvre: manoeuvreWords(f),
+    manoeuvre: f.setup ? '' : manoeuvreWords(f),
     outcome: f.outcome ? { kind: f.outcome.kind, words: f.outcome.words } : null,
   };
 }
@@ -144,7 +146,7 @@ const MAX_LINE = 160;
 const FLIGHT_VIEW_RANGE = Object.freeze({
   x: [-1.83e6, 1.83e6], y: [-1.83e6, 1.83e6], altFt: FLIGHT_RANGE['flight.altFt'], ktas: [0, 600], kias: FLIGHT_RANGE['flight.kias'],
   headingDegM: [0, 360], bankDeg: FLIGHT_RANGE['flight.bankDeg'], pitchDeg: FLIGHT_RANGE['flight.pitchDeg'], climbFpm: [-30000, 30000],
-  g: [-5, 10], turnDps: [-60, 60], gsxFtps: [-1500, 1500], gsyFtps: [-1500, 1500],
+  g: [-5, 10], turnDps: [-360, 360], gsxFtps: [-1500, 1500], gsyFtps: [-1500, 1500], // turnDps to ±360: the spin set-piece turns about 144°/s
 });
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
