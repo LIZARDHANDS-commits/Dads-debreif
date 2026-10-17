@@ -8,7 +8,16 @@ Only what is here gets built. Patrick asked for this module on 15 Oct 2026 and s
 - [x] High or Performance graphics; the Look sliders (weathering, relief, wear).
 - [x] Outside camera (orbit, scroll to zoom up close) and a camera from each seat with free look, as Formation's Cockpit view.
 - [x] A simple studio backdrop with lighting.
-- Built in V2.484. Not yet seen by Patrick in the app.
+- Built in V2.484; inspected by Patrick in the deployed app (V2.511) on 17 Oct 2026.
 
-## Step 2. Sign-off
-- [ ] Patrick opens it from the home screen and says what to change.
+## Step 2. Phase 5 polish & flight choreography (Patrick, 17 Oct 2026; `3d-work` `ct156/briefs/5-polish-and-signoff.md`)
+- [ ] **Step 5.1 (`5-App` — Pure-JS & Model Showcase slice, runs first):**
+  - Fix opposite bank sign on the EADI and standby attitude indicator (`W24`).
+  - Automatic gentle flight cycle when `Flying` (turns, climbs, descents with matching torque, stick, PCL, control surfaces, and instruments) + a checkbox to pause/hold steady + **Gear** (`Up`/`Down`) and **Flaps** (`UP`/`TO`/`LDG`) pill buttons in the `Aircraft` box, with smooth gear transit (`setGear`), moving exterior control surfaces/flaps (`setControls`), moving cockpit `FLAPS` gauge needle, and moving cockpit `stick` and `pcl` (`W25`).
+  - Shared CT-156 JS fixes visible in Model Showcase: white cheat-line stripe clipping over roundel (`W11`), outside view switched off the flat black `floor` lid onto `fuselageCut` + `tub` + lightweight `seats` at Performance (`W12`), prop spinner blade holes aligned and rotating with the propeller (`W13`), standby compass ball seated in its `D15` bracket (`W19`), real-time ZULU (`HH:MM` UTC) on the M850 clock + live `TRQ` needle/readout and realistic companion engine/systems dial readings (`W20`), and tail-number placard (`156114`) above the engine displays (`W23`).
+- [ ] **Step 5.2 (`5-Master` — Consolidated Blender Master + Bake + Meshopt Delivery + App Import):**
+  - Full ejection seat buckets in High's `exterior/seats` (`W12`), recessed forward-hood NACA air intakes (`W14`), unlit pitch-black chin air intake cavity around the vertical splitter rod (`W15`), canopy det cord in `exterior/frames` (`W16`), lower-left landing gear handle detail & `EMER LDG GR PULL` plaque separation (`W17`), removal of the right-sill black wedge `pubClip` (`W18`), canopy/sill/bow gap closure (`W19`), pedal footwell mesh cleanup (`W21`), left-sill canopy locking handle reshape/seating without floating bolt blocks (`W22`), plus earlier waiting rows `W1`–`W3`, `W5`, `W7`, `W8` and Meshopt compression (`5A`).
+
+## Step 3. Sign-off
+- [ ] Patrick reviews Model Showcase after Steps 5.1 and 5.2 land.
+
