@@ -15,7 +15,7 @@ A tanker flying an air-refuelling anchor (a racetrack, the holding pattern RS-11
 
 ## Numbers (every one an estimate until a manual page or Patrick gives it)
 
-Refuelling height and speed, the anchor's leg length and bank, the point-parallel's offset and turn range, the trail, the pre-contact position and the closure limits. ATP-56 (the NATO air-to-air refuelling publication) would be the reference to look for; nothing is read yet. The numbers built in, each an estimate, are in the spec's "Defaults for this run" table: 10,000 ft MSL, 200 KIAS, 25° bank, 20 NM legs, left turns, +3:00 rendezvous, 1,000 ft below, 1 NM trail, 20 kt overtake, braking 0.3 kt/s, the nose 15 ft behind the left basket; references 30 kt closure, 5 kt inside 200 ft. The offset (two turn radii), the turn range and moment, and the receiver's speed and start are worked out.
+Refuelling height and speed, the anchor's leg length and bank, the point-parallel's offset and turn range, the trail, the pre-contact position and the closure limits. ATP-56 (the NATO air-to-air refuelling publication) would be the reference to look for; nothing is read yet. The numbers built in, each an estimate, are in the spec's "Defaults for this run" table: 10,000 ft MSL, 200 KIAS, 25° bank, 20 NM legs, left turns, +3:00 rendezvous, 1,000 ft below, 1 NM trail, 20 kt overtake, braking 0.3 kt/s, the nose 15 ft behind the left basket; references 30 kt closure, 10 kt inside 200 ft. The offset (two turn radii), the turn range and moment, and the receiver's speed and start are worked out.
 
 ## Steps
 
