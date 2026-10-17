@@ -9,12 +9,13 @@ Read-only review of the whole B5 change (`a02010fb^..ee33c10f`, V2.515, about 46
 | F1 Live default had no ruling | Patrick 17 Oct 2026: "Keep Live, I said yes". Recorded as TS-235; plan T28 and spec 7e's slice note updated | `a4eefb32` |
 | F2 screen showed Old pressed while Live flew | The "#2 in fighting wing" switch starts on Live; hint rewritten | `a4eefb32` |
 | F4 escape above at any height above Lead | Guard, miss and lag-abeam now go above only when more than 100 ft above Lead (`FW_WING.yoyo.highFt`, TS-233). Gauge `b5-` set, 27 cases: identical before and after | `e139ec78` |
+| F5 bubble kisses | Accepted as physics by Patrick: TS-236, spec 7.8b note | this commit |
 | F3 TS-202's test widened to 400-1,100 ft | Retired at Patrick's word (17 Oct 2026: "you can just get rid of that test"); recorded in `docs/modules/turn-sim/testing.md` | `5facd2c4` |
 
 ## Still open
 
-**Blocker**
-- **F5 Bubble busts on the default law.** Gauge (17 Oct, Live): `b5-into-abeam` least slant 229 ft, 8.8 s inside 500 ft. `b5-into-tight` 379 ft, 4.8 s. `b5-hard-into-tight` 330 ft, 4.4 s. `b5-hard-into-in-position` 436 ft, 2 s. `b5-hard-4g-into` 374 ft, ending 1,299 ft. The T3 card says "never inside 500 ft beyond a kiss". Two-fix rule: find the cause before any more tuning.
+**Closed by ruling**
+- **F5 Bubble kisses on hard turns into #2: accepted, TS-236** (Patrick 17 Oct 2026: "I'm fine with those as it is. abem lead is outsiode of the cone anyway & if you're right he turns in to you by definition/physics you kiss the bubble"). The cases: `b5-into-abeam` 229 ft (8.8 s inside 500 ft), `b5-into-tight` 379 ft (4.8 s), `b5-hard-into-tight` 330 ft (4.4 s). Don't tune or chase them. Not shown to Patrick, so not covered by the ruling, but the same kind of case: `b5-hard-into-in-position` 436 ft (2 s) and `b5-hard-4g-into` 374 ft (2.3 s, ending 1,299 ft, outside the cone 30 s after wings level).
 
 **Should-fix**
 - **F6 The rig measures a different law from the one that flies.** `fighting-wing.js:267,394,425,427`: four `!w.probe` branches switch off the 10° line cap, the 0.20 G level-turn cap, the ±65 ft height clamp and the −0.45 G floor under the rig. The rig also shows the arc loop at 1.43× the asked closure and the offset at 1.25×.
