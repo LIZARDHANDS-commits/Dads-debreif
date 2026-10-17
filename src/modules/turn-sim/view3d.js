@@ -20,7 +20,7 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { drawnAttitudeOf } from './live/attitude.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { createCt156Model, CT156_UNIT_LENGTH, CT156_REFERENCE_POINTS, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, CT156_UNIT_LENGTH, CT156_REFERENCE_POINTS, setCockpitView, setSpeedBrake, setCt156Crew } from '../../ui-kit/ct156-model.js';
 import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 
 /**
@@ -285,6 +285,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     if (!entry) {
       const mesh = createCt156Model(THREE, { color: source.colors[id] ?? '#ffffff', number: id, paint: paintNow, lengthFt: CT156_UNIT_LENGTH });
       blurProp(THREE, mesh); // the turning prop as a blurred disc, as Traffic's (TS-210; Patrick, 12 Oct 2026)
+      setCt156Crew(mesh, 'lite'); // other ships draw the lighter pilots (5A); the one the camera sits in its full ones (setCockpitView)
       mesh.rotation.order = 'ZYX';
       gl.scene.add(mesh);
       entry = { mesh, paint: paintNow };

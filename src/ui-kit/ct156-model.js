@@ -1067,20 +1067,52 @@ function attachGear(kit) {
   }, (e) => warnUnlessReported(GEAR_FILE, e, "the code's gear shows"));
 }
 
-/** The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture (NO_PICTURE). */
+/** The pilots' file's parts by name, or null (logged) when a helmet is missing or has no normals or picture corners. */
+function pilotPartsOf(list) {
+  const byName = new Map(list.map((p) => [p.name, p]));
+  const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
+  const missing = PILOT_PARTS.filter((name) => !usable(byName.get(name)));
+  if (!missing.length) return byName;
+  console.warn(`${PILOTS_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code's pilots show`);
+  return null;
+}
+
+/**
+ * The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture
+ * (NO_PICTURE). At Performance the same file also fills the lighter pair other ships draw (setCt156Crew); at High that
+ * pair comes from the Performance file, loaded only once a ship asks for it (attachLitePilots).
+ */
 function attachPilots(kit) {
   const gen = ct156Generation();
+  const performance = ct156Level() === 'performance';
   loadDelivered(PILOTS_FILE).then((list) => {
     if (kit.disposed || gen !== ct156Generation()) return;
-    const byName = new Map(list.map((p) => [p.name, p]));
-    const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
-    const missing = PILOT_PARTS.filter((name) => !usable(byName.get(name)));
-    if (missing.length) {
-      console.warn(`${PILOTS_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code's pilots show`);
-      return;
-    }
+    const byName = pilotPartsOf(list);
+    if (!byName) return;
     for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
+    if (performance && !kit.liteLoaded) {
+      for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[`${name}Lite`], byName.get(name).meshes);
+      kit.liteLoaded = true;
+    }
   }, (e) => warnUnlessReported(PILOTS_FILE, e, "the code's pilots show"));
+  if (!performance) attachLitePilots(kit);
+}
+
+/** The lighter helmets (5A): the Performance pilots' file into the Lite pair, once, and only when a ship has asked for it. */
+function attachLitePilots(kit) {
+  if (!kit.liteWanted || kit.liteLoaded || kit.liteLoading || typeof window === 'undefined') return;
+  kit.liteLoading = true;
+  loadDelivered(PILOTS_FILE, { level: 'performance' }).then((list) => {
+    kit.liteLoading = false;
+    if (kit.disposed || kit.liteLoaded) return;
+    const byName = pilotPartsOf(list);
+    if (!byName) return;
+    for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[`${name}Lite`], byName.get(name).meshes);
+    kit.liteLoaded = true;
+  }, (e) => {
+    kit.liteLoading = false;
+    warnUnlessReported(PILOTS_FILE, e, "the code's pilots show on other ships");
+  });
 }
 
 /**
@@ -2603,6 +2635,8 @@ function buildKit(THREE) {
   // The two pilots apart, so the Cockpit view can leave out the one the camera sits in (setCockpitView), and the
   // ejection seats' headboxes behind them (the rear one lower, under the canopy's falling top).
   [geo.helmetFront, geo.helmetRear] = CT156_HELMET_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
+  // Other ships' lighter pair (5A, setCt156Crew): the code's own until the Performance pilots' file fills it in.
+  [geo.helmetFrontLite, geo.helmetRearLite] = CT156_HELMET_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
   geo.seats = joinGeometries(THREE, CT156_SEAT_X.map((x, i) => ({ geometry: headboxGeometry(THREE, i), materials: [0] })));
   // The exhaust stacks either side of the nose (photo), each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17:
   // a fore-and-aft reference from #2; TS-156).
@@ -2945,6 +2979,9 @@ function buildKit(THREE) {
   kit.lampMeshes = new Set();
   kit.lampShips = new Set();
   kit.lampDelivered = false;
+  kit.liteWanted = false; // some ship draws the lighter helmets (setCt156Crew)
+  kit.liteLoaded = false;
+  kit.liteLoading = false;
   if (typeof window !== 'undefined') {
     attachFiles(kit);
     // A level switch under ships already made: back to plain paint, the old level's copies and pictures freed, the new level's loaded.
@@ -3369,7 +3406,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const lamps = { kit, glow: gearLights, meshes: gear.lampMeshes, lit: false };
   kit.lampShips.add(lamps);
   showLamps(lamps);
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, spinner, tub, seat: null, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, spinner, tub, seat: null, crew: 'full', helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
   showCockpitShell(root.userData.ct156);
   return root;
 }
@@ -3524,6 +3561,33 @@ export function setCockpitView(root, { seat = null } = {}) {
   if (d.inside) d.inside.visible = inside;
   if (d.helmetFront) d.helmetFront.visible = seat !== 'front';
   if (d.helmetRear) d.helmetRear.visible = seat !== 'rear';
+  showCrew(d);
+}
+
+/**
+ * Which pilots a ship draws (5A; Patrick 15 Oct 2026, increment 5's "other ships' Performance helmets"): 'full' (the
+ * default) the Graphics level's own, 'lite' the Performance file's (about 7,000 triangles a ship in place of High's
+ * 47,000). A module marks the ships the viewer is not flying 'lite'; while the camera sits in one of a ship's seats
+ * (setCockpitView) that ship draws its full pilots whatever it is marked. Lighter helmets are loaded only once a ship asks.
+ * @param {any} root a ship from createCt156Model
+ * @param {'full' | 'lite'} crew
+ */
+export function setCt156Crew(root, crew) {
+  const d = root?.userData?.ct156;
+  if (!d) return;
+  d.crew = crew === 'lite' ? 'lite' : 'full';
+  if (d.crew === 'lite') {
+    d.kit.liteWanted = true;
+    if (ct156Level() !== 'performance') attachLitePilots(d.kit);
+  }
+  showCrew(d);
+}
+
+function showCrew(d) {
+  const { geo } = d.kit;
+  const lite = d.crew === 'lite' && !d.seat;
+  if (d.helmetFront) d.helmetFront.geometry = lite ? geo.helmetFrontLite : geo.helmetFront;
+  if (d.helmetRear) d.helmetRear.geometry = lite ? geo.helmetRearLite : geo.helmetRear;
 }
 
 /** Frees this ship's own materials and textures; the shared kit goes with the last ship. */

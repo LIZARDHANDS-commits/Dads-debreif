@@ -18,7 +18,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
-import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView, setCt156Crew } from '../../ui-kit/ct156-model.js';
 import { createCt102bModel } from '../../ui-kit/ct102b-model.js';
 import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
@@ -1359,7 +1359,11 @@ export function threeStats(kit) {
 function defaultModels() {
   const astraStandIn = (THREE, color, type) => () => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) });
   return {
-    ct156: (THREE, { color, number, paint }) => createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH }),
+    ct156: (THREE, { color, number, paint }) => {
+      const mesh = createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH });
+      setCt156Crew(mesh, 'lite'); // other ships draw the lighter pilots (5A); the one the camera sits in its full ones (setCockpitView)
+      return mesh;
+    },
     t6plain: (THREE, { color, paint }) => createLightHarvard(THREE, { color, paint }), // the shared light Harvard (TR-152)
     ct102b: (THREE, { color, type }) => createCt102bModel(THREE, { detail: 'high', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),
     ct102bLite: (THREE, { color, type }) => createCt102bModel(THREE, { detail: 'lite', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),

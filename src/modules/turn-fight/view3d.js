@@ -24,7 +24,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHud } from '../../ui-kit/hud.js';
-import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView, setCt156Crew } from '../../ui-kit/ct156-model.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
@@ -786,6 +786,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     for (const who of SHIPS) {
       if (gl.planes[who]) disposeCt156Model(gl.planes[who]);
       const mesh = createCt156Model(THREE, { color: COLORS[who], number: LETTERS[who], paint: paintNow, lengthFt: CT156_UNIT_LENGTH });
+      setCt156Crew(mesh, 'lite'); // other ships draw the lighter pilots (5A); the one the camera sits in its full ones (setCockpitView)
       gl.scene.add(mesh);
       gl.planes[who] = mesh;
     }
