@@ -71,6 +71,11 @@ Dad, 17 Oct 2026: "on the stadium flyover it would be nice for the user to hit n
 - [x] The tune in the browser (RS-25), the card's lead line and the time line marks (V2.506). The one test unchanged (the solvers fly every existing pass exactly as before).
 - [ ] Dad or Patrick checks O Canada's melody by ear (written from memory beyond its first line).
 
+## Step 8b. The live anthem press cuts track and sets the run-in speed (within Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "adjusts speed on run in and cuts track".
+- [x] Written down first: spec, RS-26 and RS-27, RS-R17 (17 Oct 2026).
+- [ ] The cut, the speed worked out, the pick, the card and the views (V2.507).
+
 ## Not in this plan
 
 Live weapons, real-world target data, threats, formation runs, the user flying by hand and winds aloft from the models (`future.md`). For air refuelling: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous.
