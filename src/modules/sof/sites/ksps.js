@@ -1,5 +1,5 @@
 // The Sheppard AFB site profile (plan Step 2c, part B): the SOF's own data for KSPS. The parts every US base shares, and their sources, are in us-base.js.
-// Weather standards: AFMAN 11-202V3 4.16 and 4.17.3 (part F, usaf-standards.js), NOAA MRMS radar and NASA GOES-East satellite (part C), no lightning picture, the WPC fronts, and (part E) FAA airspace, FAA NOTAMs (keyed) and aviationweather.gov SIGMETs, G-AIRMETs and PIREPs.
+// Weather standards: AFMAN 11-202V3 4.16 and 4.17.3 (part F, usaf-standards.js), NOAA MRMS radar and NASA GOES-East satellite (part C), NOAA NLDN lightning strikes (SOF-71), the WPC fronts, and (part E) FAA airspace, FAA NOTAMs (keyed) and aviationweather.gov SIGMETs, G-AIRMETs and PIREPs.
 import { AIRSPACE_LOADERS } from '../../../airfields/airspace/areas.js';
 import { usBase, towns } from './us-base.js';
 import { USAF_STANDARDS } from './usaf-standards.js';

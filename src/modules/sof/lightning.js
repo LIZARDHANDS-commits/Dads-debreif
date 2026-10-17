@@ -15,6 +15,9 @@
 // It is an estimate on a grid, not individual strikes, so the words say
 // "about". Distance is to the cell's centre, to 0.1 NM.
 //
+// The same check reads NOAA's lightning strikes (SOF-71, strikes-model.js): their 0.01° cells are passed as the samples, with
+// their own half-diagonal (`cellHalfDiagonalNm`) and their own stale limit (`staleKind: 'strikes'`); the rules are unchanged.
+//
 // The one rule that matters: data that can't be read, or is stale, never says
 // "no lightning". It says it can't tell, raises nothing, and leaves an episode
 // that is open as it was. (Keeping a caution that is already on the banner while the
@@ -48,7 +51,8 @@ export const LIGHTNING_DEFAULTS = Object.freeze({
 /** The most cells looked at. A real answer has a few hundred; more than this can't be called "clear". */
 export const MAX_CELLS = 50_000;
 
-const CELL_HALF_DIAGONAL_NM = 1; // half the diagonal of ECCC's 2.5 km cell: 1.77 km, 0.96 NM, rounded up
+/** Half the diagonal of ECCC's 2.5 km cell: 1.77 km, 0.96 NM, rounded up. The default for `cellHalfDiagonalNm`. */
+export const CELL_HALF_DIAGONAL_NM = 1;
 const EPISODE_MAX_GAP_MS = 30 * 60_000; // an episode not seen near for this long (or clearHoldMs, if longer) is over
 const NEAR_HOME_NM = 0.5; // under this the words say "at home" rather than a distance and a bearing
 const EPISODE_ID = /^\d{4}-\d\d-\d\dT\d\d:\d\dZ$/;
@@ -125,12 +129,12 @@ const NM_PER_DEG = (Math.PI / 180) * (EARTH_RADIUS_M / 1852); // as airfields/di
  * and the box must hold home plus the radius plus an edge cell. No box, a bad one, or no
  * cells read is "no".
  */
-function covers(coverage, home, radius) {
+function covers(coverage, home, radius, halfDiagonalNm) {
   const b = isObject(coverage) ? coverage.bounds : null;
   if (!isObject(b) || ![b.west, b.south, b.east, b.north].every(isNumber)) return false;
   if (!Number.isInteger(coverage.cellsRead) || coverage.cellsRead <= 0) return false;
   if (b.west >= b.east || b.south >= b.north || b.west < -180 || b.east > 180 || b.south < -90 || b.north > 90) return false;
-  const reach = radius + CELL_HALF_DIAGONAL_NM;
+  const reach = radius + halfDiagonalNm;
   const cosLat = Math.cos((home.lat * Math.PI) / 180);
   if (cosLat < 0.01) return false;
   const dLat = reach / NM_PER_DEG;
@@ -152,6 +156,9 @@ function covers(coverage, home, radius) {
  * - `radiusNm`: default 20, kept within 5 to 50.
  * - `layerTime`: the lightning layer's own time, a Date or ms (from ECCC's layer time,
  *   not when it was fetched). `now`: the clock. Stale after 40 min by feeds.js `feedAge`.
+ * - `staleKind`: feeds.js `feedAge`'s kind for that limit: 'lightning' (default, ECCC, 40 min) or 'strikes' (NOAA's newest minute file, 10 min).
+ * - `cellHalfDiagonalNm`: half the diagonal of one cell, NM: a cell whose centre is this far beyond the radius is partly inside, and the area read must reach
+ *   this far past it. Default CELL_HALF_DIAGONAL_NM (ECCC's 2.5 km cell); NOAA's 0.01° cells pass their own (strikes-model.js).
  * - `enabled`: default true (SOF-3); false says nothing and raises nothing.
  * - `hasSource`: default true. False when the base's site profile has no lightning source (sites/): then it can never say clear. `state` is 'unknown'
  *   with `noSource: true` and the words "Lightning: no source for this base, can't tell", whatever `samples` hold (an ECCC picture outside Canada is
@@ -163,13 +170,16 @@ function covers(coverage, home, radius) {
  * caution, episode }`. `state` is 'near', 'clear', 'unknown' (can't tell; `near` is null)
  * or 'off'. `nearestNm` and the bearing are of the nearest cell anywhere in the list, so a
  * clear answer can still say where the nearest lightning is; `cells` is how many are within
- * the radius, counting a cell whose centre is up to half its diagonal (1 NM) beyond it. `caution` is set only when `state` is 'near'. Never throws.
+ * the radius, counting a cell whose centre is up to half its diagonal (1 NM for ECCC's cell) beyond it. `caution` is set only when `state` is 'near'. Never throws.
  */
 export function lightningNearHome(args = {}) {
   const {
     samples, coverage, home = { icao: DEFAULT_HOME, ...CATALOG[DEFAULT_HOME] }, radiusNm, layerTime, now,
     enabled = LIGHTNING_DEFAULTS.enabled, episode, clearHoldMs = LIGHTNING_DEFAULTS.clearHoldMs, hasSource = true,
+    staleKind = 'lightning', cellHalfDiagonalNm = CELL_HALF_DIAGONAL_NM,
   } = isObject(args) ? args : {};
+  const halfDiagonal = isNumber(cellHalfDiagonalNm) && cellHalfDiagonalNm >= 0 && cellHalfDiagonalNm <= 5 ? cellHalfDiagonalNm : CELL_HALF_DIAGONAL_NM;
+  const kind = staleKind === 'strikes' ? 'strikes' : 'lightning';
   const radius = clampRadius(radiusNm);
   const base = { near: null, radiusNm: radius, nearestNm: null, bearingDeg: null, bearingWords: null, cells: 0, ageMin: null, caution: null };
   if (enabled === false) return { ...base, state: 'off', words: 'Lightning check is off', episode: null };
@@ -186,7 +196,7 @@ export function lightningNearHome(args = {}) {
   if (!validPlace(home)) return cannot('no position for the home field');
   if (!Array.isArray(samples)) return cannot('no lightning data');
 
-  const age = feedAge({ kind: 'lightning', layerTime, now: clock });
+  const age = feedAge({ kind, layerTime, now: clock });
   if (age.state === 'unknown') return cannot('no time for the lightning data');
   if (age.stale) return cannot(`lightning data is ${age.ageMin} min old`, age.ageMin);
 
@@ -200,8 +210,8 @@ export function lightningNearHome(args = {}) {
     readable++;
     if (s.value <= 0) continue;
     const nm = greatCircleNm(home, s);
-    // A cell is 2.5 km square: one whose centre is up to half its diagonal beyond the radius is partly inside.
-    if (nm - CELL_HALF_DIAGONAL_NM <= radius) cells++;
+    // A cell (ECCC's is 2.5 km square) whose centre is up to half its diagonal beyond the radius is partly inside.
+    if (nm - halfDiagonal <= radius) cells++;
     if (nearest === null || nm < nearest.nm) nearest = { nm, at: s };
   }
   const near = cells > 0;
@@ -210,7 +220,7 @@ export function lightningNearHome(args = {}) {
     if (scanned > 0 && readable === 0) return cannot('lightning data unreadable', age.ageMin);
     if (readable < scanned) return cannot('some lightning readings unreadable', age.ageMin);
     if (samples.length > MAX_CELLS) return cannot('too many lightning readings to check', age.ageMin);
-    if (!covers(coverage, home, radius)) return cannot('the area read does not cover home and the radius', age.ageMin);
+    if (!covers(coverage, home, radius, halfDiagonal)) return cannot('the area read does not cover home and the radius', age.ageMin);
   }
 
   const bearing = nearest ? bearingDeg(home, nearest.at) : null;
