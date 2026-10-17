@@ -51,10 +51,9 @@ export const LIVE_DEFAULTS = Object.freeze({
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
-  // #2 in Lead's fighting wing moves, 2-ship (B5, TS-233, spec 7e): 'law', today's live law (fw-live.js, TS-208), or 'live',
-  // the live wingman's fighting wing technique (wingman/fighting-wing.js). Today's law until Patrick has flown the new one
-  // (spec 7e.11, T28); the 4-ship always flies today's.
-  fwWing: /** @type {'law' | 'live'} */ ('law'),
+  // #2 in Lead's fighting wing moves, 2-ship (B5, TS-233, spec 7e): 'live', the live wingman's fighting wing technique
+  // (wingman/fighting-wing.js), or 'law', the earlier live law (fw-live.js, TS-208); the 4-ship always flies 'law'.
+  fwWing: /** @type {'law' | 'live'} */ ('live'),
   closeWing: /** @type {'held' | 'live'} */ ('live'), // #2 in close formation: live (the close-in wingman, TS-226; the default since Patrick 14 Oct 2026, "yes live default", TS-232) or held (the planned poses and the tracker); read at each press
 });
 

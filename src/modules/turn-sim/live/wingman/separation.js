@@ -25,11 +25,20 @@ const clamp01 = (x) => clamp(x ?? 0, 0, 1);
 export function leastPass(a, b, horizonSec = FG.lookSec, extra = null) {
   let [pa, va, pb, vb] = [a.p, a.v, b.p, b.v];
   const d0 = len3(sub3(pa, pb));
+  const dz0 = pb.z - pa.z;
+  const targetDz = b.targetDz;
   let least = d0;
   let prevD = d0;
   let tPassSec = 0;
   let horiz = Math.hypot(pa.x - pb.x, pa.y - pb.y);
-  let behind = -dot3(sub3(pb, pa), va) / Math.max(len3(va), 1e-9);
+  const behindAlong = (pLead, pWing, vLead) => {
+    const vhLen = Math.hypot(vLead.x, vLead.y);
+    if (vhLen > 1e-6) {
+      return -((pWing.x - pLead.x) * vLead.x + (pWing.y - pLead.y) * vLead.y) / vhLen;
+    }
+    return -dot3(sub3(pWing, pLead), vLead) / Math.max(len3(vLead), 1e-9);
+  };
+  let behind = behindAlong(pa, pb, va);
   const accLen = extra ? len3(extra.acc) : 0;
   const accDir = accLen > 1e-9 ? scale3(extra.acc, 1 / accLen) : null;
   const dt = FG.lookStepSec;
@@ -45,6 +54,13 @@ export function leastPass(a, b, horizonSec = FG.lookSec, extra = null) {
     pb = add3(pb, scale3(add3(vb, scale3(vb2, kb)), dt / 2));
     va = scale3(va2, ka);
     vb = scale3(vb2, kb);
+    if (targetDz != null && Math.abs(dz0 - targetDz) > 5) {
+      const dzNow = pb.z - pa.z;
+      if ((dz0 - targetDz) * (dzNow - targetDz) <= 0) {
+        pb = { x: pb.x, y: pb.y, z: pa.z + targetDz };
+        vb = { x: vb.x, y: vb.y, z: va.z };
+      }
+    }
     const pbH = accDir ? add3(pb, scale3(accDir, Math.min(extra.maxFt, 0.5 * accLen * t * t))) : pb;
     const d = len3(sub3(pa, pbH));
     if (!passedMin && d < least) {
@@ -56,7 +72,7 @@ export function leastPass(a, b, horizonSec = FG.lookSec, extra = null) {
     }
     prevD = d;
     if (!passedMin) {
-      behind = Math.min(behind, -dot3(sub3(pbH, pa), va) / Math.max(len3(va), 1e-9));
+      behind = Math.min(behind, behindAlong(pa, pbH, va));
     }
   }
   return { leastFt: least, tPassSec, horizFt: horiz, behindLeastFt: behind };
@@ -75,6 +91,7 @@ export function startFwGuard() {
     capOpenG: 0,
     sideChoice: 0,
     sideHoldSec: 0,
+    dOmBounded: 0,
   };
 }
 
@@ -98,10 +115,17 @@ function searchTurnBound(sit, hold1G, vertGBounded, predFor, nom, omegaCmd, targ
   }
   const insideK = Math.sign(dot3(seen.turn.omega, out)) || 0;
   const sidePenalty = lastSide && sideHoldSec > 0 ? 1.5 * omMax : omMax;
+  const intoTurn = Boolean(sit.job?.into);
+  const allowedInto = (c) => {
+    if (!intoTurn) return true;
+    // Never turn tighter into Lead's turn than omegaCmd when inside on an into-turn (R14)
+    if (insideK && (c.om - omegaCmd) * insideK > 1e-4) return false;
+    return true;
+  };
   const choose = (ok) => {
     let best = null;
     for (const c of cands) {
-      if (!ok(c)) continue;
+      if (!allowedInto(c) || !ok(c)) continue;
       const sideK = Math.sign(c.om - omegaCmd) || 1;
       const lagPenalty = turning && insideK && sideK === insideK ? 2 * omMax : 0;
       const cost = Math.abs(c.om - omegaCmd) + (lastSide && sideK !== lastSide ? sidePenalty : 0) + lagPenalty;
@@ -112,16 +136,18 @@ function searchTurnBound(sit, hold1G, vertGBounded, predFor, nom, omegaCmd, targ
     let hi = best.om - best.sideK * (omMax / N);
     for (let r = 0; r < FG.filterRefine; r++) {
       const mid = (lo + hi) / 2;
-      if (ok(predFor(mid, vertGBounded))) lo = mid;
+      const pMid = predFor(mid, vertGBounded);
+      if (allowedInto({ om: mid }) && ok(pMid)) lo = mid;
       else hi = mid;
     }
     return { om: lo, sideK: best.sideK };
   };
 
-  let pick = choose((c) => passOk(c) && lineOk(c));
+  const enforceLine = !intoTurn;
+  let pick = enforceLine ? choose((c) => passOk(c) && lineOk(c)) : null;
   let lineShort = false;
   if (!pick) {
-    lineShort = !cands.some(lineOk);
+    lineShort = enforceLine && !cands.some(lineOk);
     pick = passOk(nom) ? { om: omegaCmd, sideK: 0, free: true } : choose(passOk);
   }
   const cleared = Boolean(pick);
@@ -130,7 +156,9 @@ function searchTurnBound(sit, hold1G, vertGBounded, predFor, nom, omegaCmd, targ
       ? choose((c) => c.pass >= FG.hardFloorFt && (Math.sign(c.om - omegaCmd) || 1) !== insideK)
       : null;
   if (lagRescue) pick = lagRescue;
-  const om = pick ? pick.om : cands.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
+  const fallbackPool = cands.filter(allowedInto);
+  const pool = fallbackPool.length > 0 ? fallbackPool : cands;
+  const om = pick ? pick.om : pool.reduce((x, c) => (c.pass > x.pass ? c : x)).om;
   return { pick, om, lineShort, cleared };
 }
 
@@ -140,22 +168,32 @@ function searchTurnBound(sit, hold1G, vertGBounded, predFor, nom, omegaCmd, targ
  *    against dead-reckoned Lead (leadNow, leadV) with extrapolated bank turn rate (S03, S05) and 1.3x tighter inside 550 ft.
  *  - Completely silent at or above 600 ft when behind the wing line.
  *  - Inside 600 -> 500 ft: cubic barrier x = clip((600 - p)/100, 0, 1), urgency u_guard = x^3 (2 s decay, S36), graded bleed
- *    request S39, smooth cap opening S40 (550 -> 500 ft), least-change vertical escape bound S38 (below unless > 100 ft high,
+ *    request S39, smooth cap opening S40 (550 -> 500 ft), least-change vertical escape bound S38 (below unless > 0 ft high,
  *    D16), and least-change horizontal turn bound S37 with side choice S41 held >= 3 s.
  */
 export function stepFwGuard(prev, sit, raw) {
   const g0 = prev ?? startFwGuard();
   const { seen, st, turning, out, u, V, ownP, ownV, leadNow, leadV } = sit;
   const { omegaCmd, vertGCmd, vertErrFt = 0, hold1G } = raw;
-  const horizon = FG.lookSec;
+  // In wings-level flight inside the cone, or when stretched (> 680 ft) in an away turn, limit look-ahead so
+  // constant-rate extrapolation of a gentle crab or lead-pursuit catch-up from 980 ft does not trigger a false pass alarm.
+  const levelStableInCone =
+    !turning &&
+    seen.slant >= FG.minFt &&
+    seen.sweepDeg >= 20 &&
+    seen.slant - Math.max(0, seen.closure) * 2.5 >= FG.minFt;
+  const stretchedAway = turning && !sit.job?.into && seen.slant > 680;
+  const horizon = levelStableInCone ? 2.5 : stretchedAway ? 3.5 : FG.lookSec;
   const leadAsIs = { p: leadNow, v: leadV, omega: seen.turn.omega };
   const leadTighter = { p: leadNow, v: leadV, omega: scale3(seen.turn.omega, FG.tighter) };
-  const thenSec = sit.job?.into ? null : 2.5;
+  const thenSec = 2.5;
+  const vertSign = seen.heightFt > 0 ? 1 : -1;
 
   const predFor = (om, vg) => {
-    const me = { p: ownP, v: ownV, omega: scale3(out, om), thenSec };
-    const maxFt = Math.max(Math.abs(vertErrFt), Math.abs(vg) > 0.15 || Math.abs(vg - vertGCmd) > 1e-4 ? 250 : 0);
-    const extra = maxFt > 1e-3 ? { acc: scale3(out, vg * G_FTPS2), maxFt } : null;
+    const me = { p: ownP, v: ownV, omega: scale3(out, om), thenSec, targetDz: raw.dz ?? W.stackFt };
+    const vgAway = vg * vertSign > 0.05 ? vg : 0;
+    const maxFt = !levelStableInCone && vgAway !== 0 ? Math.max(Math.abs(vertErrFt), Math.abs(vgAway) > 0.12 || Math.abs(vg - vertGCmd) > 1e-4 ? 220 : 0) : 0;
+    const extra = maxFt > 1e-3 ? { acc: scale3(out, vgAway * G_FTPS2), maxFt } : null;
     const a = leastPass(leadAsIs, me, horizon, extra);
     if (a.leastFt >= FG.capOpenStartFt) {
       return { pass: a.leastFt, rawLeastFt: a.leastFt, tPassSec: a.tPassSec, horizFt: a.horizFt, behind: a.behindLeastFt };
@@ -172,7 +210,8 @@ export function stepFwGuard(prev, sit, raw) {
   };
 
   const nom = predFor(omegaCmd, vertGCmd);
-  const predFt = Math.min(nom.pass, seen.slant);
+  const rawPredFt = Math.min(nom.pass, seen.slant);
+  const predFt = levelStableInCone && nom.behind >= FG.wingLineFt ? Math.max(rawPredFt, FG.taperStartFt) : rawPredFt;
   const tPassSec = seen.slant < nom.pass ? 0 : nom.tPassSec;
 
   // Cubic barrier x in [0, 1] over 600 -> 500 ft
@@ -193,20 +232,23 @@ export function stepFwGuard(prev, sit, raw) {
   const capFrac = clamp01((FG.capOpenStartFt - predFt) / Math.max(FG.capOpenStartFt - FG.minFt, 1));
   const capOpenG = capFrac * (capMax - capNormal);
 
-  // Vertical escape bound S38 (D16): below by default unless already > 100 ft high (W.yoyo.highFt)
-  let vertGBounded = vertGCmd;
-  if (x > 0 && (seen.closure > 0 || predFt < FG.minFt)) {
-    const vertSign = seen.heightFt > W.yoyo.highFt ? 1 : -1;
-    const escapeG = vertSign * Math.min(W.vertMaxG, 1.0 * x3 + (predFt < FG.minFt ? 0.4 : 0));
-    vertGBounded = vertSign < 0 ? Math.min(vertGCmd, escapeG) : Math.max(vertGCmd, escapeG);
-  }
+  // Vertical escape bound S38 (D16): High (> 0 ft) pulls up and over (+1); Mid (-50 ft) & Low (-200 ft) unload under (-1),
+  // faded to 0 once |heightFt| >= 210 ft so guard never fights return-to-stack in a limit cycle.
+  const vertClearFade = clamp01((210 - Math.abs(seen.heightFt)) / 70);
+  const closeShare = predFt < FG.minFt ? 1 : clamp01(seen.closure / 15);
+  const intoBoost = sit.job?.into ? 0.45 * x : 0;
+  const wEsc = vertClearFade * clamp01((x * x + intoBoost) * closeShare);
+  const rawEscapeMag = vertClearFade * Math.min(W.vertMaxG, 1.0 * x3 + intoBoost + (predFt < FG.minFt ? 0.4 : 0));
+  const escapeG = vertSign > 0 ? rawEscapeMag : -Math.min(0.45, rawEscapeMag);
+  const targetVertG = vertSign < 0 ? Math.min(vertGCmd, escapeG) : Math.max(vertGCmd, escapeG);
+  const vertGBounded = vertGCmd + wEsc * (targetVertG - vertGCmd);
 
-  // Horizontal turn-rate bound S37 with side choice S41 held >= 3 s
+  // Horizontal turn-rate bound S37 with side choice S41 held >= 3 s and smooth turn-offset slew
   const nomWithVert = vertGBounded !== vertGCmd ? predFor(omegaCmd, vertGBounded) : nom;
-  const lineShortRaw = !lineOk(nomWithVert);
-  const needTurnBound = nomWithVert.pass < FG.minFt || lineShortRaw;
-  let omegaBounded = omegaCmd;
-  let filterOn = false;
+  const lineShortRaw = !sit.job?.into && !lineOk(nomWithVert);
+  const closeEnoughForTurnBound = seen.slant < 660 || (nomWithVert.tPassSec <= 2.5 && seen.closure > 15);
+  const needTurnBound = !levelStableInCone && !sit.job?.into && closeEnoughForTurnBound && (nomWithVert.pass < FG.minFt || lineShortRaw);
+  let wantDOm = 0;
   let lineShort = false;
   let cleared = true;
   let sideChoice = g0.sideChoice ?? 0;
@@ -218,14 +260,12 @@ export function stepFwGuard(prev, sit, raw) {
     lineShort = searched.lineShort;
     cleared = searched.cleared;
     if (!searched.pick?.free) {
-      // Blend toward searched turn rate by max(x^3, lineShortRaw ? 1 : 0), hard-bounded at <= 500 ft
       const blendTurn = predFt <= FG.minFt || lineShortRaw ? 1 : clamp01(x3 * 2);
-      omegaBounded = omegaCmd + blendTurn * (searched.om - omegaCmd);
-      filterOn = Math.abs(omegaBounded - omegaCmd) > 1e-4;
+      wantDOm = blendTurn * (searched.om - omegaCmd);
       if (searched.pick?.sideK && searched.pick.sideK !== sideChoice) {
         sideChoice = searched.pick.sideK;
         sideHoldSec = FG.sideHoldSec;
-      } else if (filterOn && sideChoice) {
+      } else if (Math.abs(wantDOm) > 1e-4 && sideChoice) {
         sideHoldSec = FG.sideHoldSec;
       }
     }
@@ -233,13 +273,21 @@ export function stepFwGuard(prev, sit, raw) {
     sideChoice = 0;
   }
 
+  // Slew the guard filter's turn-rate modification smoothly so it cannot snap bank back and forth across steps
+  const prevDOm = g0.dOmBounded ?? 0;
+  const maxDOmStep = (wantDOm !== 0 ? 0.35 : 0.25) * STEP_SEC;
+  const dOmBounded = prevDOm + clamp(wantDOm - prevDOm, -maxDOmStep, maxDOmStep);
+  const omegaBounded = omegaCmd + dOmBounded;
+  const filterOn = Math.abs(dOmBounded) > 1e-3;
+
   const sideVec = unit3(cross3(out, u));
   const aTurn = scale3(sideVec, omegaBounded * V);
   const aV = scale3(out, vertGBounded * G_FTPS2);
   const vertVec = scale3(perp3(aV, u), 1 / G_FTPS2);
   const hold = add3(hold1G, vertVec);
   const on = x > 0 || filterOn;
-  const filterPull = Math.hypot(1, (omegaBounded * V) / G_FTPS2) > seen.leadG + W.overLeadG;
+  const filterExtraFrac = filterOn ? clamp01(Math.abs(dOmBounded) / 0.08) : 0;
+  const effCapOpenG = Math.max(capOpenG, filterExtraFrac * (capMax - capNormal));
 
   return {
     on,
@@ -251,9 +299,10 @@ export function stepFwGuard(prev, sit, raw) {
     bleedReq,
     capOpenG,
     capNormal,
-    cap: capNormal + (filterPull ? capMax - capNormal : capOpenG),
+    cap: capNormal + effCapOpenG,
     omegaBounded,
     vertGBounded,
+    dOmBounded,
     aTurn,
     hold,
     vert: { dz: raw.dz, errFt: vertErrFt, aV, hold, hold1G, vertVec, vertG: vertGBounded },

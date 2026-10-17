@@ -194,14 +194,11 @@ function runArcLoop(w, seen, job, V, omegaL, now, cone, arc) {
   const dss = arc.onCircle ? seen.turn.radiusFt * (1 - V / vLead) : 0; // S28
   const cActual = (1 - wTurn) * arc.linClosing + wTurn * arc.closing;
 
-  // Case entry bias on circle offset (S3a, Spec 7e §7.7): stretched-away biases inside; tight-away biases outside
+  // Continuous entry range bias on circle offset (S3a, Spec 7e §7.7): stretched-away biases inside; tight-away biases outside
   const entryW = job.weights?.entry ?? 0;
-  const caseBiasFt =
-    job.caseLabel === 'stretched-away' || job.caseLabel === 'very-stretched-away'
-      ? 90 * entryW
-      : job.caseLabel === 'tight-away'
-        ? -80 * entryW
-        : 0;
+  const stretchAway = clamp01((seen.slant - W.stretchedFt) / 120);
+  const tightAway = clamp01((W.tightFt - seen.slant) / 60);
+  const caseBiasFt = !job.into ? (90 * stretchAway - 80 * tightAway) * entryW : 0;
 
   const dRawTurn = probeKind === 'aimLateral' ? w.offFt : dss + (cWant + W.arcKc * (cWant - cActual)) / omegaEff + caseBiasFt;
   const dRaw = wTurn * dRawTurn;
@@ -267,7 +264,8 @@ function buildNormalReference(w, seen, job, st, V, u, plane, now, cone, arc, arc
   const yTargetFt = job.sideBlend * outFt + job.side * probeAt(w, 'aimLateral');
   const yNowFt = dot3(sub3(st.pm, now.leadNow), cone.left);
   const eLeftFt = yTargetFt - yNowFt;
-  const betaDeg = W.chiMaxOutDeg * Math.tanh((W.keDegPerFt * eLeftFt) / W.chiMaxOutDeg);
+  const maxLineBetaDeg = !w.probe && !job.turning ? 10 : W.chiMaxOutDeg;
+  const betaDeg = maxLineBetaDeg * Math.tanh((W.keDegPerFt * eLeftFt) / maxLineBetaDeg);
   const betaRad = betaDeg * DEG;
   const uWantLine = unit3(flat(add3(scale3(cone.nose, Math.cos(betaRad)), scale3(cone.left, Math.sin(betaRad)))));
 
@@ -297,33 +295,41 @@ function buildNormalReference(w, seen, job, st, V, u, plane, now, cone, arc, arc
         ? W.chiMaxOutDeg * Math.tanh((W.keDegPerFt * eOutFt) / W.chiMaxOutDeg)
         : -W.chiMaxInDeg * Math.tanh((W.keDegPerFt * -eOutFt) / W.chiMaxInDeg);
 
-    // Entry case shaping (S3a, Spec 7e §7.7)
+    // Continuous entry shaping (S3a, Spec 7e §7.7) without discrete bucket step jumps
     const entryW = job.weights?.entry ?? 0;
     if (entryW > 0) {
-      if (job.caseLabel === 'stretched-into' || job.caseLabel === 'very-stretched-into') {
-        alphaDeg = clamp(alphaDeg + 6 * entryW, -W.chiMaxInDeg, W.chiMaxOutDeg);
-      } else if (job.caseLabel === 'tight-away') {
-        alphaDeg = clamp(alphaDeg - 8 * entryW, -W.chiMaxInDeg, W.chiMaxOutDeg);
+      if (job.into) {
+        const stretchInto = clamp01((seen.slant - W.stretchedFt) / 150);
+        alphaDeg = clamp(alphaDeg + 6 * stretchInto * entryW, -W.chiMaxInDeg, W.chiMaxOutDeg);
+      } else {
+        const tightAway = clamp01((W.tightFt - seen.slant) / 60);
+        alphaDeg = clamp(alphaDeg - 8 * tightAway * entryW, -W.chiMaxInDeg, W.chiMaxOutDeg);
       }
     }
     const alphaRad = alphaDeg * DEG;
     uWantCircle = unit3(flat(add3(scale3(tCircle, Math.cos(alphaRad)), scale3(radialIn, Math.sin(alphaRad)))));
 
     // Path curvature feed-forward ω_FF: relax when inside circle on an into-turn ("fly straight ahead until on the circle")
-    const insideRelax = job.into && eOutFt < 0 ? clamp01(1 + eOutFt / 180) : 1;
+    const insideRelax = job.into && eOutFt < 0 ? clamp01(1 + eOutFt / 260) : 1;
     omegaCircleRadps = turnDir * ((V * Math.cos(alphaRad)) / Math.max(rNow, 250)) * insideRelax;
   }
 
   const uWant = unit3(add3(scale3(uWantLine, 1 - wTurn), scale3(uWantCircle, wTurn)));
-  const chiWantedDeg = Math.atan2(dot3(cross3(nLIn, uWant), plane.out), dot3(nLIn, uWant)) / DEG; // S27a
+  const rawChiWantedDeg = Math.atan2(dot3(cross3(nLIn, uWant), plane.out), dot3(nLIn, uWant)) / DEG;
+  const turnDirNow = Math.sign(dot3(plane.omegaL, plane.out)) || job.dir || 1;
+  const noCounterBankUnder = job.into && seen.heightFt <= 0 && eCircleFt < 0 && wrapDeg(rawChiWantedDeg - chiOwnDeg) * turnDirNow < 0;
+  const chiWantedDeg = noCounterBankUnder ? chiOwnDeg : rawChiWantedDeg; // S27a
   const omegaFfRadps = wTurn * omegaCircleRadps; // S27b
   const aimKind = !job.turning ? (job.sTurn ? 'sTurn' : 'swept') : aimOffFt > 75 ? 'lead' : aimOffFt < -75 ? 'lag' : 'pure';
 
   // Continuous drop-low-inside height term (D24, Spec 7e §7.8): 20 ft/kt past 5 kt slow inside a turn, capped at -300 ft,
-  // blended over 4.3 s (heightBlendSec) going down and 15 s (stackReturnSec) returning to stack.
+  // plus stretched turn-away energy trade (bringing lift vector down when stretched > 820 ft in an away turn to build speed/lead).
   const deficitKt = Math.max(0, seen.leadKias - st.kias);
   const insideShare = arc.onCircle ? clamp01((arc.dContFt + 75) / 100) : 1;
-  const rawDropLowFt = wTurn * insideShare * Math.min(W.lowFt, W.lowFtPerKt * Math.max(0, deficitKt - W.lowStartKt));
+  const speedDropFt = insideShare * Math.min(W.lowFt, W.lowFtPerKt * Math.max(0, deficitKt - W.lowStartKt));
+  const stretchAwayShare = !job.into && seen.slant > 820 ? clamp01((seen.slant - 820) / 160) : 0;
+  const stretchDropFt = stretchAwayShare * 60;
+  const rawDropLowFt = wTurn * Math.max(speedDropFt, stretchDropFt);
   const prevDropLowFt = w.dropLowFt ?? 0;
   const dropBlendSec = rawDropLowFt > prevDropLowFt ? W.picker.heightBlendSec : W.stackReturnSec;
   const dropLowFt = prevDropLowFt + (rawDropLowFt - prevDropLowFt) * Math.min(1, STEP_SEC / Math.max(dropBlendSec, 1e-6));
@@ -382,7 +388,13 @@ function steerFromRef(w, ref, chiOwnDeg, V, u, plane) {
   const chiErrDeg = wrapDeg(ref.chiWantedDeg - chiOwnDeg); // S30
   const omegaP = W.kChiPerSec * (chiErrDeg * DEG);
   const omegaFf = ref.omegaFfRadps;
-  const omegaCmd = omegaFf + omegaP; // S31 (rad/s, + turning left in plane)
+  let omegaCmd = omegaFf + omegaP; // S31 (rad/s, + turning left in plane)
+  // When Lead is wings-level (ref.pathKind === 'line', omegaFf === 0) and not running a probe, cap lateral drift bank
+  // to ~12° (0.20 G) so #2 glides smoothly within the cone during straight climbs/descents without steep banking.
+  if (!w.probe && ref.pathKind === 'line' && Math.abs(omegaFf) < 1e-4) {
+    const maxLevelOm = (0.20 * G_FTPS2) / Math.max(V, 100);
+    omegaCmd = clamp(omegaCmd, -maxLevelOm, maxLevelOm);
+  }
   const side = unit3(cross3(plane.out, u));
   const aTurn0 = scale3(side, omegaCmd * V);
   const terms = {
@@ -399,7 +411,9 @@ function steerFromRef(w, ref, chiOwnDeg, V, u, plane) {
 
 /**
  * B10 Vertical Loop (Spec 7e §7.7; Fable D1; writes S32 ΔG_v):
- *  - ΔG_v = 0.005 * (h_T - h) + 0.02 * (ḣ_T - ḣ), clipped to ±vertMaxG (±1 G).
+ *  - ΔG_v = 0.005 * (h_T - h) + 0.02 * (ḣ_T - ḣ), clipped to ±vertMaxG (±1 G), with downward demand bounded at -0.45 G
+ *    in normal flying so hold = hold1G + vertVec always retains >= +0.55 G upward lift (unloading upright rather than
+ *    flipping to 90° knife-edge to satisfy minG = 0.5 G).
  *  - Acting on (ḣ_T - ḣ) instead of -ḣ ensures the rate term helps planned descents (T1: pass-clear) instead of fighting them.
  */
 function verticalFromRef(w, ref, now, st, u, out) {
@@ -408,18 +422,20 @@ function verticalFromRef(w, ref, now, st, u, out) {
   const errFt = dot3(sub3(add3(now.leadNow, scale3(Z, dz)), st.pm), out);
   const hDot = dot3(sub3(st.vel, now.leadV), out);
   const errRate = hRateTarget - hDot;
-  const rawVertG = W.vertGPerFt * errFt + W.vertGPerFtps * errRate;
-  const vertG = clamp(rawVertG, -W.vertMaxG, W.vertMaxG); // S32
+  const effErrFt = !w.probe ? clamp(errFt, -65, 65) : errFt;
+  const rawVertG = W.vertGPerFt * effErrFt + W.vertGPerFtps * errRate;
+  const minVertG = w.probe ? -W.vertMaxG : -0.45;
+  const vertG = clamp(rawVertG, minVertG, W.vertMaxG); // S32
   const aV = scale3(out, vertG * G_FTPS2);
   const hold1G = perp3(Z, u);
   const vertVec = scale3(perp3(aV, u), 1 / G_FTPS2);
   const hold = add3(hold1G, vertVec);
   const terms = {
     errRate,
-    pG: W.vertGPerFt * errFt,
+    pG: W.vertGPerFt * effErrFt,
     dG: W.vertGPerFtps * errRate,
     vertG,
-    limit: Math.abs(rawVertG) > W.vertMaxG,
+    limit: rawVertG > W.vertMaxG || rawVertG < minVertG,
   };
   return { dz, errFt, aV, hold, hold1G, vertVec, vertG, terms };
 }
@@ -460,8 +476,8 @@ export function liftWithin(aTurn, hold, cap, bodyUp, vert = null) {
       capGaveWay = 'climb';
     } else {
       const holdRem = vertG > 0 ? hold1G : hold;
-      const deepBelow = (vert?.errFt ?? 0) > 80;
-      const minHoldShare = deepBelow ? 1.0 : 0.8;
+      const belowShare = clamp01(((vert?.errFt ?? 0) - 50) / 80);
+      const minHoldShare = 0.8 + 0.2 * belowShare;
       const holdFloor = scale3(holdRem, minHoldShare);
       const holdFlex = scale3(holdRem, 1 - minHoldShare);
       const fixedTurnPlusFloor = add3(turn, holdFloor);

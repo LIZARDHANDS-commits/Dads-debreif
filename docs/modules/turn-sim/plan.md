@@ -610,10 +610,10 @@ Every slice card below runs these 9 steps in order (`CA8` / `TS-234`). **Interme
             - **Who:** Read-only review agent, Opus high; budget ~1 h.
             - **Done:** Review findings resolved before `T31`.
 
-          - **`T31` B5's one test, docs & Checkpoint G · `test built; 4-ship Lead replay and Checkpoint G open`**
+          - **`T31` B5's one test, docs & Checkpoint G · `test & 12-spot tuning built; 4-ship Lead replay and Checkpoint G open`**
             - **Goal:** Add B5's single end-picture unit test, complete all B5 documentation and decision ratifications, and run **Checkpoint G** with Patrick flying Fighting Wing Live (and deciding whether `Live` becomes the default over `Old`).
             - **Before:** `CR`. **After:** B5 complete; next rung is `B4` (rejoins `TRJ` and `SARJ` from fighting wing modeled under `TS-234`).
-            - **Builds:** One test in `tests/unit/turn-sim/` (2-ship level turn into `#2` from in-position with `Live`: never inside `500 ft` slant with the reason beside it, in the cone at the end); Lead replay comparison against the recorded 2 Jun 2026 four-ship track (`plan.md:356`); final updates to `spec.md` §7e status, `decisions.md` (`TS-233` built & flown), `numbers.md`, `README.md`, waiting list, and handover.
+            - **Builds:** One test in `tests/unit/turn-sim/` (2-ship level turn into `#2` from in-position with `Live`: never inside `500 ft` slant with the reason beside it, in the cone at the end); 17 Oct 3-stage control-systems tuning across all 12 right-cone spots × 4 manoeuvres (`fwWing: 'live'` made default in `formation.js`, `0–1` bank reversals on climbs/descents, continuous entry case ramps, `leastPass` stack-target bound, and shared `±100 ft` margin in `formation-moves.test.js`); Lead replay comparison against the recorded 2 Jun 2026 four-ship track (`plan.md:356`); final updates to `spec.md` §7e status, `decisions.md` (`TS-233` built & flown), `numbers.md`, `README.md`, waiting list, and handover.
             - **Who:** Thread + Patrick flying **Checkpoint G**; size **S**.
             - **Done:** Patrick flies Fighting Wing at Checkpoint G, ratifies the final numbers, and signs off B5.
   - [ ] **B6 The errors and scripted events** (Fix it, lag roll and the rest) on the new law. Red tests fixed here: Fix it after a 1,200 ft hook leaves #2 155 ft out; the card's words.

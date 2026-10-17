@@ -32,7 +32,7 @@ export const FW_CUT_ACROSS_TECHNIQUE = Object.freeze({
     const heightTargetFt = Math.min(normalHeight, C.diveFt);
     return {
       chiMaxInDeg: C.chiMaxInDeg,
-      dFt: C.leadOffsetFt,
+      dFt: Math.abs(C.leadOffsetFt),
       heightTargetFt,
       energyIntent: C.energyIntent,
       urgency: C.urgency,
@@ -44,14 +44,16 @@ export const FW_CUT_ACROSS_TECHNIQUE = Object.freeze({
   step(ctx, state) {
     const C = FW_WING.cutAcross;
     const turnDir = ctx.phase?.dir || Math.sign(ctx.seen.leadBankDeg) || ctx.seen.levelSide || -1;
-    const extraInDeg = Math.max(0, C.chiMaxInDeg - FW_WING.chiMaxOutDeg);
-    const inwardBiasDeg = turnDir * extraInDeg * clamp01((ctx.seen.slant - C.targetArcFt) / 300);
+    const dContFt = ctx.arc?.dContFt ?? 0;
+    const needInsideShare = clamp01((state.dFt - dContFt) / 200);
+    const extraInDeg = Math.max(0, C.chiMaxInDeg - FW_WING.chiMaxOutDeg) * 0.5;
+    const inwardBiasDeg = turnDir * extraInDeg * needInsideShare * clamp01((ctx.seen.slant - C.targetArcFt) / 300);
 
     const normalRef = ctx.normalRef;
     const chiWantedDeg = normalRef.chiWantedDeg + inwardBiasDeg;
 
     const hErr = state.heightTargetFt - ctx.seen.heightFt;
-    const rateMag = Math.min(40, Math.sqrt(2 * 32.174 * 0.5 * Math.abs(hErr)) * 0.65);
+    const rateMag = Math.min(25, Math.sqrt(2 * 32.174 * 0.35 * Math.abs(hErr)) * 0.65);
     const heightRateTargetFtps = Math.abs(hErr) > 5 ? Math.sign(hErr) * rateMag : 0;
 
     const abort = !ctx.phase?.turning || ctx.seen.sweepDeg < 15;
@@ -61,7 +63,7 @@ export const FW_CUT_ACROSS_TECHNIQUE = Object.freeze({
       ...normalRef,
       pathKind: 'circle',
       chiMaxInDeg: C.chiMaxInDeg,
-      dFt: C.leadOffsetFt,
+      dFt: state.dFt,
       chiWantedDeg,
       heightTargetFt: state.heightTargetFt,
       heightRateTargetFtps,
