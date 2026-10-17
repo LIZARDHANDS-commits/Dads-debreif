@@ -168,9 +168,8 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
 
   // The lights: the shared sky-and-sun pair, a cool fill from the other side and a rim from behind, so no angle goes flat.
   const { sun } = addLights(THREE, scene);
-  // The sun's shadow (High only; this view is let through aircraft-shadows.js's global switch). The shadow map stays on for the
-  // whole High level and the pose and view only switch the plane and the map's updating: turning the map on and off would
-  // rebuild every shader.
+  // The sun's shadow (High only; this view is let through aircraft-shadows.js's global switch). The shadow map is on only while
+  // the shadow shows (applyGround): each switch rebuilds the shaders once, on a click.
   const shadows = createAircraftShadows(THREE, renderer, sun, { mapSize: SHADOW_MAP_SIZE, enabled: false, allowed: true });
   renderer.info.autoReset = false; // the mirror draws the scene a second time inside a frame: counts are reset once per picture (draw)
   const fill = new THREE.DirectionalLight('#a9c4ff', 0.9);
@@ -208,7 +207,6 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
   let studio = null; // the room's reflections (a PMREM target), when loaded
   let reflector = null; // the floor mirror, High only, when three's Reflector has loaded
   let ReflectorClass = null;
-  let lastSweep = -Infinity;
   let dragging = null;
   const now = () => globalThis.performance?.now() ?? Date.now();
   const touch = (settle = false) => {
@@ -242,16 +240,26 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     floor.visible = disc.visible = onGround;
     shadowPlane.visible = rich;
     if (reflector) reflector.visible = rich;
-    const map = renderer.shadowMap;
-    if (rich && !map.autoUpdate) map.needsUpdate = true; // the shadow is drawn once as it comes on, then every picture while on
-    map.autoUpdate = rich;
+    // The shadow map is on only while its shadow shows (High, on the ground, outside): kept on through the seats, the
+    // cockpit's materials, built with it on and no fresh map, came out near white. Switching rebuilds the materials once,
+    // on a click.
+    shadows.setEnabled(rich);
+    if (rich) shadows.follow(new THREE.Vector3(SHADOW_CENTRE_FT.x, SHADOW_CENTRE_FT.y, SHADOW_CENTRE_FT.z), SHADOW_RADIUS_FT);
+  }
+
+  /**
+   * The studio lights the model from outside only: from a seat the cockpit keeps the code sky, as in every other module (the
+   * room also lights the surfaces, and from inside it washed the whole cockpit near white).
+   */
+  function applySky() {
+    const on = Boolean(studio) && view === 'outside';
+    scene.userData.ct156Sky = on ? studio.texture : undefined;
+    scene.userData.ct156SkyIntensity = on ? STUDIO_SKY_INTENSITY : undefined;
   }
 
   /** Puts the level's extras in place: the shadow map and the lighter disc at High; at Performance neither, nor a mirror. */
   function applyLevel() {
     const high = level === 'high';
-    shadows.setEnabled(high);
-    if (high) shadows.follow(new THREE.Vector3(SHADOW_CENTRE_FT.x, SHADOW_CENTRE_FT.y, SHADOW_CENTRE_FT.z), SHADOW_RADIUS_FT);
     disc.material.opacity = high ? DISC_OPACITY_HIGH : 1;
     if (high && ReflectorClass && !reflector) makeMirror();
     if (!high && reflector) dropMirror();
@@ -333,8 +341,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     generator.dispose();
     room.dispose();
     studio.texture.userData.ct156Env = true; // so another module's model kept from here goes back to its own sky (ct156-look.js)
-    scene.userData.ct156Sky = studio.texture;
-    scene.userData.ct156SkyIntensity = STUDIO_SKY_INTENSITY;
+    applySky();
     touch(true);
   }, (err) => console.warn('The studio reflections could not be loaded; the code sky lights the model:', err));
   import('three/addons/objects/Reflector.js').then(({ Reflector }) => {
@@ -410,10 +417,10 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     }
     lastDraw = now();
     dirty = false;
-    if (lastDraw < settleUntil && lastDraw - lastSweep > 500) { // parts arriving: the new ones take no self-shadow either
-      lastSweep = lastDraw;
-      noSelfShadow();
-    }
+    // Every picture while the shadow map is on: parts that arrive later (the cockpit's files load after a seat opens, and set
+    // their own receiveShadow) take no shadow either; drawn with a stale map from a seat they came out near white. A flag
+    // flip is a uniform, not a new shader.
+    if (renderer.shadowMap.enabled) noSelfShadow();
     renderer.info.reset(); // one picture's draw calls and triangles, the mirror's included
     if (view !== 'outside') cockpit.update(hud());
     aim(w, h);
@@ -495,6 +502,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
       look.pitchDeg = SEAT_LOOK_START.pitchDeg;
       applyPose(); // setCockpitView hides the prop from a seat; this puts the pose's own prop and gear state back
       noSelfShadow(); // the seat's parts were added just now
+      applySky();
       touch(true);
       onChange();
     },
