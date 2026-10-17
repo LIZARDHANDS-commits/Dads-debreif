@@ -30,6 +30,8 @@ export const GENERIC = Object.freeze({
     notams: null,
     alerts: null,
     fronts: null,
+    radarHeights: null, // no MRMS radar heights where the base is unknown (SOF-67): "Radar heights: no source for this base, can't tell"
+    strikes: null, // no NOAA lightning strikes where the base is unknown (SOF-71): with no lightning picture either, "Lightning: no source for this base, can't tell"
   }),
   lightningLink: null, // no outside lightning link (the US bases have one, us-base.js)
   credits: Object.freeze({ confirm: null, model: null, pictures: null, mapFeeds: null }),

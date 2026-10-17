@@ -1,12 +1,15 @@
 // The two loops on the SOF map that are not pictures for the view (SPEC-sof, "Map"):
 // the near-home lightning reading, and the live-traffic layer through our own relay.
 // No page: `fetch`, the clock, the timers (a scheduler scope) and the picture reader come in.
+// The near-home reading has two sources (SOF-71): ECCC's lightning picture (Moose Jaw) and NOAA's lightning strikes (strikes-feed.js, run by map.js
+// for the map and the 3D view too): NOAA's alone at a US base, and NOAA's as the labelled backup at a Canadian home when ECCC can't tell.
 import { LAYERS, getMapUrl, REFRESH_MS } from './feeds.js';
 import { createImageFeed, feedLine } from './map-feeds.js';
 import { guardedFetch, bytesToText, FETCH_LIMITS } from './map-fetch.js';
 import { lightningBox, decodeDensity } from './map-lightning.js';
 import { lightningNearHome, clampRadius } from './lightning.js';
 import { STALE_MS, feedAge } from './feeds.js';
+import { strikesNearHome } from './strikes-model.js';
 import { MINUTE_MS } from '../../wx/dates.js';
 import {
   initialTraffic, setTrafficOn, trafficDue, trafficRequested, trafficSucceeded, trafficFailed, trafficView,
@@ -39,8 +42,11 @@ const episodeSig = (e) => (e ? `${e.id}|${e.lastNearAt}|${e.place}` : '');
  * read every 10 minutes whether or not the lightning layer is showing.
  *
  * - home(): { icao, lat, lon }. radiusNm(): the setting. enabled: SOF-3's switch (default on).
- * - hasSource(): false when the home base's site profile has no lightning source (sites/). Then nothing is asked for, the answer is lightning.js's
- *   'unknown' with `noSource` ("Lightning: no source for this base, can't tell"), and no caution is raised: it can never say clear. Default: always true.
+ * - hasSource(): false when the home base's site profile has no ECCC lightning picture (sites/). Then that picture is not asked for. Default: always true.
+ * - strikes: NOAA's lightning strikes feed (strikes-feed.js: `held()`), or null; strikesRole(): the profile's `sources.strikes.role` (SOF-71): 'primary' (a US
+ *   base: the strikes are the near-home source), 'backup' (a Canadian home: used only when ECCC's reading can't tell, its words then end "(NOAA backup)"), or null.
+ *   With neither source the answer is lightning.js's 'unknown' with `noSource` ("Lightning: no source for this base, can't tell"), and no caution is raised: it can
+ *   never say clear. The answer carries `source`: 'eccc' or 'noaa', whichever answered.
  * - readPixels(bytes): the picture as { data, width, height } (a canvas's getImageData), a promise.
  * - fetch, timers, now, onChange as createImageFeed.
  * - store: the module's storage ({ get, set }), optional. The lightning episode (when it began, when lightning was last seen near,
@@ -62,7 +68,7 @@ const episodeSig = (e) => (e ? `${e.id}|${e.lastNearAt}|${e.place}` : '');
  * episode gap (lightning.js) is a new caution that re-raises whatever was acknowledged before.
  * Returns { start, setPlace, refresh, wake, stop, result, line, state }.
  */
-export function createLightningWatch({ home, radiusNm, enabled = true, hasSource = () => true, readPixels, fetch, timers, now = () => new Date(), store = null, onChange = () => {} }) {
+export function createLightningWatch({ home, radiusNm, enabled = true, hasSource = () => true, strikes = null, strikesRole = () => null, readPixels, fetch, timers, now = () => new Date(), store = null, onChange = () => {} }) {
   let box = null;
   let episode = loadEpisode(store); // { id, lastNearAt, place } from before a reload, or null; checked against the place at the first answer
   let saved = episodeSig(episode);
@@ -110,18 +116,39 @@ export function createLightningWatch({ home, radiusNm, enabled = true, hasSource
       gaveReading = false; // ... and nothing is known for the smaller radius, so the plain can't-tell line comes at once
     }
     if (lastNear === null) lastNearRadius = null;
-    const data = s.failures === 0 && s.image ? s.image : null; // a failed try is "no data", never "clear"
-    const found = lightningNearHome({
-      samples: data ? data.samples : null,
-      coverage: data ? data.coverage : undefined,
-      home: h,
-      radiusNm: radius,
-      layerTime: s.layerTime ?? undefined,
-      now: at,
-      enabled,
-      episode,
-      hasSource: hasSource(),
-    });
+    const eccc = hasSource();
+    const role = strikes ? strikesRole() : null;
+    const noaaFirst = !eccc && role != null; // a US base: NOAA's strikes are the source
+    const held = role != null ? strikes.held() : null;
+    const fromStrikes = () => strikesNearHome({ held, home: h, radiusNm: radius, now: at, enabled, episode });
+    let found;
+    if (noaaFirst) found = fromStrikes();
+    else {
+      const data = s.failures === 0 && s.image ? s.image : null; // a failed try is "no data", never "clear"
+      found = {
+        ...lightningNearHome({
+          samples: data ? data.samples : null,
+          coverage: data ? data.coverage : undefined,
+          home: h,
+          radiusNm: radius,
+          layerTime: s.layerTime ?? undefined,
+          now: at,
+          enabled,
+          episode,
+          hasSource: eccc,
+        }),
+        source: 'eccc',
+      };
+      if (eccc && role === 'backup' && found.state === 'unknown') {
+        // ECCC can't tell (failed, old, still loading): NOAA's answer, when it has one, said as the backup. The episode carries on, so the caution keeps its key.
+        const backup = fromStrikes();
+        if (backup.state === 'near' || backup.state === 'clear') {
+          const words = `${backup.words} (NOAA backup)`;
+          const caution = backup.caution ? { ...backup.caution, reason: words, text: `Caution: ${backup.caution.icao} lightning: ${words.slice('Lightning '.length)}` } : null;
+          found = { ...backup, words, caution, backup: true };
+        }
+      }
+    }
     episode = found.episode ? { ...found.episode, place } : null; // lightning.js's own two fields, and where they were seen
     const sig = episodeSig(episode);
     if (store && sig !== saved) {
@@ -171,11 +198,15 @@ export function createLightningWatch({ home, radiusNm, enabled = true, hasSource
       const words = `Lightning within ${found.radiusNm} NM (can't tell now, last seen ${seenMin} min ago)`;
       return { ...found, caution: { ...lastNear, reason: words, text: `Caution: ${icao} lightning: ${words.slice('Lightning '.length)}`, stale: true } };
     }
-    const tried = s.failures > 0 || Boolean(s.image);
+    // The source the outage rules read: NOAA's strikes at a US base (its 10-minute stale limit), else ECCC's picture (40 minutes), as before.
+    // NOAA's first read comes a file at a time: until a whole round has finished it is still loading (no line), as ECCC's picture before it arrives.
+    const tried = noaaFirst ? (held?.rounds ?? 0) > 0 : s.failures > 0 || Boolean(s.image);
+    const staleKind = noaaFirst ? 'strikes' : 'lightning';
     // With no good reading yet, any failed or old picture. After one, only a picture past the stale limit or a last good reading
     // that old: a short blip stays on the strip.
-    const pictureStale = s.image && s.layerTime ? feedAge({ kind: 'lightning', layerTime: s.layerTime, now: at }).stale : false;
-    const longSinceGood = lastGoodAt !== null && +at - lastGoodAt > STALE_MS.lightning;
+    const layerTime = noaaFirst ? held?.newest ?? null : s.image ? s.layerTime : null;
+    const pictureStale = layerTime ? feedAge({ kind: staleKind, layerTime, now: at }).stale : false;
+    const longSinceGood = lastGoodAt !== null && +at - lastGoodAt > STALE_MS[staleKind];
     if (tried && (!gaveReading || pictureStale || longSinceGood)) {
       outageSince ??= +at;
       return {
