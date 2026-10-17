@@ -1,6 +1,6 @@
-# Air refuelling in the Run-in Simulator: plan (proposed, waiting on Patrick's yes)
+# Air refuelling in the Run-in Simulator: plan (proposed; Steps 1 to 3 built ahead of Patrick's yes)
 
-Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). Until Patrick says yes this stays on `future.md`; nothing is built.
+Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). **Steps 1 to 3 are built ahead of Patrick's yes: Dad chose "Build anyway" (17 Oct 2026) after being told this plan waits on Patrick** (V2.503; spec "Air refuelling", RS-15 to RS-18, RS-R10 to RS-R13, plan.md Step 7). Everything built waits on Patrick's yes; Step 4 stays on `future.md`.
 
 ## What it would show
 
@@ -15,15 +15,15 @@ A tanker flying an air-refuelling anchor (a racetrack, the holding pattern RS-11
 
 ## Numbers (every one an estimate until a manual page or Patrick gives it)
 
-Refuelling height and speed, the anchor's leg length and bank, the point-parallel's offset and turn range, the trail, the pre-contact position and the closure limits. ATP-56 (the NATO air-to-air refuelling publication) would be the reference to look for; nothing is read yet.
+Refuelling height and speed, the anchor's leg length and bank, the point-parallel's offset and turn range, the trail, the pre-contact position and the closure limits. ATP-56 (the NATO air-to-air refuelling publication) would be the reference to look for; nothing is read yet. The numbers built in, each an estimate, are in the spec's "Defaults for this run" table: 10,000 ft MSL, 200 KIAS, 25° bank, 20 NM legs, left turns, +3:00 rendezvous, 1,000 ft below, 1 NM trail, 20 kt overtake, braking 0.3 kt/s, the nose 15 ft behind the left basket; references 30 kt closure, 5 kt inside 200 ft. The offset (two turn radii), the turn range and moment, and the receiver's speed and start are worked out.
 
-## Steps (after Patrick's yes)
+## Steps
 
-1. Spec, decisions and a screen picture.
-2. The tanker model (KC-130J from the C-130J model, drogues) and its anchor.
-3. The point-parallel rendezvous and the join to pre-contact, worked out to hit (as RS-9).
-4. The en-route rendezvous.
-5. Sign-off checklist in Dad's and Patrick's words.
+1. [x] Spec, decisions and a screen picture (built ahead of Patrick's yes, Dad, 17 Oct 2026).
+2. [ ] The tanker model (KC-130J from the C-130J model, drogues) and its anchor (V2.503, ahead of Patrick's yes).
+3. [ ] The point-parallel rendezvous and the join to pre-contact, worked out to hit (as RS-9) (V2.503, ahead of Patrick's yes).
+4. [ ] The en-route rendezvous (on `future.md`; not built).
+5. [ ] Sign-off checklist in Dad's and Patrick's words.
 
 ## Not in this plan
 

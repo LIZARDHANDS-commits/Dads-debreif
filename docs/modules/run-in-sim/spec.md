@@ -129,3 +129,75 @@ Written down before code, as the rule book asks. Search first: everything below 
 - shell: the home card, the version label and settings.
 
 It is built once the Debrief's drop (core `drop.js`) and the C-130J model are on main; until then its branch sits on theirs.
+
+## Air refuelling: the point-parallel rendezvous (proposed, built ahead of Patrick's yes)
+
+**Status: proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026: "Build anyway", told the plan waits on Patrick's yes).** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; decisions RS-15 to RS-18; requirements RS-R10 to RS-R13. Dad's ask (17 Oct 2026): "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first, the **point-parallel**; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). Not in this piece: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous (plan Step 4, `future.md`).
+
+**No number here has a manual source yet.** ATP-56 (the NATO air-to-air refuelling publication) would be the reference; it has not been read. Every number below is an **estimate** until Patrick or a manual page gives it, and says so in the code.
+
+### What it shows
+
+A separate run on the Run list, **Air refuelling, point-parallel**; the other runs and the default start (Practice bomb, flat) are unchanged. A tanker flies its anchor; a receiver flies toward it on the reciprocal track, offset; the tanker turns toward the receiver at the worked-out range and rolls out ahead of it in trail; the receiver then joins to the pre-contact position behind the left drogue and holds it.
+
+- **The tanker (RS-15):** a KC-130J, drawn from the C-130J model (`src/ui-kit/c130j-model.js`) with two wing pods, their hoses and baskets as simple shapes. The pods hang under the outer wing, 50 ft out from the centreline (between the outer nacelle at 33.4 ft and the tip at 66.3 ft, the model's sources R9 and R10; the place is an estimate); each hose trails 75 ft behind its pod, 8° below level, to a basket 2.6 ft across (estimates for the picture). **It has no performance set (RS-Q1), so its flying is a picture, not a performance claim, and the screen says so:** it moves along its anchor over the ground at a set height and true airspeed, its ground speed what the wind makes of that, its bank drawn as the coordinated bank for its turn over the ground (core `bankDegFromTurnRate`).
+- **The receiver:** the CT-156 on the T-6A set, flown by the run-in pilot (`pilot.js`, RS-4) on core's point mass, labelled on screen **"Stand-in receiver (CT-156, no probe)"**.
+
+### The anchor (RS-15)
+
+A racetrack over the ground, built with the holding pattern's geometry (`ground-path.js` `holdLap`, RS-11): the **refuelling leg** along the refuelling track (the receiver's track), starting at the **roll-out point** (the chosen Place), the turn at its far end, the **reciprocal leg** back, offset to the side the anchor turns, and the **rendezvous turn** back onto the refuelling leg at the roll-out point. The turns are at the set bank's radius at the tanker's true airspeed (core `turnRadiusFromBankFt`), so the offset between the legs is two turn radii and the tanker rolls out on the receiver's track. In a wind the tanker holds the racetrack over the ground, so its bank steepens on the downwind side; the card flags a bank steeper than set. Before the rendezvous the tanker is somewhere on its anchor, as many laps back as the rendezvous time needs.
+
+### The point-parallel, worked out to hit (RS-16)
+
+The receiver flies the refuelling track toward the roll-out point, the set height below the tanker; the tanker flies the reciprocal leg toward it, offset. The user sets the essentials; the computer works out the rest, as RS-9 does for the run-in:
+
+| The user sets | The computer works out to hit |
+|---|---|
+| the refuelling track, the tanker's height (ft MSL) and speed (KIAS), the rendezvous time (the tanker's roll-out), the trail at roll-out, the overtake on the join | the offset (two turn radii); the **receiver's speed**: the tanker's ground speed along the track plus the set overtake, turned to the receiver's KIAS at its own height (speeds compared like with like: ground speed with ground speed, then true, then indicated, with core `iasToTasKt`/`tasToIasKt`); **the timing**: where the receiver starts so it is in trail at the rendezvous time (found by flying it); **the tanker's turn moment** (the rendezvous time less the turn's time over the ground) and **its turn range** (the range over the ground between the two when the tanker starts its turn) |
+
+Under More: the tanker's bank, the anchor's leg and turn direction, the receiver's height below the tanker and the pre-contact distance; and two worked-out numbers can be set by hand, **the turn range** (the tanker turns when the receiver comes within it) and **the receiver's speed**. The pass is then flown as set and the card shows the trail that results, so an early or late turn, or a slow receiver, shows as a trail long or short against the plan. When a worked-out number can't be flown (the receiver's speed past what the T-6A set gives at full power, a hand-set turn range never reached), it is flown as best it can and the card says which and what would work.
+
+### The join to pre-contact (RS-17)
+
+From the tanker's roll-out the receiver joins: it climbs to the drogue's height (the tanker's less the hose's droop) and steers onto the line through the pre-contact point along the tanker's track (the L1 follower it flies every line with). Its speed is the tanker's ground speed along the track plus a closure that is the set overtake far out, eased off approaching the point so it could brake at **0.3 kt/s** (an estimate of a smooth technique), and nothing at the point. **Pre-contact** is the receiver's nose **15 ft behind the left basket** (an estimate; the CT-156's nose is 15.3 ft ahead of its centre on the model). Within 10 ft each way (an estimate) for 10 s (an estimate) it is **stabilised in pre-contact** and the run ends. The join is followed for at most 10 minutes (a guard); a join that hasn't stabilised by then says so.
+
+### The result card
+
+Leads with the trail at the tanker's roll-out against the plan ("Rolled out 1.0 NM ahead, plan 1.0 NM"), then: the receiver's offset across the track and its height below at the roll-out; the overtake at roll-out; the peak closure on the join and the closure inside 200 ft of pre-contact; the time from roll-out to stabilised in pre-contact; the closest the receiver came to the tanker's wing line; the tanker's steepest bank against the set bank; the receiver's peak G and lowest airspeed; the worked-out numbers (the turn range and moment, the offset, the receiver's speed and start). Overtake and closure are the rate the range between the two shrinks (core `closureKt`), so ground speed against ground speed.
+
+**Flags, references never walls (RS-6), every one an estimate until Patrick or ATP-56 gives it:** the peak closure on the join over **30 kt**; the closure inside **200 ft** of pre-contact over **5 kt**; the tanker's bank steeper than its set bank; **the receiver ahead of the tanker's wing line** (the line through the tanker square to its heading) at any time after the roll-out; the receiver's peak G against its limit, VMO and the stick shaker, as the run-in.
+
+### The screen for this run
+
+- **Setup**, showing from the start: Run, Aircraft ("KC-130J tanker (a picture) · CT-156 stand-in receiver"), Place (the roll-out point) and the **Rendezvous time** (the tanker's roll-out, s after the start). Boxes: **Tanker and anchor** (track, height, speed; More: bank, leg, direction), **Rendezvous** (trail; the receiver's speed, start, the turn range and moment greyed "set to hit"; More: the receiver's height below, the turn range or the receiver's speed by hand), **Join** (overtake; More: pre-contact distance), **Wind** (at the refuelling height and at the ground) and **Display**. The run-in's boxes (Target, Orbit, Run-in, Release, Escape, Time over target) hide. Every setting starts at a default. A line under the Aircraft says: "The tanker's flying is a picture, not a performance claim: the KC-130J has no performance set yet (RS-Q1)."
+- **3D:** the anchor, the receiver's track and the turn point drawn; both aircraft with their trails. Cameras: Chase, Cockpit (the receiver's), Overhead and Side as the run-in, plus **From the tanker** (from its tail, looking at the receiver) and **Behind the drogue** (behind the left basket, looking at it and the tanker); Target is greyed for this run (no target). The two new cameras show only on this run.
+- **2D (RS-13):** the plan with the anchor, both tracks, the turn point and the roll-out point; the profile along the refuelling track (height MSL against distance from the roll-out point) with both aircraft's paths, as the whole rendezvous, the join, or behind the tanker (the receiver's height against its distance behind the tanker, with the drogue and the pre-contact point).
+- **Time line marks:** Start, Turn, Roll-out, Pre-contact.
+
+### Defaults for this run (every one an estimate; ATP-56 not read)
+
+| Setting | Default | Source |
+|---|---|---|
+| Refuelling track | 320°M | estimate (the run-in's default heading) |
+| Tanker height | 10,000 ft MSL | estimate, chosen inside the stand-in's speeds: the T-6A set holds 200 to about 250 KIAS level there |
+| Tanker speed | 200 KIAS (233 KTAS on a standard day) | estimate |
+| Tanker bank in its turns | 25° | estimate |
+| Anchor leg | 20 NM | estimate |
+| Anchor turns | left | estimate |
+| Rendezvous time (the tanker's roll-out) | +3:00 | estimate, so the run is short to watch |
+| Receiver below the tanker for the rendezvous | 1,000 ft | estimate |
+| Trail at roll-out | 1.0 NM | estimate (air-refuelling-plan.md) |
+| Overtake on the join (and so the receiver's rendezvous speed over the tanker's) | 20 kt | estimate |
+| Braking toward pre-contact | 0.3 kt/s | estimate of technique |
+| Pre-contact | nose 15 ft behind the left basket | estimate |
+| Stabilised in pre-contact | within 10 ft for 10 s | estimate |
+| Wind | still air | as the run-in |
+
+### When data fails
+
+- **The C-130J's model file doesn't come:** the model's own stand-in shows (the CT-156 drawn at the C-130J's length, `c130j-model.js`), with the pods, hoses and baskets still drawn.
+- **Terrain tiles missing:** the ground is flat at the fallback height, as the run-in; at the refuelling height nothing here is judged against the ground.
+- **The receiver can't make the worked-out speed** (past full power on the T-6A set): flown at what it makes; the card shows the trail long, and says a later rendezvous time or a lower overtake would work.
+- **A hand-set turn range is never reached:** the tanker turns at the worked-out moment and the card says so.
+- **The join doesn't stabilise within 10 minutes:** the card says so, with the receiver's last distance from pre-contact.
+- **No outside data:** as the run-in, nothing is fetched but the shared terrain, satellite and model files.
