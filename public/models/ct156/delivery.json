@@ -1733,7 +1733,7 @@
     "want": 10.6667,
     "margin": 0.25,
     "pass": true,
-    "why": "printed 10 ft 8 in (CFAFM three-view, case study p017), spinner axis level as the three-view draws it (fix-list A1); 3 in, the wheels are an estimate",
+    "why": "printed 10 ft 8 in (reference three-view, case study p017), spinner axis level as the three-view draws it (fix-list A1); 3 in, the wheels are an estimate",
     "status": "pass"
    },
    {
@@ -1742,7 +1742,7 @@
     "want": 11.3333,
     "margin": 0.0833,
     "pass": true,
-    "why": "printed 11 ft 4 in (CFAFM three-view, fix-list A4); 1 in",
+    "why": "printed 11 ft 4 in (reference three-view, fix-list A4); 1 in",
     "status": "pass"
    },
    {

@@ -33,6 +33,7 @@ Ideas for the shared parts (flight core, app frame, weather, airfields, storage,
 ## Aircraft models
 
 - The CT-102B Astra II model moved up to `plan.md` Step 3c (Patrick approved, 13 Oct 2026).
+- The C-130J model (Dad, 15 Oct 2026) went straight to `plan.md` Step 3e (Patrick approved the same day, relayed by Dad).
 
 ## Graphics (shared 3D)
 

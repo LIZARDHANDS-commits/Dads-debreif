@@ -1,0 +1,48 @@
+/* Model Showcase (docs/modules/model-showcase/README.md): the 3D view with a column of controls beside it. Colours from src/ui-kit/tokens.css;
+   the one "on" look is the accent border and tint, as the EP Tabletop's. */
+.ms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  height: calc(100vh - var(--header-height) - 3.5rem);
+  min-height: 30rem;
+  box-sizing: border-box;
+}
+.ms [hidden] { display: none; }
+.ms-bar { display: flex; align-items: center; gap: var(--space-3); }
+.ms-bar h1 { margin: 0; font-size: var(--text-md); }
+.ms-version { margin-left: auto; color: var(--text-muted); font-weight: 600; }
+.ms-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: var(--space-3);
+  min-height: 0;
+}
+.ms-view-wrap { position: relative; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #46627f; }
+.ms-view { position: absolute; inset: 0; }
+.ms-3d-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.ms-3d-canvas:active { cursor: grabbing; }
+.ms-3d-note { padding: var(--space-4); color: #fff; }
+.ms-hint {
+  position: absolute; left: var(--space-2); bottom: var(--space-2); margin: 0; padding: 2px 8px;
+  border-radius: var(--radius); background: rgba(5, 10, 18, 0.6); color: #dfe8f0; font-size: var(--text-sm); pointer-events: none;
+}
+.ms-controls { overflow-y: auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); align-content: start; }
+.ms-group-box h2 { margin: 0 0 var(--space-2); font-size: var(--text-sm); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted); }
+.ms-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.ms-pill {
+  padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-raised); color: var(--text-muted);
+  font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.ms-pill:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.ms-pill[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--bg-raised)); color: var(--text); }
+.ms-pill:disabled { opacity: 0.5; cursor: not-allowed; }
+.ms-check { display: flex; align-items: center; gap: 6px; margin-top: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+.ms-note { margin: 0; font-size: var(--text-sm); color: var(--text-faint); }
+@media (max-width: 52rem) {
+  .ms { height: auto; }
+  .ms-main { grid-template-columns: minmax(0, 1fr); }
+  .ms-view-wrap { height: 60vh; }
+}

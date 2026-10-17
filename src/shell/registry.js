@@ -101,6 +101,26 @@ export const MODULES = [
     prototype: true,
   },
   {
+    id: 'run-in-sim',
+    // Named Advanced Mission Sets by Dad, 17 Oct 2026 (it was the Run-in Simulator; the id, route and folder keep "run-in-sim").
+    eyebrow: 'Mission sets · training only',
+    title: 'Advanced Mission Sets',
+    blurb: 'Run-ins, releases and escapes, and an air refuelling rendezvous, over real ground',
+    details: {
+      summary: 'Fly a flyover or an inert practice-bomb pass (flat or dive) in 3D over the real ground, auto-flown to your settings: the computer works out the release point, the aim-off and the timing to hit. Or an air refuelling rendezvous: a take-off from Moose Jaw to the IP and a point-parallel join on a KC-130J tanker.',
+      capabilities: [
+        'Generic target shapes (a stadium, a bridge, a tower, a range circle, a drop zone) on the real terrain and satellite ground, anywhere on the map',
+        'The orbit, the IP and run-in with the crab, the dive, the release and the escape, flown on the shared CT-156 (T-6A) flight model',
+        'The release point, the aim-off for the wind, the roll-in and the orbit exit worked out to hit the time over target and the aim point',
+        'The miss in feet and clock, the time over target, and the escape flagged against its references',
+        'Air refuelling: the CT-156 as a stand-in receiver takes off from CYMJ, the KC-130J tanker turns inbound from its orbit, with the turn range and offset worked out for the wind, and the join to pre-contact behind the drogue',
+      ],
+    },
+    media: { still: 'media/cards/run-in-sim.jpg' },
+    load: () => import('../modules/run-in-sim/index.js'),
+    prototype: true,
+  },
+  {
     id: 'sof',
     eyebrow: 'Operations',
     title: 'SOF Dashboard',
@@ -116,6 +136,24 @@ export const MODULES = [
     },
     media: media('sof'),
     load: () => import('../modules/sof/index.js'),
+    prototype: true,
+  },
+  {
+    id: 'model-showcase',
+    eyebrow: 'The aircraft',
+    title: 'Model Showcase',
+    blurb: 'The CT-156 on its own: turn it round, sit in either seat, wear and grime',
+    details: {
+      summary: 'The CT-156 Harvard II 3D model on its own, on its gear or flying, to look at as closely as you like.',
+      capabilities: [
+        'Orbit and zoom right in on the outside, or look round from the front or rear seat',
+        'On the ground with the prop feathered, or flying with the prop turning',
+        'High or Performance graphics, the same files the simulators use',
+        'Sliders for weathering, relief and wear on the paint',
+      ],
+    },
+    media: { webm: 'media/cards/model-showcase.webm', still: 'media/cards/model-showcase.jpg' }, // a slow 360 of the High model; WebM only
+    load: () => import('../modules/model-showcase/index.js'),
     prototype: true,
   },
 ];

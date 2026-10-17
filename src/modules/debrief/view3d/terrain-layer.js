@@ -1,7 +1,9 @@
 // The Debrief 3D view's "Terrain and satellite" ground (DB-27), the three.js side: the shared terrain and draped satellite ground (ui-kit terrain3d.js and
 // draped-ground.js, the SOF's, SOF-65) built once for the flight's area (terrain.js terrainArea), moved to match the tracks, laid flat under the runways, and stretched by the
 // altitude scale like everything else. view.js asks it each draw; it does nothing between tile arrivals. A new flight (or area) frees the old ground and builds a new one.
-// Round the field a third, sharper satellite picture lies on the inner mesh's own cells (the field patch, terrain.js fieldPatch), feathered into the picture under it.
+// Round the field a third, sharper satellite picture lies on the inner mesh's own cells (the field patch, terrain.js fieldPatch), feathered into the picture under it. A fourth
+// (DB-34), the follow patch, lies the same way round what the camera follows and moves with it (terrain.js followPatch, followNeedsMove); the field patch is drawn over it.
+// "Satellite detail: High" (DB-34) builds the ground with a finer inner picture (terrain.js terrainArea's `detail`).
 //
 // When data fails: an elevation tile that doesn't come leaves its part flat at the tracks' ground; a satellite tile that doesn't come leaves the plain ground colour there. Nothing
 // here ever holds up the flight, and the status line in 3D settings says what came, how long it took and how far the terrain was moved.
@@ -11,7 +13,7 @@ import { TERRAIN_CREDIT } from '../../../core/terrain-tiles.js';
 import { hillshade } from '../../../core/terrain-grid.js';
 import { ESRI_IMAGERY, createTileLayer, cornersOf } from '../../../ui-kit/map-tiles.js';
 import {
-  terrainArea, areaProjection, terrainShift, runwayBeds, drawnGrids, drawnHeightFt, terrainStatusWords, fieldPatch, MAX_TERRAIN_TILES,
+  terrainArea, areaProjection, terrainShift, runwayBeds, drawnGrids, drawnHeightFt, terrainStatusWords, fieldPatch, followPatch, followNeedsMove, satDetail, MAX_TERRAIN_TILES,
 } from './terrain.js';
 
 /** New tiles are read into the ground, and the satellite canvases painted again, at most this often while they arrive (milliseconds; an estimate that keeps the page quick). */
@@ -42,11 +44,15 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
     built.tiles.dispose();
     built.ground.dispose();
     built.patch.dispose();
+    built.follow?.dispose();
     built = null;
   }
 
-  /** The field patch's mesh and picture: `spec` is terrain.js fieldPatch's; `onChange` when a tile arrives. */
-  function makePatch(area, spec, onChange) {
+  /**
+   * A patch's mesh and picture: `spec` is terrain.js fieldPatch's or followPatch's; `onChange` when a tile arrives. `behind` pushes it back in depth a little (the follow
+   * patch, so the field patch over the same cells wins, while it still lies in front of the ground, which is pushed back further).
+   */
+  function makePatch(area, spec, onChange, { name = 'debrief-field-patch', behind = false } = {}) {
     const n = spec.cells + 1;
     const half = spec.sizeFt / 2;
     const positions = new Float32Array(n * n * 3);
@@ -83,9 +89,9 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 8;
-    const material = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true });
+    const material = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true, ...(behind ? { polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 0.5 } : {}) });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = 'debrief-field-patch';
+    mesh.name = name;
     mesh.frustumCulled = false;
     mesh.position.set(area.centre.x + spec.centre.x, area.centre.y + spec.centre.y, 0);
     scene.add(mesh);
@@ -144,13 +150,13 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
     };
   }
 
-  function build(flight, ground, groundFt) {
-    const area = terrainArea(flight);
+  function build(flight, ground, groundFt, detail) {
+    const area = terrainArea(flight, { detail });
     if (!area) return null;
     const projection = areaProjection(flight, area);
     const next = {
       flight, area, projection, drawn: null, shift: { shiftFt: 0, tileFt: null }, reliefKey: '', bedsKey: null, beds: [], paintDirty: true,
-      startedAt: globalThis.performance?.now() ?? Date.now(), ms: null, tiles: null, ground: null, patch: null,
+      startedAt: globalThis.performance?.now() ?? Date.now(), ms: null, tiles: null, ground: null, patch: null, follow: null, followAt: -Infinity, detail,
     };
     next.tiles = createTerrain3d({ timers, doc, plan: area.plan, maxTiles: MAX_TERRAIN_TILES, onChange: nudge });
     next.ground = createDrapedGround({
@@ -172,15 +178,34 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
     return next;
   }
 
+  /** Moves the follow patch to `focus` (map feet) when terrain.js followNeedsMove says so: a new patch there, painted and laid on the ground at once; the old one goes. */
+  function follow(b, focus, scale, groundFt) {
+    const now = globalThis.performance?.now() ?? Date.now();
+    if (!followNeedsMove(b.area, b.follow?.spec ?? null, focus, now - b.followAt)) return;
+    const spec = followPatch(b.area, focus);
+    if (!spec) return;
+    b.follow?.dispose();
+    b.followAt = now;
+    b.follow = makePatch(b.area, spec, () => {
+      b.paintDirty = true;
+      nudge();
+    }, { name: 'debrief-follow-patch', behind: true });
+    b.follow.paint(b.projection, b.ground.innerCanvas);
+    if (b.drawn) b.follow.setRelief(b.drawn.inner, scale, groundFt);
+    b.follow.mesh.position.z = groundFt * scale;
+  }
+
   return {
     /**
      * Brings the ground up to date for this draw: `flight`, `ground` (ground.js groundLevel, or null), `groundFt` (the tracks' ground, or the home field's elevation), `space` (the
-     * airfields drawn: view.js's space(), or null), `scale` (the altitude scale: ×1 in Chase and Cockpit). Returns the relief, or null with no flight.
+     * airfields drawn: view.js's space(), or null), `scale` (the altitude scale: ×1 in Chase and Cockpit), `focus` (map feet { x, y }: what the camera follows, for the follow
+     * patch, DB-34; null for none) and `detail` ("Satellite detail", 'standard' or 'high'; a change builds the ground again). Returns the relief, or null with no flight.
      */
-    sync({ flight, ground, groundFt, space, scale }) {
-      if (built && built.flight !== flight) free();
+    sync({ flight, ground, groundFt, space, scale, focus = null, detail = 'standard' }) {
+      const want = satDetail(detail);
+      if (built && (built.flight !== flight || built.detail !== want)) free();
       if (!flight) return null;
-      if (!built) built = build(flight, ground, groundFt);
+      if (!built) built = build(flight, ground, groundFt, want);
       if (!built) return null;
       const b = built;
       b.ground.group.visible = true;
@@ -189,6 +214,7 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
         b.paintDirty = false;
         b.ground.paint({ projection: b.projection });
         b.patch.paint(b.projection, b.ground.innerCanvas);
+        b.follow?.paint(b.projection, b.ground.innerCanvas);
       }
       const refreshed = b.tiles.refresh();
       const grids = b.tiles.grids;
@@ -211,11 +237,17 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
         b.reliefKey = reliefKey;
         b.ground.setRelief({ grids: b.drawn, on: true, scale, homeFt: groundFt });
         b.patch.setRelief(b.drawn.inner, scale, groundFt);
+        b.follow?.setRelief(b.drawn.inner, scale, groundFt);
       }
+      follow(b, focus, scale, groundFt);
       b.ground.setHeight(groundFt * scale);
       b.patch.mesh.position.z = groundFt * scale;
+      if (b.follow) {
+        b.follow.mesh.visible = true;
+        b.follow.mesh.position.z = groundFt * scale;
+      }
       const tiles = b.tiles.state();
-      const imagery = { ...b.ground.state(), patch: b.patch.state() };
+      const imagery = { ...b.ground.state(), patch: b.patch.state(), ...(b.follow ? { follow: b.follow.state() } : {}) };
       const settled = (s) => s.ready + s.failed >= s.wanted;
       if (b.ms === null && tiles.wanted > 0 && tiles.pending === 0 && settled(imagery.outer) && settled(imagery.inner) && settled(imagery.patch)) {
         b.ms = (globalThis.performance?.now() ?? Date.now()) - b.startedAt;
@@ -225,8 +257,8 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
       return {
         heightFt: (x, y) => drawnHeightFt(b.drawn, b.area, x - centre.x, y - centre.y),
         lowestFt: b.lowestFt,
-        words: terrainStatusWords({ area: b.area, tiles, imagery, shift: b.shift, groundFt, ms: b.ms, patch: b.patch.spec }),
-        credit: terrainCredits({ imagery: imagery.outer.ready + imagery.inner.ready + imagery.patch.ready > 0, terrain: tiles.ready > 0 }),
+        words: terrainStatusWords({ area: b.area, tiles, imagery, shift: b.shift, groundFt, ms: b.ms, patch: b.patch.spec, follow: b.follow?.spec ?? null }),
+        credit: terrainCredits({ imagery: imagery.outer.ready + imagery.inner.ready + imagery.patch.ready + (imagery.follow?.ready ?? 0) > 0, terrain: tiles.ready > 0 }),
       };
     },
     /** Hides the ground (another Ground choice); it is kept for when the choice comes back. */
@@ -234,6 +266,7 @@ export function createTerrainLayer({ THREE, scene, timers, doc, redraw }) {
       if (!built) return;
       built.ground.group.visible = false;
       built.patch.mesh.visible = false;
+      if (built.follow) built.follow.mesh.visible = false;
     },
     dispose() {
       wake?.();

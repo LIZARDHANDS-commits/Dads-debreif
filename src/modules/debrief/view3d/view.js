@@ -12,7 +12,10 @@
 // ridden ship (ui-kit ct156-cockpit.js), the picture at true scale with
 // altitude ×1 and the ground at the home field; its labels are placed through
 // that camera. Filled GPS gaps (DB-20) are a translucent ribbon with a dashed
-// centre line, the ship in one a ghosted model labelled "est.".
+// centre line, the ship in one a ghosted model labelled "est.". With 3D settings'
+// Aircraft "T-38A Talon" (DB-33) the ridden ship is the T-38A and the eye sits in
+// its own rough cockpit (ui-kit t38a-model.js), whose instruments don't move yet. With "C-130J Hercules" (DB-35)
+// every ship is the C-130J (ui-kit c130j-model.js) in the overview and Chase, and the Cockpit camera rides the CT-156.
 //
 // Airspace and airfields round the flight (DB-24) are the SOF's own drawing, shared in ui-kit (airspace3d.js,
 // airfield3d.js): built once at true height for the flight's area and kept in the scene, stretched up by the
@@ -27,6 +30,8 @@ import {
   loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh, webglSupported, worldToScreen,
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
+import { createT38aModel, createT38aCockpitMount, t38aEyeWorld } from '../../../ui-kit/t38a-model.js';
+import { createC130jModel, C130J_LENGTH_FT } from '../../../ui-kit/c130j-model.js';
 import { ct156CloneMaterial } from '../../../ui-kit/ct156-blender.js';
 import { createCockpitMount, aimCockpitCamera, PANEL_REDRAW_MS } from '../../../ui-kit/ct156-cockpit.js';
 import { createAircraftShadows } from '../../../ui-kit/aircraft-shadows.js';
@@ -44,6 +49,11 @@ import { headToward, aimChaseCamera } from './aim.js';
 import {
   drawStickLabel, drawAltitudeScale, drawMarker, labelShip, drawCompass, drawCaption, drawCockpitCaption, drawTennis3d, TEXT,
 } from './overlay.js';
+import { drawDrop3d } from './drop-overlay.js';
+
+/** A ship's flight and its number in it, in an exercise (DB-37; exercise.js flightOf and numberOf). */
+const flightOfSlot = (slot) => Math.ceil(slot / 4);
+const numberOfSlot = (slot) => ((slot - 1) % 4) + 1;
 
 const BACKGROUND = '#050b12';
 const LAND = '#0b3318';
@@ -54,6 +64,8 @@ const STICK_PX = 3; // the height sticks' width on screen, as the 2D-canvas view
 /** A filled gap in 3D (DB-20): the zone's ribbon about 18 % opaque, a ship in one ghosted to about 45 %. */
 const FILL_RIBBON_OPACITY = 0.18;
 const GHOST_OPACITY = 0.45;
+/** The Aircraft choices drawn as a model in the overview ("Flat marker" draws none): DB-32, DB-35. */
+const MODELLED = new Set(['t6', 't38a', 'c130j']);
 /** The cockpit's sky (a plain colour: a screen-fixed gradient would not bank with the aircraft) and its wider ground. */
 const COCKPIT_SKY = '#2f6aa8';
 const COCKPIT_LAND = '#3d5a2e';
@@ -73,7 +85,7 @@ const TERRAIN_UNDERLAY_FT = 50;
  * it). timers: the module's scheduler scope. flight(): the loaded flight or
  * null. time(): the playback time. settings(): the layout values (view,
  * cam3d, yaw3d, pitch3d, zoom3d, altScale3d, model3d, paint3d, planeSize3d,
- * attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d, grid3d,
+ * attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d, satDetail3d, grid3d,
  * sticks3d, altMarks3d). fieldFt(): the home field's elevation. ground(): the ground
  * the tracks recorded (ground.js groundLevel, DB-26), or null: Chase and Cockpit stand
  * on it, and it is the "From the tracks" ground setting.
@@ -87,11 +99,14 @@ const TERRAIN_UNDERLAY_FT = 50;
  * onUnavailable(message): three.js or WebGL couldn't start; the screen
  * says so and goes back to 2D. onTerrain(state): the "Terrain and satellite" ground's
  * words for 3D settings and its credit lines ({ words, credit }), or null while it isn't
- * shown (DB-27). loadThree: for tests.
+ * shown (DB-27). drop(): the simulated drop to draw over the picture (DB-36; view3d/drop-overlay.js), or null.
+ * look(): how the ships look and are named (exercise.js shipLook) or null: in an exercise (DB-37) each ship takes its
+ * flight's colour, label ("Viper 3") and aircraft. watched(): the watched flight (1 for a four-ship load), which Follow
+ * Lead follows and Centre formation centres. loadThree: for tests.
  */
 export function createView3d(canvas, {
-  timers, flight, time, settings, fieldFt, setCamera, tennis = () => null, ground = () => null,
-  fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '', space = () => null,
+  timers, flight, time, settings, fieldFt, setCamera, tennis = () => null, ground = () => null, look = () => null, watched = () => 1,
+  fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '', space = () => null, drop = () => null,
   onUnavailable = /** @type {(message: string) => void} */ (() => {}), onTerrain = /** @type {(state: any) => void} */ (() => {}), loadThree = loadThreeModule,
 }) {
   const glCanvas = document.createElement('canvas');
@@ -127,6 +142,7 @@ export function createView3d(canvas, {
         gl = createPicture(module, glCanvas);
         THREE = module;
         gl.terrain = createTerrainLayer({ THREE, scene: gl.scene, timers, doc: gl.doc, redraw: () => surface.requestDraw() });
+        gl.redraw = () => surface.requestDraw(); // a T-38A's file arriving after its ship was first drawn (t38a-model.js onReady)
       } catch {
         onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
         return;
@@ -161,7 +177,10 @@ export function createView3d(canvas, {
 
   function drawScene(ctx, size, shown, t, on, camera, groundFieldFt, ball) {
     const filled = shown ? fills() : null;
+    const lk = shown ? look() : null;
     let ships = /** @type {any[]} */ (shown ? shipsIn3d(shown, t, filled) : []);
+    // An exercise (DB-37): each ship carries its flight's colour, outline and name for the labels and the picture.
+    if (lk?.exercise) ships = ships.map((s) => ({ ...s, label: lk.label(s.slot), color: lk.color(s.slot), outlined: lk.outlined(s.slot) }));
     // The Cockpit camera: the ridden ship sits where its smooth table (or its gap's fill) puts it (DB-21).
     // Chase (DB-22) rides the same smooth ship and draws it from behind, with no cockpit in it.
     const cockpit = ridesShip(on) && shown?.tracks[on.cockpitShip3d]
@@ -186,7 +205,11 @@ export function createView3d(canvas, {
       const s = live[cockpit.lockSlot];
       cockpit.target = { x: s.x, y: s.y, z: altToZ(s.altFt, 1) };
     }
-    const ctr = cockpit ? { x: riding.x, y: riding.y, z: riding.altFt } : shown ? formationCenter(live, on.cam3d) : { x: 0, y: 0, z: 0 };
+    // In an exercise, Follow Lead and Centre formation look at the watched flight (its ships numbered 1 to 4, as a four-ship's).
+    const w = lk?.exercise ? watched() : 0;
+    const flightLive = w ? Object.fromEntries(ships.filter((s) => flightOfSlot(s.slot) === w).map((s) => [numberOfSlot(s.slot), s])) : null;
+    const centreLive = flightLive && Object.keys(flightLive).length ? flightLive : live;
+    const ctr = cockpit ? { x: riding.x, y: riding.y, z: riding.altFt } : shown ? formationCenter(centreLive, on.cam3d) : { x: 0, y: 0, z: 0 };
     const view = cockpit ? { ...camera, altScale: 1 } : camera; // true scale in the cockpit
     // Chase and Cockpit stand on the ground the tracks recorded (DB-26; the home field's elevation without one), whatever the Ground setting.
     const tracksGround = shown ? ground()?.groundFt ?? groundFieldFt : groundFieldFt;
@@ -197,10 +220,11 @@ export function createView3d(canvas, {
     // The real ground (DB-27), whenever it is the Ground choice: moved to the tracks' ground, stretched by the scale in force.
     let relief = null;
     if (shown && on.datum3d === 'terrain') {
-      relief = gl.terrain.sync({ flight: shown, ground: ground(), groundFt: tracksGround, space: spaceWant, scale: view.altScale });
+      // The follow patch (DB-34) rides what the camera follows: the ridden ship in Chase and Cockpit, else the overview's centre (Follow Lead or Centre formation).
+      relief = gl.terrain.sync({ flight: shown, ground: ground(), groundFt: tracksGround, space: spaceWant, scale: view.altScale, focus: { x: ctr.x, y: ctr.y }, detail: on.satDetail3d });
     } else gl.terrain.hide();
     tellTerrain(relief ? { words: relief.words, credit: relief.credit } : null);
-    const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit, relief });
+    const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit, relief, look: lk, watched: w });
     if (cockpit?.again && !panelRetry) {
       panelRetry = timers.after(cockpit.again, () => {
         panelRetry = null;
@@ -222,7 +246,14 @@ export function createView3d(canvas, {
         if (Number.isFinite(c.x)) labelShip(ctx, c, s, on);
       }
       if (ball?.points) drawTennis3d(ctx, P, ball);
-      drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, chase: cockpit.chase, gap: riding.gap, windKnown: Boolean(cockpit.windKey) }, COCKPIT_CAPTION);
+      const droppedInCockpit = drop();
+      if (droppedInCockpit) drawDrop3d(ctx, P, droppedInCockpit);
+      // The T-38A's gauges are pictures (DB-33); with the C-130J chosen the eye rides the CT-156 cockpit (DB-35). In an
+      // exercise the ridden ship's own flight's aircraft decides (DB-37).
+      const riddenType = lk?.exercise ? lk.model(cockpit.slot, on.model3d) : on.model3d;
+      const note = cockpit.chase ? null : ({ t38a: COCKPIT_CAPTION.t38a, c130j: COCKPIT_CAPTION.c130j }[riddenType] ?? null);
+      const name = lk?.exercise ? lk.label(cockpit.slot) : null;
+      drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, chase: cockpit.chase, gap: riding.gap, windKnown: Boolean(cockpit.windKey), note, name }, COCKPIT_CAPTION);
       return;
     }
     const P = (p) => projectPoint(p, ctr, camera, size);
@@ -240,6 +271,8 @@ export function createView3d(canvas, {
       else drawMarker(ctx, P, s, on); // the flat marker, or a dot for a ship with no heading
     }
     if (ball?.points) drawTennis3d(ctx, P, ball);
+    const dropped = drop();
+    if (dropped) drawDrop3d(ctx, P, dropped);
     if (on.groundRef3d) drawCompass(ctx, size, camera);
     drawCaption(ctx, camera, on, datum, ground()?.source ?? 'field');
   }
@@ -277,9 +310,10 @@ function createPicture(THREE, glCanvas) {
   // size: what the renderer was last told, so it is told again only when it changes.
   // ghosts: the see-through models of ships in a filled gap, with their own materials (DB-20).
   // cockpit: the CT-156 cockpit, moved into the ridden ship (ui-kit createCockpitMount), made when first wanted.
+  // t38aCockpit: the T-38A's (ui-kit createT38aCockpitMount), the same way, when Aircraft is "T-38A Talon" (DB-33).
   return {
     renderer, shadows, scene, camera, persp, world, ships: new Map(), ghosts: new Map(), sky: null, skyFog: null, materials: new Map(), size: null,
-    cockpit: null, cockpitSky: new THREE.Color(COCKPIT_SKY), doc: glCanvas.ownerDocument ?? globalThis.document,
+    cockpit: null, t38aCockpit: null, cockpitSky: new THREE.Color(COCKPIT_SKY), doc: glCanvas.ownerDocument ?? globalThis.document,
   };
 }
 
@@ -309,7 +343,11 @@ function clearGroup(group) {
 // A ship's model made see-through for a filled gap: its own copies of the materials, so other ships keep theirs. The
 // copies keep what the CT-156's shaders add (its baked pictures and look: ct156CloneMaterial), and the model keeps
 // ghosting the shaded paint that replaces the plain once its pictures load (ct156Ghost, ct156Plain: ct156-model.js).
+// A T-38A (Aircraft "T-38A Talon", shared plan Step 3d item 6) ghosts its own copies when its file is in (ui-kit t38a-model.js).
+// So does a C-130J (Aircraft "C-130J Hercules", DB-35; ui-kit c130j-model.js).
 function ghostModel(THREE, options) {
+  if (options.t38a) return { mesh: createT38aModel(THREE, { lengthFt: options.lengthFt, ghost: GHOST_OPACITY, onReady: options.onReady }), copies: [] };
+  if (options.c130j) return { mesh: createC130jModel(THREE, { lengthFt: options.lengthFt, ghost: GHOST_OPACITY, onReady: options.onReady }), copies: [] };
   const mesh = createCt156Model(THREE, options);
   const copies = [];
   const made = new Map(); // each material's see-through copy, made once
@@ -382,6 +420,8 @@ function disposePicture(gl) {
   clearGroup(gl.world);
   gl.cockpit?.dispose();
   gl.cockpit = null;
+  gl.t38aCockpit?.dispose();
+  gl.t38aCockpit = null;
   for (const { mesh } of gl.ships.values()) disposeAircraftMesh(mesh);
   gl.ships.clear();
   for (const ghost of gl.ghosts.values()) disposeGhost(ghost);
@@ -394,7 +434,10 @@ function disposePicture(gl) {
 }
 
 /** Draws the picture; returns the slots drawn as a model (the rest get a 2D marker). */
-function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum, filled = null, cockpit = null, relief = null }) {
+function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum, filled = null, cockpit = null, relief = null, look = null, watched = 0 }) {
+  // A ship's colour and aircraft: its flight's in an exercise (DB-37), else #1 to #4's colours and 3D settings' Aircraft.
+  const colorOf = (slot) => (look?.exercise ? look.color(slot) : SHIP_COLORS[slot]);
+  const typeOf = (slot) => (look?.exercise ? look.model(slot, on.model3d) : on.model3d);
   const { renderer, scene, world } = gl;
   const ratio = globalThis.devicePixelRatio || 1;
   const told = gl.size;
@@ -428,6 +471,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   const modelled = new Set();
   if (!flight) {
     gl.cockpit?.mount(null);
+    gl.t38aCockpit?.mount(null);
     for (const { mesh } of gl.ships.values()) mesh.visible = false;
     for (const { mesh } of gl.ghosts.values()) mesh.visible = false;
     renderer.render(scene, gl.camera);
@@ -492,7 +536,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
       if (!pos.length) continue;
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      world.add(new THREE.LineSegments(g, line(SHIP_COLORS[tr.slot], 0.7)));
+      world.add(new THREE.LineSegments(g, line(colorOf(tr.slot), 0.7)));
     }
   }
 
@@ -501,7 +545,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   if (filled) {
     const t0 = Math.max(flight.startT, t - on.trailSec3d);
     for (const [slot, list] of Object.entries(filled)) {
-      const color = SHIP_COLORS[slot];
+      const color = colorOf(Number(slot));
       for (const fill of list) {
         const now = fill.fromT < t && t < fill.toT;
         if (!now && (fill.toT <= t0 || fill.fromT >= t)) continue;
@@ -540,13 +584,13 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
       const foot = relief ? Z(relief.heightFt(s.x, s.y)) : dz; // on the terrain, down to the ground under the ship (DB-27)
       const height = Math.abs(top - foot);
       if (height > 0 && !s.inGap) { // no stick for a ship in a GPS gap: its height is a guess (D32)
-        const stick = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.85 }));
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), basic(colorOf(s.slot), { transparent: true, opacity: 0.85 }));
         stick.rotation.x = Math.PI / 2; // the cylinder's axis is Y; stand it up along Z
         stick.scale.set((STICK_PX / 2) * ftPerPx, height, (STICK_PX / 2) * ftPerPx);
         stick.position.set(s.x, s.y, (top + foot) / 2);
         world.add(stick);
       }
-      const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 32), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.45, depthWrite: false }));
+      const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 32), basic(colorOf(s.slot), { transparent: true, opacity: 0.45, depthWrite: false }));
       shadow.scale.set(18 * ftPerPx, 18 * ftPerPx, 1);
       shadow.position.set(s.x, s.y, foot + 6);
       world.add(shadow);
@@ -563,24 +607,54 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   // Fight do, so the shared seat helpers (eye, cockpit) land in the seat; otherwise the plane size setting, as before.
   const lengthFt = cockpit ? CT156_UNIT_LENGTH : on.planeSize3d * CT156_UNIT_LENGTH;
   const rootScale = cockpit ? CT156_LENGTH_FT / CT156_UNIT_LENGTH : 1;
-  const key = `${paint}|${lengthFt}|${rootScale}`;
+  // Aircraft "T-38A Talon" (Dad, 14 Oct 2026; shared plan Step 3d item 6) draws each ship as the T-38A at its own length
+  // against the CT-156's, in the overview, in Chase and in the Cockpit camera, which rides in the T-38A's own rough
+  // cockpit (plan Step 3d item 7; DB-33). The Harvard's Cockpit camera is unchanged (DB-21).
+  // Aircraft "C-130J Hercules" (Dad, 15 Oct 2026; shared plan Step 3e item 6; DB-35): each ship is the C-130J at its own
+  // length in the overview and in Chase; in the Cockpit camera every ship stays the CT-156 and the eye rides its cockpit.
+  // In an exercise (DB-37) each ship is its flight's aircraft; in the Cockpit camera only the ridden C-130J is the CT-156.
+  const inCockpit = Boolean(cockpit && !cockpit.chase);
+  const shipKind = (s) => {
+    const type = typeOf(s.slot);
+    const t38a = type === 't38a';
+    const c130j = type === 'c130j' && !(inCockpit && (!look?.exercise || s.ridden));
+    // In an exercise the T-38A and C-130J files' light copies draw the ships outside the watched flight, which sit away
+    // from the camera (DB-37, the three-performance skill's far-ship rule); the watched flight and the ridden ship stay full.
+    const detail = look?.exercise && !s.ridden && watched && Math.ceil(s.slot / 4) !== watched && (t38a || c130j) ? 'lite' : 'high';
+    return { type, t38a, c130j, detail, key: `${t38a ? 't38a' : c130j ? 'c130j' : paint}|${lengthFt}|${rootScale}|${detail}` };
+  };
+  const riddenKind = cockpit ? shipKind({ slot: cockpit.slot, ridden: true }) : null;
+  const t38a = Boolean(riddenKind?.t38a);
+  const c130j = Boolean(riddenKind?.c130j);
   const ghosted = new Set();
   let ridden = null;
+  let shadowC130j = false;
   for (const s of ships) {
     const ghost = s.estimated && !s.ridden;
-    if ((!cockpit && on.model3d !== 't6') || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
+    const kind = shipKind(s);
+    const key = kind.key;
+    if ((!cockpit && !MODELLED.has(kind.type)) || s.hdg === null || (s.inGap && !s.estimated && !s.ridden)) continue;
     const store = ghost ? gl.ghosts : gl.ships;
     let entry = store.get(s.slot);
     if (entry && entry.key !== key) {
       if (gl.cockpit?.root === entry.mesh) gl.cockpit.mount(null);
+      if (gl.t38aCockpit?.root === entry.mesh) gl.t38aCockpit.mount(null);
       if (ghost) disposeGhost(entry);
       else disposeAircraftMesh(entry.mesh);
       store.delete(s.slot);
       entry = null;
     }
     if (!entry) {
-      const options = { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt };
-      entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: createCt156Model(THREE, options) };
+      const options = {
+        color: colorOf(s.slot), number: look?.exercise ? look.number(s.slot) : s.slot, paint, lengthFt, t38a: kind.t38a, c130j: kind.c130j, onReady: () => gl.redraw?.(),
+      };
+      const fallback = () => createCt156Model(THREE, options); // the CT-156 until a model file is in, or if it fails
+      const solid = () => {
+        if (kind.t38a) return createT38aModel(THREE, { lengthFt, detail: kind.detail, fallback, onReady: options.onReady });
+        if (kind.c130j) return createC130jModel(THREE, { lengthFt, detail: kind.detail, fallback, onReady: options.onReady });
+        return createCt156Model(THREE, options);
+      };
+      entry = ghost ? { key, ...ghostModel(THREE, options) } : { key, mesh: solid() };
       entry.mesh.rotation.order = attitudeEuler(s).order;
       entry.mesh.scale.setScalar(rootScale);
       scene.add(entry.mesh);
@@ -594,18 +668,39 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     if (s.ridden) ridden = entry.mesh;
   }
   // The shadows follow the ridden ship, or else Lead (or the lowest slot shown): one ship's box keeps them sharp.
-  const shadowShip = ridden ?? [...gl.ships].filter(([slot]) => modelled.has(slot)).sort(([a], [b]) => a - b)[0]?.[1].mesh;
-  gl.shadows.follow(shadowShip, 0.8 * (lengthFt / CT156_UNIT_LENGTH) * rootScale);
+  const shadowEntry = ridden ? null : [...gl.ships].filter(([slot]) => modelled.has(slot)).sort(([a], [b]) => a - b)[0];
+  const shadowShip = ridden ?? shadowEntry?.[1].mesh;
+  shadowC130j = ridden ? c130j : Boolean(shadowEntry && shipKind({ slot: shadowEntry[0] }).c130j);
+  gl.shadows.follow(shadowShip, 0.8 * (lengthFt / CT156_UNIT_LENGTH) * rootScale * (shadowC130j ? C130J_LENGTH_FT / CT156_LENGTH_FT : 1));
   for (const [slot, { mesh }] of gl.ships) mesh.visible = modelled.has(slot);
   for (const [slot, { mesh }] of gl.ghosts) mesh.visible = ghosted.has(slot);
   for (const slot of ghosted) modelled.add(slot); // labelled as a model, not given a flat marker
 
   if (cockpit && ridden && cockpit.chase) {
     gl.cockpit?.mount(null); // seen from outside: the cockpit is not opened
+    gl.t38aCockpit?.mount(null);
     aimChaseCamera(THREE, gl.persp, ridden, {
       hdg: cockpit.hdg, yawDeg: cockpit.head.yawDeg, pitchDeg: cockpit.head.pitchDeg, target: cockpit.target ?? null, width: size.width, height: size.height,
     });
+    if (c130j) { // DB-35: stand back in proportion to the C-130J's length, so the whole aircraft is in view (an estimate)
+      const back = gl.persp.position.clone().sub(ridden.position).multiplyScalar(C130J_LENGTH_FT / CT156_LENGTH_FT);
+      gl.persp.position.copy(ridden.position).add(back);
+      const aim = cockpit.target;
+      gl.persp.lookAt(aim ? new THREE.Vector3(aim.x, aim.y, aim.z) : ridden.position); // aimed again from the new place
+      gl.persp.updateMatrixWorld(true);
+    }
+  } else if (cockpit && ridden && t38a) {
+    // The T-38A (DB-33): its own cockpit in the ridden ship, the eye at its seat's eye point. The aim, lens and head turn
+    // are the shared seat helper's; only the eye moves to the T-38A's. No live panel: its gauges are pictures for now.
+    gl.cockpit?.mount(null);
+    gl.t38aCockpit ??= createT38aCockpitMount(THREE, { onReady: () => gl.redraw?.() });
+    gl.t38aCockpit.mount(ridden);
+    const head = cockpit.target ? headToward(THREE, ridden, cockpit.target) : cockpit.head;
+    aimCockpitCamera(THREE, gl.persp, ridden, { seat: cockpit.seat, yawDeg: head.yawDeg, pitchDeg: head.pitchDeg, width: size.width, height: size.height });
+    gl.persp.position.copy(t38aEyeWorld(THREE, ridden, cockpit.seat)); // the direction doesn't depend on the eye, so it stands
+    gl.persp.updateMatrixWorld(true);
   } else if (cockpit && ridden) {
+    gl.t38aCockpit?.mount(null);
     gl.cockpit ??= createCockpitMount(THREE, { doc: gl.doc });
     gl.cockpit.mount(ridden, cockpit.seat);
     // Padlock turns the head to the locked ship; boresight keeps it straight ahead (cockpit.head is zero then).
@@ -616,7 +711,10 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     const key = JSON.stringify(cockpit.panel);
     if (gl.cockpit.update(cockpit.panel)) gl.shownPanel = key;
     else if (key !== gl.shownPanel) cockpit.again = PANEL_REDRAW_MS + 20;
-  } else gl.cockpit?.mount(null);
+  } else {
+    gl.cockpit?.mount(null);
+    gl.t38aCockpit?.mount(null);
+  }
 
   renderer.render(scene, view);
   return modelled;

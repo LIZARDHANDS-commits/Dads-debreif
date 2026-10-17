@@ -7,7 +7,10 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { SHIP_COLORS, OUTLINED_SHIPS, flightSummary, trackStatus, assignShips, setShip, shipName } from './state.js';
 import { MAX_TRACKS } from '../../flight-data/load.js';
-import { createReadoutsPanel } from './readouts-panel.js';
+import { createFormationReadouts } from './flights-panel.js';
+import {
+  SHIPS_PER_FLIGHT, MAX_FLIGHTS, FLIGHT_AIRCRAFT, CALL_SIGN_MAX, flightOf, numberOf, slotOf, defaultCallSign, cleanCallSign, readCrew,
+} from './exercise.js';
 import { BUBBLE_MIN_FT, BUBBLE_MAX_FT } from './map2d/geometry.js';
 import { ROUTES } from './data/routes.js';
 import { VNC_ALIGN_LIMITS, VNC_DEFAULT_ALIGN } from './map2d/vnc.js';
@@ -29,10 +32,11 @@ const GROUND_HIDES_WORDS = 'Airspace and airfields under the ground drawn (lowes
 // What the button does, said once for a screen reader and as the button's tooltip, so the menu's own line can stay one line (F1).
 const SAVE_WX_EXPLAIN = 'This fetches every picture from the flight and keeps them in the debrief file.';
 
-/** A ship's colour swatch (its number always goes beside it). */
-export function shipSwatch(slot) {
-  const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
-  el.style.setProperty('--ship', SHIP_COLORS[slot]); // through the CSSOM, which a style-src policy allows
+/** A ship's colour swatch (its number always goes beside it). look: exercise.js shipLook's (an exercise's colours, DB-37), or null for #1 to #4. */
+export function shipSwatch(slot, look = null) {
+  const outlined = look ? look.outlined(slot) : OUTLINED_SHIPS.has(slot);
+  const el = h('span', { class: `ship-swatch${outlined ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
+  el.style.setProperty('--ship', look ? look.color(slot) : SHIP_COLORS[slot]); // through the CSSOM, which a style-src policy allows
   return el;
 }
 
@@ -44,6 +48,10 @@ export function shipSwatch(slot) {
 export function createLayout({ layout, controls, bar, canExample, listen, flightExtras = [], formationExtras = [] }) {
   const handlers = {};
   let flight = null;
+  // How the shown flight's ships look and are named (exercise.js shipLook, DB-37), and the flights' call signs and
+  // aircraft as set ({ f: { callSign?, type? } }); a four-ship load has no flights table.
+  let look = null;
+  let crew = {};
   let fillInfo = null; // the gap fill's state for the status: { on, running, result } (DB-19)
 
   // Flight column
@@ -68,6 +76,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   statusButton.addEventListener('click', () => layout.update({ statusDetails: !layout.get().statusDetails }));
   const statusDetails = h('div', { class: 'status-details', id: 'debrief-status-details', hidden: true });
 
+  // The flights' call signs and aircraft while an exercise is loaded (DB-37; filled by renderCrewBox).
+  const crewBox = h('details', { class: 'crew-box', hidden: true }, h('summary', {}, 'Flights: call signs and aircraft'));
+  const crewBody = h('div', {});
+  crewBox.append(crewBody);
   const flightPanel = createPanel({ title: 'Flight', onToggle: (collapsed) => layout.update({ flightColumn: !collapsed }) });
   flightPanel.body.append(
     h('div', { class: 'debrief-actions' }, loadLabel, exampleButton),
@@ -76,6 +88,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     message,
     statusButton,
     statusDetails,
+    crewBox,
   );
 
   // Stage
@@ -85,7 +98,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const credit = h('p', { class: 'map-credit', hidden: true, 'aria-live': 'polite' });
   // In 3D on "Terrain and satellite" (DB-27): the satellite picture's and the elevation tiles' credit lines.
   const credit3d = h('p', { class: 'map-credit debrief-credit-3d', hidden: true });
-  const empty = h('p', { class: 'debrief-empty' }, 'Load up to four track files, or the example flight, to start.');
+  const empty = h('p', { class: 'debrief-empty' }, 'Load up to four track files (up to 16 for an exercise), or the example flight, to start.');
   const fitButton = h('button', { type: 'button', class: 'button', disabled: true, onclick: () => handlers.fit?.() }, 'Fit');
   // A menu: a real button that opens a small panel over the map, and closes
   // again on Escape or a click elsewhere.
@@ -153,6 +166,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     const st = spaceState;
     const hidden = new Set(hiddenKinds(on.airspaceHidden));
     const words = !st || !on.airspace ? '' : st.words;
+    satDetailSelect.hidden = on.datum3d !== 'terrain';
     for (const box of spaceBoxes) {
       if (box.ground) box.ground.hidden = !st || st.status === 'none' || (!on.airspace && !on.airfields) || on.datum3d !== 'min' || ridesShip(on);
       if (box.status.textContent !== words) box.status.textContent = words;
@@ -286,6 +300,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
     controls.checkbox('tennisOpen', { label: 'Tennis ball' }),
+    controls.checkbox('dropOpen', { label: 'Drop' }), // the simulated drop's box (DB-36)
   ]);
 
   // The 3D view's settings, in 3D only (SPEC-debrief: The screen). The camera itself (mount, aim, ship, seat) is the bar
@@ -305,8 +320,13 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     groundNote.hidden = !text;
   };
   const outside = (el) => (notInCockpit.push(el), el);
+  // "Satellite detail" (DB-34), shown only with Terrain and satellite: High is a finer picture over the whole flight, for capable computers.
+  const satDetailSelect = controls.select('satDetail3d', { label: 'Satellite detail', options: [
+    { value: 'standard', label: 'Standard' },
+    { value: 'high', label: 'High (sharper, more graphics memory)' },
+  ] });
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
-    controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
+    controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 't38a', label: 'T-38A Talon' }, { value: 'c130j', label: 'C-130J Hercules' }, { value: 'flat', label: 'Flat marker' }] }),
     controls.select('paint3d', { label: 'Paint', options: PAINT_OPTIONS.map((o) => ({ value: o.value, label: o.label })) }),
     outside(controls.slider('yaw3d', { label: 'Turn', min: YAW[0], max: YAW[1], format: (v) => `${v}°` })),
     outside(controls.slider('pitch3d', { label: 'Look down', min: PITCH[0], max: PITCH[1], format: (v) => `${v}°` })),
@@ -321,6 +341,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       { value: 'field', label: 'Home field elevation' },
       { value: 'zero', label: 'Sea level' },
     ] })),
+    satDetailSelect,
     groundNote,
     controls.checkbox('attLabels3d', { label: 'Bank and pitch' }),
     outside(controls.checkbox('sticks3d', { label: 'Altitude sticks' })),
@@ -353,8 +374,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     savedWxLive,
   );
 
-  // Formation column: the Formation card and More detail (readouts-panel.js).
-  const readouts = createReadoutsPanel({ layout, swatch: shipSwatch });
+  // Formation column: the Formation card and More detail (readouts-panel.js), one block per flight in an exercise (flights-panel.js).
+  const readouts = createFormationReadouts({ layout, swatch: shipSwatch, onWatch: (f) => handlers.watch?.(f) });
   const formationPanel = createPanel({ title: 'Formation', onToggle: (collapsed) => layout.update({ formationColumn: !collapsed }) });
   formationPanel.body.append(readouts.element, ...formationExtras);
 
@@ -370,54 +391,125 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     formationCol,
   );
 
+  const label = (slot) => (look ? look.label(slot) : `#${slot}`);
+  const summaryNow = () => flightSummary(flight, fillInfo, { label, flights: look?.exercise ? look.flights.length : 0 });
   function renderStatus() {
-    statusText.textContent = flightSummary(flight, fillInfo);
+    statusText.textContent = summaryNow();
     statusButton.disabled = !flight;
     clear(statusDetails);
-    for (const s of trackStatus(flight, fillInfo)) {
+    for (const s of trackStatus(flight, fillInfo, label)) {
       statusDetails.append(
-        h('h3', {}, shipSwatch(s.slot), `#${s.slot} `, h('span', { class: 'ship-name' }, shipName(s.slot, s.name))),
+        h('h3', {}, shipSwatch(s.slot, look), `${label(s.slot)} `, h('span', { class: 'ship-name' }, shipName(s.slot, s.name))),
         h('ul', {}, s.lines.map((line) => h('li', {}, line))),
       );
     }
+    renderCrewBox();
+  }
+
+  // The flights' call signs and aircraft (DB-37): a small table, closed under "More", in the picker for five files or
+  // more and in the Flight column while an exercise is loaded. `values` is { f: { callSign?, type? } }; onChange(f, patch).
+  function crewTable(flights, values, onChange) {
+    return h('table', { class: 'picker-table crew-table' },
+      h('caption', { class: 'visually-hidden' }, 'Call sign and aircraft for each flight'),
+      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Flight')), h('th', { scope: 'col' }, 'Call sign'), h('th', { scope: 'col' }, 'Aircraft'))),
+      h('tbody', {}, flights.map((f) => {
+        const input = h('input', {
+          type: 'text', maxlength: String(CALL_SIGN_MAX), placeholder: defaultCallSign(f), value: values[f]?.callSign ?? '',
+          'aria-label': `Call sign for flight ${f}`, autocomplete: 'off', spellcheck: 'false',
+        });
+        input.addEventListener('change', () => {
+          const tidy = cleanCallSign(input.value);
+          input.value = tidy;
+          onChange(f, { callSign: tidy });
+        });
+        const type = h('select', { 'aria-label': `Aircraft for flight ${f}` },
+          FLIGHT_AIRCRAFT.map((a) => h('option', { value: a.value, selected: (values[f]?.type ?? '') === a.value }, a.label)));
+        type.addEventListener('change', () => onChange(f, { type: type.value }));
+        return h('tr', {}, h('td', { class: 'crew-flight' }, String(f)), h('td', {}, input), h('td', {}, type));
+      })));
+  }
+  let crewBoxKey = '';
+  let crewToken = ''; // changes with each flight loaded or opened, so the table is built again only then (typing keeps its focus)
+  function renderCrewBox() {
+    const flights = look?.exercise ? look.flights.map((g) => g.f) : [];
+    crewBox.hidden = !flights.length;
+    const key = `${flights.join()}|${crewToken}`;
+    if (key === crewBoxKey) return;
+    crewBoxKey = key;
+    clear(crewBody);
+    if (flights.length) crewBody.append(crewTable(flights, crew, (f, patch) => handlers.crew?.(f, patch)));
   }
 
   // The picker: each chosen file gets a ship, #1 upward in the order picked,
   // and any can be changed; choosing a ship another file has swaps the two.
+  // Five files or more are an exercise (DB-37): each file also picks its flight (four to a flight at first), and the
+  // flights' call signs and aircraft sit closed under "More". Four or fewer: exactly the table as before.
   function showPicker(files) {
     let rows = assignShips(files.map((f) => f.name));
-    const render = () => {
+    const exercise = files.length > SHIPS_PER_FLIGHT;
+    let pickerCrew = {};
+    let moreOpen = false;
+    const options = (count, words, value) => Array.from({ length: count }, (_, k) => h('option', { value: String(k + 1), selected: value === k + 1 }, words(k + 1)));
+    const render = (focus = null) => {
       clear(picker);
+      const head = exercise
+        ? h('tr', {}, h('th', { scope: 'col' }, 'File'), h('th', { scope: 'col' }, 'Flight'), h('th', { scope: 'col' }, 'Ship'))
+        : h('tr', {}, h('th', { scope: 'col' }, 'File'), h('th', { scope: 'col' }, 'Ship'));
       const table = h(
         'table',
         { class: 'picker-table' },
-        h('caption', { class: 'visually-hidden' }, 'Ship for each file'),
-        h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'File'), h('th', { scope: 'col' }, 'Ship'))),
+        h('caption', { class: 'visually-hidden' }, exercise ? 'Flight and ship for each file' : 'Ship for each file'),
+        h('thead', {}, head),
         h(
           'tbody',
           {},
           rows.map((row, i) => {
-            const select = h(
-              'select',
-              { 'aria-label': `Ship for ${row.name}` },
-              Array.from({ length: MAX_TRACKS }, (_, k) => h('option', { value: String(k + 1), selected: row.slot === k + 1 }, `#${k + 1}`)),
-            );
-            select.addEventListener('change', () => {
-              rows = setShip(rows, i, Number(select.value));
-              render();
-              picker.querySelectorAll('select')[i]?.focus();
+            if (!exercise) {
+              const select = h(
+                'select',
+                { 'aria-label': `Ship for ${row.name}` },
+                Array.from({ length: MAX_TRACKS }, (_, k) => h('option', { value: String(k + 1), selected: row.slot === k + 1 }, `#${k + 1}`)),
+              );
+              select.addEventListener('change', () => {
+                rows = setShip(rows, i, Number(select.value));
+                render(`${i}:ship`);
+              });
+              select.dataset.focus = `${i}:ship`;
+              return h('tr', {}, h('td', { class: 'ship-name' }, row.name), h('td', {}, select));
+            }
+            const flightSelect = h('select', { 'aria-label': `Flight for ${row.name}`, 'data-focus': `${i}:flight` },
+              options(MAX_FLIGHTS, (f) => `Flight ${f}`, flightOf(row.slot)));
+            flightSelect.addEventListener('change', () => {
+              rows = setShip(rows, i, slotOf(Number(flightSelect.value), numberOf(row.slot)));
+              render(`${i}:flight`);
             });
-            return h('tr', {}, h('td', { class: 'ship-name' }, row.name), h('td', {}, select));
+            const shipSelect = h('select', { 'aria-label': `Ship for ${row.name}`, 'data-focus': `${i}:ship` },
+              options(SHIPS_PER_FLIGHT, (n) => `#${n}`, numberOf(row.slot)));
+            shipSelect.addEventListener('change', () => {
+              rows = setShip(rows, i, slotOf(flightOf(row.slot), Number(shipSelect.value)));
+              render(`${i}:ship`);
+            });
+            return h('tr', {}, h('td', { class: 'ship-name' }, row.name), h('td', {}, flightSelect), h('td', {}, shipSelect));
           }),
         ),
       );
+      const parts = [table];
+      if (exercise) {
+        const flights = [...new Set(rows.map((r) => flightOf(r.slot)))].sort((a, b) => a - b);
+        const more = h('details', { class: 'crew-box' }, h('summary', {}, 'More: call signs and aircraft'),
+          crewTable(flights, pickerCrew, (f, patch) => { pickerCrew = readCrew({ ...pickerCrew, [f]: { ...pickerCrew[f], ...patch } }); }));
+        more.open = moreOpen;
+        more.addEventListener('toggle', () => { moreOpen = more.open; });
+        parts.push(more);
+      }
       const load = h('button', { type: 'button', class: 'button primary', onclick: () => {
         const picked = rows.map((row, i) => ({ slot: row.slot, file: files[i] }));
         hidePicker();
-        handlers.load?.(picked);
+        handlers.load?.(picked, exercise ? pickerCrew : null);
       } }, 'Load');
       const cancel = h('button', { type: 'button', class: 'button', onclick: hidePicker }, 'Cancel');
-      picker.append(table, h('div', { class: 'debrief-actions' }, load, cancel));
+      picker.append(...parts, h('div', { class: 'debrief-actions' }, load, cancel));
+      if (focus) picker.querySelector(`select[data-focus="${focus}"]`)?.focus();
     };
     render();
     picker.hidden = false;
@@ -489,7 +581,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     renderSpace();
     // The camera bar sits over the 3D picture once a flight is loaded.
     cameraBar.element.hidden = !is3d || !flight;
-    if (flight) cameraBar.sync(values, Object.keys(flight.tracks).map(Number));
+    if (flight) cameraBar.sync(values, Object.keys(flight.tracks).map(Number), look);
     if (fillInfo && fillInfo.on !== values.fillGaps) {
       fillInfo = { ...fillInfo, on: values.fillGaps };
       renderStatus();
@@ -506,14 +598,22 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     element,
     canvas,
     canvas3d,
-    summary: () => flightSummary(flight, fillInfo),
+    summary: () => summaryNow(),
     /** The gap fill's state for the status line and details: { on, running, result }, or null (DB-19). */
     setGapFill(info) {
       fillInfo = info;
       renderStatus();
     },
-    showFlight(next) {
+    /**
+     * A flight shown (or null), with how its ships look and are named (exercise.js shipLook), the flights' call signs
+     * and aircraft as set, and `token`, which changes with each flight loaded or opened (the flights table is built
+     * again only then).
+     */
+    showFlight(next, nextLook = null, nextCrew = {}, token = '') {
       flight = next;
+      look = nextLook;
+      crew = nextCrew ?? {};
+      crewToken = token;
       empty.hidden = Boolean(flight);
       fitButton.disabled = !flight;
       renderStatus();
@@ -601,7 +701,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       credit3d.hidden = layout.get().view !== '3d' || !text;
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
-    renderReadouts: (r, extra) => readouts.render(r, flight, extra),
+    renderReadouts: (r, extra, watched = 1) => readouts.render(r, flight, extra, look, watched),
     showPicker,
     setMessage,
     setViewMessage,
@@ -615,6 +715,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     },
     applyLayout,
     onPick: (fn) => (handlers.pick = fn),
+    /** A flight's call sign or aircraft changed in the flights table: fn(f, { callSign } or { type }) (DB-37). */
+    onCrew: (fn) => (handlers.crew = fn),
+    /** A flight's block in the Formation column was opened: fn(f) makes it the watched flight (DB-37). */
+    onWatch: (fn) => (handlers.watch = fn),
     onLoad: (fn) => (handlers.load = fn),
     onExample: (fn) => (handlers.example = fn),
     onFit: (fn) => (handlers.fit = fn),

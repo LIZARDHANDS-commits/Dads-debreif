@@ -1,5 +1,7 @@
-# Netlify settings for the SOF traffic relay (decision SOF-40). In Netlify, set the site's
-# base directory to "relay"; these paths are then inside relay/. Nothing is installed or built.
+# Netlify settings for the tool's relay (decision SOF-40). In Netlify, set the site's
+# base directory to "relay"; these paths are then inside relay/. Nothing is built; the one
+# package, Netlify Blobs for /ep-link (EP-10), is installed from relay/package.json
+# (run `npm ci` in relay/ before a deploy from the command line).
 [build]
   command = ""
   publish = "netlify/public"

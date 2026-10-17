@@ -55,3 +55,27 @@ Moved up to plan.md Step 3a (Patrick approved, relayed by Dad, 10 Oct 2026). Fil
 - **A receiver change on the ground.** On the example flight #3's taxi in fixes are stamped on the GPS second while its taxi out and airborne fixes sit 0.24 s after it: after landing its heights probably come from the iPad's own GPS, not the puck, so its taxi in bias calibrates a different receiver. The check could judge each phase's timestamps (DB-25's signature) and leave out a phase from another receiver. Not built.
 - **Correct to the terrain (absolute)** as an option, if Patrick picks DB-Q27 (b): it would also need the model's wheel height (DB-26's 6.2 ft, estimate) in the reference.
 - **Scatter in the confidence.** The medians agree within about 7 ft on the example, but single parked fixes scatter much more: #4 reads 16 ft under the others at 18:21Z and 26 ft at 20:02Z on the same terrain pixel, and #1 jumps 60 ft high at 20:02Z. The check could also say a ship's ground spread (for example the middle 80% of its readings) and call a wide one low confidence. Not built.
+
+## Simulated drop over a drop zone (Dad, 15 Oct 2026)
+
+- **A simulated drop in the KML viewer** (Dad, 15 Oct 2026: "After the herc. can we build a simulated drop in the KML viewer. So an inert bomb or cargo load over a drop zone. so we can see the inertia and whether or not it'd land on target"): at a release moment on a loaded track, an inert bomb or a cargo load leaves the ship with its speed and heading, falls under gravity and drag (and a parachute for cargo) through the wind, and is drawn to the ground in 2D and 3D, with where it lands against a drop zone placed on the map and the miss distance. After the C-130J model (shared plan Step 3e). Flight math (new falling-object math, the wind from the existing Winds aloft), **Moved up to `plan.md` Step 3b** (Patrick approved, relayed by Dad, 15 Oct 2026); the plan is `drop-plan.md`.
+
+## Large exercises, up to 16 ships (Dad, 15 Oct 2026)
+
+- **A large 16-ship exercise option in the KML viewer** (Dad, 15 Oct 2026: "Additionally lets add a to the KML viewer an large 16 ship exercises option"): load up to 16 tracks instead of today's four (one file per ship, as now), each with its own colour and label, in 2D and 3D. Today four slots run through the loading, the formation judging (Lead and #2 to #4), the colours, the labels, the camera's ship pills and the CSV. To settle in a plan first: whether the formation judging stays for the first four or is off in exercise mode, how 16 colours and labels stay readable, grouping into flights (for example four four-ships), and how the screen keeps only the essentials showing. Needs a written plan and Patrick's yes before building. **Moved up to `plan.md` Step 3c (Patrick approved, relayed by Dad, 16 Oct 2026); plan: `exercise-plan.md`,** with Dad's picks: flights of four, each with its own Lead and judging, and each flight its own aircraft type and call sign. **Built as a first pass in V2.501 (DB-37).**
+- **Closest approach between flights** (from the exercise plan's open questions, 16 Oct 2026): a readout of the nearest ships of different flights (deconfliction), not built; DB-37's working answer leaves it here until Dad or Patrick moves it up.
+- **The tennis ball across flights** (16 Oct 2026, DB-37 working answer): in an exercise the tennis ball still picks among Flight 1's four ships; letting it pick any ship is a small follow-on if wanted.
+
+## Sharper satellite ground in 3D (Dad, 15 Oct 2026: "The kml viewer struggles to display the satellite ground terrain. can we look at that")
+Checked from the session on 15 Oct 2026 with Dad's Cobra 31, 32 and 34 KMLs, on main (V2.423), in headless Chromium:
+- **Loading:** every tile came. That was 70 elevation tiles and 109 satellite tiles, the satellite ones in about 4 s, with none failed.
+- **The look:** the ground under the aircraft was a blur in the overview and in Chase. The reason is DB-27's own sizes, not a fault:
+  - The inner satellite picture is 2,048 px over the flight's 78 NM square, about 70 m (230 ft) a pixel.
+  - Its tiles are Esri zoom 10, about 100 m a pixel at 50° N, because the 49-tile cap allows no finer over 78 NM.
+  - Only the 5 NM field patch round the ramp is sharp (about 15 ft a pixel).
+- **Ideas for Patrick:**
+  - (a) **A sharp patch that follows the camera:** a second field patch, about 8 NM square at Esri zoom 14 to 15 (2,048 px, about 7 m a pixel), centred on the aircraft followed (or the overview's look point). It moves when the aircraft nears its edge, its tiles kept so going back is instant, and it is feathered into the picture under it as the field patch is. About 49 tiles a move.
+  - (b) **A finer inner picture on capable computers:** 4,096 px and zoom 11 behind a graphics setting, about 4 times sharper everywhere. It costs about 64 MB of graphics memory and up to 4 times the tiles.
+  - (c) Both.
+- **Also seen:** the same flight's ground read 2,749 ft "from the tracks" (the raw fixes read 570 m, about 1,870 ft), so the runways were lifted 851 ft. That is the airborne-start altitude bug, fixed in LIZARDHANDS-commits/Dads-debreif#1042 (V2.449), not yet merged.
+- **Dad's pick (15 Oct 2026): (c) both.** Patrick approved, relayed by Dad the same day: "pat approved, build both". Moved onto the plan as Step 3b (DB-34).
