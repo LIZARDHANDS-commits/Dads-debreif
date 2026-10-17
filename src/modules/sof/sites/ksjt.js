@@ -1,7 +1,7 @@
 // The San Angelo (Mathis Field) site profile (Dad, 8 Oct 2026: an eighth SOF location, after the 3D pan and area work): the SOF's own data for KSJT. The parts
 // every US base shares, and their sources, are in us-base.js. Weather standards: Moose Jaw's (Dad, 8 Oct 2026: "KSJT uses moosejaw rules (its the
-// detachment)"), by reference to the CYMJ profile, NOAA MRMS radar and NASA GOES-East satellite, no lightning
-// picture, the WPC fronts, FAA airspace (KSJT is Class D, surface to 4,400 ft MSL, in the FAA data), FAA NOTAMs (keyed) and aviationweather.gov SIGMETs,
+// detachment)"), by reference to the CYMJ profile, NOAA MRMS radar and NASA GOES-East satellite, NOAA NLDN
+// lightning strikes (SOF-71), the WPC fronts, FAA airspace (KSJT is Class D, surface to 4,400 ft MSL, in the FAA data), FAA NOTAMs (keyed) and aviationweather.gov SIGMETs,
 // G-AIRMETs and PIREPs.
 import { AIRSPACE_LOADERS } from '../../../airfields/airspace/areas.js';
 import { usBase, towns } from './us-base.js';

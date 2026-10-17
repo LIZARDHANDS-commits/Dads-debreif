@@ -9,6 +9,7 @@ For the app frame thread, which owns `index.html` and the page's policy. `index.
 | | `https://geo.weather.gc.ca` | ECCC GeoMet: radar, radar coverage, lightning density, GOES cloud, warnings, and each layer's time (`GetCapabilities`) |
 | | `https://api.rainviewer.com` | RainViewer's list of radar frames, the radar backup |
 | | `https://api.open-meteo.com` | Model clouds, winds aloft and freezing level for the 3D view (SOF-39 phase 2), asked only while the 3D view is open |
+| | `https://noaa-mrms-pds.s3.amazonaws.com` | NOAA MRMS radar heights for the 3D view (SOF-67, V2.452): the bucket's folder listing and the .grib2.gz files, by `fetch`, only while the 3D view is open, at every base. The bucket answers any site (`access-control-allow-origin: *`, checked 14 Oct 2026, `radar-3d-research.md`). The Terrarium entry under `img-src` (`s3.amazonaws.com`, path style) does not cover it: this is its own host. |
 | | the traffic relay's origin | Live traffic (SOF-7). Not known yet: it is the address Patrick types into "Traffic relay address" in the SOF settings, now on Netlify (SOF-40), e.g. `https://<site>.netlify.app`. Until there is a relay the layer is hidden and asks for nothing. Add the origin once it exists; the setting only accepts an `https://` address with nothing after the host (or `http://` on localhost). |
 | `img-src` | `'self'` | The VNC charts, once they move under the site |
 | | `https://s3.amazonaws.com` | Terrain heights for the 3D view (Terrarium elevation tiles), only while 3D is open |
@@ -16,6 +17,7 @@ For the app frame thread, which owns `index.html` and the page's policy. `index.
 | | `https://tilecache.rainviewer.com` | RainViewer radar tiles (the host in RainViewer's own list reply) |
 | `frame-src` | `https://globe.adsbexchange.com` | The ADS-B Exchange view (task 7). Only while its switch is on. |
 | `style-src` | `'self'` | `sof.css`, one `<link rel="stylesheet">` the module adds and removes |
+| `worker-src` | `'self'` | The MRMS reader's background worker (`mrms-worker.js`, SOF-67, V2.452): a module worker loaded from the site's own files (Vite builds it into `assets/`), never a `blob:` or `data:` worker. With no `worker-src`, `script-src 'self'` already allows it; `worker-src 'self'` is only needed if the policy sets a stricter `default-src` or `worker-src`. The worker fetches nothing itself. |
 
 - **US bases (SOF-50, V2.189).** `connect-src https://opengeo.ncep.noaa.gov` (NOAA MRMS radar, WMS capabilities and GetMap by `fetch`) and `connect-src https://gibs.earthdata.nasa.gov` (NASA GIBS GOES-East infrared, GetMap by `fetch`, pixels read to spot an empty frame). Both answer with `access-control-allow-origin: *` (checked 8 Oct 2026). The Blitzortung "Lightning map" link at the US bases is a plain link (no directive).
 
@@ -24,7 +26,7 @@ Notes for whoever writes the policy:
 - **ECCC and Esri pictures.** ECCC's pictures are fetched (`fetch`, then decoded with `createImageBitmap` from the bytes), so they need `connect-src` only, not `img-src`, and no `blob:` or `data:` source. Esri and RainViewer tiles are drawn from image elements, so they need `img-src`.
 - **The frame.** The ADS-B Exchange frame is created with `sandbox="allow-scripts allow-same-origin"`, `referrerpolicy="no-referrer"` and an empty `allow=""`, so it gets no camera, location, or pop-up powers and cannot navigate our page. If the page ever sets `frame-ancestors` or `X-Frame-Options` on itself, that does not affect this (it governs who may frame us).
 - **Map position of the tip.** The hover tip is placed with `element.style.left/top` set from script (the CSSOM), which `style-src 'self'` allows. No `style="..."` attribute is written into the page's HTML.
-- **Nothing else outside.** There is no analytics, no font host, no `blob:` worker and no WebSocket. The Blitzortung "Lightning map" link and the per-card "Runway view" link (task 7) are not built yet; when they are they are plain links (no directive needed).
+- **Nothing else outside.** There is no analytics, no font host, no `blob:` worker (the one worker, `mrms-worker.js`, is a same-origin file) and no WebSocket. The Blitzortung "Lightning map" link and the per-card "Runway view" link (task 7) are not built yet; when they are they are plain links (no directive needed).
 - **Test note.** No test reaches these hosts: `sof-map-feeds.js` answers every one of them from fixtures by a Playwright route, so the tests run the same with or without a policy.
 
 ## Other modules (added by the app frame for the page-wide policy)

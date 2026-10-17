@@ -79,10 +79,12 @@ export const wmsServiceOf = (layer) => (typeof layer === 'string' && SERVICE_OF.
  * lag is 25 to 38 minutes (sof-recheck-207 F3), so it has its own, longer limit and nothing else depends on it.
  * The HRDPS total-cloud picture is a forecast, so its age is its model run's (its reference time): older than 12 hours is an
  * old run (two runs missed; ECCC runs HRDPS every 6 hours). Estimate, SOF-39.
+ * NOAA's lightning strikes (SOF-71, strikes-feed.js) are stale when the newest one-minute file is over 10 minutes old by its own time: files arrive 1 to 2 minutes
+ * after their minute (measured 14 Oct 2026), so 10 minutes is several refreshes missed. An estimate.
  */
-export const STALE_MS = Object.freeze({ radar: 20 * MINUTE_MS, lightning: 40 * MINUTE_MS, cloud: 60 * MINUTE_MS, modelCloud: 12 * 60 * MINUTE_MS });
-/** How often each feed is asked again (D67). */
-export const REFRESH_MS = Object.freeze({ radar: 6 * MINUTE_MS, lightning: 10 * MINUTE_MS });
+export const STALE_MS = Object.freeze({ radar: 20 * MINUTE_MS, lightning: 40 * MINUTE_MS, cloud: 60 * MINUTE_MS, modelCloud: 12 * 60 * MINUTE_MS, strikes: 10 * MINUTE_MS });
+/** How often each feed is asked again (D67). NOAA's strikes every 2 minutes (SOF-71; an estimate: a new file each minute, 1 to 2 minutes late). */
+export const REFRESH_MS = Object.freeze({ radar: 6 * MINUTE_MS, lightning: 10 * MINUTE_MS, strikes: 2 * MINUTE_MS });
 
 // Southern Saskatchewan around Moose Jaw, as [west, south, east, north] degrees.
 export const DEFAULT_BBOX = Object.freeze([-110.5, 48.5, -101, 52.5]);
@@ -331,7 +333,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
 
 /**
  * A feed's age, taken from the layer's own time (not when it was fetched).
- * kind 'radar' (default; also the coverage layer), 'lightning', 'cloud' or 'modelCloud' (layerTime its run); layerTime a Date or ms.
+ * kind 'radar' (default; also the coverage layer), 'lightning', 'cloud', 'modelCloud' (layerTime its run) or 'strikes' (NOAA's newest minute file); layerTime a Date or ms.
  * Returns { ageMs, ageMin, stale, state } with state 'fresh', 'stale' or 'unknown'
  * (no usable time: age null, and counted stale so it is never shown as current).
  * A time up to 5 minutes ahead of the clock is age 0; further ahead is 'unknown'. Throws RangeError for another kind.
@@ -339,7 +341,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
  */
 export function feedAge({ kind = 'radar', layerTime, now = new Date() } = {}) {
   const limit = STALE_MS[kind];
-  if (limit === undefined || !Object.hasOwn(STALE_MS, kind)) throw new RangeError('kind must be radar, lightning, cloud or modelCloud');
+  if (limit === undefined || !Object.hasOwn(STALE_MS, kind)) throw new RangeError('kind must be radar, lightning, cloud, modelCloud or strikes');
   const then = layerTime instanceof Date ? +layerTime : layerTime;
   const clock = +now;
   if (!isNumber(then) || !isNumber(clock)) return { ageMs: null, ageMin: null, stale: true, state: 'unknown' };
