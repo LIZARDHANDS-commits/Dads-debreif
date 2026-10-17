@@ -22,7 +22,7 @@ One screen, laid out by the house rules (`.agent/skills/screen-layout-and-style`
 - **Wind:** at the release height and at the ground (°M and kt, linear between them), and today's temperature against the standard day. Under More, a "planning wind" the CARP is worked out with, if different from the wind the pass meets, to see what a wrong forecast does.
 - **Display:** what's drawn (the orbit and run-in lines, the CARP, the load's trail, the flags), as the house rules say.
 
-Each box shows only the few settings the user sets for that run (RS-9, below). Everything else in it is worked out by the computer and shown greyed with "set to hit". The main button is **Fly the pass**. Every setting starts at a default (the table below), and each box marks an estimate with a ⓘ that says so.
+Each box shows only the few settings the user sets for that run (RS-9, below). Everything else in it is worked out by the computer and shown greyed with "set to hit". The main button is **Fly the pass**; it stays in view at the foot of Setup, and once a pass has been flown a change of any setting flies it again by itself (RS-14). Every setting starts at a default (the table below), and each box marks an estimate with a ⓘ that says so.
 
 **Middle: the 3D view.** The real ground (the shared terrain, with the satellite picture draped on it) round the target, the target shape, the aircraft model, and the planned lines: the orbit, the IP, the run-in and the dive line, the CARP and the escape. As it flies, a trail follows the aircraft, and after release a trail follows the load to its impact mark. A small **plan view (2D)**, north up, sits in a corner. It shows the same lines from above with the wind arrow and a scale.
 

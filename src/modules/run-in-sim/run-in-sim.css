@@ -68,7 +68,7 @@
 .rs-btn:disabled { opacity: 0.5; cursor: progress; }
 .rs-btn[aria-disabled='true'] { opacity: 0.5; }
 .rs-btn-main { background: #1b77a8; border-color: #1b77a8; color: #fff; font-weight: 600; }
-.rs-fly { width: 100%; margin-top: var(--space-2); padding: 10px; font-size: var(--text-md); }
+.rs-fly { width: 100%; margin-top: var(--space-2); padding: 10px; font-size: var(--text-md); position: sticky; bottom: 0; z-index: 1; box-shadow: 0 -8px 12px var(--bg); } /* always in view at the foot of Setup */
 
 .rs-centre { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; min-height: 0; }
 .rs-view-wrap { position: relative; flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #2f6aa8; }
