@@ -1,6 +1,6 @@
 # Air refuelling in the Run-in Simulator: plan (proposed; Steps 1 to 3 built ahead of Patrick's yes)
 
-Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). **Steps 1 to 3 are built ahead of Patrick's yes: Dad chose "Build anyway" (17 Oct 2026) after being told this plan waits on Patrick** (V2.503; spec "Air refuelling", RS-15 to RS-18, RS-R10 to RS-R13, plan.md Step 7). Everything built waits on Patrick's yes; Step 4 stays on `future.md`.
+Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). **Steps 1 to 3 are built ahead of Patrick's yes: Dad chose "Build anyway" (17 Oct 2026) after being told this plan waits on Patrick** (V2.503; spec "Air refuelling", RS-15 to RS-18, RS-R10 to RS-R13, plan.md Step 7). Everything built waits on Patrick's yes; Step 4 stays on `future.md`. **Dad's change the same day (RS-19, RS-20, plan.md Step 7b, V2.504):** "Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit" and "Giving turn range and offset would help too": the receiver now takes off from CYMJ and meets at the IP, the tanker turns inbound from its orbit, and the offset can be set by hand; also built ahead of Patrick's yes.
 
 ## What it would show
 

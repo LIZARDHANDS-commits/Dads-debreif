@@ -46,6 +46,14 @@ Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim"; hi
 - [ ] Patrick's yes on RS-15 to RS-18, and numbers or a manual page (ATP-56) for the estimates.
 - [ ] Dad or Patrick sees it in the app; the sign-off checklist in Dad's and Patrick's words (air-refuelling-plan.md Step 5).
 
+## Step 7b. Take-off, IP and the turn inbound from the orbit; turn range and offset (proposed, built ahead of Patrick's yes)
+Dad, 17 Oct 2026: "Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit"; "Giving turn range and offset would help too".
+- [x] Written down first: spec "Change: take off from Moose Jaw...", RS-19 and RS-20 (proposed), RS-R14 and RS-R15 (17 Oct 2026).
+- [ ] The take-off from CYMJ, the climb-out and the transit to the IP; the tanker in its orbit turning inbound, worked out from the receiver's flight (RS-19) (V2.504).
+- [ ] Turn range and offset leading the card, the offset by hand, both drawn (RS-20) (V2.504).
+- [ ] The one test updated: it leaves the runway, passes the IP, ends at pre-contact (V2.504).
+- [ ] Patrick's yes on RS-19 and RS-20.
+
 ## Not in this plan
 
 Live weapons, real-world target data, threats, formation runs, the user flying by hand and winds aloft from the models (`future.md`). For air refuelling: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous.
