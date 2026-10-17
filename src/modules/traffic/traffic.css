@@ -986,6 +986,13 @@
   font-size: var(--text-sm);
 }
 
+/* A line that always shows in a settings section, such as the CT-102B estimate flag (spec 4.19 item 5). */
+[data-module='traffic'] .settings-note {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 /* The hint floats under its box instead of pushing the controls below it down: if it took room, the
    Reset button would move when a box lost focus on mousedown, and the click would miss it. */
 [data-module='traffic'] .settings-item {

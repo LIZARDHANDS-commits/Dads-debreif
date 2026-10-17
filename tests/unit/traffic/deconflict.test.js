@@ -10,7 +10,8 @@ import assert from 'node:assert/strict';
 import { closestApproach, firstEntry, firstEntrySampled } from '../../../src/core/closest-approach.js';
 import { rightOfWay, freeze } from '../../../src/modules/traffic/deconflict.js';
 import { THRESHOLD_DATA_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
-import { createSim } from '../../../src/modules/traffic/sim.js';
+import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
+import { DEFAULTS } from '../../../src/modules/traffic/defaults.js';
 import { readFileSync } from 'node:fs';
 import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt } from '../../../src/modules/traffic/evade.js';
 import { buildGoAround, buildCircuit, buildExtendedDownwind } from '../../../src/modules/traffic/circuit.js';
@@ -18,7 +19,7 @@ import { followRoute, startSideStep } from '../../../src/modules/traffic/path-fo
 import { legOffsetsFt } from '../../../src/core/geo.js';
 import { gFromBankDeg } from '../../../src/core/flight-math.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
-import { straightInDelaySec } from '../../../src/modules/traffic/scenario-timing.js';
+import { straightInDelaySec, conflictSpawnPlan } from '../../../src/modules/traffic/scenario-timing.js';
 
 const CAUTION = { latFt: 500, vertFt: 500 };
 
@@ -297,3 +298,70 @@ test('an extended downwind rolls out further out on the glide path, and breaks o
   assert.equal(spacingExtensionFt({ ...ask, leaders: [] }), 0, 'no traffic: no extension');
 });
 
+// Spawn a conflict across the two patterns (Traffic spec 4.19 item 6; TR-159; plan Step 5c Phase 4). A CT-156 on its
+// Initial (Pattern 1's spot, 3,500 ft and 220 kt) is selected and the Astra pattern picked: the plan's start must bring
+// the CT-102B Astra II it adds inside the caution distance of the CT-156 with deconfliction off, and with it on nobody
+// gets inside the red and both land or are back in their own patterns. Expected values: 500 ft and 500 ft caution and
+// 200 ft and 200 ft red are Patrick's (TR-Q11); 3 minutes is the feature's own look-ahead (its message says "in the next
+// 3 minutes"; scenario-timing.js), not a time to meet; the default wind is the setup's (defaults.js). 10 minutes is a
+// safety stop only: about three Astra laps (a lap is about 3 1/4 minutes in calm air, spec 4.19 item 3) and well over
+// what the CT-156 needs from its Initial to its touchdown (about 3 minutes), so only one that never lands reaches it.
+test('a conflict spawned across the patterns is found, and with deconfliction on nobody gets inside the red', () => {
+  const CAUTION_FT = 500, RED_FT = 200; // TR-Q11, lateral and vertical alike
+  const LOOK_AHEAD_SEC = 180; // Spawn a conflict's own look-ahead, not a gate
+  const SAFETY_STOP_SEC = 10 * 60; // a safety stop, not a time to meet
+  const setupFor = (deconflict) => ({
+    ...structuredClone(MJ),
+    routes: structuredClone([...MJ.routes, ...MJ.routesForOtherTypes]),
+    aircraft: [{ id: 'H1', type: 'CT-156', routeId: 'PAT1', startIndex: 8, startsAtSec: 0 }], // Pattern 1's Initial spot
+    windFromDeg: DEFAULTS.windFromDeg,
+    windKt: DEFAULTS.windKt,
+    deconflict,
+  });
+  // A moment after the CT-156 appears, as a person would select it and press the button.
+  const SELECTED_AT_SEC = 1;
+  const asked = createSim(setupFor(false), { seed: 1 });
+  asked.stepTo(SELECTED_AT_SEC);
+  const plan = conflictSpawnPlan(asked, setupFor(false), 'H1', 'PAT_ASTRA', { type: 'CT-102B' });
+  assert.ok(plan, 'Spawn a conflict finds a start on the Astra pattern that meets the CT-156');
+
+  // Flies the two from the plan's start; reports when they first came inside the caution and the red, and whether each
+  // landed (down on the runway after flying) or, moved by the deconfliction, is back on its own pattern with no move.
+  const fly = (deconflict) => {
+    const sim = createSim(setupFor(deconflict), { seed: 1 });
+    sim.stepTo(SELECTED_AT_SEC);
+    const id = sim.spawn({ type: 'CT-102B', routeId: 'PAT_ASTRA', startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
+    const own = { H1: 'PAT1', [id]: 'PAT_ASTRA' };
+    const seen = { H1: { airborne: false, done: false, moved: false }, [id]: { airborne: false, done: false, moved: false } };
+    let cautionAt = null, redAt = null;
+    for (let k = Math.round(SELECTED_AT_SEC / STEP_SEC) + 1; k * STEP_SEC <= SAFETY_STOP_SEC; k++) {
+      sim.stepTo(k * STEP_SEC);
+      const now = sim.state().aircraft;
+      for (const a of now) {
+        const s = seen[a.id];
+        if (!s || a.status !== 'flying') continue;
+        if (a.alt > THRESHOLD_DATA_ELEV_FT + 100) s.airborne = true;
+        if (a.deconflict) s.moved = true;
+        if (s.airborne && a.alt <= THRESHOLD_DATA_ELEV_FT + 1) s.done = true; // touched down
+        if (s.moved && !a.deconflict && a.routeId === own[a.id]) s.done = true; // rejoined its own pattern
+      }
+      const a = now.find((x) => x.id === 'H1'), b = now.find((x) => x.id === id);
+      if (a?.status === 'flying' && b?.status === 'flying') {
+        const lat = Math.hypot(a.x - b.x, a.y - b.y), vert = Math.abs(a.alt - b.alt);
+        if (lat < CAUTION_FT && vert < CAUTION_FT) cautionAt ??= k * STEP_SEC - SELECTED_AT_SEC;
+        if (lat < RED_FT && vert < RED_FT) redAt ??= k * STEP_SEC - SELECTED_AT_SEC;
+      }
+      if (Object.values(seen).every((s) => s.done) && (deconflict || cautionAt !== null)) break;
+    }
+    return { id, cautionAt, redAt, seen };
+  };
+
+  const off = fly(false);
+  assert.ok(off.cautionAt !== null && off.cautionAt <= LOOK_AHEAD_SEC,
+    `with deconfliction off the ${off.id} it adds comes inside ${CAUTION_FT} ft and ${CAUTION_FT} ft of H1 within the ${LOOK_AHEAD_SEC / 60} minutes it looks ahead (${off.cautionAt} s)`);
+  const on = fly(true);
+  assert.equal(on.redAt, null, `with deconfliction on H1 and ${on.id} never come inside ${RED_FT} ft and ${RED_FT} ft (inside at ${on.redAt} s)`);
+  for (const [id, s] of Object.entries(on.seen)) {
+    assert.ok(s.done, `${id} lands or is back in its own pattern within the ${SAFETY_STOP_SEC / 60} minute safety stop`);
+  }
+});
