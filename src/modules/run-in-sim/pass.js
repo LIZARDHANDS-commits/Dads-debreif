@@ -921,6 +921,147 @@ export function flyPassFrom(prev, setup, world, pressSec) {
 }
 
 /**
+ * The live anthem press's run-in speeds (RS-27), ESTIMATES: the slowest is the stick shaker plus slowMarginKt; the fastest
+ * what the aircraft's set holds level at full power at the run-in height, never past VMO less vmoMarginKt.
+ */
+export const ANTHEM_SPEED = Object.freeze({ slowMarginKt: 60, vmoMarginKt: 10 });
+/**
+ * The live press's cut (RS-26), ESTIMATES: joins the run-in line each stepNm in from the IP, no closer than minRunInNm of
+ * straight run-in; a choice whose crossing passes more than maxAbeamFt from the aim point (inside the stadium bowl's
+ * 400 ft half-length, so it still flies over it) is not taken.
+ */
+export const ANTHEM_CUT = Object.freeze({ minRunInNm: 2, stepNm: 1, maxAbeamFt: 300 });
+
+/** The run-in speeds a live press may set, [slowest, fastest] KIAS (RS-27; ANTHEM_SPEED). */
+export function anthemSpeedRange(plan) {
+  const ac = plan.ac;
+  const z = plan.runInMsl;
+  const lo = ac.shakerKias + ANTHEM_SPEED.slowMarginKt;
+  let a = lo;
+  let b = ac.maxKias(z) - ANTHEM_SPEED.vmoMarginKt;
+  // The fastest level at full power: where the set's full-power excess at 1 G crosses zero (the set's own numbers).
+  const excess = (kias) => ac.excessFn(1)(plan.tasFt(kias, z) / KT_TO_FTPS, z, 1);
+  if (excess(b) >= 0) return [lo, b];
+  for (let k = 0; k < 30; k++) {
+    const m = (a + b) / 2;
+    if (excess(m) >= 0) a = m;
+    else b = m;
+  }
+  return [lo, Math.max(lo, a)];
+}
+
+/** The pilot as he was at timeline step i (his place, velocity, bank and G; the throttle trimmed), to fly on from there. */
+function pilotFromTimeline(plan, tl, i) {
+  const v = Math.hypot(tl.vx[i], tl.vy[i], tl.vz[i]);
+  const s = pointMassState({ x: tl.x[i], y: tl.y[i], altFt: tl.z[i], ktas: v / KT_TO_FTPS, headingRad: Math.atan2(tl.vy[i], tl.vx[i]), climbRad: Math.asin(clamp(tl.vz[i] / v, -1, 1)) });
+  return pilotAt(s, { aircraft: plan.ac, sigmaAt: plan.sigmaAt, bankDeg: tl.bank[i], g: tl.g[i] });
+}
+
+/**
+ * A live "Anthem starts" press, cutting track and setting the run-in speed (RS-26, RS-27; Dad, 17 Oct 2026: "adjusts
+ * speed on run in and cuts track"). setup.totSec is the anthem's last note. The choices, each with its run-in speed
+ * worked out to hit between anthemSpeedRange()'s slowest and fastest (found by flying it):
+ *  - stay in the orbit (flyPassFrom, the existing solver with the past kept) at the planned speed, or the fastest if late;
+ *  - cut: from where he was at the press, direct to the IP, or to a point on the run-in line each ANTHEM_CUT.stepNm in
+ *    from it down to ANTHEM_CUT.minRunInNm, then down the line (fly()'s own legs to the IP and the run-in, aimed there);
+ *  - already on the run-in at the press: the speed only.
+ * The pick: the crossing nearest the last note; within half a second, the least change (the orbit, the IP, the farther
+ * joins). Returns a pass in flyPass's shape with `press` = { kind ('orbit' | 'ip' | 'inside' | 'speed' | 'none'), atSec,
+ * joinNm, kias, errSec, choices } for the card.
+ */
+export function flyAnthemPress(prev, setup, world, pressSec) {
+  const started = globalThis.performance?.now?.() ?? Date.now();
+  const tl = prev.flight.timeline;
+  const dt = tl.t[1] - tl.t[0] || PASS_STEP_SEC;
+  const i = clamp(Math.round(pressSec / dt), 0, tl.t.length - 1);
+  const atSec = tl.t[i];
+  const T = setup.totSec;
+  const base = { ...prev.plan, setup: { ...prev.plan.setup, totSec: T }, notes: [...prev.plan.notes] };
+  const [slow, fast] = anthemSpeedRange(base);
+  const choices = [];
+
+  // Stay in the orbit (V2.506's way), at the planned speed, then the fastest if that is late.
+  const orbitAt = (kias) => {
+    const p = flyPassFrom(prev, { ...setup, kias }, world, pressSec);
+    if (p.committed || p.splicedFt > 1) return null;
+    return { kind: 'orbit', kias, errSec: p.result.lateSec ?? Infinity, pass: p };
+  };
+  const phase0 = tl.phase[i];
+  if (phase0 === PHASE.ORBIT) {
+    const planned = orbitAt(setup.kias);
+    if (planned) choices.push(planned);
+    if (planned && Math.abs(planned.errSec) < 0.5) return finish(planned);
+    if (planned && planned.errSec > 0 && fast > setup.kias + 1) {
+      const quick = orbitAt(fast);
+      if (quick) choices.push(quick);
+    }
+  }
+
+  // A choice flown from the press state: to `ip` (a point on the run-in line, joinFt from the target), then the line.
+  const pilot0 = pilotFromTimeline(base, tl, i);
+  const planFor = (joinFt, kias) => ({ ...base, ip: joinFt === null ? base.ip : { x: -base.u.x * joinFt + base.r.x * base.offsetFt, y: -base.u.y * joinFt + base.r.y * base.offsetFt }, ipFt: joinFt ?? base.ipFt, runInKias: kias });
+  const startPhase = phase0 === PHASE.ORBIT ? PHASE.TO_IP : phase0;
+  const arrival = (plan, step, record = false) => fly(plan, { pilot: pilot0, t0: atSec, phase: startPhase, exitSec: atSec, dt: step, stopAt: record ? null : 'release', record });
+  const solveSpeed = (joinFt) => {
+    const at = (kias) => arrival(planFor(joinFt, kias), SOLVE_STEP_SEC).release?.t ?? Infinity;
+    const tSlow = at(slow);
+    const tFast = at(fast);
+    if (!Number.isFinite(tFast)) return null;
+    let kias;
+    if (T >= tSlow) kias = slow; // early even at the slowest
+    else if (T <= tFast) kias = fast; // late even at the fastest
+    else {
+      let a = slow, b = fast; // the arrival falls as the speed rises
+      for (let k = 0; k < 9; k++) {
+        const m = (a + b) / 2;
+        if (at(m) > T) a = m;
+        else b = m;
+      }
+      kias = (a + b) / 2;
+    }
+    // It must still fly over the target: a crossing too far abeam (the line too short to settle on) is not a choice.
+    const rel = arrival(planFor(joinFt, kias), SOLVE_STEP_SEC).release;
+    if (!rel || Math.abs((rel.state.x * base.r.x + rel.state.y * base.r.y) - base.offsetFt) > ANTHEM_CUT.maxAbeamFt) return null;
+    return { kias, errSec: rel.t - T };
+  };
+  if (phase0 === PHASE.ORBIT) {
+    const joins = [base.ipFt];
+    for (let d = base.ipFt / FT_PER_NM - ANTHEM_CUT.stepNm; d >= ANTHEM_CUT.minRunInNm - 1e-9; d -= ANTHEM_CUT.stepNm) joins.push(d * FT_PER_NM);
+    joins.forEach((joinFt, k) => {
+      const sp = solveSpeed(joinFt);
+      if (sp) choices.push({ kind: k === 0 ? 'ip' : 'inside', joinFt, ...sp });
+    });
+  } else if (phase0 === PHASE.TO_IP || phase0 === PHASE.RUN_IN) {
+    const sp = solveSpeed(null);
+    if (sp) choices.push({ kind: 'speed', joinFt: null, ...sp });
+  }
+  if (!choices.length) {
+    const kept = flyPassFrom(prev, setup, world, pressSec);
+    return { ...kept, press: { kind: 'none', atSec, joinNm: null, kias: null, errSec: kept.result.lateSec, choices: [] } };
+  }
+  // The pick: nearest the last note; within half a second the least change (the order they were added).
+  let best = choices[0];
+  for (const c of choices) if (Math.abs(c.errSec) < Math.abs(best.errSec) - 0.5) best = c;
+  return finish(best);
+
+  function finish(c) {
+    const press = { kind: c.kind, atSec, joinNm: c.joinFt ? c.joinFt / FT_PER_NM : null, kias: c.kias, errSec: c.errSec, choices: choices.map((x) => ({ kind: x.kind, joinNm: x.joinFt ? x.joinFt / FT_PER_NM : null, kias: x.kias, errSec: x.errSec })) };
+    if (c.pass) return { ...c.pass, press };
+    // A cut or a speed: flown from the press state and joined to the stored flight up to the press.
+    const plan = planFor(c.joinFt ?? null, c.kias);
+    const flight = arrival(plan, PASS_STEP_SEC, true);
+    const nt = flight.timeline;
+    for (const key of Object.keys(nt)) if (Array.isArray(tl[key])) nt[key] = tl[key].slice(0, i).concat(nt[key]);
+    flight.events = { ...flight.events, exit: atSec };
+    if (startPhase !== PHASE.TO_IP && prev.flight.events.ip !== undefined) flight.events.ip = prev.flight.events.ip;
+    const exit = { sec: atSec, byHand: false };
+    const result = resultOf(plan, exit, flight, null);
+    press.errSec = result.lateSec;
+    return { plan, exit, flight, fall: null, result, press, computeMs: (globalThis.performance?.now?.() ?? Date.now()) - started };
+  }
+}
+
+/**
  * The load's fall from the aircraft's state at release, through the wind met and onto the ground. Over the bridge (RS-12)
  * the fall is followed at every step to the ground, then stopped where it first meets the deck (from above, or into its
  * edge); one that goes past the deck, or under it, falls on to the ground and the miss of the deck is kept (deckMiss).

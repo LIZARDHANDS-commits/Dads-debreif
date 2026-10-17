@@ -22,7 +22,7 @@ import { TRAFFIC_VERSION } from '../traffic/version.js';
 import { DEFAULTS, ALLOWED, CAMERAS, AAR_CAMERAS, PLAY_SPEEDS, runPatch, setupFrom, runOf, placeFor } from './defaults.js';
 import { TARGETS } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
-import { buildPlan, flyPass, flyPassFrom, clock } from './pass.js';
+import { buildPlan, flyPass, flyAnthemPress, clock } from './pass.js';
 import { ANTHEMS } from './anthems.js';
 import { createAnthemPlayer } from './anthem-player.js';
 import { buildRefuelPlan, flyRefuel } from './refuel.js';
@@ -333,7 +333,8 @@ function mount(root, app) {
     const lengthSec = id === 'us' ? v.anthemUsSec : v.anthemCanadaSec;
     const pressSec = t;
     try {
-      const next = flyPassFrom(pass, { ...setupFrom(v), totSec: pressSec + lengthSec }, ground, pressSec);
+      // RS-26, RS-27: the best of staying in the orbit or cutting track, with the run-in speed worked out to hit.
+      const next = flyAnthemPress(pass, { ...setupFrom(v), totSec: pressSec + lengthSec }, ground, pressSec);
       next.anthem = { id, lengthSec, startSec: pressSec, live: true };
       next.n = pass.n;
       next.stale = false;

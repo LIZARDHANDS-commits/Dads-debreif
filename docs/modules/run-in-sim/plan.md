@@ -74,7 +74,7 @@ Dad, 17 Oct 2026: "on the stadium flyover it would be nice for the user to hit n
 ## Step 8b. The live anthem press cuts track and sets the run-in speed (within Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
 Dad, 17 Oct 2026: "adjusts speed on run in and cuts track".
 - [x] Written down first: spec, RS-26 and RS-27, RS-R17 (17 Oct 2026).
-- [ ] The cut, the speed worked out, the pick, the card and the views (V2.507).
+- [x] The cut, the speed worked out, the pick, the card and the views (V2.507).
 
 ## Not in this plan
 

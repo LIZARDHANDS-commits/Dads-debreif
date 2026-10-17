@@ -20,6 +20,17 @@ export function lateWords(lateSec) {
   return `${Math.round(Math.abs(lateSec))} s ${lateSec > 0 ? 'late' : 'early'}`;
 }
 
+/** What a live anthem press did (RS-26, RS-27), in a pilot's words. */
+export function pressWords(press) {
+  const kt = press.kias ? `run-in ${Math.round(press.kias)} KIAS` : '';
+  const at = `+${clock(press.atSec)}`;
+  if (press.kind === 'orbit') return `Stayed in its orbit, ${kt}`;
+  if (press.kind === 'ip') return `Cut to the IP at ${at}, ${kt}`;
+  if (press.kind === 'inside') return `Cut to the run-in ${press.joinNm.toFixed(1)} NM out at ${at}, ${kt}`;
+  if (press.kind === 'speed') return `Already on its way in at ${at}: ${kt}`;
+  return 'Nothing left to change';
+}
+
 /** The card's lead line for a pass. */
 export function headline(pass) {
   const r = pass.result;
@@ -73,6 +84,7 @@ export function cardFor(pass, n, { selected, onSelect, showFlags = true }) {
   const an = pass.anthem ? ANTHEMS[pass.anthem.id] : null;
   const timing = h('div', { class: 'rs-block' },
     an ? row('Anthem', `${an.label}, ${clock(pass.anthem.lengthSec)}, started at +${clock(pass.anthem.startSec)} · ${pass.anthem.live ? 'pressed' : 'planned to end on the time over target'}`) : null,
+    pass.press ? row('What it did', pressWords(pass.press)) : null,
     row(an ? 'Last note (time over target)' : 'Time over target', `+${clock(pass.plan.setup.totSec)} · ${lateWords(r.lateSec)}`),
     rel ? row(plan.run === 'flyover' ? 'Over the target' : 'Release', `${ft10(rel.aglFt)} AGL · ${kt(rel.kias)}`) : null,
     rel && plan.run !== 'flyover' ? row('Planned', `${ft10(r.planned.aglFt)} AGL · ${kt(r.planned.kias)}`) : null,
@@ -93,8 +105,10 @@ export function cardFor(pass, n, { selected, onSelect, showFlags = true }) {
   card.append(timing, escape, legs);
   const notes = [...r.notes];
   if (pass.anthem?.live && r.lateSec !== null && r.lateSec >= 0.5 && Number.isFinite(r.arrivalSec)) {
-    // RS-24: why a live press was late, in the flying's terms.
-    notes.push(`From where it was when the anthem started (+${clock(pass.anthem.startSec)}), the soonest it could cross was ${Math.round(r.arrivalSec - pass.anthem.startSec)} s later: it has to finish the part of the orbit it has begun and fly the run-in, longer than the ${Math.round(pass.anthem.lengthSec)} s anthem. Choosing the anthem before flying times it from the start; timing by speed on the run-in is on the future list.`);
+    // RS-24, RS-26, RS-27: why a live press was late, in the flying's terms.
+    notes.push(`From where it was when the anthem started (+${clock(pass.anthem.startSec)}), the soonest it could cross was ${Math.round(r.arrivalSec - pass.anthem.startSec)} s later (${pass.press ? pressWords(pass.press).toLowerCase() : 'staying in its orbit'}): getting back to the run-in and down it takes longer than the ${Math.round(pass.anthem.lengthSec)} s anthem, even at the fastest the T-6A holds level there. Choosing the anthem before flying times it from the start.`);
+  } else if (pass.anthem?.live && r.lateSec !== null && r.lateSec <= -0.5) {
+    notes.push(`Early even at the slowest run-in speed (${Math.round(pass.press?.kias ?? 0)} KIAS) with the cut it picked.`);
   }
   if (notes.length) card.append(h('ul', { class: 'rs-notes' }, notes.map((t) => h('li', {}, t))));
   return card;
