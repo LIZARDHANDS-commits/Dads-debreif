@@ -20,6 +20,21 @@ import { iasToTasKt, temperatureKey } from './weather.js';
 import { windVectorFtps } from '../../core/wind.js';
 import { PATTERN_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
+import { buildAstraCircuit, ASTRA_FEWEST_POINTS } from './astra-circuit.js';
+
+/**
+ * Routes whose path is flown by the simulated pilot rather than drawn, by the route's `flown` field (plan Step 5c
+ * Phase 2b): the builder, and the fewest points it needs (a route with fewer, a damaged one, is drawn with rounded
+ * corners instead, never flown from points that are not there; spec 4.19 item 8). Pattern 1 has no field and is
+ * found by its id, as it always has been (below), so a setup saved before this keeps flying as before.
+ */
+const FLOWN_BUILDERS = Object.freeze({
+  // The inner pattern's seven points fly (a setup saved before V2.490); with the outer pattern's too, the lap has its outer legs (astra-circuit.js).
+  'ct102b-overhead': Object.freeze({ fewestPoints: ASTRA_FEWEST_POINTS, build: (route, fromDeg, kt) => buildAstraCircuit(route.points, fromDeg, kt) }),
+});
+
+/** The `flown` values a route may carry (a saved profile's check, profile.js). */
+export const FLOWN_KINDS = Object.freeze(Object.keys(FLOWN_BUILDERS));
 
 /**
  * V6's route options when the boxes are left alone (built-in profile, line 613).
@@ -268,16 +283,20 @@ function buildSegs(points) {
 }
 
 function buildPath(route, options) {
-  let points;
+  let points, built = null;
   const isPat1 = route.id === 'PAT1';
   const isCompactPat1 = isPat1 && (route.points?.length ?? 0) < 10;
-  if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
+  const flown = Object.hasOwn(FLOWN_BUILDERS, route.flown ?? '') ? FLOWN_BUILDERS[route.flown] : null;
+  if (flown && options.flyRoundedTurns !== false && (route.points?.length ?? 0) >= flown.fewestPoints) {
+    built = flown.build(route, options.windFromDeg ?? 360, options.windKt ?? 0);
+    points = built.track;
+  } else if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
     points = generateWindAdjustedTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
   } else {
     points = buildRoundedPoints(route, options);
   }
   const segs = buildSegs(points);
-  return { lengthFt: segs.reduce((sum, s) => sum + s.len, 0), closed: isClosedRoute(route), points, segs, draw: null, pointDists: new Map() };
+  return { lengthFt: segs.reduce((sum, s) => sum + s.len, 0), closed: isClosedRoute(route), points, segs, draw: null, pointDists: new Map(), built };
 }
 
 // What a path was worked out from, so it is redone only when that changes.
@@ -324,6 +343,15 @@ export function routePath(route, options = DEFAULT_ROUTE_OPTIONS) {
   return path;
 }
 
+/**
+ * Everything the builder of a route with a `flown` field returned (astra-circuit.js buildAstraCircuit: the lap, the
+ * overhead from the initial, the perch, ...), worked out with the path and kept with it; null for any other route, or
+ * one drawn with rounded corners (too few points, or the turns not flown). Read only.
+ */
+export function flownBuildOf(route, options = DEFAULT_ROUTE_OPTIONS) {
+  return routePath(route, options).built ?? null;
+}
+
 /** Length of the flown path in feet (V6 `routeLen`, line 216). */
 export function routeLengthFt(route, options = DEFAULT_ROUTE_OPTIONS) {
   return routePath(route, options).lengthFt;
@@ -337,14 +365,33 @@ export function pointDistFt(route, index, options = DEFAULT_ROUTE_OPTIONS) {
   const path = routePath(route, options);
   let sum = path.pointDists.get(index); // the sim asks for the same few points every step
   if (sum === undefined) {
-    sum = 0;
-    for (const s of path.segs) {
-      if ((s.a.src ?? 0) >= index) break;
-      sum += s.len;
+    sum = path.built ? flownPointDistFt(path.segs, index) : null;
+    if (sum === null) {
+      sum = 0;
+      for (const s of path.segs) {
+        if ((s.a.src ?? 0) >= index) break;
+        sum += s.len;
+      }
     }
     path.pointDists.set(index, sum);
   }
   return sum;
+}
+
+/**
+ * On a path a builder flew (route.js FLOWN_BUILDERS), the distance to where route point `index` first starts, or null
+ * when the path never passes it. Such a path need not pass its points in order: the Astra's lap passes 0, 1, 7, 8, 9,
+ * 10, 5, 6, 2, 3, 4 (astra-circuit.js ASTRA_POINT; spec 4.19 item 11), so "the first point at or past this index"
+ * would put its downwind, perch and window on the upwind. A point the path never passes (the Astra's 45 to initial, a
+ * start the sim flies off the lap) falls back to that rule, as before.
+ */
+function flownPointDistFt(segs, index) {
+  let sum = 0;
+  for (const s of segs) {
+    if ((s.a.src ?? 0) === index) return sum;
+    sum += s.len;
+  }
+  return null;
 }
 
 /**
@@ -400,7 +447,8 @@ export function positionAt(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
 /** The flown path as points to draw: `[{ x, y, alt }]` (the rounded turns V6 draws, 5 to 28 steps each). */
 export function drawPath(route, options = DEFAULT_ROUTE_OPTIONS) {
   const path = routePath(route, options);
-  path.draw ??= path.points.map((p) => ({ x: p.x, y: p.y, alt: p.alt ?? 2500 }));
+  // A builder may give its own line to draw (the Astra's lap with its 45 to initial as a spur, astra-circuit.js `drawn`).
+  path.draw ??= (path.built?.drawn ?? path.points).map((p) => ({ x: p.x, y: p.y, alt: p.alt ?? 2500 }));
   return path.draw;
 }
 
