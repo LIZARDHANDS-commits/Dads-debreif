@@ -64,6 +64,13 @@ Dad, 17 Oct 2026: "Is turn range/offset scalable based on altitude airspeed wind
 - [x] The one test kept: its ground now at CYMJ's 1,892 ft (V2.505).
 - [x] Patrick's yes on RS-21 to RS-23 (relayed by Dad, 17 Oct 2026: 'pat says build').
 
+## Step 8. The anthem flyover (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "on the stadium flyover it would be nice for the user to hit national anthem starts playing...and the the aircraft gets its self over the target by national anthem completion (us or Canada as options)".
+- [x] Written down first: spec "The anthem flyover", RS-24 and RS-25, RS-R16 (17 Oct 2026).
+- [ ] The anthem choice and Anthem starts button on the flyover; planned and live timing by the existing solver (RS-24) (V2.506).
+- [ ] The tune in the browser (RS-25), the card's lead line and the time line marks (V2.506).
+- [ ] Dad or Patrick checks O Canada's melody by ear (written from memory beyond its first line).
+
 ## Not in this plan
 
 Live weapons, real-world target data, threats, formation runs, the user flying by hand and winds aloft from the models (`future.md`). For air refuelling: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous.

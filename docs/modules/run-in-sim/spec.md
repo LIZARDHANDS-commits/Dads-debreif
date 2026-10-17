@@ -252,3 +252,19 @@ Dad, 17 Oct 2026: **"Is turn range/offset scalable based on altitude airspeed wi
 | 30 kt tailwind (from 140°M) | 3.39 NM | 7.57 NM | 0.991 NM / 0 ft |
 | 30 kt crosswind from the right (050°M) | 2.73 NM | 6.82 NM | 0.996 NM / 0 ft |
 | 30 kt crosswind from the left (230°M) | 4.10 NM | 8.28 NM | 0.996 NM / 0 ft |
+
+## The anthem flyover (RS-24, RS-25; approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+
+Dad, 17 Oct 2026: **"on the stadium flyover it would be nice for the user to hit national anthem starts playing...and the the aircraft gets its self over the target by national anthem completion (us or Canada as options)"**. His card: the browser plays the tune itself (no recording).
+
+**On the Flyover run only.** Setup shows **National anthem: Canada, US or none** (default Canada, an estimate: Moose Jaw is in Canada), with **its length** under More (default 1:10 for O Canada and 1:30 for The Star-Spangled Banner, estimates; the tempo follows the length). The bar under the view shows an **Anthem starts** button.
+
+**Two ways it is timed, both by the existing time-over-target machinery (RS-8, RS-11: the holding pattern's last outbound leg stretched or shortened, the figure 8's last loop's bank, or the circle's exit; no second timing solver):**
+- **Planned (the default when an anthem is chosen):** the anthem's last note is the time over target, so the anthem starts the anthem's length before it; during playback it plays from that moment and the aircraft crosses the stadium on the last note.
+- **Live: pressing Anthem starts during playback.** The press time becomes the anthem's start and the time over target becomes its last note. The pass is worked out again from that moment **with the past unchanged**: the pattern's laps already begun stay as flown (the solver may only change a lap the aircraft has not started, or a circle exit after the press), the stored flight up to the press is kept, and playback carries on from the same moment with the anthem playing. If the anthem is too short for the aircraft to get there from where it is, it arrives as soon as it can and the card flags how late (a reference, never a wall).
+
+**What the flying allows (worked out, said plainly).** From a holding pattern a live anthem can rarely be made: after a press the aircraft must finish the lap it is on, fly at least a shortest last lap (15 s legs) and the run-in. With the flyover's defaults (1-minute legs, the IP 5 NM out at 250 KIAS: about 72 s of run-in alone) that is about 3 minutes, longer than either anthem (70 to 90 s). The live press then shows how late it would be, and the planned anthem shows it made. Timing the last minute by speed on the run-in (the real way a flypast meets an anthem) is on `future.md`.
+
+**The tune (RS-25).** The browser plays the melody as simple tones (Web Audio oscillators, no audio files, no library), from note lists (pitch and beats) in `src/modules/run-in-sim/anthems.js`, scaled so the whole tune lasts the set length. It plays only at ×1 playback; at ×2 and faster it is muted and the bar says so. It stops when the pass ends, on pause, on a scrub, or when the anthem ends. **Sources:** The Star-Spangled Banner (John Stafford Smith's melody, public domain) from Jack Campin's public-domain ABC transcription (music21's corpus, "americanfifeopus.abc"); O Canada (Calixa Lavallée's melody, public domain): its first line from the anthem-scores note data (converted from a public-domain Wikimedia Commons MIDI); **the rest of O Canada is written from memory and not checked**: the screen says so under the anthem choice until Dad or Patrick checks it by ear.
+
+**The card** leads with "Over the stadium X s after (or before) the last note" (on the last note within half a second), then the anthem, its length, when it started (planned, or pressed at +m:ss), and the time over target's words as before. **Time line marks:** Anthem starts, Last note.
