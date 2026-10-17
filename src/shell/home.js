@@ -23,7 +23,7 @@ export function cardBadge(entry) {
 function cardMedia(media) {
   const still = h('img', { class: 'card-still', src: media.still, alt: '', loading: 'lazy', decoding: 'async' });
   if (!media.webm) return { element: h('div', { class: 'card-media' }, still), video: null };
-  const video = h('video', { class: 'card-video', muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true', dataset: { webm: media.webm, mp4: media.mp4 } });
+  const video = h('video', { class: 'card-video', muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true', dataset: { webm: media.webm, ...(media.mp4 ? { mp4: media.mp4 } : {}) } });
   video.muted = true; // the attribute alone isn't enough for autoplay in some browsers
   return { element: h('div', { class: 'card-media' }, still, video), video };
 }
@@ -146,7 +146,8 @@ function aboutCard() {
 function loadVideo(video) {
   if (video.dataset.loaded) return;
   video.dataset.loaded = 'true';
-  video.append(h('source', { src: video.dataset.webm, type: 'video/webm' }), h('source', { src: video.dataset.mp4, type: 'video/mp4' }));
+  video.append(h('source', { src: video.dataset.webm, type: 'video/webm' }));
+  if (video.dataset.mp4) video.append(h('source', { src: video.dataset.mp4, type: 'video/mp4' })); // a card may have only the WebM (Model Showcase)
   video.load();
 }
 
