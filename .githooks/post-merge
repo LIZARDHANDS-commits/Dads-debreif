@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
-if [ -f docs/BULLETIN-FOR-DAD.md ]; then
+if [ -f docs/pat/bulletin-for-dad.md ]; then
   echo ""
   echo "=================================================================="
-  echo "  MESSAGE FROM PATRICK FOR DAD (see docs/BULLETIN-FOR-DAD.md)"
+  echo "  MESSAGE FROM PATRICK FOR DAD (see docs/pat/bulletin-for-dad.md)"
   echo "  Claude: Show this message to Dad at the top of your next reply!"
   echo "=================================================================="
-  cat docs/BULLETIN-FOR-DAD.md
+  cat docs/pat/bulletin-for-dad.md
   echo "=================================================================="
   echo ""
 fi
