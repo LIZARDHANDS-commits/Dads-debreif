@@ -78,12 +78,12 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const lerp = (a, b, f) => a + (b - a) * f;
 
 /** The wind (from, compass true, and kt) of a wind vector. */
-function windWords(w) {
+export function windWords(w) {
   return { fromDeg: compassDegFromVector(-w.x, -w.y), kt: Math.hypot(w.x, w.y) / KT_TO_FTPS };
 }
 
 /** Ground speed along a ground line `d` ({ x, y, z }, unit) at true airspeed vFtps in a level wind w: |s d − w| = v. */
-function speedAlong(d, w, vFtps) {
+export function speedAlong(d, w, vFtps) {
   const dw = d.x * w.x + d.y * w.y;
   const ww = w.x * w.x + w.y * w.y;
   return dw + Math.sqrt(Math.max(0, dw * dw - ww + vFtps * vFtps));
@@ -393,7 +393,7 @@ function patternStart(plan) {
 }
 
 /** The flight-path angle (over the ground) that takes the aircraft to height zWant over about PILOT.heightTimeSec, within maxDeg. */
-function climbToward(s, wind, zWant, maxDeg) {
+export function climbToward(s, wind, zWant, maxDeg) {
   const gh = Math.max(50, Math.hypot(s.vx + wind.x, s.vy + wind.y));
   const most = degToRad(maxDeg);
   return clamp(Math.atan((zWant - s.z) / (gh * PILOT.heightTimeSec)), -most, most);

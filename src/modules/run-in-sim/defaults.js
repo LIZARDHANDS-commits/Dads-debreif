@@ -16,6 +16,9 @@ export const RUNS = Object.freeze([
   Object.freeze({ id: 'flyover', label: 'Flyover', aircraft: 'ct156', load: null }),
   Object.freeze({ id: 'bombFlat', label: 'Practice bomb, flat', aircraft: 'ct156', load: 'bdu33' }),
   Object.freeze({ id: 'bombDive', label: 'Practice bomb, dive', aircraft: 'ct156', load: 'bdu33' }),
+  // Air refuelling (RS-15 to RS-18): PROPOSED, BUILT AHEAD OF PATRICK'S YES (Dad, 17 Oct 2026: "Build anyway"). The CT-156
+  // is the stand-in receiver; the KC-130J tanker is a picture with no performance set (RS-Q1). refuel.js flies it.
+  Object.freeze({ id: 'aar', label: 'Air refuelling, point-parallel (proposed)', aircraft: 'ct156', load: null, tanker: 'kc130j' }),
 ]);
 export const RUN_IDS = Object.freeze(RUNS.map((r) => r.id));
 export const runOf = (id) => RUNS.find((r) => r.id === id) ?? RUNS[0];
@@ -40,6 +43,30 @@ export const RUN_DEFAULTS = Object.freeze({
     target: 'range', kias: 200, releaseFt: 3000, diveDeg: 30, // kias: the roll-in speed (diveSpeedAtRelease off)
     escapeDir: 'left', escapeG: 4, escapeBankDeg: 60, escapeTurnDeg: 90, escapeHeightFt: 3000,
   }),
+});
+
+/**
+ * The air refuelling run's settings (spec "Air refuelling", "Defaults for this run"): every one an ESTIMATE until Patrick
+ * or a manual page gives it (ATP-56 not read). Heights are ft MSL here (flown on the altimeter); speeds KIAS. Picking the
+ * run puts these back (runPatch).
+ */
+export const AAR_DEFAULTS = Object.freeze({
+  aarTrackDegM: 320, // the refuelling track, the receiver's (the run-in's default heading)
+  aarHeightFt: 10000, // the tanker's height, MSL: inside the stand-in's speeds (the T-6A set holds 200 to about 250 KIAS level there)
+  aarTankerKias: 200,
+  aarBankDeg: 25, // the tanker's bank in its turns
+  aarLegNm: 20, // the anchor's legs
+  aarDir: 'left', // the anchor's turns
+  aarRvSec: 180, // the rendezvous time: the tanker's roll-out, s after the start (short to watch)
+  aarSplitFt: 1000, // the receiver below the tanker for the rendezvous
+  aarTrailNm: 1, // the trail at the roll-out (air-refuelling-plan.md)
+  aarOvertakeKt: 20, // the overtake on the join, and so the receiver's rendezvous speed over the tanker's
+  aarPreContactFt: 15, // pre-contact: the receiver's nose this far behind the left basket
+  // Worked out to hit unless set by hand (RS-16)
+  aarTurnRangeByHand: false,
+  aarTurnRangeNm: 7.5,
+  aarRcvKiasByHand: false,
+  aarRcvKias: 220,
 });
 
 /** Every setting and its default. The *ByHand switches are the "set by hand" overrides under More (RS-9). */
@@ -106,6 +133,8 @@ export const DEFAULTS = Object.freeze({
   planTopKt: 0,
   planGroundDegM: 270,
   planGroundKt: 0,
+  // Air refuelling (RS-15 to RS-18, proposed)
+  ...AAR_DEFAULTS,
   // Display
   showLines: true,
   showCarp: true,
@@ -126,6 +155,9 @@ export const CAMERAS = Object.freeze([
   Object.freeze({ id: 'target', label: 'Target' }),
   Object.freeze({ id: 'overhead', label: 'Overhead' }),
   Object.freeze({ id: 'side', label: 'Side' }),
+  // The air refuelling run's own two (RS-18); they show only on that run.
+  Object.freeze({ id: 'tanker', label: 'From the tanker', aarOnly: true }),
+  Object.freeze({ id: 'drogue', label: 'Behind the drogue', aarOnly: true }),
 ]);
 export const PLAY_SPEEDS = Object.freeze([1, 2, 4, 8]);
 
@@ -137,6 +169,7 @@ export const ALLOWED = Object.freeze({
   orbitDir: ['left', 'right'],
   releaseMode: ['carp', 'distance'],
   escapeDir: ['left', 'right', 'straight'],
+  aarDir: ['left', 'right'],
   camera: CAMERAS.map((c) => c.id),
   playSpeed: [...PLAY_SPEEDS],
   viewMode: ['3d', '2d'],
@@ -175,10 +208,23 @@ export const RANGES = Object.freeze({
   magVarDegE: { min: -40, max: 40, step: 1 },
   placeLat: { min: -85, max: 85, step: 0.0001 },
   placeLon: { min: -180, max: 180, step: 0.0001 },
+  aarTrackDegM: { min: 0, max: 360, step: 1 },
+  aarHeightFt: { min: 1000, max: 25000, step: 500 },
+  aarTankerKias: { min: 120, max: 300, step: 5 },
+  aarBankDeg: { min: 10, max: 45, step: 1 },
+  aarLegNm: { min: 5, max: 60, step: 1 },
+  aarRvSec: { min: 30, max: 3600, step: 5 },
+  aarSplitFt: { min: 0, max: 3000, step: 100 },
+  aarTrailNm: { min: 0.2, max: 5, step: 0.1 },
+  aarOvertakeKt: { min: 2, max: 60, step: 1 },
+  aarPreContactFt: { min: 5, max: 100, step: 1 },
+  aarTurnRangeNm: { min: 1, max: 40, step: 0.1 },
+  aarRcvKias: { min: 120, max: 316, step: 5 },
 });
 
 /** The patch that changing the Run applies: that run's defaults, and its target's default size. */
 export function runPatch(runId) {
+  if (runId === 'aar') return { run: runId, ...AAR_DEFAULTS };
   const d = RUN_DEFAULTS[runId] ?? RUN_DEFAULTS.bombFlat;
   return { run: runId, ...d, targetSizeFt: TARGETS[d.target].sizeFt };
 }
@@ -224,5 +270,12 @@ export function setupFrom(v) {
       ? { topDegT: t(v.planTopDegM), topKt: v.planTopKt, groundDegT: t(v.planGroundDegM), groundKt: v.planGroundKt }
       : null,
     tempDevC: v.tempDevC,
+    // The air refuelling run's own (refuel.js), only on that run.
+    aar: run.id === 'aar' ? {
+      trackDegT: t(v.aarTrackDegM), heightFt: v.aarHeightFt, tankerKias: v.aarTankerKias, bankDeg: v.aarBankDeg,
+      legNm: v.aarLegNm, dir: v.aarDir === 'left' ? -1 : 1, rvSec: v.aarRvSec, splitFt: v.aarSplitFt,
+      trailNm: v.aarTrailNm, overtakeKt: v.aarOvertakeKt, preContactFt: v.aarPreContactFt,
+      byHand: { turnRangeNm: v.aarTurnRangeByHand ? v.aarTurnRangeNm : null, rcvKias: v.aarRcvKiasByHand ? v.aarRcvKias : null },
+    } : null,
   };
 }
