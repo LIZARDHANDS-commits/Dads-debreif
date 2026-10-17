@@ -6,6 +6,7 @@ The shared look and building blocks (spec: `docs/modules/shared/spec.md`).
 - `base.css`: page-wide styles for text, buttons, focus outlines and panels.
 - `dom.js`: `h(tag, props, ...children)` builds elements; text always goes in as text.
 - `scheduler.js`: the one animation loop and timer service. Modules get a scope as `app.scheduler` (`frame`, `every`, `after`), and everything in it stops when the module closes.
+- `qr.js`: our own QR code encoder (EP Tabletop, EP-Q2; no library): `encodeQr(text)` (byte mode, level M, versions 1 to 10, the best of the eight masks) and `qrSvg(qr)`, drawn with the 4-module quiet zone.
 - `panel.js`: a collapsible section with a proper header button.
 - `settings-menu.js`: `createSettingsMenu` is the one settings menu each module keeps its own tuning numbers in (titled with the module's name; the header's Settings dialog stays app-wide). It starts closed; `section('Turn')` gives a titled group to append controls to, and `onReset` adds a "Reset to defaults" button.
 - `controls.js`: number boxes, sliders, checkboxes, lists and 2D | 3D style choices, each tied to one setting, and `setDisabled(key, true)` to grey them out. A number box only accepts finite numbers in range; anything else is refused with a message and the last good value stays.

@@ -124,12 +124,23 @@ export function makePerformance({ name, fit, limits, roll, gOnset, pitch, glide 
     return excessThrustPerWeight(tasToIasKt(ktas, altFt), altFt, g);
   }
 
-  /** The excess-power callback at part throttle: thrust scales with `throttle` (0 to 1), drag does not. Full throttle is excessFn itself. */
-  function excessFnFor(throttle) {
-    if (throttle === 1) return excessFn;
+  /**
+   * The excess-power callback at part throttle: thrust scales with `throttle` (0 to 1), drag does not. Full throttle, clean, is
+   * excessFn itself. options: config (a glide configuration, 'clean' by default; gear and flap drag is glideDragPerWeight's) and
+   * engineOut (no thrust, the configuration's power-off drag).
+   */
+  function excessFnFor(throttle, { config = 'clean', engineOut = false } = {}) {
+    if (engineOut) return (ktas, altFt, g) => -glideDragPerWeight(config, tasToIasKt(ktas, altFt), altFt, g);
+    if (config === 'clean') {
+      if (throttle === 1) return excessFn;
+      return (ktas, altFt, g) => {
+        const kias = tasToIasKt(ktas, altFt);
+        return throttle * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
+      };
+    }
     return (ktas, altFt, g) => {
       const kias = tasToIasKt(ktas, altFt);
-      return throttle * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
+      return throttle * thrustPerWeight(kias, altFt) - glideDragPerWeight(config, kias, altFt, g);
     };
   }
 

@@ -1,0 +1,9 @@
+{
+  "name": "dads-sof-relay",
+  "private": true,
+  "description": "The tool's own Netlify relay (relay/README.md). Its one dependency is Netlify Blobs, the EP Tabletop phone link's mailbox (EP-10).",
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "11.1.1"
+  }
+}
