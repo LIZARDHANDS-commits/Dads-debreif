@@ -11,8 +11,8 @@ A window on the home screen for looking at the CT-156 on its own. Patrick's ask 
 - **Aircraft:** on the ground (gear down, inboard doors hanging open as parked, prop feathered), or flying (gear up, prop turning, 10° of bank).
 - **Camera:** outside (drag to orbit, scroll to zoom from 5 to 140 ft, double-click to reset the zoom, an optional slow turntable), front seat or rear seat (drag to look round as in Formation's Cockpit view, hold Shift to zoom, double-click to look ahead).
 - **Graphics:** High or Performance (the same files the simulators use, through `setCt156Level`).
-- **Look (3D):** the weathering, relief and wear sliders and Reset (`ct156-look-settings.js`); the same saved setting as Formation and Traffic.
-- A plain studio backdrop (a soft gradient, a pool of light and a shadow on the ground) with its own lights: sky and sun, a cool fill and a rim.
+- **Look (3D):** the weathering and relief sliders and Reset (`ct156-look-settings.js`); the same saved setting as Formation and Traffic.
+- A plain studio backdrop (a soft gradient, a pool of light and a shadow on the ground) with its own lights: sky and sun, a cool fill and a rim. From outside, a studio room's reflections on the paint and glass; at High on the ground, a real shadow and a faint floor reflection too (MS-10).
 
 It is a picture only: no flight maths, no terrain, no weather and no settings of its own beyond the controls above.
 
