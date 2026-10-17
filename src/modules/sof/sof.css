@@ -1318,6 +1318,19 @@ main[data-module='sof'] {
   outline: 1px solid var(--border-strong);
 }
 
+/* NOAA's lightning strike (SOF-71): a yellow cross on a dark outline, as the map draws it (map-draw.js drawStrikes, map-lightning.js LIGHTNING_MARK's colours). */
+[data-module='sof'] .sof-legend-strike {
+  flex: none;
+  position: relative;
+  width: 0.9rem;
+  height: 0.9rem;
+  background:
+    linear-gradient(rgb(255, 232, 0), rgb(255, 232, 0)) center / 2px 100% no-repeat,
+    linear-gradient(rgb(255, 232, 0), rgb(255, 232, 0)) center / 100% 2px no-repeat,
+    linear-gradient(rgb(16, 16, 16), rgb(16, 16, 16)) center / 6px 100% no-repeat,
+    linear-gradient(rgb(16, 16, 16), rgb(16, 16, 16)) center / 100% 6px no-repeat;
+}
+
 /* The new-caution banner (SOF-38): one line (the lead caution, "+N more", Show all, Acknowledge). Show all drops the whole list over the
    screen, never pushing it down. With no caution it is not there, and takes no room. */
 [data-module='sof'] .sof-banner {

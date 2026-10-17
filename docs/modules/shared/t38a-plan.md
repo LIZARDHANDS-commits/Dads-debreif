@@ -1,6 +1,6 @@
 # T-38A Talon model: plan (approved)
 
-> **Progress:** items 1 and 2 done and item 3's renders made, with a first paint pass (item 5), the first delivery (item 6, V2.450) and the rough cockpits (item 7, first pass, V2.494), 14 Oct 2026, not yet seen by Patrick or Dad: [`tools/blender/t38/`](../../../tools/blender/t38/README.md); see `plan.md` Step 3d.
+> **Progress:** items 1 and 2 done and item 3's renders made, with a first paint pass (item 5), the first delivery (item 6, V2.450) and the rough cockpits (item 7, first pass, V2.497), 14 Oct 2026, not yet seen by Patrick or Dad: [`tools/blender/t38/`](../../../tools/blender/t38/README.md); see `plan.md` Step 3d.
 >
 > **Status:** approved: Patrick said yes (relayed by Dad, 14 Oct 2026: "Pat approves start it up"), with Dad's picks below (T-38A only, first used in the Debrief, the Beale paint scheme). Dad asked on 14 Oct 2026: "Lets use the same logic to create a 3D model for a T-38A. Lets come up with our plan." It would be Step 3d of `plan.md`, built the way the CT-102B Astra II is (Step 3c, `ct102-astra-plan.md`), which follows the CT-156's process (`Pat's claude work/dad-setup/how-we-built-the-ct156-model.md`, ALL-31 to ALL-38). 
 
