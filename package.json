@@ -13,6 +13,8 @@
     "preview": "vite preview",
     "models:import": "node tools/blender/models-import.mjs",
     "test": "node tools/unit-tests.mjs",
+    "check:utf8": "node tools/check-utf8.mjs",
+    "prepare": "git config core.hooksPath .githooks || true",
     "typecheck": "tsc -p jsconfig.json",
     "test:e2e": "playwright test",
     "test:signoff": "node tools/unit-tests.mjs --all",
