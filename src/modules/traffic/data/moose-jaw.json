@@ -60,6 +60,32 @@
       ]
     }
   ],
+  "routesForOtherTypes": [
+    {
+      "id": "PAT_ASTRA",
+      "name": "Astra pattern (working numbers)",
+      "kind": "pattern",
+      "type": "CT-102B",
+      "flown": "ct102b-overhead",
+      "visible": false,
+      "color": "#ffcc66",
+      "landOdds": 0.2,
+      "points": [
+        {"label":"Threshold / Final","x":2796.0,"y":-2776.0,"alt":1892,"kt":90,"g":2},
+        {"label":"Departure End","x":-3572.0,"y":690.0,"alt":3000,"kt":100,"g":2},
+        {"label":"Downwind","x":-4862.8,"y":-1681.5,"alt":3000,"kt":90,"g":2},
+        {"label":"Perch","x":3106.3,"y":-6018.9,"alt":3000,"kt":90,"g":1.1547},
+        {"label":"Window","x":5282.6,"y":-4129.4,"alt":2051,"kt":90,"g":1.1547},
+        {"label":"Initial","x":13469.6,"y":-8585.5,"alt":3000,"kt":180,"g":2},
+        {"label":"Break","x":1039.3,"y":-1819.9,"alt":3000,"kt":180,"g":2},
+        {"label":"Upwind","x":-5477.0,"y":1726.8,"alt":3000,"kt":100,"g":2},
+        {"label":"Crosswind","x":-17920.2,"y":4349.5,"alt":3000,"kt":180,"g":1.4142},
+        {"label":"Outside downwind","x":-7056.9,"y":-5713.1,"alt":3000,"kt":180,"g":1.4142},
+        {"label":"90 to initial","x":14480.5,"y":-13285.6,"alt":3000,"kt":180,"g":1.4142},
+        {"label":"45 to initial","x":15181.5,"y":-11144.2,"alt":3000,"kt":180,"g":1.4142}
+      ]
+    }
+  ],
   "aircraft": [
     {"id":"A1","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":12},
     {"id":"A2","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":137},

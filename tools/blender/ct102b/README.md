@@ -37,7 +37,15 @@ python3 -m venv <scratch>/bpy-venv
 
 Leave off the render folder to build and save only (a few seconds). With it, the saved master is opened again and six pictures are made in plain colours with Cycles on the processor (about a minute on 4 cores): `ct102b-quarter-front-left.png`, `ct102b-quarter-rear-right.png`, `ct102b-below.png`, and square-on `ct102b-side.png`, `ct102b-front.png` and `ct102b-top.png` over a 1 ft grid (heavier lines every 5 ft; lines on whole feet from the spinner's tip, the centreline and the ground).
 
-**Keep the `.blend` and the renders out of the repo.** Model files reach the app only through the High and Performance delivery into `public/models/` (plan Step 3c item 6). Reference pictures are for measuring only and never go in the repo either, nor do overlay sheets made from them.
+**The model files for the app** (Traffic plan Step 5c Phase 5; shared plan Step 3c item 6, first delivery: the outside and paint, no cockpit; Dad, 14 Oct 2026: "Export it now, refine later"): from a freshly built master,
+
+```
+<scratch>/bpy-venv/bin/python tools/blender/ct102b/export_ct102b.py -- <scratch>/ct102b.blend public/models
+```
+
+writes `public/models/ct102b-exterior.glb` (High: every part, the paint pictures full size; about 1.1 MB, about 44,000 triangles) and `ct102b-exterior-lite.glb` (the parts over 1,000 triangles decimated to 30 %, the paint pictures halved; about 0.47 MB). Both in feet, nose +X with the spinner tip at x 0, left +Y, up +Z (exported Z-up); `src/ui-kit/ct102b-model.js` loads them. Run it again after any change to the build script and commit the two files with it.
+
+**Keep the `.blend` and the renders out of the repo.** Model files reach the app only as the two exported files above in `public/models/` (plan Step 3c item 6). Reference pictures are for measuring only and never go in the repo either, nor do overlay sheets made from them.
 
 ## Where the master lives
 

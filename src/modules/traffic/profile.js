@@ -12,7 +12,8 @@
 import MOOSE_JAW from './data/moose-jaw.json' with { type: 'json' };
 import { DEFAULTS, LIMITS, SPEEDS } from './defaults.js';
 import { TYPE_COLORS } from './sim.js';
-import { newPattern } from './route.js';
+import { newPattern, FLOWN_KINDS } from './route.js';
+import { typeProfile } from './types.js';
 
 export const PROFILE_VERSION = 1;
 
@@ -127,6 +128,16 @@ function checkRoutes(raw) {
     if (r.points.length > MOST_POINTS) refuse(`${name} has ${r.points.length} points (the most is ${MOST_POINTS})`);
     if (r.points.length < MIN_POINTS[r.kind]) refuse(`${name} has ${r.points.length} points (a ${r.kind} needs at least ${MIN_POINTS[r.kind]})`);
     const route = { id: r.id, name, kind: r.kind, visible: r.visible, color: r.color, points: r.points.map((p, i) => checkPoint(p, `point ${i + 1} of ${name}`)) };
+    // A pattern flown by one aircraft type only (plan Step 5c Phase 3; spec 4.19 item 6: the Astra pattern's `type`
+    // 'CT-102B'), and the builder that flies its path (route.js FLOWN_KINDS, its `flown`). Both are optional.
+    if (r.type !== undefined) {
+      if (route.kind !== 'pattern' || typeof r.type !== 'string' || !own(TYPE_COLORS, r.type)) refuse(`${name} is tied to an aircraft type this sim does not know`);
+      route.type = r.type;
+    }
+    if (r.flown !== undefined) {
+      if (route.kind !== 'pattern' || typeof r.flown !== 'string' || !FLOWN_KINDS.includes(r.flown)) refuse(`${name} is flown by a pattern builder this sim does not have`);
+      route.flown = r.flown;
+    }
     const odds = (key, fallback) => {
       const value = r[key] === undefined ? fallback : r[key];
       if (!inRange(value, [0, 1])) refuse(`${name} has ${key} that is not from 0 to 1`);
@@ -173,6 +184,7 @@ function checkAircraft(raw, routes) {
     const route = routes.find((r) => r.id === a.routeId);
     if (!route) refuse(`${a.id} starts on a route that is not there`);
     if (!isInt(a.startIndex) || a.startIndex < 0 || a.startIndex >= route.points.length) refuse(`${a.id} starts at a point ${route.name} does not have`);
+    if (route.type && typeProfile(a.type).id !== route.type) refuse(`${a.id} is a ${a.type}, but ${route.name} is flown by the ${route.type} only`);
     if (!inRange(a.startsAtSec, LIMITS.spawnDelayS)) refuse(`${a.id} starts at a time outside 0 to ${feet(LIMITS.spawnDelayS[1])} s`);
     // An engine-out start in the training area (the PFL from the area, Traffic spec 5.2): radial °T, NM and ft MSL in the spawner's ranges.
     const area = a.area;
@@ -295,11 +307,16 @@ export function settingsFromSetup(setup) {
   return out;
 }
 
-/** A built-in setup (the data files' shape) as a profile. It is checked like any other, so a data file that broke the rules would show at once. */
+/**
+ * A built-in setup (the data files' shape) as a profile. It is checked like any other, so a data file that broke the rules would show at once.
+ * Its routes are the file's `routes` (the CT-156's) and then its `routesForOtherTypes`: the patterns flown by another type
+ * only, today the CT-102B Astra II's (plan Step 5c Phase 3; spec 4.19). They are kept apart in the file because the
+ * file's `routes` are the ones every T-6A check reads (the Traffic tests' "every built-in route" is the CT-156's).
+ */
 function builtIn(setup, name) {
   const result = checkProfile({
     version: PROFILE_VERSION, name, airfield: 'CYMJ', notes: setup.notes ?? '', seed: setup.seed ?? 1, anchor: setup.anchor,
-    routes: setup.routes, aircraft: setup.aircraft, settings: settingsFromSetup(setup),
+    routes: [...setup.routes, ...(setup.routesForOtherTypes ?? [])], aircraft: setup.aircraft, settings: settingsFromSetup(setup),
   });
   if (!result.ok) throw new Error(`the built-in setup ${name} is not a valid profile: ${result.problem}`);
   return Object.freeze(result.profile);
