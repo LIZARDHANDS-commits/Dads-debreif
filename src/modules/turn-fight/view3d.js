@@ -24,7 +24,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHud } from '../../ui-kit/hud.js';
-import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView, setCt156Crew } from '../../ui-kit/ct156-model.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
@@ -955,6 +955,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     gl.ground.position.set(gridX, gridY, altToZ(groundZ, ALT_SCALE) - 2);
     const pov = povOf(cam.state ?? cam.mode);
     for (const who of SHIPS) gl.planes[who].visible = true;
+    // The ship the camera rides or chases keeps its full pilots; the other draws the lighter ones (5A, ALL-46).
+    for (const who of SHIPS) setCt156Crew(gl.planes[who], pov?.who === who ? 'full' : 'lite');
     if (pov && gl.planes[pov.who]) {
       // Perspective: the aircraft at their real size, and the camera from the aircraft's own attitude.
       for (const who of SHIPS) gl.planes[who].scale.setScalar(T6_LENGTH_FT / CT156_UNIT_LENGTH);

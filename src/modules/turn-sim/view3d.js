@@ -20,7 +20,7 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { drawnAttitudeOf } from './live/attitude.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { createCt156Model, CT156_UNIT_LENGTH, CT156_REFERENCE_POINTS, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, CT156_UNIT_LENGTH, CT156_REFERENCE_POINTS, setCockpitView, setSpeedBrake, setCt156Crew } from '../../ui-kit/ct156-model.js';
 import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 
 /**
@@ -753,6 +753,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       present.add(a.id);
       const pose = aircraftPose(a, signs[a.id] ?? 1);
       const mesh = planeFor(a.id);
+      // The ship the camera rides or chases keeps its full pilots; the others draw the lighter ones (5A, ALL-46).
+      setCt156Crew(mesh, pov && a.id === pov.id ? 'full' : 'lite');
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       const drawn = pose.model ?? pose;
