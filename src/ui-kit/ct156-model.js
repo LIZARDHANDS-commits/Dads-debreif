@@ -853,10 +853,10 @@ function usTailCanvas(paint, number, side) {
 /** The US paints (ALL-45, proposed), every colour an estimate from photos. `lower`: the lower fuselage and lower wings;
  *  `pinstripe`: the red line at the fuselage's colour break (USAF only); `name`: the lettering on the side, its colour and place. */
 const US_PAINTS = Object.freeze({
-  // darkWing: the upper wing (and the tail's surfaces) dark like the lower, as Dad's formation photo of two USAF T-6As shows (17 Oct 2026); the USN's upper wing is not in the photos, so it stays white.
-  // tip: the formation-reference triangle's colour on the upper wing tip (light on the dark USAF wing; the USN's red-orange on its white wing; estimates).
-  usaf: Object.freeze({ lower: '#2b2f5c', pinstripe: '#b3202a', name: 'U.S. AIR FORCE', nameColour: '#f4f6f8', darkWing: true, tip: '#f4f6f8' }),
-  usn: Object.freeze({ lower: '#e8432e', pinstripe: null, name: 'NAVY', nameColour: '#16181d', darkWing: false, tip: '#e8432e' }),
+  // tip: the formation-reference triangle's colour on the upper wing tip (the USAF's navy, the USN's red-orange: the lower colours, on the white upper wings; estimates).
+  // wingText: large white lettering under the left wing, on the lower colour (the USAF only).
+  usaf: Object.freeze({ lower: '#2b2f5c', pinstripe: '#b3202a', name: 'U.S. AIR FORCE', nameColour: '#f4f6f8', tip: '#2b2f5c', wingText: 'USAF' }),
+  usn: Object.freeze({ lower: '#e8432e', pinstripe: null, name: 'NAVY', nameColour: '#16181d', tip: '#e8432e', wingText: null }),
 });
 const US_WHITE = '#eceff2';
 const US_BLACK = '#0d0e11';
@@ -876,8 +876,9 @@ const US_WING_MARK = Object.freeze({ span: 0.14, chord: 0.07 });
 // top tip near the outside front edge", from his formation photo): a right triangle 1.4 ft each way with its right angle in that
 // corner, its edges 0.35 ft in from the tip and 0.1 ft aft of the leading edge. Size, shape and place are estimates off the photo.
 const US_TIP_TRI = Object.freeze({ size: 1.4 / SIDE_FT, inTip: 0.35 / SIDE_FT, aftLe: 0.1 / SIDE_FT });
-// "USAF" on the upper left wing, outboard of the star-and-bar, reading from the tip toward the root with the letters' tops to the leading
-// edge, as on the photo (an estimate: its wing and place read off a photo taken at an angle): 3.7 ft along the span by 1.6 ft, centred 0.6 units out.
+// "USAF" under the left wing, on the navy, outboard of the lower star-and-bar's side, reading root to tip as seen from below with the letters'
+// tops to the leading edge (Dad's correction, 17 Oct 2026: the dark wing with "USAF" in his photo was the underside; the wing, place and
+// direction are estimates off that photo): 3.7 ft along the span by 1.6 ft, centred 0.6 units out.
 const US_WING_TEXT = Object.freeze({ s: 0.6, span: 0.16, chord: 0.07, aftLe: 0.085 });
 
 // ---------- shared kit (geometry, materials, textures) ----------
@@ -2889,8 +2890,8 @@ function buildKit(THREE) {
       const s = TIP_S - US_TIP_TRI.inTip - US_TIP_TRI.size / 2, sec = sectionOf(WING, s);
       return wingPatch(THREE, sec.le - US_TIP_TRI.aftLe - US_TIP_TRI.size / 2, side * s, US_TIP_TRI.size, US_TIP_TRI.size, [1, 0], [0, side], 1);
     }),
-    // "USAF" on the upper left wing (US_WING_TEXT), as the Harvard roundel's direction: reading from the tip to the root.
-    usWingText: wingPatch(THREE, sectionOf(WING, US_WING_TEXT.s).le - US_WING_TEXT.aftLe, US_WING_TEXT.s, US_WING_TEXT.span, US_WING_TEXT.chord, [0, -1], [1, 0], 1),
+    // "USAF" under the left wing (US_WING_TEXT): seen from below with the nose up, right is +Y, so it reads root to tip.
+    usWingText: wingPatch(THREE, sectionOf(WING, US_WING_TEXT.s).le - US_WING_TEXT.aftLe, US_WING_TEXT.s, US_WING_TEXT.span, US_WING_TEXT.chord, [0, 1], [1, 0], -1),
     usWingUnder: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], US_WING_MARK.span, US_WING_MARK.chord, [0, 1], [1, 0], -1),
   };
   const keepDecal = (v) => {
@@ -3025,9 +3026,7 @@ function buildKit(THREE) {
         ...(def.pinstripe ? [[`ct156Aa( zp.z - ${US_BREAK} ) * ct156Aa( ${US_BREAK} + 0.0018 - zp.z )`, lin(def.pinstripe)]] : []),
         [US_GLARE, lin(US_BLACK)],
       ] }),
-      wing: def.darkWing
-        ? gloss({ color: def.lower, roughness: 0.42, metalness: 0.12, envMapIntensity: 0.7 })
-        : paintZones(gloss(usWhite), { zones: [['ct156Aa( -0.12 - zn.z )', lin(def.lower)]] }),
+      wing: paintZones(gloss(usWhite), { zones: [['ct156Aa( -0.12 - zn.z )', lin(def.lower)]] }),
     };
   }
   const kit = {
@@ -3380,7 +3379,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     // Always drawn: the airframe, the canopy glass, the cheat line, the spinner and the prop disc.
     // The US paints (us) differ only in the colours of these parts and in the marks below; the Harvard is the same as it always was.
     fuselage = add(geo.fuselage, us ? us.mats.fuselage : mats.navy);
-    add(geo.airframe, [us ? us.mats.wing : mats.navy, us?.def.darkWing ? us.mats.lower : mats.wingLe]);
+    add(geo.airframe, [us ? us.mats.wing : mats.navy, mats.wingLe]);
     // The fin and rudder navy like the rest, as the real ship (G14, Patrick 13 Oct 2026; were the ship's colour).
     add(geo.fin, [us ? mats.usWhite : mats.navy, mats.finLe]);
     surfaces = addSurfaces(us ? us.mats.wing : mats.navy, us ? mats.usWhite : mats.navy);
@@ -3395,14 +3394,14 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       const insignia = kit.lazyDecal('usInsignia', 512, 256, usInsigniaCanvas, 2);
       add(decalGeo.usWingTop, insignia, detail);
       add(decalGeo.usWingUnder, insignia, detail);
-      // The formation-reference triangle on each upper wing tip, and (USAF) "USAF" on the upper left wing.
+      // The formation-reference triangle on each upper wing tip, and (USAF) "USAF" under the left wing.
       const tip = kit.lazyDecal(`usTip-${paint}`, 128, 128, (ctx, w, h) => {
         ctx.fillStyle = us.def.tip;
         ctx.beginPath(); ctx.moveTo(w, 0); ctx.lineTo(w, h); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
       }, 2);
       for (const s of ['1', '-1']) add(decalGeo.usTip[s], tip, detail);
-      if (us.def.darkWing) {
-        add(decalGeo.usWingText, kit.lazyDecal('usWingText', 640, Math.round((640 * US_WING_TEXT.chord) / US_WING_TEXT.span), (ctx, w, h) => plainDigits(ctx, 'USAF', w, h, 0.8, 0.98, '#f4f6f8'), 2), detail);
+      if (us.def.wingText) {
+        add(decalGeo.usWingText, kit.lazyDecal('usWingText', 640, Math.round((640 * US_WING_TEXT.chord) / US_WING_TEXT.span), (ctx, w, h) => plainDigits(ctx, us.def.wingText, w, h, 0.8, 0.98, '#f4f6f8'), 2), detail);
       }
       const m = US_MARKS.name[paint];
       const nameMat = kit.lazyDecal(`usName-${paint}`, 640, Math.round((640 * m.hFt) / m.wFt), (ctx, w, h) => plainDigits(ctx, us.def.name, w, h, 0.62, 0.98, us.def.nameColour), 2);

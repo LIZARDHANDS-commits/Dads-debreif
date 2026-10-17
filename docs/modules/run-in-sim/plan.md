@@ -87,7 +87,7 @@ Dad, 17 Oct 2026: "as well as the cutting of ground track the aircraft increase 
 Dad, 17 Oct 2026: "Can we make a paint scheme for USAF and USN".
 - [x] Written down: spec, RS-29, RS-R18 and ALL-45 (17 Oct 2026).
 - [x] The USAF and USN paints in the shared model, and the Paint choice in the Display box (RS-29).
-- [x] Dad's follow-up (17 Oct 2026, "the usaf and usn need the wing tip triangle ref"): the wing-tip triangle on both paints, the USAF's dark upper wing and "USAF" lettering (ALL-45).
+- [x] Dad's follow-up (17 Oct 2026, "the usaf and usn need the wing tip triangle ref"): the wing-tip triangle on both paints and "USAF" under the left wing; corrected the same day (Dad: "White on top blue on bottom"): the USAF's upper surfaces stay white (ALL-45).
 - [ ] Patrick's yes on ALL-45 and RS-29.
 - [ ] Dad or Patrick looks at both paints in the app (Chase and Side cameras, and in Turn Fight's Paint).
 
