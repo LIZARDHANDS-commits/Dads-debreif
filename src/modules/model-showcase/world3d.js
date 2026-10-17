@@ -1,20 +1,25 @@
 // The Model Showcase's 3D view (Patrick, 15 Oct 2026: "a MODEL SHOWCASE module ... just the Harvard sitting on its gear or
 // flying, wear and grime sliders, High and Performance, cockpit or outside with more zoom outside"): one CT-156 on a plain
 // studio backdrop with its own lights, drawn from the shared pieces (ui-kit ct156-model.js, ct156-cockpit.js, ct156-blender.js).
-// It shows the model and nothing else: no flight maths, no terrain, no weather. A picture only.
+// It shows the model and nothing else: no terrain, no weather. A picture only: in the air it flies flight-cycle.js's gentle
+// cycle of turns, climbs and descents (MS-7), a picture's numbers, not a flight model.
 //
-// Poses: on the ground (gear down, the inboard doors hanging open as parked, the prop stopped and feathered: the start pose)
-// and flying (gear up, the prop turning, a little bank). Views: outside (drag to orbit, scroll to zoom, a slow turntable that
-// can be switched off) and each seat (drag to look round as in Formation's Cockpit view, hold Shift to zoom).
+// Poses: on the ground (gear down, the inboard doors hanging open as parked, the prop stopped and feathered, the engine
+// off: the start pose) and flying (the gear coming up, the prop turning, the cycle flown, or held wings level with
+// Manoeuvre off). The gear (in the air) and the flaps follow their buttons, travelling as the real ones do; the flight
+// surfaces, the stick and the power lever move with the cycle. Views: outside (drag to orbit, scroll to zoom, a slow
+// turntable that can be switched off; the aircraft banks and pitches in place, its heading shown only on the panel) and
+// each seat (drag to look round as in Formation's Cockpit view, hold Shift to zoom).
 //
 // When data fails: no WebGL leaves a message in place of the view; a Blender file or picture that does not load leaves the
 // ship's own code-drawn shape or plain paint (ct156-blender.js logs it once).
 import { loadThree, addLights, webglSupported } from '../../ui-kit/three-aircraft.js';
-import { createCt156Model, disposeCt156Model, setGear, setPropStopped, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, disposeCt156Model, setGear, setPropStopped, setControls, PAINT_DEFAULT, CT156_GEAR_TRAVEL_S, CT156_FLAP_DEG } from '../../ui-kit/ct156-model.js';
 import { setCt156Level, ct156Level, onCt156Level } from '../../ui-kit/ct156-blender.js';
 import { onCt156Look } from '../../ui-kit/ct156-look-settings.js';
 import { createCockpitMount, aimCockpitCamera, createCockpitZoomKey, CT156_FT_PER_UNIT, COCKPIT_HEAD } from '../../ui-kit/ct156-cockpit.js';
 import { T6A_PITCH } from '../../core/t6-performance.js';
+import { createShowcaseFlight, stepShowcaseFlight, showcaseHud } from './flight-cycle.js';
 
 const rad = (d) => (d * Math.PI) / 180;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -36,17 +41,20 @@ const DRAG_LOOK_DEG_PER_PX = 0.2;
 const WHEEL_ZOOM_PER_PX = 0.0015;
 /** The seat's resting look: along the nose, a little down so the panel and the coaming sit in the picture (an estimate, as the EP Tabletop's). */
 export const SEAT_LOOK_START = Object.freeze({ yawDeg: 0, pitchDeg: -8 });
-/** The flying pose: a few degrees of bank so the pictures are not flat on (a tool choice). */
-const FLYING_BANK_DEG = 10;
+/** The flaps' travel from UP to LDG, seconds (an estimate: no page gives it). */
+const FLAP_TRAVEL_S = 6;
+/** Where the flap gauge's needle and the travel stand for each selection, 0 (UP) to 1 (LDG), as the gauge's marks. */
+const FLAP_AT = Object.freeze({ UP: 0, TO: 0.5, LDG: 1 });
 /** The pictures load and attach after the first draw and after a level change: draw steadily for this long (milliseconds). */
 const SETTLE_MS = 25_000;
 /** At most one picture this often while nothing is being dragged (milliseconds), about 30 a second. */
 const MIN_DRAW_MS = 33;
-/** What the seat's panel reads (a picture of the panel only): standing on the ground, and in the air (the numbers are the picture's, not flight). */
-const HUD = Object.freeze({
-  ground: { pitchDeg: T6A_PITCH.onGearDeg, bankDeg: 0, kias: 0, altFt: 1892, headingDeg: 0, g: 1, vsFpm: 0, speedBrake: false, torquePct: 0, engineRunning: false },
-  flying: { pitchDeg: 0, bankDeg: FLYING_BANK_DEG, kias: 150, altFt: 5000, headingDeg: 90, g: 1, vsFpm: 0, speedBrake: false, torquePct: 55, engineRunning: true },
-});
+/** What the seat's panel reads standing on the ground, the engine off (a picture of the panel only; in the air, flight-cycle.js's numbers). */
+const GROUND_HUD = Object.freeze({ pitchDeg: T6A_PITCH.onGearDeg, bankDeg: 0, kias: 0, altFt: 1892, headingDeg: 0, g: 1, vsFpm: 0, speedBrake: false, torquePct: 0, engineRunning: false, controls: Object.freeze({ roll: 0, pitch: 0, yaw: 0 }) });
+/** The flaps' angle at `at`, 0 (UP) to 1 (LDG): UP to TO over the first half, TO to LDG over the second. */
+const flapDeg = (at) => (at <= 0.5 ? (at / 0.5) * CT156_FLAP_DEG.TO : CT156_FLAP_DEG.TO + ((at - 0.5) / 0.5) * (CT156_FLAP_DEG.LDG - CT156_FLAP_DEG.TO));
+/** One step of `from` toward `to` at `perS` a second over dtS seconds. */
+const toward = (from, to, perS, dtS) => (Math.abs(to - from) <= perS * dtS ? to : from + Math.sign(to - from) * perS * dtS);
 
 /**
  * Sets the ship's attitude from what its panel reads, so the outside and the EADI and standby always agree (W24, Patrick
@@ -94,7 +102,8 @@ function discTexture(THREE, doc, { rgb, alphaMiddle, solid = 0 }) {
  * Builds the view in `host` (an element; the canvas fills it). timers: the module's scheduler scope; doc: the page's document.
  * Returns a Promise of the view, or of null when WebGL is missing (a message is left in `host`):
  *   { tick(dtMs), setView('outside' | 'front' | 'rear'), setPose('ground' | 'flying'), setLevel('high' | 'performance'),
- *     setSpin(on), setCamera({ azimuthDeg, elevationDeg, distanceFt }), resetCamera(), state(), redraw(), dispose() }.
+ *     setGear('up' | 'down'), setFlaps('UP' | 'TO' | 'LDG'), setManoeuvre(on), setSpin(on),
+ *     setCamera({ azimuthDeg, elevationDeg, distanceFt }), resetCamera(), state(), redraw(), dispose() }.
  * The module's frame loop calls tick; it draws only when something changed, the aircraft is flying (the prop turns) or the
  * pictures are still arriving.
  */
@@ -149,6 +158,12 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
   let view = 'outside';
   let pose = 'ground';
   let spin = true;
+  // The gear (0 up, 1 down; parked while the doors hang open as on the ground), the flaps and the gentle flight.
+  const gear = { at: 1, to: 1, parked: true };
+  const flaps = { sel: 'UP', at: 0 };
+  let manoeuvre = true;
+  let flight = createShowcaseFlight();
+  let minute = -1; // the UTC minute the clock last showed
   const orbit = { azimuthDeg: 38, elevationDeg: 11, distanceFt: ORBIT_DISTANCE_FT.start };
   const look = { ...SEAT_LOOK_START };
   let size = { w: 0, h: 0 };
@@ -169,21 +184,42 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
   const stopLevel = onCt156Level(() => touch(true));
   const stopLook = onCt156Look(() => touch());
 
+  /** What the panel reads now: the ground's, or the flight's; the flaps where they are. */
+  const hud = () => ({ ...(pose === 'ground' ? GROUND_HUD : showcaseHud(flight)), flaps: flaps.at });
+
+  /** Puts the ship as it now stands: the gear, the prop, the height, the attitude, the surfaces (again after setCockpitView). */
   function applyPose() {
-    if (pose === 'ground') {
-      setGear(ship, 1, true);
-      setPropStopped(ship, true);
-      ship.position.set(0, 0, AXIS_ABOVE_GROUND_FT);
-    } else {
-      setGear(ship, 0);
-      setPropStopped(ship, false);
-      ship.position.set(0, 0, 0);
-    }
-    applyAttitude(ship, HUD[pose]);
+    setGear(ship, gear.at, gear.parked);
+    setPropStopped(ship, pose === 'ground');
+    ship.position.set(0, 0, pose === 'ground' ? AXIS_ABOVE_GROUND_FT : 0);
+    const h = hud();
+    applyAttitude(ship, h);
+    setControls(ship, { ...h.controls, flaps: flapDeg(flaps.at) });
     floor.visible = shadow.visible = pose === 'ground';
     ship.updateMatrixWorld(true);
   }
   applyPose();
+
+  /** Moves what moves (the flight, the gear, the flaps) dtS seconds on; true when anything did. */
+  function advance(dtS) {
+    let moved = false;
+    if (pose === 'flying') {
+      flight = stepShowcaseFlight(flight, dtS, { manoeuvre });
+      moved = true;
+    }
+    if (gear.at !== gear.to) {
+      gear.at = toward(gear.at, gear.to, 1 / CT156_GEAR_TRAVEL_S, dtS);
+      if (gear.at === 0) gear.parked = false; // up and shut: lowered again in the air, the doors close behind the legs
+      moved = true;
+    }
+    const flapsTo = FLAP_AT[flaps.sel];
+    if (flaps.at !== flapsTo) {
+      flaps.at = toward(flaps.at, flapsTo, 1 / FLAP_TRAVEL_S, dtS);
+      moved = true;
+    }
+    if (moved) applyPose();
+    return moved;
+  }
 
   function aim(w, h) {
     if (view === 'outside') {
@@ -213,7 +249,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     }
     lastDraw = now();
     dirty = false;
-    if (view !== 'outside') cockpit.update(HUD[pose]);
+    if (view !== 'outside') cockpit.update(hud());
     aim(w, h);
     renderer.render(scene, camera);
   }
@@ -271,8 +307,16 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     tick(dtMs) {
       if (disposed) return;
       const t = now();
+      const dtS = clamp(dtMs, 0, 250) / 1000;
       if (spin && view === 'outside' && !dragging) {
-        orbit.azimuthDeg = (orbit.azimuthDeg + (clamp(dtMs, 0, 250) * SPIN_DEG_PER_S) / 1000) % 360;
+        orbit.azimuthDeg = (orbit.azimuthDeg + dtS * SPIN_DEG_PER_S) % 360;
+        dirty = true;
+      }
+      if (advance(dtS)) dirty = true;
+      // The seat's clock shows the minute in ZULU: draw again when it turns, even with nothing else moving.
+      const m = new Date().getUTCMinutes();
+      if (m !== minute) {
+        minute = m;
         dirty = true;
       }
       const going = dirty || pose === 'flying' || t < settleUntil;
@@ -288,7 +332,16 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
       onChange();
     },
     setPose(next) {
+      const was = pose;
       pose = next === 'flying' ? 'flying' : 'ground';
+      if (pose !== was) {
+        if (pose === 'ground') { // put down on its gear: down at once, the doors hanging open as parked, the engine off
+          Object.assign(gear, { at: 1, to: 1, parked: true });
+        } else { // airborne: the gear comes up from the parked pose (its doors already open), the cycle starts over
+          gear.to = 0;
+          flight = createShowcaseFlight();
+        }
+      }
       orbit.elevationDeg = clamp(orbit.elevationDeg, ...ELEVATION_LIMITS[pose]);
       applyPose();
       touch(true);
@@ -296,6 +349,24 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     },
     setLevel(next) {
       setCt156Level(next);
+      onChange();
+    },
+    /** The gear, 'up' or 'down' (W25): in the air only; it travels over CT156_GEAR_TRAVEL_S. */
+    setGear(next) {
+      if (pose !== 'flying') return;
+      gear.to = next === 'down' ? 1 : 0;
+      touch();
+      onChange();
+    },
+    /** The flaps, 'UP', 'TO' or 'LDG' (W25): they travel over FLAP_TRAVEL_S, on the ground too. */
+    setFlaps(next) {
+      flaps.sel = Object.hasOwn(FLAP_AT, next) ? next : 'UP';
+      touch();
+      onChange();
+    },
+    /** The gentle cycle on, or wings-level cruise held (the Manoeuvre checkbox). */
+    setManoeuvre(on) {
+      manoeuvre = Boolean(on);
       onChange();
     },
     setSpin(on) {
@@ -311,7 +382,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
       touch();
     },
     resetCamera: onDouble,
-    state: () => ({ view, pose, spin, level: ct156Level(), distanceFt: orbit.distanceFt }),
+    state: () => ({ view, pose, spin, level: ct156Level(), distanceFt: orbit.distanceFt, gear: gear.to === 1 ? 'down' : 'up', flaps: flaps.sel, manoeuvre }),
     redraw: draw,
     dispose() {
       disposed = true;

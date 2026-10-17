@@ -332,6 +332,8 @@ const SURFACES = Object.freeze({
   elevator: Object.freeze({ hinge: 0.58, horn: 0.37, hornSpan: 0.18, s0: 0.06, tab: 0.9, tabS: Object.freeze([0.11, 0.48]), upDeg: 18, downDeg: 16 }),
   rudder: Object.freeze({ hinge: 0.55, z0: 0, tab: 0.88, tabTop: 0.13, deg: 24 }),
 });
+/** The flaps' angle for each selection, degrees of the trailing edge down (SURFACES; estimates), for a module easing them through setControls. */
+export const CT156_FLAP_DEG = Object.freeze({ UP: 0, TO: SURFACES.flap.toDeg, LDG: SURFACES.flap.ldgDeg });
 // The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the side view's
 // (Patrick, 11 Oct 2026, circled it; scaled as the fin, card "Tail and wing"): its leading edge leaving the belly 25.5 ft
 // behind the spinner's tip, its foot 3.3 ft under the axis and 2.8 ft long from 26.0 ft, rising 0.38 ft to the back
