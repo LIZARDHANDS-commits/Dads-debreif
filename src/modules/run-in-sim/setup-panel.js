@@ -4,14 +4,21 @@
 // Orbit (a holding pattern, a figure 8 or a circle, RS-11), Run-in, Release, Escape, Wind and Display. Each box shows only the few settings the user sets for that run
 // (RS-9); the numbers the computer works out show greyed with "set to hit", and More sets one by hand. Every setting
 // starts at a default, and each box says its defaults are estimates. The main button is "Fly the pass".
+// The air refuelling run (spec "Air refuelling"; RS-18; approved: Patrick's yes, relayed by Dad, 17 Oct 2026) shows
+// its own: the Rendezvous time, and the Tanker and anchor, Rendezvous and Join boxes; the run-in's Target, Time over
+// target, Orbit, Run-in, Release and Escape hide. The worked-out numbers show greyed "set to hit" (RS-16).
 import { h } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
-import { RUNS, RANGES, runOf } from './defaults.js';
+import { RUNS, RANGES, runOf, AAR_PLACE } from './defaults.js';
 import { TARGETS, HAS_HEADING } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { clock } from './pass.js';
+import { workedForWords } from './card.js';
+import { FT_PER_NM } from '../../core/units.js';
 
 const ESTIMATE = 'Defaults here are estimates until Patrick or a manual page gives them (RS-Q2).';
+const AAR_ESTIMATE = 'Every air refuelling number is an estimate until Patrick or a manual page gives it (ATP-56 not read).';
+const nm1 = (ft) => `${(ft / FT_PER_NM).toFixed(1)} NM`;
 const ft10 = (n) => `${(Math.round(n / 10) * 10).toLocaleString('en-CA')} ft`;
 const deg3 = (d) => `${String(Math.round(d) % 360 || 360).padStart(3, '0')}°M`;
 
@@ -44,14 +51,32 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   mapButton.addEventListener('click', onOpenMap);
   const targetHeadingBox = num('targetHeadingDegM', 'Target heading (its long side; the run-in never turns it)', '°M');
   const targetMore = more(num('targetSizeFt', 'Size, its main dimension', 'ft'));
+  const targetBox = controls.select('target', { label: 'Target', options: Object.values(TARGETS).map((t) => [t.id, t.label]) });
+  const totBox = h('div', { class: 'rs-tot' }, num('totSec', 'Time over target, seconds after the start', 's'), totWords);
+  // The refuelling run's (RS-18): the picture's words under the Aircraft, the place's meaning and the rendezvous time.
+  const aarNote = h('p', { class: 'rs-estimate rs-aar-note' }, 'The tanker\'s flying is a picture, not a performance claim: the KC-130J has no performance set yet (RS-Q1). The receiver is a stand-in, the CT-156 (no probe). Approved: Patrick\'s yes (relayed by Dad, 17 Oct 2026: "pat says build"); every number an estimate.');
+  const placeLabel = h('span', { class: 'rs-fixed-label' }, 'Place');
+  const rvWords = h('span', { class: 'rs-faint' });
+  const rvBox = h('div', { class: 'rs-tot' }, num('aarRvSec', 'Rendezvous time: the tanker rolls out, seconds after the start', 's'), rvWords);
+  // RS-19: where the receiver takes off from (CYMJ, the runway into the ground wind).
+  const takeoffWords = h('span', { class: 'rs-fixed-value' });
+  const takeoffLine = h('div', { class: 'control rs-fixed' }, h('span', { class: 'rs-fixed-label' }, 'Receiver takes off from'), takeoffWords);
+  // The anthem flyover (RS-24, RS-25), on the Flyover only: the anthem, its length under More, and a word on the tunes.
+  const anthemCheck = h('p', { class: 'rs-estimate' });
+  const anthemBox = h('div', { class: 'rs-anthem' },
+    controls.select('anthem', { label: 'National anthem (its last note is the time over target)', options: [['canada', 'Canada: O Canada'], ['us', 'US: The Star-Spangled Banner'], ['none', 'None']] }),
+    more(num('anthemCanadaSec', 'O Canada\'s length (the tempo follows)', 's'), num('anthemUsSec', 'The Star-Spangled Banner\'s length (the tempo follows)', 's')),
+    anthemCheck);
   const top = h('div', { class: 'rs-top' },
     controls.select('run', { label: 'Run', options: RUNS.map((r) => [r.id, r.label]) }),
     h('div', { class: 'control rs-fixed' }, h('span', { class: 'rs-fixed-label' }, 'Aircraft'), aircraftName),
-    controls.select('target', { label: 'Target', options: Object.values(TARGETS).map((t) => [t.id, t.label]) }),
+    aarNote,
+    takeoffLine,
+    targetBox,
     targetHeadingBox,
     targetMore,
-    h('div', { class: 'control rs-place' }, h('span', { class: 'rs-fixed-label' }, 'Place'), mapButton, placeWords),
-    h('div', { class: 'rs-tot' }, num('totSec', 'Time over target, seconds after the start', 's'), totWords));
+    h('div', { class: 'control rs-place' }, placeLabel, mapButton, placeWords),
+    totBox, anthemBox, rvBox);
 
   // ---- Orbit ----
   const orbit = box('Orbit');
@@ -125,13 +150,54 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
 
   // ---- Wind ----
   const wind = box('Wind');
+  const windBoxes = [windNum('windTopDegM', 'At the release height, from', 'deg'), windNum('windTopKt', 'At the release height, speed', 'kt')];
+  const windTopLabels = windBoxes.map((b) => b.querySelector('label'));
   const planBoxes = [windNum('planTopDegM', 'Planning wind at the release height, from', 'deg'), windNum('planTopKt', 'Planning wind at the release height, speed', 'kt'), windNum('planGroundDegM', 'Planning wind at the ground, from', 'deg'), windNum('planGroundKt', 'Planning wind at the ground, speed', 'kt')];
+  const planMore = more(controls.checkbox('planWindOn', { label: 'Work out the release with a planning wind (to see a wrong forecast)' }), ...planBoxes);
   wind.panel.body.append(
-    windNum('windTopDegM', 'At the release height, from', 'deg'), windNum('windTopKt', 'At the release height, speed', 'kt'),
+    ...windBoxes,
     windNum('windGroundDegM', 'At the ground, from', 'deg'), windNum('windGroundKt', 'At the ground, speed', 'kt'),
     num('tempDevC', 'Temperature against the standard day', '°C'),
-    more(controls.checkbox('planWindOn', { label: 'Work out the release with a planning wind (to see a wrong forecast)' }), ...planBoxes),
+    planMore,
     note());
+
+  // ---- The refuelling run's boxes (RS-15 to RS-17) ----
+  const aarNoteLine = () => h('p', { class: 'rs-estimate', title: AAR_ESTIMATE }, 'ⓘ Every number here is an estimate (ATP-56 not read)');
+  const tankerBox = box('Tanker and anchor');
+  tankerBox.panel.body.append(
+    num('aarTrackDegM', 'Refuelling track (the receiver\'s)', '°M'),
+    num('aarHeightFt', 'Tanker\'s height', 'ft MSL'),
+    num('aarTankerKias', 'Tanker\'s speed', 'KIAS'),
+    more(num('aarBankDeg', 'Tanker\'s bank in its turns', '°'), num('aarLegNm', 'Anchor legs', 'NM'),
+      controls.choice('aarDir', { label: 'Anchor turns', options: [['left', 'Left'], ['right', 'Right']] })),
+    aarNoteLine());
+  const rvBoxPanel = box('Rendezvous');
+  const ipBox = num('aarIpNm', 'IP: on the track, this far back from the roll-out point', 'NM');
+  const ipHit = hit('Receiver at the IP');
+  const offsetHand = controls.checkbox('aarOffsetByHand', { label: 'Set the offset by hand (the turn range is still worked out)' });
+  const offsetBox = num('aarOffsetNm', 'Offset: the tanker\'s inbound track from the receiver\'s', 'NM');
+  const airborneBox = controls.checkbox('aarAirborne', { label: 'Start the receiver airborne on the track (the first version; the rendezvous time is set)' });
+  const rcvHit = hit('Receiver\'s speed');
+  const startHit = hit('Receiver starts');
+  const offsetHit = hit('Offset');
+  const turnHit = hit('Tanker turns');
+  const turnHand = controls.checkbox('aarTurnRangeByHand', { label: 'The tanker turns at a range set by hand' });
+  const turnRangeBox = num('aarTurnRangeNm', 'Turn range (over the ground)', 'NM');
+  const rcvHand = controls.checkbox('aarRcvKiasByHand', { label: 'Set the receiver\'s speed by hand' });
+  const rcvKiasBox = num('aarRcvKias', 'Receiver\'s speed', 'KIAS');
+  rvBoxPanel.panel.body.append(
+    ipBox,
+    num('aarTrailNm', 'Trail at the roll-out', 'NM'),
+    turnHit.el, offsetHit.el, ipHit.el, rcvHit.el, startHit.el,
+    more(num('aarSplitFt', 'Receiver below the tanker', 'ft'), offsetHand, offsetBox, turnHand, turnRangeBox, rcvHand, rcvKiasBox, airborneBox),
+    aarNoteLine());
+  const joinBox = box('Join');
+  joinBox.panel.body.append(
+    num('aarOvertakeKt', 'Overtake on the join (and the receiver\'s speed over the tanker\'s)', 'kt'),
+    more(num('aarPreContactFt', 'Pre-contact: the receiver\'s nose this far behind the left basket', 'ft')),
+    aarNoteLine());
+  const runInPanels = [orbit, runIn, release, escape].map((b) => b.panel.element);
+  const aarPanels = [tankerBox, rvBoxPanel, joinBox].map((b) => b.panel.element);
 
   // ---- Display ----
   const display = box('Display');
@@ -145,7 +211,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   flyButton.addEventListener('click', onFly);
   const element = h('aside', { class: 'rs-setup', 'aria-label': 'Setup' },
     h('h2', { class: 'rs-col-title' }, 'Setup'),
-    top, orbit.panel.element, runIn.panel.element, release.panel.element, escape.panel.element, wind.panel.element, display.panel.element,
+    top, orbit.panel.element, runIn.panel.element, release.panel.element, escape.panel.element, ...aarPanels, wind.panel.element, display.panel.element,
     flyButton,
     h('p', { class: 'rs-foot' }, 'Grey "set to hit" numbers are worked out by the computer; More sets one by hand. Defaults are estimates.'));
 
@@ -155,6 +221,21 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
 
   function update(v, plan, exit) {
     const run = runOf(v.run);
+    const aar = run.id === 'aar';
+    for (const el of [targetBox, targetMore, totBox, ...runInPanels, planMore]) show(el, !aar);
+    show(anthemBox, run.id === 'flyover');
+    anthemCheck.textContent = v.anthem === 'canada'
+      ? 'ⓘ Default Canada (an estimate) and 1:10 (an estimate). O Canada\'s tune beyond its first line is written from memory and not yet checked: tell us any wrong note. It plays at ×1 only.'
+      : v.anthem === 'us' ? 'ⓘ 1:30 (an estimate). The tune is from a public-domain transcription. It plays at ×1 only.' : '';
+    for (const el of [aarNote, takeoffLine, rvBox, ...aarPanels]) show(el, aar);
+    placeLabel.textContent = aar ? 'Place (the roll-out point)' : 'Place';
+    const where = aar ? 'refuelling' : 'release';
+    windTopLabels[0].textContent = `At the ${where} height, from`;
+    windTopLabels[1].textContent = `At the ${where} height, speed`;
+    if (aar) {
+      updateRefuel(v, plan?.kind === 'aar' ? plan : null, exit);
+      return;
+    }
     const dive = run.id === 'bombDive';
     const flyover = run.id === 'flyover';
     aircraftName.textContent = AIRCRAFT[run.aircraft].name;
@@ -224,6 +305,37 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     wind.sum.textContent = `${w(v.windTopDegM, v.windTopKt)} at release${v.planWindOn ? ' · planning wind' : ''}`;
     for (const el of planBoxes) show(el, v.planWindOn);
     display.sum.textContent = [v.showLines && 'lines', v.showCarp && 'CARP', v.showTrails && 'trails', v.showFlags && 'flags'].filter(Boolean).join(' · ') || 'nothing';
+  }
+
+  /** The refuelling run's lines: the boxes' summaries and the numbers worked out to hit (RS-16). */
+  function updateRefuel(v, plan, exit) {
+    aircraftName.textContent = 'KC-130J tanker (a picture) · CT-156 stand-in receiver';
+    placeWords.textContent = v.placeIsDefault ? AAR_PLACE.words : `${v.placeLat.toFixed(3)}, ${v.placeLon.toFixed(3)}`;
+    rvWords.textContent = `+${clock(v.aarRvSec)}`;
+    const takeoff = !v.aarAirborne;
+    show(rvBox, !takeoff);
+    show(takeoffLine, takeoff);
+    show(ipBox, takeoff);
+    show(ipHit.el, takeoff);
+    show(startHit.el, !takeoff);
+    show(offsetBox, v.aarOffsetByHand);
+    takeoffWords.textContent = plan?.runway ? `CYMJ ${plan.runway.name} (into the wind; 29L when calm)` : 'CYMJ (the runway into the wind)';
+    show(targetHeadingBox, false);
+    tankerBox.sum.textContent = `${deg3(v.aarTrackDegM)} · ${ft10(v.aarHeightFt)} MSL · ${v.aarTankerKias} KIAS`;
+    rvBoxPanel.sum.textContent = takeoff ? `IP ${v.aarIpNm.toFixed(1)} NM · ${v.aarTrailNm.toFixed(1)} NM trail` : `airborne · ${v.aarTrailNm.toFixed(1)} NM trail`;
+    joinBox.sum.textContent = `${v.aarOvertakeKt} kt overtake · ${v.aarPreContactFt} ft behind the basket`;
+    show(turnRangeBox, v.aarTurnRangeByHand);
+    show(rcvKiasBox, v.aarRcvKiasByHand);
+    const w = plan?.worked;
+    rcvHit.value.textContent = v.aarRcvKiasByHand ? `${v.aarRcvKias} KIAS (set by hand)` : w ? `${Math.round(w.rcvKias)} KIAS at ${ft10(v.aarHeightFt - v.aarSplitFt)}` : '—';
+    const side = v.aarDir === 'left' ? 'left' : 'right';
+    offsetHit.value.textContent = v.aarOffsetByHand ? `${v.aarOffsetNm.toFixed(1)} NM ${side} (set by hand)` : w ? `${nm1(w.offsetFt)} ${side}, ${workedForWords(w.wind)}` : '—';
+    ipHit.value.textContent = exit?.ipSec !== undefined && exit.ipSec !== null ? `+${clock(exit.ipSec)}` : 'when the run is flown';
+    startHit.value.textContent = exit?.startNm !== undefined ? `${exit.startNm.toFixed(1)} NM back from the roll-out point` : 'when the run is flown';
+    turnHit.value.textContent = exit?.turnRangeNm !== undefined
+      ? `+${clock(exit.sec)} at ${exit.turnRangeNm.toFixed(1)} NM${exit.byHand ? ' (range set by hand)' : ''}`
+      : w && !takeoff ? `+${clock(v.aarRvSec - w.turnSec)} · its range when the run is flown` : 'when the run is flown';
+    show(turnHit.el, true);
   }
 
   return { element, flyButton, update };

@@ -1,4 +1,6 @@
-# Run-in Simulator
+# Advanced Mission Sets
+
+**Named Advanced Mission Sets by Dad, 17 Oct 2026 ("can we also change the name of the module to Advanced Mission Sets"; it was the Run-in Simulator).** The name people see changed (the home card, the screen, the tab); the folder, the route (`#/run-in-sim`), the file names, the ids and the RS- decision numbers keep the old name so nothing breaks, and the history below keeps it as written.
 
 An orbit, a run-in, a release (or a flypast) and an escape, flown in 3D over the real ground to the user's settings, to see how a flyover, an inert practice-bomb pass (flat or dive) or a cargo offload over a drop zone will go. Training only. Start here, then read only the file you need.
 

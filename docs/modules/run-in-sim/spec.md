@@ -1,4 +1,6 @@
-# Run-in Simulator: spec
+# Advanced Mission Sets (the Run-in Simulator): spec
+
+**Named Advanced Mission Sets by Dad, 17 Oct 2026** ("can we also change the name of the module to Advanced Mission Sets"): the name on the home card, the screen and the tab. The route, folder, files, ids and RS- numbers keep "run-in-sim"; the wording below is as written before.
 
 Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a stadium, a bridge, mountains etc in a 3d enviroment. the user should see an orbit and a run in and be able to set those parameters along with speed alt winds. to see how the flyover, inert bomb drop, DZ offload will go, Diving drop or flat, as well as the escape manuver". Patrick approved the plan (relayed by Dad, 16 Oct 2026: "got the yes"). **Patrick approved this spec (relayed by Dad, 16 Oct 2026: "yea pat approves"), adding: "the user should sset a few parameters the then the computer sets the offset or whatever variable needs adjusting to hit"** (RS-9, below).
 
@@ -129,3 +131,153 @@ Written down before code, as the rule book asks. Search first: everything below 
 - shell: the home card, the version label and settings.
 
 It is built once the Debrief's drop (core `drop.js`) and the C-130J model are on main; until then its branch sits on theirs.
+
+## Air refuelling: the point-parallel rendezvous (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+
+**Status: approved, Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'); built first on Dad's "Build anyway" the same day.** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; decisions RS-15 to RS-18; requirements RS-R10 to RS-R13. Dad's ask (17 Oct 2026): "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first, the **point-parallel**; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). Not in this piece: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous (plan Step 4, `future.md`).
+
+**No number here has a manual source yet.** ATP-56 (the NATO air-to-air refuelling publication) would be the reference; it has not been read. Every number below is an **estimate** until Patrick or a manual page gives it, and says so in the code.
+
+### What it shows
+
+A separate run on the Run list, **Air refuelling, point-parallel**; the other runs and the default start (Practice bomb, flat) are unchanged. A tanker flies its anchor; a receiver flies toward it on the reciprocal track, offset; the tanker turns toward the receiver at the worked-out range and rolls out ahead of it in trail; the receiver then joins to the pre-contact position behind the left drogue and holds it.
+
+- **The tanker (RS-15):** a KC-130J, drawn from the C-130J model (`src/ui-kit/c130j-model.js`) with two wing pods, their hoses and baskets as simple shapes. The pods hang under the outer wing, 50 ft out from the centreline (between the outer nacelle at 33.4 ft and the tip at 66.3 ft, the model's sources R9 and R10; the place is an estimate); each hose trails 75 ft behind its pod, 8° below level, to a basket 2.6 ft across (estimates for the picture). **It has no performance set (RS-Q1), so its flying is a picture, not a performance claim, and the screen says so:** it moves along its anchor over the ground at a set height and true airspeed, its ground speed what the wind makes of that, its bank drawn as the coordinated bank for its turn over the ground (core `bankDegFromTurnRate`).
+- **The receiver:** the CT-156 on the T-6A set, flown by the run-in pilot (`pilot.js`, RS-4) on core's point mass, labelled on screen **"Stand-in receiver (CT-156, no probe)"**.
+
+### The anchor (RS-15)
+
+A racetrack over the ground, built with the holding pattern's geometry (`ground-path.js` `holdLap`, RS-11): the **refuelling leg** along the refuelling track (the receiver's track), starting at the **roll-out point** (the chosen Place), the turn at its far end, the **reciprocal leg** back, offset to the side the anchor turns, and the **rendezvous turn** back onto the refuelling leg at the roll-out point. The turns are at the set bank's radius at the tanker's true airspeed (core `turnRadiusFromBankFt`), so the offset between the legs is two turn radii and the tanker rolls out on the receiver's track. In a wind the tanker holds the racetrack over the ground, so its bank steepens on the downwind side; the card flags a bank steeper than set. Before the rendezvous the tanker is somewhere on its anchor, as many laps back as the rendezvous time needs.
+
+### The point-parallel, worked out to hit (RS-16)
+
+The receiver flies the refuelling track toward the roll-out point, the set height below the tanker; the tanker flies the reciprocal leg toward it, offset. The user sets the essentials; the computer works out the rest, as RS-9 does for the run-in:
+
+| The user sets | The computer works out to hit |
+|---|---|
+| the refuelling track, the tanker's height (ft MSL) and speed (KIAS), the rendezvous time (the tanker's roll-out), the trail at roll-out, the overtake on the join | the offset (two turn radii); the **receiver's speed**: the tanker's ground speed along the track plus the set overtake, turned to the receiver's KIAS at its own height (speeds compared like with like: ground speed with ground speed, then true, then indicated, with core `iasToTasKt`/`tasToIasKt`); **the timing**: where the receiver starts so it is in trail at the rendezvous time (found by flying it); **the tanker's turn moment** (the rendezvous time less the turn's time over the ground) and **its turn range** (the range over the ground between the two when the tanker starts its turn) |
+
+Under More: the tanker's bank, the anchor's leg and turn direction, the receiver's height below the tanker and the pre-contact distance; and two worked-out numbers can be set by hand, **the turn range** (the tanker turns when the receiver comes within it) and **the receiver's speed**. The pass is then flown as set and the card shows the trail that results, so an early or late turn, or a slow receiver, shows as a trail long or short against the plan. When a worked-out number can't be flown (the receiver's speed past what the T-6A set gives at full power, a hand-set turn range never reached), it is flown as best it can and the card says which and what would work.
+
+### The join to pre-contact (RS-17)
+
+From the tanker's roll-out the receiver joins: it climbs to the drogue's height (the tanker's less the hose's droop) at no more than 5° (an estimate), once it is at least 300 ft behind the tanker's wing line (an estimate; after an overrun it stays below and drops back to 500 ft behind first, then climbs), and steers onto the line through the pre-contact point along the tanker's track (the L1 follower it flies every line with). Its speed is the tanker's ground speed along the track plus a closure that is the set overtake far out, eased off approaching the point so it could brake at **0.3 kt/s** (an estimate of a smooth technique), and nothing at the point. **Pre-contact** is the receiver's nose **15 ft behind the left basket** (an estimate; the CT-156's nose is 15.3 ft ahead of its centre on the model). Within 10 ft each way (an estimate) for 10 s (an estimate) it is **stabilised in pre-contact** and the run ends. The join is followed for at most 10 minutes (a guard); a join that hasn't stabilised by then says so.
+
+### The result card
+
+Leads with the trail at the tanker's roll-out against the plan ("Rolled out 1.0 NM ahead, plan 1.0 NM"), then: the receiver's offset across the track and its height below at the roll-out; the overtake at roll-out; the peak closure on the join and the closure inside 200 ft of pre-contact; the time from roll-out to stabilised in pre-contact; the closest the receiver came to the tanker's wing line; the tanker's steepest bank against the set bank; the receiver's peak G and lowest airspeed; the worked-out numbers (the turn range and moment, the offset, the receiver's speed and start). Overtake and closure are the rate the range between the two shrinks (core `closureKt`), so ground speed against ground speed.
+
+**Flags, references never walls (RS-6), every one an estimate until Patrick or ATP-56 gives it:** the peak closure on the join over **30 kt**; the closure inside **200 ft** of pre-contact over **10 kt** (set so the join's own easing-off, which gives about 9 kt there, is not flagged by its own reference); the tanker's bank steeper than its set bank; **the receiver ahead of the tanker's wing line** (the line through the tanker square to its heading) at any time after the roll-out; the receiver's peak G against its limit, VMO and the stick shaker, as the run-in.
+
+### The screen for this run
+
+Picture: `air-refuelling-screen.png` in this folder, the built screen (V2.504, headless Chromium, 17 Oct 2026): the 2D plan with CYMJ 29L, the climb-out, the IP, the orbit, the offset and the turn range ring, as the tanker turns inbound (V2.503's picture, from Behind the drogue, is in git history). V6 had no such screen; nothing moves or disappears elsewhere: the run-in's runs and their boxes, bar and card are as they were.
+
+- **Setup**, showing from the start: Run, Aircraft ("KC-130J tanker (a picture) · CT-156 stand-in receiver"), Place (the roll-out point) and the **Rendezvous time** (the tanker's roll-out, s after the start). Boxes: **Tanker and anchor** (track, height, speed; More: bank, leg, direction), **Rendezvous** (trail; the receiver's speed, start, the turn range and moment greyed "set to hit"; More: the receiver's height below, the turn range or the receiver's speed by hand), **Join** (overtake; More: pre-contact distance), **Wind** (at the refuelling height and at the ground) and **Display**. The run-in's boxes (Target, Orbit, Run-in, Release, Escape, Time over target) hide. Every setting starts at a default. A line under the Aircraft says: "The tanker's flying is a picture, not a performance claim: the KC-130J has no performance set yet (RS-Q1)."
+- **3D:** the anchor, the receiver's track and the turn point drawn; both aircraft with their trails. Cameras: Chase, Cockpit (the receiver's), Overhead and Side as the run-in, plus **From the tanker** (from its tail, looking at the receiver) and **Behind the drogue** (behind the left basket, looking at it and the tanker); Target is greyed for this run (no target). The two new cameras show only on this run.
+- **2D (RS-13):** the plan with the anchor, both tracks, the turn point and the roll-out point; the profile along the refuelling track (height MSL against distance from the roll-out point) with both aircraft's paths, as the whole rendezvous, the join, or behind the tanker (the receiver's height against its distance behind the tanker, with the drogue and the pre-contact point).
+- **Time line marks:** Start, Turn, Roll-out, Pre-contact.
+
+### Defaults for this run (every one an estimate; ATP-56 not read)
+
+| Setting | Default | Source |
+|---|---|---|
+| Refuelling track | 320°M | estimate (the run-in's default heading) |
+| Tanker height | 10,000 ft MSL | estimate, chosen inside the stand-in's speeds: the T-6A set holds 200 to about 250 KIAS level there |
+| Tanker speed | 200 KIAS (233 KTAS on a standard day) | estimate |
+| Tanker bank in its turns | 25° | estimate |
+| Anchor leg | 20 NM | estimate |
+| Anchor turns | left | estimate |
+| Rendezvous time (the tanker's roll-out) | +3:00 | estimate, so the run is short to watch |
+| Receiver below the tanker for the rendezvous | 1,000 ft | estimate |
+| Trail at roll-out | 1.0 NM | estimate (air-refuelling-plan.md) |
+| Overtake on the join (and so the receiver's rendezvous speed over the tanker's) | 20 kt | estimate |
+| Braking toward pre-contact | 0.3 kt/s | estimate of technique |
+| Pre-contact | nose 15 ft behind the left basket | estimate |
+| Stabilised in pre-contact | within 10 ft for 10 s | estimate |
+| Wind | still air | as the run-in |
+
+### When data fails
+
+- **The C-130J's model file doesn't come:** the model's own stand-in shows (the CT-156 drawn at the C-130J's length, `c130j-model.js`), with the pods, hoses and baskets still drawn.
+- **Terrain tiles missing:** the ground is flat at the fallback height, as the run-in; at the refuelling height nothing here is judged against the ground.
+- **The receiver can't make the worked-out speed** (past full power on the T-6A set): flown at what it makes; the card shows the trail long, and says a later rendezvous time or a lower overtake would work.
+- **A hand-set turn range is never reached:** the tanker turns at the worked-out moment and the card says so.
+- **The join doesn't stabilise within 10 minutes:** the card says so, with the receiver's last distance from pre-contact.
+- **No outside data:** as the run-in, nothing is fetched but the shared terrain, satellite and model files.
+
+### Change: take off from Moose Jaw, meet at the IP, the tanker turns inbound from its orbit (RS-19, RS-20; approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+
+Dad, 17 Oct 2026: **"Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit"**, and **"Giving turn range and offset would help too"**. Changes to RS-15 to RS-18 (RS-19 and RS-20), approved with the rest of this run: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'). They replace the airborne start as the run's default; the airborne start (the first version, above) stays under More as "Start the receiver airborne on the track".
+
+**The receiver's flight (RS-19).** It starts at Moose Jaw (CYMJ) on the runway into the wind at the ground: 29L, or 11R when the ground wind blows from the 11R side; 29L when calm, the Traffic module's default (Patrick's measured runway points, `src/airfields/cymj-runways.js`; field 1,892 ft, Patrick's number). Then:
+- **The take-off.** The run starts with the receiver rolling at the 29L (or 11R) threshold at 85 KIAS, the take-off number the Traffic module uses for lift-off (Traffic spec item 21, an estimate there). **The ground roll from a standstill is not modelled:** the T-6A set has nothing for the wheels on the runway, and its thrust fit is not meant for low speeds (at 10 kt it gives about 0.8 G of push, about four times a real ground roll's). The set is clean only (no take-off flap), so the receiver keeps its wheels on the runway, accelerating at full power on the set, until its clean stall line gives 1.3 G (about 98 KIAS; an estimate), then lifts off. The card gives the lift-off time.
+- **The climb-out** as the Traffic module flies it (Patrick, 4 Oct 2026 08:15Z; SMM 3.11, SMM 3.14 para 35): full power on runway heading, the take-off attitude (6°, the middle of 5 to 7°) to 180 KIAS, then a 180 KIAS climb at full power (the climb angle the set gives there, at 90% of its excess so the throttle keeps a margin: an estimate). It holds the runway track until 2,500 ft MSL and past the departure end before it turns (Patrick, 6 Oct, the Traffic module's after-take-off rule, Traffic spec item 22).
+- **To the IP** (the rendezvous initial point, on the refuelling track this far back from the roll-out point; set in the Rendezvous box, default 15 NM, an estimate), climbing at 180 KIAS to the rendezvous height (1,000 ft below the tanker, as before), then levelling at the receiver's rendezvous speed (worked out as before: the tanker's ground speed plus the overtake). Near the IP it turns onto the refuelling track, leading the turn as the run-in does onto its run-in line; the IP time is when it passes the IP on the track. Then the rendezvous track, the turn and the join as before.
+- **The place for this run** starts at a point **32 NM north-north-west of CYMJ** along the default refuelling track (320°M), so the climb-out and the transit point the way the receiver will fly (an estimate; Place moves it, and the take-off is still from CYMJ). Picking the run puts this place back while the place is still a default; picking another run puts the Moose Jaw area back.
+
+**The tanker holds in its orbit (RS-19).** The anchor racetrack as before, the tanker flying it from the start the whole time the receiver takes off and transits. **Worked out to hit, as RS-9:** the receiver's flight is flown ahead (at the worked-out speeds) to find when it is in trail on the track (the IP time plus its run down the track); the tanker's roll-out is set to that moment, so its turn inbound from the orbit starts that long before it less the turn's time, and where it is in its orbit at the start (and how many laps it flies before turning) follows. The card gives the tanker's laps in orbit before turning.
+
+**Turn range and offset (RS-20).** Both lead the rendezvous part of the card: the **turn range** (NM, the range over the ground from the tanker to the receiver as the tanker starts its turn) and **the tanker's turn moment**; the **offset** (NM, between the tanker's inbound track and the receiver's track, and which side). The offset is now **settable in the Rendezvous box**: worked out as two turn radii by default (greyed "set to hit"), and under More set by hand. A hand-set offset makes the anchor that wide (its orbit turns at half the offset's radius, so a narrow one banks steeper and is flagged), while the turn inbound stays at the set bank; the tanker then rolls out to the side of the receiver's track by the difference, the turn range is still worked out to hit, and the card shows the trail and the offset across the track that result. **Drawn on the 2D plan and in 3D:** the offset as a labelled line square to the track from the tanker's inbound track to the receiver's track at the turn point, and the turn range as a labelled ring round the tanker's turn point with a line to where the receiver was when the tanker turned.
+
+**The screen.** Setup shows "Takes off from CYMJ 29L (into the wind)" under the Aircraft; the Rendezvous box adds the IP and the offset; the Rendezvous time box shows only for the airborne start. The time line marks are **Takeoff, IP, Tanker turns, Roll-out, Pre-contact**. The 2D plan shows CYMJ's runway, the climb-out (the flown track), the IP and the orbit, with the offset and turn range drawn; the profile's whole rendezvous starts at the take-off.
+
+**When data fails.** The runway's height is the shared terrain's at its threshold (CYMJ's 1,892 ft where no tile comes). A transit the receiver can't make in time (a far place) only makes the run longer: the tanker keeps orbiting until the worked-out moment. A receiver that hits rising ground on the climb-out is flagged as before.
+
+| Added default (estimate unless sourced) | Value | Source |
+|---|---|---|
+| The run starts | rolling at the threshold at 85 KIAS | Traffic spec item 21 (an estimate there) |
+| Lift-off | when the clean stall line gives 1.3 G (about 98 KIAS) | estimate (the set is clean only) |
+| Take-off attitude to 180 KIAS, then 180 KIAS climb | 6°, 180 KIAS | Patrick 4 Oct 08:15Z; SMM 3.11, 3.14 para 35 (Traffic `CIRCUIT`) |
+| Climb on this share of the full-power excess | 90% | estimate |
+| Straight ahead before turning | to 2,500 ft MSL and past the departure end | Patrick, 6 Oct (Traffic spec item 22) |
+| IP | 15 NM back from the roll-out point on the track | estimate |
+| Place for this run | 32 NM NNW of CYMJ (50.7871 N, 105.9892 W) | estimate |
+| Offset | two of the tanker's turn radii (3.4 NM at the defaults), or by hand | geometry; hand value an estimate |
+
+### Change: the turn inbound flown in the air mass, and the take-off's ground (RS-21, RS-22; approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+
+Dad, 17 Oct 2026: **"Is turn range/offset scalable based on altitude airspeed wind"**, and **"takeoff isn't working"**.
+
+**The turn inbound in the air mass (RS-21).** Before, the offset was two of the tanker's turn radii at its true airspeed and set bank (so it scaled with height, airspeed and bank, not with wind), and the turn inbound was a fixed circle over the ground (so in a wind its drawn bank changed: 30.7° against 25° in 30 kt). Now, standard aerodynamics: the tanker flies the turn inbound at its set bank and true airspeed **in the air mass**. Its heading turns at the rate that bank gives (core `turnRateFromBankRadPerSec`) from the heading that holds the reciprocal leg's track to the one that holds the refuelling track (core `windTriangle` on each), and its ground track is that circle through the air plus the wind times the time, so it drifts with the wind over the turn. **The offset worked out to hit** is the across-track part of that drift-and-turn, so the tanker rolls out on the receiver's track; the along-track part moves the turn point along the reciprocal leg so it still rolls out at the roll-out point; **the turn range** is still the range over the ground at the turn, timed on the receiver's flight. In a pure head- or tailwind the whole rendezvous drifts with the air, so the offset and turn range come out the same as in calm air (only where it happens over the ground moves); a crosswind changes both (from the receiver's right, a narrower offset and a shorter turn range; from the left, wider and longer). Height and airspeed scale them through the turn radius. **The orbit keeps its ground shape** (its legs and turns over the ground, as before; flying it in the air mass too was not cheap with the shared ground-path pieces), so its drawn bank still changes round its turns in a wind and the card flags it past the set bank; the turn inbound itself is now always at the set bank. Hand-set offset and turn range work as before. The card and Setup say the wind they were worked for: "for 30 kt from 050°M at 10,000 ft", or "for calm air".
+
+**The take-off's ground (RS-22).** The 3D ground's two squares (the sharp inner 20 NM, the outer 80 NM) were centred on the place, 32 NM from CYMJ, so the take-off sat on the coarse outer picture (and on the live preview showed no ground at all). For this run from the take-off they are centred **8 NM from CYMJ toward the place** (half way if the place is nearer than 16 NM; an estimate for the look), so the airfield and the climb-out sit in the sharp square and the anchor and the join in the outer one; the flying is unchanged (its frame stays the place's). **CYMJ's runways are drawn in 3D** by the shared airfield builder (`src/ui-kit/airfield3d.js` `buildAirports`, as the EP Tabletop draws them), on this run only, at the runway's height the flying uses: CYMJ's 1,892 ft, or the terrain's at the threshold if higher. On the runway the CT-156's centre stands 5.4 ft over its wheels (the Debrief's `WHEELS_BELOW_ORIGIN_FT`, an estimate there), its gear is down, and it starts up 3 s after lift-off (an estimate) over the model's 6 s travel. The 2D plan and the corner plan already take in the whole route (V2.504).
+
+| Wind-aware results (still air unless said; every number an estimate) | Offset | Turn range | Roll-out trail / across |
+|---|---|---|---|
+| Defaults (10,000 ft, 200 KIAS, 25°) | 3.39 NM | 7.57 NM | 0.992 NM / 0 ft |
+| 15,000 ft | 3.97 NM | 8.69 NM | 0.997 NM / 0 ft |
+| Tanker 240 KIAS | 4.87 NM | 10.20 NM | 0.999 NM / 0 ft |
+| 30 kt headwind (from 320°M) | 3.39 NM | 7.57 NM | 0.997 NM / 0 ft |
+| 30 kt tailwind (from 140°M) | 3.39 NM | 7.57 NM | 0.991 NM / 0 ft |
+| 30 kt crosswind from the right (050°M) | 2.73 NM | 6.82 NM | 0.996 NM / 0 ft |
+| 30 kt crosswind from the left (230°M) | 4.10 NM | 8.28 NM | 0.996 NM / 0 ft |
+
+## The anthem flyover (RS-24, RS-25; approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+
+Dad, 17 Oct 2026: **"on the stadium flyover it would be nice for the user to hit national anthem starts playing...and the the aircraft gets its self over the target by national anthem completion (us or Canada as options)"**. His card: the browser plays the tune itself (no recording).
+
+**On the Flyover run only.** Setup shows **National anthem: Canada, US or none** (default Canada, an estimate: Moose Jaw is in Canada), with **its length** under More (default 1:10 for O Canada and 1:30 for The Star-Spangled Banner, estimates; the tempo follows the length). The bar under the view shows an **Anthem starts** button.
+
+**Two ways it is timed, both by the existing time-over-target machinery (RS-8, RS-11: the holding pattern's last outbound leg stretched or shortened, the figure 8's last loop's bank, or the circle's exit; no second timing solver):**
+- **Planned (the default when an anthem is chosen):** the anthem's last note is the time over target, so the anthem starts the anthem's length before it; during playback it plays from that moment and the aircraft crosses the stadium on the last note.
+- **Live: pressing Anthem starts during playback.** The press time becomes the anthem's start and the time over target becomes its last note. The pass is worked out again from that moment **with the past unchanged**: the pattern's laps already begun stay as flown (the solver may only change a lap the aircraft has not started, or a circle exit after the press), the stored flight up to the press is kept, and playback carries on from the same moment with the anthem playing. If the anthem is too short for the aircraft to get there from where it is, it arrives as soon as it can and the card flags how late (a reference, never a wall).
+
+**What the flying allows (worked out, said plainly).** From a holding pattern a live anthem can rarely be made: after a press the aircraft must finish the lap it is on, fly at least a shortest last lap (15 s legs) and the run-in. With the flyover's defaults (1-minute legs, the IP 5 NM out at 250 KIAS: about 72 s of run-in alone) that is about 3 minutes, longer than either anthem (70 to 90 s). The live press then shows how late it would be, and the planned anthem shows it made. Timing the last minute by speed on the run-in (the real way a flypast meets an anthem) is on `future.md`.
+
+**The tune (RS-25).** The browser plays the melody as simple tones (Web Audio oscillators, no audio files, no library), from note lists (pitch and beats) in `src/modules/run-in-sim/anthems.js`, scaled so the whole tune lasts the set length. It plays only at ×1 playback; at ×2 and faster it is muted and the bar says so. It stops when the pass ends, on pause, on a scrub, or when the anthem ends. **Sources:** The Star-Spangled Banner (John Stafford Smith's melody, public domain) from Jack Campin's public-domain ABC transcription (music21's corpus, "americanfifeopus.abc"); O Canada (Calixa Lavallée's melody, public domain): its first line from the anthem-scores note data (converted from a public-domain Wikimedia Commons MIDI); **the rest of O Canada is written from memory and not checked**: the screen says so under the anthem choice until Dad or Patrick checks it by ear.
+
+**The card** leads with "Over the stadium X s after (or before) the last note" (on the last note within half a second), then the anthem, its length, when it started (planned, or pressed at +m:ss), and the time over target's words as before. **Time line marks:** Anthem starts, Last note.
+
+### Change: a live anthem press cuts track and adjusts speed on the run-in (RS-26, RS-27; within Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+
+Dad, 17 Oct 2026, on the late live press: **"adjusts speed on run in and cuts track"**.
+
+On a live "Anthem starts" press the computer now compares, and flies the one that best makes the last note:
+- **Stay in the orbit** (V2.506's way: the existing time-over-target solver with the past kept), at the planned run-in speed, or at the fastest if that is still late;
+- **Cut track** (RS-26): leave the orbit at once and fly direct to **the IP**, or direct to **a point on the run-in line inside the IP** (each whole mile in from the IP down to a **minimum straight run-in of 2 NM**, an estimate, so the pass still stabilises before the target), then down the run-in line. The cut is flown by the same pilot and legs as the run-in (to the point, then the line), starting from where the aircraft was at the press; the stored flight up to the press is kept.
+- **The run-in speed worked out to hit** (RS-27, as RS-9): for each choice, the speed held from the press to the target, between **a slowest of the stick shaker plus 60 kt** (153 KIAS on the T-6A set, an estimate) and **a fastest of what the T-6A set holds level at full power at the run-in height**, never past VMO less 10 kt (about 290 KIAS at the default run-in height; an estimate), found by flying it, so it crosses on the last note. The pilot holds it with the existing throttle law.
+- **The pick:** the choice whose crossing is nearest the last note; within half a second, the one that changes least (the orbit, then the cut to the IP, then the farther joins). Early even at the slowest with the full orbit: the orbit's lap stretching makes it (as before). Late even with the shortest cut at the fastest: it crosses as soon as it can and the card says how late (a reference, never a wall).
+- **Pressed on the run-in already:** only the speed is worked out (nothing left to cut).
+
+**The card** adds what it did ("Cut to the IP at +1:05, run-in 280 KIAS", "Cut to the run-in 3.0 NM out at +1:05, run-in 262 KIAS", or "Stayed in its orbit, run-in 250 KIAS") beside the time against the last note. **The views** show the flown cut (the flown track), and the run-in line from where the cut joined it (marked as the IP).

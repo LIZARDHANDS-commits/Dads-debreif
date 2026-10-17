@@ -37,6 +37,45 @@ Dad's ask (16 Oct 2026): "Lets build a run in simulator...the target can be a st
 ## Step 6. Sign-off
 - [ ] Run the checklist in `testing.md` and send Patrick the result.
 
+## Step 7. Air refuelling: the point-parallel rendezvous (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim"; his picks: the rendezvous first, the point-parallel, the CT-156 as a stand-in receiver. **Built first on Dad's "Build anyway" (17 Oct 2026); Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build') followed.** Plan: [air-refuelling-plan.md](air-refuelling-plan.md) Steps 1 to 3; Step 4 (the en-route rendezvous) stays on `future.md`.
+- [x] Written down first: `spec.md` "Air refuelling" with its screen picture (`air-refuelling-screen.png`), RS-15 to RS-18, RS-R10 to RS-R13, `testing.md`'s one test (17 Oct 2026).
+- [x] The tanker: the KC-130J from the C-130J model with its two wing-pod drogues, flying its anchor at a set height and true airspeed, a picture with no performance set (RS-15) (V2.503).
+- [x] The point-parallel worked out to hit (RS-16) and the join to pre-contact behind the left drogue (RS-17); the card, the two new cameras and the 2D plan and profile with both tracks (RS-18) (V2.503).
+- [x] One light test: in still air from the defaults the receiver ends at pre-contact behind the tanker, never ahead of its wing line, and the tanker never below its height (`tests/unit/run-in-sim/refuel.test.js`, V2.503).
+- [x] Patrick's yes on RS-15 to RS-18 (relayed by Dad, 17 Oct 2026: 'pat says build').
+- [ ] Numbers or a manual page (ATP-56) for the estimates.
+- [ ] Dad or Patrick sees it in the app; the sign-off checklist in Dad's and Patrick's words (air-refuelling-plan.md Step 5).
+
+## Step 7b. Take-off, IP and the turn inbound from the orbit; turn range and offset (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit"; "Giving turn range and offset would help too".
+- [x] Written down first: spec "Change: take off from Moose Jaw...", RS-19 and RS-20, RS-R14 and RS-R15 (17 Oct 2026).
+- [x] The take-off from CYMJ, the climb-out and the transit to the IP; the tanker in its orbit turning inbound, worked out from the receiver's flight (RS-19) (V2.504).
+- [x] Turn range and offset leading the card, the offset by hand, both drawn (RS-20) (V2.504).
+- [x] The one test updated: it leaves the runway, passes the IP, ends at pre-contact (V2.504).
+- [x] Patrick's yes on RS-19 and RS-20 (relayed by Dad, 17 Oct 2026: 'pat says build').
+
+## Step 7c. The turn inbound in the air mass; the take-off's ground; the name (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "Is turn range/offset scalable based on altitude airspeed wind"; "takeoff isn't working"; "can we also change the name of the module to Advanced Mission Sets".
+- [x] Written into the spec and RS-21 to RS-23.
+- [x] The turn inbound flown in the air mass, the offset and turn range worked out for the wind, the wind on the card (RS-21) (V2.505).
+- [x] The ground centred near CYMJ for the take-off, CYMJ's runways drawn, the CT-156 on its wheels with its gear (RS-22) (V2.505).
+- [x] The name Advanced Mission Sets on the home card, the screen and the tab (RS-23) (V2.505).
+- [x] The one test kept: its ground now at CYMJ's 1,892 ft (V2.505).
+- [x] Patrick's yes on RS-21 to RS-23 (relayed by Dad, 17 Oct 2026: 'pat says build').
+
+## Step 8. The anthem flyover (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "on the stadium flyover it would be nice for the user to hit national anthem starts playing...and the the aircraft gets its self over the target by national anthem completion (us or Canada as options)".
+- [x] Written down first: spec "The anthem flyover", RS-24 and RS-25, RS-R16 (17 Oct 2026).
+- [x] The anthem choice and Anthem starts button on the flyover; planned and live timing by the existing solver (RS-24) (V2.506).
+- [x] The tune in the browser (RS-25), the card's lead line and the time line marks (V2.506). The one test unchanged (the solvers fly every existing pass exactly as before).
+- [ ] Dad or Patrick checks O Canada's melody by ear (written from memory beyond its first line).
+
+## Step 8b. The live anthem press cuts track and sets the run-in speed (within Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
+Dad, 17 Oct 2026: "adjusts speed on run in and cuts track".
+- [x] Written down first: spec, RS-26 and RS-27, RS-R17 (17 Oct 2026).
+- [x] The cut, the speed worked out, the pick, the card and the views (V2.507).
+
 ## Not in this plan
 
-Live weapons, real-world target data, threats, formation runs, the user flying by hand and winds aloft from the models (`future.md`).
+Live weapons, real-world target data, threats, formation runs, the user flying by hand and winds aloft from the models (`future.md`). For air refuelling: contact and fuel transfer, a boom tanker, a real receiver model, fuel planning and the en-route rendezvous.

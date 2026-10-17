@@ -1,6 +1,6 @@
-# Air refuelling in the Run-in Simulator: plan (proposed, waiting on Patrick's yes)
+# Air refuelling in the Run-in Simulator: plan (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
 
-Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). Until Patrick says yes this stays on `future.md`; nothing is built.
+Dad, 17 Oct 2026: "can we also add in the airrefueling... to the run in sim". His card answers the same day: show **the rendezvous** first; the receiver is **the CT-156 as a stand-in** (labelled so; it has no probe). **Approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build')**, covering Steps 1 to 3 and the changes below (RS-15 to RS-22). They were built first on Dad's "Build anyway" (17 Oct 2026), and Patrick's yes followed the same day (V2.503; spec "Air refuelling", RS-15 to RS-18, RS-R10 to RS-R13, plan.md Step 7). Every number is still an estimate (ATP-56 not read). Step 4 stays on `future.md`. **Dad's change the same day (RS-19, RS-20, plan.md Step 7b, V2.504):** "Can we have the tanker in orbit while the ct156 is initial takeoff meeting at the IP then the tanker turns inbound to meet from the orbit" and "Giving turn range and offset would help too": the receiver now takes off from CYMJ and meets at the IP, the tanker turns inbound from its orbit, and the offset can be set by hand. **Then (RS-21, RS-22, plan.md Step 7c, V2.505):** the tanker's turn inbound is flown in the air mass with the offset and turn range worked out for the wind, and the take-off has its ground and CYMJ's runways in 3D.
 
 ## What it would show
 
@@ -15,15 +15,15 @@ A tanker flying an air-refuelling anchor (a racetrack, the holding pattern RS-11
 
 ## Numbers (every one an estimate until a manual page or Patrick gives it)
 
-Refuelling height and speed, the anchor's leg length and bank, the point-parallel's offset and turn range, the trail, the pre-contact position and the closure limits. ATP-56 (the NATO air-to-air refuelling publication) would be the reference to look for; nothing is read yet.
+Refuelling height and speed, the anchor's leg length and bank, the point-parallel's offset and turn range, the trail, the pre-contact position and the closure limits. ATP-56 (the NATO air-to-air refuelling publication) would be the reference to look for; nothing is read yet. The numbers built in, each an estimate, are in the spec's "Defaults for this run" table: 10,000 ft MSL, 200 KIAS, 25° bank, 20 NM legs, left turns, +3:00 rendezvous, 1,000 ft below, 1 NM trail, 20 kt overtake, braking 0.3 kt/s, the nose 15 ft behind the left basket; references 30 kt closure, 10 kt inside 200 ft. The offset (two turn radii), the turn range and moment, and the receiver's speed and start are worked out.
 
-## Steps (after Patrick's yes)
+## Steps
 
-1. Spec, decisions and a screen picture.
-2. The tanker model (KC-130J from the C-130J model, drogues) and its anchor.
-3. The point-parallel rendezvous and the join to pre-contact, worked out to hit (as RS-9).
-4. The en-route rendezvous.
-5. Sign-off checklist in Dad's and Patrick's words.
+1. [x] Spec, decisions and a screen picture (`air-refuelling-screen.png`) (17 Oct 2026).
+2. [x] The tanker model (KC-130J from the C-130J model, drogues) and its anchor (V2.503).
+3. [x] The point-parallel rendezvous and the join to pre-contact, worked out to hit (as RS-9) (V2.503).
+4. [ ] The en-route rendezvous (on `future.md`; not built).
+5. [ ] Sign-off checklist in Dad's and Patrick's words.
 
 ## Not in this plan
 
