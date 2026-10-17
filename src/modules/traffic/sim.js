@@ -29,12 +29,13 @@
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
 import { ktToFtps, ftpsToKt, FT_PER_NM } from '../../core/units.js';
 import { createDice } from './dice.js';
-import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath, flownBuildOf } from './route.js';
 import { tickAircraft } from './tick-aircraft.js';
 import { startJoin, startSideStep, setFlown, flownOf, groupOf, clearPfl } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight, resumePflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 import { buildGoAround, buildExtendedDownwind, CIRCUIT } from './circuit.js';
+import { buildAstraGoAround, buildAstraExtendedDownwind, ASTRA_POINT } from './astra-circuit.js';
 import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
 import { buildClosedPattern } from './closed-pattern.js';
 import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
@@ -47,7 +48,7 @@ import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, F
 import { legOffsetsFt } from '../../core/geo.js';
 import { closestApproach } from '../../core/closest-approach.js';
 import { iasToTasKt } from './weather.js';
-import { TYPE_FALLBACK_KT } from './types.js'; // the speed flown where a route point gives none
+import { TYPE_FALLBACK_KT, TYPE_COLORS, typeProfile, numbersAreEstimates } from './types.js'; // the speed flown where a route point gives none; each type's colour
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
@@ -61,15 +62,8 @@ export const STEP_SEC = 0.05;
  */
 const GROUPS = Object.freeze(['random', 'spacing', 'landing', 'pfl', 'joinOffset', 'sideStep']);
 
-/** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
-export const TYPE_COLORS = Object.freeze({
-  'CT-157': '#a5d6ff',
-  'CT-156': '#7ee787',
-  'CT-102': '#ffcc66',
-  'CT-114': '#ff6b6b',
-  'CT-155': '#d29922',
-  'CF-188': '#56d4dd',
-});
+/** Each aircraft type's colour: the one table in types.js (plan Step 5c Phase 1), kept exported here under its old name. */
+export { TYPE_COLORS };
 
 /** The conflict limits when a setup gives none: red 200 ft and 200 ft, caution 500 ft and 500 ft (the built-in profile's). */
 const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 });
@@ -97,6 +91,9 @@ const SNAPSHOT_EVERY_STEPS = 200;
 
 /** An entry hands over to its pattern where it passes closest to it, if within this, ft (an estimate). */
 const JOIN_NEAR_FT = 300;
+
+/** An Astra flying the overhead joins its lap this many pilot steps (circuit.js PILOT_DT each) after the break's roll-out. */
+const ASTRA_JOIN_POINTS = 40;
 
 /**
  * The most snapshots kept. An hour is 361; past this many the run keeps every other one
@@ -147,6 +144,35 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   /** The route an aircraft is on now; V6 falls back to the first route if it has gone. */
   const routeOf = (a) => routeById(a.routeId) || setup.routes[0];
 
+  /**
+   * The pattern an aircraft flies lap after lap (plan Step 5c Phase 3; review section 1, `patternFor`): its type's
+   * route (types.js patternRouteId), Pattern 1 for the CT-156 and every type without its own, PAT_ASTRA for the
+   * CT-102B Astra II. Every per-aircraft lookup that was `routeById('PAT1')` reads this, so a CT-156's answer is the
+   * same route as before. With `orFirst`, a type that flies Pattern 1 falls back, as those lookups did, to the first
+   * pattern when the setup has no PAT1, never to a pattern tied to another type; a type with its own pattern never
+   * falls back onto a CT-156's (null when its route is missing: spec 4.19 item 8).
+   */
+  function patternFor(a, orFirst = false) {
+    const id = typeProfile(a?.type).patternRouteId;
+    const own = routeById(id);
+    if (own || id !== 'PAT1' || !orFirst) return own ?? null;
+    return setup.routes.find((r) => r.kind === 'pattern' && !r.type) ?? null;
+  }
+  /** True for an aircraft whose type flies Pattern 1 (the CT-156 and every type without a pattern of its own). */
+  const fliesPattern1 = (a) => typeProfile(a?.type).patternRouteId === 'PAT1';
+  /** The Astra's pattern, flown by astra-circuit.js (route.js FLOWN_BUILDERS). */
+  const isAstraPattern = (r) => r?.flown === 'ct102b-overhead';
+  /** A pattern's window point: Pattern 1's point 12, the Astra pattern's ASTRA_POINT.window. */
+  const windowOf = (pat) => pat?.points?.[isAstraPattern(pat) ? ASTRA_POINT.window : 12];
+  /** The Astra pattern's perch today (the perch search's, in today's wind), or its route point when it is drawn, not flown. */
+  const astraPerchOf = (pat) => flownBuildOf(pat, routeOptions())?.perch ?? pat.points[ASTRA_POINT.perch];
+  /** The Astra pattern's build when it has its outer pattern and both ways to initial (astra-circuit.js `via45`), else null. */
+  const astraOuterOf = (route) => {
+    if (!isAstraPattern(route)) return null;
+    const built = flownBuildOf(route, routeOptions());
+    return built?.via45?.length ? built : null;
+  };
+
   // ── Aircraft ───────────────────────────────────────────────────────────────
 
   /** The aircraft's state for a move flown from where it is. */
@@ -171,9 +197,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // route's last point along the line it flies; startIndex becomes the spot it starts after.
       const lastIndex = route.points.length - 1;
       a.distFt = Math.max(0, pointDistFt(route, lastIndex, routeOptions()) - a.backFt);
-      let after = 0;
-      while (after < lastIndex - 1 && pointDistFt(route, after + 1, routeOptions()) <= a.distFt) after++;
-      a.startIndex = after;
+      if (astraOuterOf(route)) {
+        // The Astra's lap passes its points out of order (astra-circuit.js ASTRA_POINT): the spot is the one it is on.
+        a.startIndex = posOnRoute(route, a.distFt, routeOptions()).seg;
+      } else {
+        let after = 0;
+        while (after < lastIndex - 1 && pointDistFt(route, after + 1, routeOptions()) <= a.distFt) after++;
+        a.startIndex = after;
+      }
     } else {
       a.distFt = pointDistFt(route, Math.min(+a.startIndex || 0, route.points.length - 1), routeOptions());
     }
@@ -204,7 +235,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     } else {
       const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
       a.phase = p.phase || (isBrkPoint ? 'break' : 'initial');
+      // The Astra's Initial and Break are not on its lap: it flies the overhead from there, then joins the lap's downwind.
+      // Its 45 to initial is not on the lap either: it flies that way round from there and joins the lap on initial.
+      const bySpot = isAstraPattern(route) && !Number.isFinite(a.backFt);
+      if (bySpot && (+a.startIndex === ASTRA_POINT.initial || +a.startIndex === ASTRA_POINT.break)) startAstraOverhead(a, route);
+      else if (bySpot && +a.startIndex === ASTRA_POINT.fortyFiveToInitial) startAstraVia45(a, route, null);
     }
+    // Which way back to initial its first lap flies (the 90 or the 45). A start placed by distance back (Spawn a
+    // conflict) flies the 90, the lap its planner flew (scenario-timing.js).
+    rollWayToInitial(a, route, Number.isFinite(a.backFt));
     a.trackDeg = a.headingDeg;
     a.crabDeg = 0;
     a.gsKt = a.iasKt;
@@ -309,6 +348,74 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   }
 
   /**
+   * An Astra started at its Initial or its Break (spec 4.19 item 2; plan Step 5c Phase 3): it flies the overhead the
+   * Astra pattern's builder flew in today's wind (astra-circuit.js buildAstraCircuit `fromInitial`: the initial at
+   * 180 KIAS, the 60° break onto the downwind line), from the initial or from where the break starts, followed by the
+   * path follower like a go-around. Its downwind is the lap's own line, so a little after the break's roll-out it joins
+   * the lap there (goAroundEnded, 'join'); the lap's downwind, final turn and landing follow. With no overhead built
+   * (the route drawn with rounded corners), it starts on the lap as any other spot.
+   */
+  function startAstraOverhead(a, route) {
+    const all = flownBuildOf(route, routeOptions())?.fromInitial;
+    if (!all?.length) return;
+    const from = +a.startIndex === ASTRA_POINT.break ? Math.max(0, all.findIndex((q) => q.phase === 'break')) : 0;
+    const rollout = all.findIndex((q, i) => i > from && q.tag === 'break_rollout');
+    // Joined a few seconds after the roll-out, wings level on the line (ASTRA_JOIN_POINTS pilot steps, an engineering choice).
+    const points = all.slice(from, rollout > from ? Math.min(all.length, rollout + ASTRA_JOIN_POINTS) : all.length);
+    if (points.length < 2) return;
+    setFlown(a, 'move', { id: 'ASTRA_OVERHEAD_FLOWN', kind: 'flown', name: 'Overhead', points }, { then: 'join', joinId: route.id });
+    const q = points[0];
+    Object.assign(a, { x: q.x, y: q.y, alt: q.alt, iasKt: q.kt, headingDeg: q.headingDeg ?? a.headingDeg, distFt: 0, phase: q.phase ?? 'initial', tag: q.tag ?? 'initial' });
+    delete a.joinOffset;
+  }
+
+  /**
+   * The Astra's way back to initial for its next lap (spec 4.19 item 11; TR-164, a working answer not yet confirmed with
+   * Patrick): the 90 to initial (the lap itself) or the 45 to initial (flown off the lap: startAstraVia45), at even odds,
+   * from the run's seed, the callsign and the roll's count (randomize.js rollFor), so a rewind replays the same and no
+   * other aircraft's dice change. Rolled when an aircraft appears and at each touch-and-go; `force90` gives the 90
+   * without a roll. Only for the Astra pattern with its outer pattern built; nothing for any other route.
+   */
+  function rollWayToInitial(a, route, force90 = false) {
+    if (!astraOuterOf(route)) return;
+    if (force90) { a.toInitial = '90'; return; }
+    a.toInitialRolls = (a.toInitialRolls ?? 0) + 1;
+    a.toInitial = rollFor(seed, `${a.id}:initial`, a.toInitialRolls) < 0.5 ? '45' : '90';
+  }
+
+  /**
+   * The Astra's 45 to initial (spec 4.19 item 11): the path its builder flew in today's wind from the branch point on
+   * the outside downwind (astra-circuit.js buildAstraCircuit `via45`, which starts at the lap's own place, speed and
+   * heading there, `branchFt` along it), followed by the path follower; a few seconds after it settles on initial it
+   * joins the lap there (goAroundEnded, 'join', nearest by height, so never the final below the same line). `overFt` is
+   * how far past the branch point the aircraft already is; with null it starts at the 45's own turn (its spot,
+   * ASTRA_POINT.fortyFiveToInitial). It carries the overhead's id (behaviour.js names it by the lap's word), flagged as
+   * flown on its lap, so the deconfliction counts it established in its pattern, not joining (deconflict.js).
+   */
+  function startAstraVia45(a, route, overFt) {
+    const built = astraOuterOf(route);
+    if (!built) return false;
+    const from = overFt === null ? Math.max(0, built.via45.findIndex((q) => q.src === ASTRA_POINT.fortyFiveToInitial)) : 0;
+    const points = built.via45.slice(from, built.via45JoinIndex + 1);
+    if (points.length < 2) return false;
+    setFlown(a, 'move', { id: 'ASTRA_OVERHEAD_FLOWN', kind: 'flown', name: '45 to initial', points }, { then: 'join', joinId: route.id, onLap: true, joinByHeight: true });
+    delete a.joinOffset;
+    if (overFt !== null) { a.distFt = overFt; return true; }
+    const q = points[0];
+    Object.assign(a, { x: q.x, y: q.y, alt: q.alt, iasKt: q.kt, headingDeg: q.headingDeg ?? a.headingDeg, distFt: 0, phase: q.phase ?? 'initial', tag: q.tag ?? 'to_initial' });
+    return true;
+  }
+
+  /** An Astra on its lap rolled the 45 to initial: past the branch point on the outside downwind, it flies that way round. */
+  function wayToInitial(a, route, oldDist, newDist) {
+    if (a.toInitial !== '45' || a.flown) return;
+    const built = astraOuterOf(route);
+    const lengthFt = built ? routeLengthFt(route, routeOptions()) : 0;
+    if (!lengthFt || !crossed(oldDist, newDist, built.branchFt, lengthFt)) return;
+    startAstraVia45(a, route, ((newDist - built.branchFt) % lengthFt + lengthFt) % lengthFt);
+  }
+
+  /**
    * A landing for the stop (Traffic spec 4.17, TR-115; Patrick, 10 Oct 20:38Z): on 29L it rolls out to 20 kt by the
    * runway's end and taxis in to the Bandit hangar (taxi.js), where it is removed; anywhere else (a made-up route
    * that lands off the runway) it is removed at touchdown, as before.
@@ -373,7 +480,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const { alongFt: along, acrossFt: across } = runwayFrameFt(a.x, a.y, th, ux, uy);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
-      const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }));
+      const onFinal = (route && route.id === patternFor(a)?.id && a.phase === 'final') || (isStraightIn(route) && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }));
       if (!onFinal || along <= -RANDOM.lowApproachFt || along >= touchdownFt) continue;
       if (a.random) a.random.lowApproach = false;
       startGoAround(a);
@@ -395,6 +502,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         return;
       } else {
         a.phase = 'touch_and_go';
+        rollWayToInitial(a, route);
       }
     }
     // Each split from this pattern rolls in turn, and a later one can override an earlier one (V6 bug #47, kept for now).
@@ -448,12 +556,17 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * it starts without a step, then followed by the path follower.
    */
   function startGoAround(a, sideFt = 0, levelAltFt = null, holdKias = null) {
-    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
+    const pat = patternFor(a, true);
     if (!pat) return;
     const wind = windNow();
-    const points = buildGoAround(pat.points, {
-      x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
-    }, wind.windFromDeg, wind.windKt, sideFt, levelAltFt, holdKias);
+    const from = { x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0 };
+    // The Astra's own go-around (astra-circuit.js; spec 4.19 item 3): straight to 3,000 ft and onto its downwind. The
+    // move-over's side step, level and speed are the CT-156's and are not given to it (spec 4.19 item 6).
+    // With the outer pattern it holds the downwind line until just past the break's roll-out before joining the lap
+    // (astra-circuit.js goAroundJoin), so it never joins the upwind.
+    const points = isAstraPattern(pat)
+      ? buildAstraGoAround(pat.points, from, wind.windFromDeg, wind.windKt, astraPerchOf(pat), undefined, astraOuterOf(pat)?.goAroundJoin ?? null)
+      : buildGoAround(pat.points, from, wind.windFromDeg, wind.windKt, sideFt, levelAltFt, holdKias);
     setFlown(a, 'move', { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points });
     a.distFt = 0;
     a.phase = 'go_around';
@@ -484,6 +597,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * entry's line into the Entry Gate (Patrick's card, Q7); at the end it joins that route (goAroundEnded).
    */
   function startBreakout(a, toAvoidCollision = false) {
+    // The breakout is the CT-156's (ENT1's line at 3,500 ft and 220 KIAS); a type with its own pattern (the Astra) is
+    // never given it (deconflict.js MOVES_BY_TYPE, spec 4.19 item 6). Should anything still ask, it goes around in its own
+    // pattern instead: a guard, kept from Phase 3.
+    if (!fliesPattern1(a)) { startGoAround(a); return; }
     const from = routeOf(a);
     // With no ENT1 in the setup it flies ENT1's line all the same and then joins Pattern 1 where it is nearest.
     const joinTo = isStraightIn(from) ? from : routeById('ENT1');
@@ -594,25 +711,42 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const glideFt = THRESHOLD_DATA_ELEV_FT + (pat.points[12].alt - THRESHOLD_DATA_ELEV_FT) / windowFt * -along;
       const landing = linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }) && along < 0 && -along <= reachFt && a.alt <= glideFt + 500;
       const extending = a.flown?.route.id === 'EXTEND_FLOWN';
-      const turningFinal = a.routeId === pat.id && a.phase === 'final_turn' && !flownOf(a, 'move');
+      // Turning final in its own pattern: Pattern 1 for a CT-156, the Astra pattern for an Astra (both types lead and follow, spec 4.19 item 6).
+      const turningFinal = a.routeId === patternFor(a)?.id && a.phase === 'final_turn' && !flownOf(a, 'move');
       if (!landing && !extending && !turningFinal) continue;
       leaders.push({ a, distAt: leaderTrack(a, alongOf) });
     }
     if (!leaders.length) return;
+    // Each follower's own pattern: Pattern 1's perch, window, extension limit and extension for a CT-156; the Astra
+    // pattern's for an Astra, flown by its own builder (astra-circuit.js buildAstraExtendedDownwind). The Astra's limit
+    // keeps its final turn clear of the overhead pattern's base and 45° leg by the same rule as the CT-156's (an
+    // engineering choice: evade.js extendLimitFt, with the CT-156's final-turn radius, the larger, so on the safe side).
+    const ct156 = { perch, windowFt, limitFt, extend: (from, e, join) => buildExtendedDownwind(pat.points, from, wind.windFromDeg, wind.windKt, perch, e, join) };
+    const followerPattern = (fp) => {
+      if (fp === pat) return ct156;
+      if (!isAstraPattern(fp)) return null;
+      const aPerch = flownBuildOf(fp, opt)?.perch;
+      const win = windowOf(fp);
+      if (!aPerch || !win) return null;
+      return { perch: aPerch, windowFt: Math.hypot(win.x - th.x, win.y - th.y), limitFt: extendLimitFt(pat.points, aPerch), extend: (from, e, join) => buildAstraExtendedDownwind(fp.points, from, wind.windFromDeg, wind.windKt, aPerch, e, join) };
+    };
     for (const f of live) {
       if (f.phase !== 'downwind' && f.landing) delete f.landing.perchRoll; // rolled once each time round the downwind
-      if (f.routeId !== pat.id || f.phase !== 'downwind' || f.spacing?.deconflict) continue;
+      const fp = patternFor(f);
+      if (!fp || f.routeId !== fp.id || f.phase !== 'downwind' || f.spacing?.deconflict) continue;
       if (f.flown || f.sideStep) continue;
       const ahead = leaders.filter((l) => l.a !== f);
       if (!ahead.length) continue;
+      const own = followerPattern(fp);
+      if (!own) continue;
       // Flown once without extending, all the way to the threshold: when and where it would roll out, and how fast
       // it then comes down final (the circuit's own final, which it joins).
-      const plain = buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, 0, windowFt);
+      const plain = own.extend(stateOf(f), 0, own.windowFt);
       if (plain.rolloutSec == null) continue;
       const rolloutFt = alongOf(plain.rollout);
       const finalGsFtps = rolloutFt / Math.max(1, plain.endSec - plain.rolloutSec);
       const ask = { rolloutSec: plain.rolloutSec, rolloutFt, downwindGsFtps: ktToFtps(f.gsKt ?? f.iasKt ?? 120), finalGsFtps, leaders: ahead };
-      let extendFt = spacingExtensionFt({ ...ask, limitFt: Math.max(0, limitFt) });
+      let extendFt = spacingExtensionFt({ ...ask, limitFt: Math.max(0, own.limitFt) });
       if (extendFt === 0) continue;
       // The one it spaces on: the first that alone would keep it from turning in now.
       const leader = ahead.find((l) => spacingExtensionFt({ ...ask, leaders: [l], limitFt: 0 }) === null) ?? ahead[0];
@@ -622,16 +756,20 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         lg.perchRoll ??= rollFor(seed, `${f.id}:perch`, lg.perchRolls = (lg.perchRolls ?? 0) + 1) < EVADE.perchAnywayShare ? 'perch' : 'extend';
         if (lg.perchRoll === 'perch') continue;
       }
-      let flight = extendFt === null ? null : buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, extendFt);
+      let flight = extendFt === null ? null : own.extend(stateOf(f), extendFt);
       // The final turn rolls out a little short of a full extension: make up the shortfall once.
       const shortFt = flight ? rolloutFt + extendFt - alongOf(flight.rollout) : 0;
       if (shortFt > 50) {
         extendFt = Math.ceil((extendFt + shortFt) / 100) * 100;
-        flight = extendFt <= limitFt ? buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, extendFt) : null;
+        flight = extendFt <= own.limitFt ? own.extend(stateOf(f), extendFt) : null;
       }
       if (!flight) {
-        startBreakout(f);
-        groupOf(f, 'spacing').deconflict = { move: 'breakout', layer: 'rules', rule: 'spacing on final: no room to extend', with: leader.a.id, label: deconflictLabel('breakout', 'rules') };
+        // No room to extend: the CT-156 breaks out; an Astra goes around in its own pattern (its moves, deconflict.js
+        // MOVES_BY_TYPE: the CT-156's breakout is not given to it).
+        const move = fliesPattern1(f) ? 'breakout' : 'go_around';
+        if (move === 'breakout') startBreakout(f);
+        else startGoAround(f);
+        groupOf(f, 'spacing').deconflict = { move, layer: 'rules', rule: 'spacing on final: no room to extend', with: leader.a.id, label: deconflictLabel(move, 'rules') };
         continue;
       }
       setFlown(f, 'move', { id: 'EXTEND_FLOWN', kind: 'flown', name: 'Extended downwind', points: flight.track }, { then: 'final' });
@@ -761,6 +899,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     for (const d of activeDecisions) {
       const a = aircraft.find((ac) => ac.id === d.id);
       if (!a) continue;
+      // The move comes by type (deconflict.js MOVES_BY_TYPE; spec 4.19 item 6; TR-159): an Astra is only ever given its
+      // own go-around (startGoAround flies the Astra pattern's) or the bank away, never the CT-156's breakout, climb
+      // ahead, move-over or fly-through.
       const other = aircraft.find((ac) => ac.id === d.with) ?? a;
       if (flownOf(a, 'move') && d.move === 'breakout') { delete a.flown; delete a.joinOffset; }
       if (d.move === 'breakout') startBreakout(a, d.layer === 'skill');
@@ -828,20 +969,21 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function goAroundEnded(a) {
     delete a.goAroundDone;
     const move = flownOf(a, 'move');
-    const then = move?.then, joinId = move?.joinId;
+    const then = move?.then, joinId = move?.joinId, joinByHeight = Boolean(move?.joinByHeight);
     if (move) delete a.flown;
     // The deconfliction's short moves: the breakout follows, or the straight-in is joined again.
     if (then === 'breakout') { startBreakout(a, a.spacing?.deconflict?.layer === 'skill'); return; }
     if (then === 'final') {
       // An extended downwind ends on Pattern 1's own straight final, inside the window: join it there, never on
       // the initial above it (same centreline).
-      const pat = routeById('PAT1');
+      const pat = patternFor(a);
       if (!pat) { a.active = false; return; }
       const opt = routeOptions();
-      const th = pat.points[0], win = pat.points[12];
+      const winIndex = isAstraPattern(pat) ? ASTRA_POINT.window : 12;
+      const th = pat.points[0], win = pat.points[winIndex];
       const toGo = Math.hypot(a.x - th.x, a.y - th.y);
       a.routeId = pat.id;
-      startJoin(a, pat, pointDistFt(pat, 12, opt) + Math.max(0, Math.hypot(win.x - th.x, win.y - th.y) - toGo), windNow(), opt);
+      startJoin(a, pat, pointDistFt(pat, winIndex, opt) + Math.max(0, Math.hypot(win.x - th.x, win.y - th.y) - toGo), windNow(), opt);
       a.phase = 'final';
       return;
     }
@@ -852,11 +994,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!route) { a.active = false; return; }
       const opt = routeOptions();
       a.routeId = route.id;
-      startJoin(a, route, closestDistFt(route, a, opt), windNow(), opt);
+      startJoin(a, route, closestDistFt(route, a, opt, { byHeight: joinByHeight }), windNow(), opt);
       a.phase = posOnRoute(route, a.distFt, opt).phase || 'route';
       return;
     }
-    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
+    const pat = patternFor(a, true);
     if (!pat) { a.active = false; return; }
     const opt = routeOptions();
     a.routeId = pat.id;
@@ -905,7 +1047,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * the circuit's climb-out, joined smoothly, with no jump back to the threshold.
    */
   function goFromRunway(a) {
-    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern') ?? setup.routes[0];
+    // Its own pattern's climb-out: Pattern 1's for a CT-156, the Astra pattern's for an Astra (both start at the same
+    // touchdown point on 29L, points 0 and 1 the threshold and the departure end).
+    const pat = patternFor(a, true) ?? (fliesPattern1(a) ? setup.routes[0] : null);
+    if (!pat) { a.active = false; return; }
     const opt = routeOptions();
     a.routeId = pat.id;
     // On the circuit's first leg (threshold to departure end), not the initial above the same runway.
@@ -918,6 +1063,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), windNow(), opt);
     a.phase = 'touch_and_go';
     a.command = null;
+    rollWayToInitial(a, pat);
   }
 
   /** The end of a flown path, by kind: a PFL that has flown its glide, then a move that has flown its path. */
@@ -1047,6 +1193,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
     const route = routeOf(a);
     const beforeDist = a.distFt;
+    const onRouteBefore = !a.flown; // beforeDist is along the route, not along a flown path that ends this step
     const sideStepping = Boolean(a.sideStep);
     tickAircraft(a, STEP_SEC, wind, route, opt);
     // A PFL's bank away has ended, its height charged: re-plan the glide from where it really is (TR-55).
@@ -1056,6 +1203,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const len = routeLengthFt(route, opt);
       if (route.kind === 'pattern' && a.distFt >= beforeDist) {
         checkDecisions(a, beforeDist, a.distFt);
+        // The Astra's way back to initial: the 45 is flown off the lap from the branch point (the 90 is the lap).
+        if (onRouteBefore && a.active && isAstraPattern(route)) wayToInitial(a, route, beforeDist, a.distFt);
       }
       if (a.active && len && a.distFt >= len && !isClosedRoute(route)) {
         handleRouteEnd(a, a.distFt - len);
@@ -1358,12 +1507,16 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
      * far back from the route's last point along the line instead of at a start point (the OHB Rejoin's miles back).
      * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string, intent?: string, backFt?: number }} [spec]
      */
-    spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id, intent, backFt } = {}) {
+    spawn({ type: askedType, routeId, startPoint = 1, delaySec = 0, id, intent, backFt } = {}) {
       settle();
-      if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
       const route = routeId === undefined ? setup.routes[0] : routeById(routeId);
       if (!route && !setup.routes.length) throw new RangeError(NO_ROUTES);
       if (!route) throw new RangeError(`unknown route ${routeId}`);
+      // A route tied to a type (the Astra pattern, spec 4.19 item 6) is flown by that type only, and it is the type
+      // when none is asked for; any other route, the CT-156 unless asked.
+      const type = askedType ?? route.type ?? 'CT-156';
+      if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
+      if (route.type && typeProfile(type).id !== route.type) throw new RangeError(`${route.name} is flown by the ${route.type} only, not a ${type}`);
       if (!Number.isInteger(startPoint) || startPoint < 1) throw new RangeError(`the start point counts from 1, not ${startPoint}`);
       if (!Number.isFinite(delaySec)) throw new RangeError(`the delay must be a number of seconds, not ${delaySec}`);
       if (backFt !== undefined && !(Number.isFinite(backFt) && backFt >= 0)) throw new RangeError(`the distance back must be a number of feet from 0, not ${backFt}`);
@@ -1541,10 +1694,13 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     /** What is where right now. */
     state() {
       const rwy = circuitRunway();
-      const win = routeById('PAT1')?.points?.[12];
-      const windowFt = rwy && win ? Math.hypot(win.x - rwy.th.x, win.y - rwy.th.y) : NaN;
+      const pat1Window = routeById('PAT1')?.points?.[12];
       // The behaviour tag (behaviour.js, TR-60): where the aircraft stands against the runway, for a straight-in's final.
+      // The window is its own pattern's: Pattern 1's for a CT-156, the Astra pattern's (0.5 NM, spec 4.19) for an Astra.
       const tagOf = (a, route, kt, alt, x, y, leg) => {
+        const win = fliesPattern1(a) ? pat1Window : windowOf(patternFor(a)) ?? pat1Window;
+        const windowFt = rwy && win ? Math.hypot(win.x - rwy.th.x, win.y - rwy.th.y) : NaN;
+        const profile = typeProfile(a.type);
         let onFinal = false, toThresholdFt = NaN;
         if (rwy && Number.isFinite(x) && Number.isFinite(y)) {
           const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
@@ -1556,9 +1712,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           onFinal = (along < 0 && linedUp(across, off, { maxAcrossFt: 2000, maxOffDeg: 30 }) && low) || overRunway;
           toThresholdFt = along >= 0 ? 0 : Math.hypot(x - rwy.th.x, y - rwy.th.y);
         }
-        const b = behaviourOf({ ...a, kt, alt, leg, siPattern: onSiPattern(a) }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });
+        const b = behaviourOf({ ...a, kt, alt, leg, siPattern: onSiPattern(a) }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt, tagWord: profile.tagWord });
+        const estimate = numbersAreEstimates(a.type);
         return {
-          label: behaviourLabel(b, a.spacing?.deconflict?.label ?? null) ?? a.spacing?.deconflict?.label ?? null,
+          label: behaviourLabel(b, a.spacing?.deconflict?.label ?? null, { estimate }) ?? a.spacing?.deconflict?.label ?? null,
           config: b?.config,
         };
       };
