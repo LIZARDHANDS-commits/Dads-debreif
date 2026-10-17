@@ -2748,8 +2748,12 @@ function buildKit(THREE) {
   }, 4));
 
   const both = (make) => ({ 1: make(1), '-1': make(-1) });
+  // The side roundel sits over the cheat line, which runs across it (W11, Patrick 17 Oct 2026: "Paint stripe clipping
+  // over flag pic"): both lay on fuseSurf and the opaque stripe won the depth tie over most of the roundel, so the roundel
+  // stands 0.0003 units (about 0.08 in) proud, as the vent's slats do (geo.vent's `proud`).
+  const overCheat = (x, z) => fuseSurf(x, z) + 0.0003;
   const decalGeo = {
-    roundelSide: both((side) => patch(THREE, 0.66 - SIDE_MARKS.roundel.bt / SIDE_FT, SIDE_MARKS.roundel.z / SIDE_FT, SIDE_MARKS.roundel.size, SIDE_MARKS.roundel.size, side, fuseSurf)),
+    roundelSide: both((side) => patch(THREE, 0.66 - SIDE_MARKS.roundel.bt / SIDE_FT, SIDE_MARKS.roundel.z / SIDE_FT, SIDE_MARKS.roundel.size, SIDE_MARKS.roundel.size, side, overCheat)),
     // "Canada" and the rescue triangles just under the canopy's rail, as on Patrick's photo of 156102 (were 0.4 ft lower).
     // "Canada" about 1.75 ft long (G9, A18; the patch was 0.085 by 0.024 units, the text about 1.3 ft).
     // Then moved and sized off A24 (SIDE_MARKS.canada).
