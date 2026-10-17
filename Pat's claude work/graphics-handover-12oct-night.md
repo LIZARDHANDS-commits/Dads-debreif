@@ -5,7 +5,20 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (17 Oct 2026): Model Showcase inspected (`V2.511`), `W11`–`W25` logged, Phase 5 two-step plan ratified (`3d-work` #117)
+## Latest (17 Oct 2026, evening): Phase 5 Step 5.1 merged (`V2.517`, #1077); 3d-work #117 merged
+- **Built and live:** app #1077, `V2.517`, tag `v2.517-ct156-showcase-flight` (what changed, checked and unseen: the PR
+  body; decisions ALL-46 and MS-7 to MS-9). 3d-work #117 merged the Phase 5 plan with the rows marked built, W26
+  proposed and Patrick's evening pictures 11 (W19) and 12 (W21).
+- **Brief-vs-code gaps:** the 5.1 brief named a missing file and unsourced numbers (`+0.35 ft Z`, `156114`); scouts and
+  an audit found 16 gaps before building (the approved plan's table). Check a brief's numbers in their cited files.
+- **Waiting on Patrick:** `docs/pat/status-and-plan.md` (the Phase 5 entry): the look audit before 5.2, W26, the wing
+  lights, CI not running, the flaps question.
+- **Next:** with Patrick's yes, the look audit on fixed-camera render sheets of `V2.517`, then the Step 5.2 plan (plan
+  first: Patrick, 17 Oct 2026: "we need to plan first so dont get ahead of yourself"), with `3d-work`
+  `ct156/increments.md`'s 5.2 notes (a PCL lever node, a gear-handle node, Meshopt's quantized attributes vs the app's
+  plain-float reads).
+
+## Earlier (17 Oct 2026): Model Showcase inspected (`V2.511`), `W11`–`W25` logged, Phase 5 two-step plan ratified (`3d-work` #117)
 - **Model Showcase inspection & 10 defect screenshots (`W11` to `W25`):** Patrick inspected `#/showcase` on deployed `main` (`V2.511`) and logged 15 items (`W11` to `W25`), with 10 screenshots filed in `3d-work` `refs/review/2026-10-17-showcase-defects/` (and backed up to OneDrive `Documents\CT-156 backups\2026-10-17-showcase-defects\`).
 - **Ratified two-step Phase 5 execution order (`/grill-me`, `3d-work` PR #117, `ct156/briefs/5-polish-and-signoff.md`):**
   1. **Step 5.1 (`5-App` — Pure-JS Fixes, Live Instruments & Model Showcase Choreography, zero Blender bake wait):**
