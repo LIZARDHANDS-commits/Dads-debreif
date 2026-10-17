@@ -1,8 +1,15 @@
 // The Model Showcase's 3D view (Patrick, 15 Oct 2026: "a MODEL SHOWCASE module ... just the Harvard sitting on its gear or
-// flying, wear and grime sliders, High and Performance, cockpit or outside with more zoom outside"): one CT-156 on a plain
-// studio backdrop with its own lights, drawn from the shared pieces (ui-kit ct156-model.js, ct156-cockpit.js, ct156-blender.js).
-// It shows the model and nothing else: no terrain, no weather. A picture only: in the air it flies flight-cycle.js's gentle
-// cycle of turns, climbs and descents (MS-7), a picture's numbers, not a flight model.
+// flying, ... High and Performance, cockpit or outside with more zoom outside"): one CT-156 on a plain studio backdrop with
+// its own lights, drawn from the shared pieces (ui-kit ct156-model.js, ct156-cockpit.js, ct156-blender.js). It shows the model
+// and nothing else: no terrain, no weather. A picture only: in the air it flies flight-cycle.js's gentle cycle of turns,
+// climbs and descents (MS-7), a picture's numbers, not a flight model.
+//
+// The look here is richer than the other modules' (Patrick, 17 Oct 2026, fix-list W27). Studio-style reflections (a lit room
+// from three.js, in place of the code sky) light the paint, glass and spinner; this view only, as ct156-look.js takes the sky
+// from the scene when the scene carries one. At the High level only, and only standing on the ground seen from outside, the
+// aircraft throws a sharp sun shadow on the floor and the floor mirrors it faintly: real-time shadows are off everywhere else
+// (aircraft-shadows.js; this view is the one exception) and there is no glow. Performance keeps today's plain look: the soft
+// disc under the aircraft, no shadow map, no mirror.
 //
 // Poses: on the ground (gear down, the inboard doors hanging open as parked, the prop stopped and feathered, the engine
 // off: the start pose) and flying (the gear coming up, the prop turning, the cycle flown, or held wings level with
@@ -17,6 +24,7 @@ import { loadThree, addLights, webglSupported } from '../../ui-kit/three-aircraf
 import { createCt156Model, disposeCt156Model, setGear, setPropStopped, setControls, PAINT_DEFAULT, CT156_GEAR_TRAVEL_S, CT156_FLAP_DEG } from '../../ui-kit/ct156-model.js';
 import { setCt156Level, ct156Level, onCt156Level } from '../../ui-kit/ct156-blender.js';
 import { onCt156Look } from '../../ui-kit/ct156-look-settings.js';
+import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
 import { createCockpitMount, aimCockpitCamera, createCockpitZoomKey, CT156_FT_PER_UNIT, COCKPIT_HEAD } from '../../ui-kit/ct156-cockpit.js';
 import { T6A_PITCH } from '../../core/t6-performance.js';
 import { createShowcaseFlight, stepShowcaseFlight, showcaseHud, showcaseAttitude } from './flight-cycle.js';
@@ -45,6 +53,19 @@ export const SEAT_LOOK_START = Object.freeze({ yawDeg: 0, pitchDeg: -8 });
 const FLAP_TRAVEL_S = 6;
 /** Where the flap gauge's needle and the travel stand for each selection, 0 (UP) to 1 (LDG), as the gauge's marks. */
 const FLAP_AT = Object.freeze({ UP: 0, TO: 0.5, LDG: 1 });
+/** How strongly the studio room lights the paint, against the code sky's 1 (the room is much brighter than the code sky; by eye). */
+const STUDIO_SKY_INTENSITY = 0.6;
+/** The room's lights are blurred a little as they are filtered into the reflection (PMREM sigma, radians). */
+const STUDIO_BLUR = 0.04;
+/** The sun's shadow box: round the aircraft's middle (feet from the spinner's axis, above the ground), radius in feet, a little over its half length. */
+const SHADOW_CENTRE_FT = Object.freeze({ x: -1.5, y: 0, z: 3.5 });
+const SHADOW_RADIUS_FT = 20;
+const SHADOW_MAP_SIZE = 2048;
+/** The sun shadow's darkness on the floor (by eye), and the soft disc's darkness: lighter at High so the two do not double up (by eye), 1 at Performance (today's). */
+const SHADOW_OPACITY = 0.35;
+const DISC_OPACITY_HIGH = 0.5;
+/** The floor mirror: how strong it is (alpha; 0.03, faint: the white underwing decals read clearly at 0.06), the picture's size in pixels, and where it fades out round the aircraft (feet). By eye. */
+const MIRROR = Object.freeze({ alpha: 0.03, pixels: 512, sizeFt: 120, fadeFromFt: 8, fadeToFt: 48, clipBias: 0.003 });
 /** The pictures load and attach after the first draw and after a level change: draw steadily for this long (milliseconds). */
 const SETTLE_MS = 25_000;
 /** At most one picture this often while nothing is being dragged (milliseconds), about 30 a second. */
@@ -130,15 +151,28 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
   const shadowTexture = discTexture(THREE, doc, { rgb: '8, 14, 22', alphaMiddle: 0.55, solid: 0 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: floorTexture, transparent: true, depthWrite: false }));
   floor.scale.set(190, 190, 1);
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false }));
-  shadow.scale.set(40, 44, 1);
-  shadow.position.set(-1.5, 0, 0.04);
-  floor.renderOrder = 0;
-  shadow.renderOrder = 1;
-  scene.add(floor, shadow);
+  const disc = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false }));
+  disc.scale.set(40, 44, 1);
+  disc.position.set(-1.5, 0, 0.04);
+  // The sun's shadow lands on a plane that shows only the shadow (High, on the ground, outside); the floor's mirror (made when
+  // three's Reflector has loaded, High only) lies between the floor and it. Drawn in this order, nearest the floor first.
+  const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: SHADOW_OPACITY, transparent: true, depthWrite: false }));
+  shadowPlane.scale.set(80, 80, 1);
+  shadowPlane.position.set(-1.5, 0, 0.02);
+  shadowPlane.receiveShadow = true;
+  shadowPlane.visible = false;
+  floor.renderOrder = 0; // the mirror is 1
+  shadowPlane.renderOrder = 2;
+  disc.renderOrder = 3;
+  scene.add(floor, shadowPlane, disc);
 
   // The lights: the shared sky-and-sun pair, a cool fill from the other side and a rim from behind, so no angle goes flat.
-  addLights(THREE, scene);
+  const { sun } = addLights(THREE, scene);
+  // The sun's shadow (High only; this view is let through aircraft-shadows.js's global switch). The shadow map stays on for the
+  // whole High level and the pose and view only switch the plane and the map's updating: turning the map on and off would
+  // rebuild every shader.
+  const shadows = createAircraftShadows(THREE, renderer, sun, { mapSize: SHADOW_MAP_SIZE, enabled: false, allowed: true });
+  renderer.info.autoReset = false; // the mirror draws the scene a second time inside a frame: counts are reset once per picture (draw)
   const fill = new THREE.DirectionalLight('#a9c4ff', 0.9);
   fill.position.set(0.6, 0.7, 0.3).normalize().multiplyScalar(1000);
   const rim = new THREE.DirectionalLight('#ffe9cc', 0.8);
@@ -170,6 +204,11 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
   let settleUntil = 0;
   let lastDraw = -Infinity;
   let disposed = false;
+  let level = ct156Level(); // the files' level now; changes arrive through onCt156Level
+  let studio = null; // the room's reflections (a PMREM target), when loaded
+  let reflector = null; // the floor mirror, High only, when three's Reflector has loaded
+  let ReflectorClass = null;
+  let lastSweep = -Infinity;
   let dragging = null;
   const now = () => globalThis.performance?.now() ?? Date.now();
   const touch = (settle = false) => {
@@ -180,8 +219,130 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
   const zoomKey = createCockpitZoomKey(doc.defaultView ?? globalThis, () => touch());
   zoomKey.start();
   // The level and the look sliders change the model's files, pictures and paint in place: only the picture needs drawing again.
-  const stopLevel = onCt156Level(() => touch(true));
+  const stopLevel = onCt156Level((next) => {
+    level = next;
+    applyLevel();
+    noSelfShadow();
+    touch(true);
+  });
   const stopLook = onCt156Look(() => touch());
+
+  /** The airframe takes no shadow from itself (its baked soft shadows do that work); only the floor's plane receives one. Run again whenever parts arrive. */
+  function noSelfShadow() {
+    ship.traverse((o) => {
+      if (o.isMesh && o.receiveShadow) o.receiveShadow = false;
+    });
+  }
+  noSelfShadow();
+
+  /** Shows what belongs to the pose, view and level: the floor and disc on the ground; the sun shadow and the mirror at High on the ground seen from outside. */
+  function applyGround() {
+    const onGround = pose === 'ground';
+    const rich = onGround && view === 'outside' && level === 'high';
+    floor.visible = disc.visible = onGround;
+    shadowPlane.visible = rich;
+    if (reflector) reflector.visible = rich;
+    const map = renderer.shadowMap;
+    if (rich && !map.autoUpdate) map.needsUpdate = true; // the shadow is drawn once as it comes on, then every picture while on
+    map.autoUpdate = rich;
+  }
+
+  /** Puts the level's extras in place: the shadow map and the lighter disc at High; at Performance neither, nor a mirror. */
+  function applyLevel() {
+    const high = level === 'high';
+    shadows.setEnabled(high);
+    if (high) shadows.follow(new THREE.Vector3(SHADOW_CENTRE_FT.x, SHADOW_CENTRE_FT.y, SHADOW_CENTRE_FT.z), SHADOW_RADIUS_FT);
+    disc.material.opacity = high ? DISC_OPACITY_HIGH : 1;
+    if (high && ReflectorClass && !reflector) makeMirror();
+    if (!high && reflector) dropMirror();
+    applyGround();
+  }
+
+  /**
+   * The floor's mirror (three's Reflector over the floor, drawn faintly and fading out with distance from the aircraft). While it
+   * draws its picture, the floor, the disc, the shadow plane and the backdrop are left out, so only the aircraft is mirrored.
+   */
+  function makeMirror() {
+    const vertexShader = ReflectorClass.ReflectorShader.vertexShader
+      .replace('varying vec4 vUv;', 'varying vec4 vUv;\n\t\tvarying vec2 vLocal;')
+      .replace('vUv = textureMatrix * vec4( position, 1.0 );', 'vUv = textureMatrix * vec4( position, 1.0 );\n\t\t\tvLocal = position.xy;');
+    if (!vertexShader.includes('vLocal = position.xy;')) {
+      console.warn("The floor mirror's vertex shader has changed in this three.js; the mirror is left out.");
+      return;
+    }
+    const shader = {
+      name: 'ShowcaseFloorMirror',
+      uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null }, mirrorAlpha: { value: MIRROR.alpha }, fadeFt: { value: new THREE.Vector2(MIRROR.fadeFromFt, MIRROR.fadeToFt) } },
+      vertexShader,
+      fragmentShader: [
+        'uniform vec3 color; uniform sampler2D tDiffuse; uniform float mirrorAlpha; uniform vec2 fadeFt;',
+        'varying vec4 vUv; varying vec2 vLocal;',
+        '#include <logdepthbuf_pars_fragment>',
+        'void main() {',
+        '  #include <logdepthbuf_fragment>',
+        '  vec4 base = texture2DProj( tDiffuse, vUv );', // empty space was drawn with alpha 0, so only the aircraft shows
+        '  vec3 rgb = base.rgb / max( base.a, 0.001 );', // the smoothed edges hold colour times coverage: undo it
+        '  float fade = 1.0 - smoothstep( fadeFt.x, fadeFt.y, length( vLocal ) );',
+        '  gl_FragColor = vec4( rgb * color, base.a * mirrorAlpha * fade );',
+        '  #include <tonemapping_fragment>',
+        '  #include <colorspace_fragment>',
+        '}',
+      ].join('\n'),
+    };
+    const m = new ReflectorClass(new THREE.PlaneGeometry(MIRROR.sizeFt, MIRROR.sizeFt), { color: 0xffffff, textureWidth: MIRROR.pixels, textureHeight: MIRROR.pixels, clipBias: MIRROR.clipBias, shader });
+    m.material.transparent = true;
+    m.material.depthWrite = false;
+    m.position.set(-1.5, 0, 0.01);
+    m.renderOrder = 1;
+    m.visible = false;
+    const draws = m.onBeforeRender;
+    m.onBeforeRender = function onBeforeRender(r, sc, cam, ...rest) {
+      const left = [floor, disc, shadowPlane].map((o) => [o, o.visible]);
+      const { background } = sc, clearAlpha = r.getClearAlpha();
+      for (const [o] of left) o.visible = false;
+      sc.background = null;
+      r.setClearAlpha(0);
+      try {
+        draws.call(this, r, sc, cam, ...rest);
+      } finally {
+        for (const [o, v] of left) o.visible = v;
+        sc.background = background;
+        r.setClearAlpha(clearAlpha);
+      }
+    };
+    reflector = m;
+    scene.add(m);
+  }
+  function dropMirror() {
+    scene.remove(reflector);
+    reflector.geometry.dispose();
+    reflector.dispose();
+    reflector = null;
+  }
+
+  // three's room and mirror load after the first draw (three/addons come with the 3D view only: never a static import). Until
+  // the room is in, the code sky lights the model; until the mirror is in, there is none.
+  import('three/addons/environments/RoomEnvironment.js').then(({ RoomEnvironment }) => {
+    if (disposed) return;
+    const room = new RoomEnvironment();
+    const holder = new THREE.Scene(); // the room is built y-up; this view is z-up, so it is turned to put its ceiling lights overhead
+    holder.add(room);
+    holder.rotation.x = Math.PI / 2;
+    const generator = new THREE.PMREMGenerator(renderer);
+    studio = generator.fromScene(holder, STUDIO_BLUR);
+    generator.dispose();
+    room.dispose();
+    studio.texture.userData.ct156Env = true; // so another module's model kept from here goes back to its own sky (ct156-look.js)
+    scene.userData.ct156Sky = studio.texture;
+    scene.userData.ct156SkyIntensity = STUDIO_SKY_INTENSITY;
+    touch(true);
+  }, (err) => console.warn('The studio reflections could not be loaded; the code sky lights the model:', err));
+  import('three/addons/objects/Reflector.js').then(({ Reflector }) => {
+    if (disposed) return;
+    ReflectorClass = Reflector;
+    applyLevel();
+    touch(true);
+  }, (err) => console.warn('The floor mirror could not be loaded; there is none:', err));
 
   /** What the panel reads now: the ground's, or the flight's; the flaps where they are. */
   const hud = () => ({ ...(pose === 'ground' ? GROUND_HUD : showcaseHud(flight)), flaps: flaps.at });
@@ -194,9 +355,10 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     const h = hud();
     applyAttitude(ship, h);
     setControls(ship, { ...h.controls, flaps: flapDeg(flaps.at) });
-    floor.visible = shadow.visible = pose === 'ground';
+    applyGround();
     ship.updateMatrixWorld(true);
   }
+  applyLevel();
   applyPose();
 
   /** Moves what moves (the flight, the gear, the flaps) dtS seconds on; true when anything did. */
@@ -248,6 +410,11 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     }
     lastDraw = now();
     dirty = false;
+    if (lastDraw < settleUntil && lastDraw - lastSweep > 500) { // parts arriving: the new ones take no self-shadow either
+      lastSweep = lastDraw;
+      noSelfShadow();
+    }
+    renderer.info.reset(); // one picture's draw calls and triangles, the mirror's included
     if (view !== 'outside') cockpit.update(hud());
     aim(w, h);
     renderer.render(scene, camera);
@@ -327,6 +494,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
       look.yawDeg = SEAT_LOOK_START.yawDeg;
       look.pitchDeg = SEAT_LOOK_START.pitchDeg;
       applyPose(); // setCockpitView hides the prop from a seat; this puts the pose's own prop and gear state back
+      noSelfShadow(); // the seat's parts were added just now
       touch(true);
       onChange();
     },
@@ -399,9 +567,17 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
       cockpit.dispose();
       scene.remove(ship);
       disposeCt156Model(ship);
-      for (const m of [floor, shadow]) {
+      for (const m of [floor, disc, shadowPlane]) {
         m.geometry.dispose();
         m.material.dispose();
+      }
+      if (reflector) dropMirror();
+      shadows.dispose();
+      sun.shadow.dispose();
+      if (studio) {
+        scene.userData.ct156Sky = undefined;
+        studio.dispose();
+        studio = null;
       }
       floorTexture.dispose();
       shadowTexture.dispose();
