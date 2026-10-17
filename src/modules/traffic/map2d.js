@@ -28,7 +28,7 @@ import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS, calculateGlideFootprint } from './
 import { ejectionAt } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
-import { TYPE_COLORS as FLEET_COLORS } from './types.js';
+import { TYPE_COLORS } from './types.js';
 import { CLOSE_UP_DRAW_FT } from './types.js';
 import { drawHeadingOf } from './path-follower.js';
 
@@ -39,15 +39,8 @@ const FIT_PADDING_PX = 60; // room round the routes for the labels beside the ai
 const HOME_SETUP = 'Moose Jaw';
 export const HINT_TEXT = `Press Play to watch the ${HOME_SETUP} traffic.`;
 
-/** V6's aircraft colours with full 15 Wing fleet support (CT-102B, CT-155, CF-188); an aircraft can bring its own. */
-export const TYPE_COLORS = Object.freeze(
-  Object.create(FLEET_COLORS, Object.getOwnPropertyDescriptors({
-    'CT-157': '#a5d6ff',
-    'CT-156': '#7ee787',
-    'CT-102': '#ffcc66',
-    'CT-114': '#ff6b6b',
-  }))
-);
+/** Each aircraft type's colour: the one table in types.js (plan Step 5c Phase 1), exported here under its old name; an aircraft can bring its own. */
+export { TYPE_COLORS };
 const FALLBACK_COLOR = '#c7d8e7';
 
 /** The words that go with the colours, so colour is never the only signal. */
@@ -279,7 +272,7 @@ export function conflictLevels(conflicts) {
 }
 
 export const isFlying = (ac) => ac.status === 'flying';
-export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FLEET_COLORS[ac.type] ?? FALLBACK_COLOR;
+export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FALLBACK_COLOR;
 
 // The glide ring lives with the PFL segment planner's numbers (calculateGlideFootprint).
 export { calculateGlideFootprint };

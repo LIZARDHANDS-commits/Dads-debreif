@@ -1,0 +1,11 @@
+# The Cloudflare test preview's Worker (README.md). deploy.sh uploads dist/ to the KV store below, then deploys this.
+name = "dads-ooda-preview"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# The KV store holding the built files (made 17 Oct 2026; the account token needs Workers KV Storage edit rights to write it). The id
+# is not secret.
+[[kv_namespaces]]
+binding = "FILES"
+id = "d9bb513bb5e042e2aaebf78ed279831a"
