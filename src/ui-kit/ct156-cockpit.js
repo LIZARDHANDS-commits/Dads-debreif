@@ -48,7 +48,7 @@ const intoRootFrame = ({ x, y, z }) => Object.freeze({ x: x * Math.cos(DATUM_RAD
 /** The same the other way: a point in the root's frame as a point in the model's. */
 const fromRootFrame = ({ x, y, z }) => ({ x: x * Math.cos(DATUM_RAD) - z * Math.sin(DATUM_RAD), y, z: z * Math.cos(DATUM_RAD) + x * Math.sin(DATUM_RAD) });
 import { drawAttitude } from './hud.js';
-import { attachCockpitModel, detachCockpitModel } from './ct156-cockpit-model.js';
+import { attachCockpitModel, detachCockpitModel, CONTROL_PARTS, piecesByColour, poseControls, rigControls, splitControls } from './ct156-cockpit-model.js';
 import { loadCt156Points, paintGrain, ct156Level } from './ct156-blender.js';
 import { browserStorage, createStore } from '../storage/store.js';
 
@@ -2219,6 +2219,7 @@ function displayFrame(THREE, x, yc, zc, hw, hh, pad) {
 
 function seatParts(THREE, { dx, front, p, h, eye }) {
   const parts = [], striped = [], consoleTops = [], lower = [], cards = [];
+  const pivots = {}; // where this seat's stick and power lever turn (W25, ct156-cockpit-model.js splitControls)
   // Parts drawn while `tag` is set belong to that named part (seat, pcl, stick; the rest are 'body'), which the Blender cockpit replaces.
   let tag = null;
   const put = (geometry, slot) => parts.push({ geometry, materials: [slot], name: tag });
@@ -2573,6 +2574,9 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     // parts below are in the lever's own frame: x forward, y across (0 the plate's middle, inboard negative), z up.
     const f = (L(P.pclSlot.at) - xs[0]) / (xs[1] - xs[0]), lean = rad(lerp(-Q.travelDeg, Q.travelDeg, f));
     const lever = (g) => g.rotateY(lean).translate(qx, sy, c.top);
+    // The lever's pieces stand above the housings (fixedTop over the console; the flap selector's tab is the highest
+    // housing part, about 0.17 ft) except its plate, a stem `across` wide up out of the slot.
+    pivots.pcl = { x: qx, y: sy, z: c.top, restDeg: lerp(-Q.travelDeg, Q.travelDeg, f), travelDeg: Q.travelDeg, fixedTop: 0.205, stemHalf: S2.t / 2 + 0.008 };
     const g0 = G.bottom, hw = G.depth / 2, r = hw, yo = -S2.t / 2, yi = yo - G.length; // the grip's outboard and inboard ends
     // The grip's section: flat underneath with rounded corners, straight sides, round on top; grown by `grow` all round.
     const gripShape = (grow) => {
@@ -2654,6 +2658,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   tag = 'stick';
   const st = S.stick, tilt = rad(st.tiltDeg);
   const stickPart = (g) => g.rotateY(tilt).translate(fx(st.x), 0, floor);
+  pivots.stick = { x: fx(st.x), y: 0, z: floor };
   put(stickPart(new THREE.CylinderGeometry(0.1, 0.22, 0.32, 12).rotateX(Math.PI / 2).translate(0, 0, 0.16)), SLOT.black);
   put(stickPart(new THREE.CylinderGeometry(0.045, 0.05, st.height - 0.3, 10).rotateX(Math.PI / 2).translate(0, 0, (st.height - 0.3) / 2 + 0.2)), SLOT.dark); // the stem dark with the consoles (D12; was the panel's grey slot)
   put(stickPart(new THREE.CylinderGeometry(0.065, 0.055, 0.32, 10).rotateX(Math.PI / 2).translate(-0.02, 0, st.height - 0.13)), SLOT.black);
@@ -2663,7 +2668,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   tag = null;
   // The face's parts lean back with it (PANEL_FT.leanDeg).
   for (const g of [...parts.map((q) => q.geometry), ...striped, ...cards]) if (onFace(g, p)) leanWithFace(g, p);
-  return { parts, striped, consoleTops, lower, cards, ts, faceW, faceH, eye, lampFaces };
+  return { parts, striped, consoleTops, lower, cards, ts, faceW, faceH, eye, lampFaces, pivots };
 }
 
 /**
@@ -2915,12 +2920,14 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     { dx: REAR_DX, front: false, p: REAR_PANEL_FT, h: REAR_HUMP_FT, eye: EYES_MODEL_FT.rear, width: 1024 },
   ];
   const solidParts = [], striped = [], consoleTops = [], lowerFaces = [], cards = [];
+  const controlPivots = {}; // each seat's stick and power lever pivots (seatParts)
   const lampQuads = []; // liveEngine only: each lip lamp's quad and colour when lit
   // The pictured faces (panel faces, lower panels, console tops, striped handles): they shade the Blender parts in its
   // bake, and the file carries their own baked shadows as its 'shade' part, shown only while they are drawn as now.
   const occluders = [];
   for (const seat of seats) {
     const sp = seatParts(THREE, seat);
+    controlPivots[seat.front ? 'front' : 'rear'] = sp.pivots;
     solidParts.push(...sp.parts);
     striped.push(...sp.striped);
     consoleTops.push(...sp.consoleTops);
@@ -3044,6 +3051,36 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
     mesh.name = `ct156-cockpit-${name}`;
     mesh.userData.hash = hash; // the model file's part shows only if it was built from these same pieces
   }
+  // The stick and the power lever move (W25): the code's own pieces split as the file's are (ct156-cockpit-model.js), the
+  // fixed ones back in the code's mesh and each seat's moving ones on a pivot under it (hidden with it once the file is in).
+  group.userData.controlPivots = controlPivots;
+  const codeRig = { front: {}, rear: {} };
+  for (const name of CONTROL_PARTS) {
+    const mesh = group.getObjectByName(`ct156-cockpit-${name}`);
+    if (!mesh) continue;
+    const pieces = piecesByColour(THREE, mesh);
+    const { fixed, moving } = splitControls(THREE, pieces, name, controlPivots);
+    for (const piece of pieces) if (piece.geometry !== mesh.geometry) piece.geometry.dispose();
+    const keep = new THREE.BufferGeometry();
+    const keys = fixed.length ? Object.keys(fixed[0].geometry.attributes) : ['position'];
+    let start = 0;
+    for (const [i, { geometry }] of fixed.entries()) {
+      keep.addGroup(start, geometry.attributes.position.count, i);
+      start += geometry.attributes.position.count;
+    }
+    for (const key of keys) {
+      const n = fixed[0]?.geometry.attributes[key].itemSize ?? 3;
+      const arr = new Float32Array(start * n);
+      let at = 0;
+      for (const { geometry } of fixed) { arr.set(geometry.attributes[key].array, at); at += geometry.attributes[key].array.length; geometry.dispose(); }
+      keep.setAttribute(key, new THREE.BufferAttribute(arr, n));
+    }
+    geometries.push(keep);
+    mesh.geometry = keep;
+    mesh.material = fixed.map(({ material }) => material);
+    const rig = rigControls(THREE, mesh, name, moving, controlPivots, (material, geometry) => (geometries.push(geometry), material));
+    for (const seat of ['front', 'rear']) codeRig[seat][name] = rig[seat];
+  }
   // The Blender cockpit's parts (ALL-32), once its file is in, in place of the code's parts of the same names. The file's
   // `panel` slot (layout 3, 3d-work slice 4.5A: the panels' plates) takes the grey slot's PANEL_GREY.
   attachCockpitModel(THREE, group, { ...Object.fromEntries(Object.entries(SLOT).map(([k, i]) => [k, slotMats[i]])), panel: slotMats[SLOT.grey] }, own, PART_MATS);
@@ -3115,6 +3152,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
      */
     update(hud, nowMs = globalThis.performance?.now?.() ?? Date.now()) {
       if (Number.isFinite(hud?.headingDeg)) card.texture.offset.x = compassCardOffset(hud.headingDeg);
+      // The stick and the power lever every call (no redraw): the file's once it is in, else the code's.
+      poseControls(group.userData.controlRig ?? codeRig, hud);
       hud = withVerticalSpeed(hud, nowMs);
       // The clock's ZULU time and the label plate's serial (the ship this cockpit is in: a ship's root holds the group).
       const faces = { zulu: new Date().toISOString().slice(11, 16), serial: ct156Serial(group.parent?.userData?.ct156?.number), flaps: hud?.flaps ?? 'UP' };
