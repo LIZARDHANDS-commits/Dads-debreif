@@ -9,7 +9,7 @@
 // target, Orbit, Run-in, Release and Escape hide. The worked-out numbers show greyed "set to hit" (RS-16).
 import { h } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
-import { RUNS, RANGES, runOf, AAR_PLACE } from './defaults.js';
+import { RUNS, RANGES, runOf, AAR_PLACE, PAINTS } from './defaults.js';
 import { TARGETS, HAS_HEADING } from './targets.js';
 import { AIRCRAFT } from './aircraft.js';
 import { clock } from './pass.js';
@@ -205,7 +205,8 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     controls.checkbox('showLines', { label: 'The orbit and run-in lines' }),
     controls.checkbox('showCarp', { label: 'The release point (CARP)' }),
     controls.checkbox('showTrails', { label: 'The trails (aircraft and load)' }),
-    controls.checkbox('showFlags', { label: 'The flags on the card' }));
+    controls.checkbox('showFlags', { label: 'The flags on the card' }),
+    controls.select('paint', { label: 'Paint', options: PAINTS }));
 
   const flyButton = h('button', { type: 'button', class: 'rs-btn rs-btn-main rs-fly' }, 'Fly the pass');
   flyButton.addEventListener('click', onFly);
@@ -304,7 +305,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const w = (d, k) => (k < 0.5 ? 'calm' : `${deg3(d)}/${k} kt`);
     wind.sum.textContent = `${w(v.windTopDegM, v.windTopKt)} at release${v.planWindOn ? ' · planning wind' : ''}`;
     for (const el of planBoxes) show(el, v.planWindOn);
-    display.sum.textContent = [v.showLines && 'lines', v.showCarp && 'CARP', v.showTrails && 'trails', v.showFlags && 'flags'].filter(Boolean).join(' · ') || 'nothing';
+    display.sum.textContent = [v.showLines && 'lines', v.showCarp && 'CARP', v.showTrails && 'trails', v.showFlags && 'flags', v.paint !== 'harvard' && (PAINTS.find(([id]) => id === v.paint)?.[1] ?? v.paint)].filter(Boolean).join(' · ') || 'nothing';
   }
 
   /** The refuelling run's lines: the boxes' summaries and the numbers worked out to hit (RS-16). */
