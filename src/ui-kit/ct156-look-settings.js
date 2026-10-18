@@ -1,7 +1,8 @@
-// The CT-156's look settings (Patrick, 15 Oct 2026, "Yeah add em"): three sliders that change the model's paint live,
-// with no reload and no new shader (ct156-blender.js reads them as uniforms and the normal pictures' strength):
-// weathering (how far and how dark the painted soot, oil, edge wear and scuffs show), relief (the normal picture's
-// strength: panel lines and rivets) and wear (the mesh's convex edges lightened toward worn paint, its hollows darkened).
+// The CT-156's look settings (Patrick, 15 Oct 2026, "Yeah add em"): sliders that change the model's paint live, with no
+// reload and no new shader (ct156-blender.js reads them as uniforms and the normal pictures' strength): weathering (how
+// far and how dark the painted soot, oil, edge wear and scuffs show) and relief (the normal picture's strength: panel
+// lines and rivets). The third, wear (the mesh's edges lightened, its hollows darkened), is gone: it changed nothing
+// visible (W27, Patrick 17 Oct 2026, the look audit's Q11); the shader keeps the baked strength.
 // Saved in the browser with the graphics settings, the same for every view and module; Reset puts the defaults back.
 // A picture only: no flight numbers.
 import { h } from './dom.js';
@@ -9,14 +10,13 @@ import { browserStorage, createStore } from '../storage/store.js';
 
 /**
  * The defaults: weathering medium 0.7 (3d-work ct156/pictures/stamp.json "strengths": light 0.35, medium 0.7, heavy
- * 1.0; medium until slice 4.3's pick), relief 1 and wear 1 (the strengths the pictures were baked for).
+ * 1.0; medium until slice 4.3's pick) and relief 1 (the strength the pictures were baked for).
  */
-export const CT156_LOOK_DEFAULTS = Object.freeze({ weathering: 0.7, relief: 1, wear: 1 });
+export const CT156_LOOK_DEFAULTS = Object.freeze({ weathering: 0.7, relief: 1 });
 /** Each slider's range and step (scratch/increment-4/app-additions.md). */
 export const CT156_LOOK_RANGES = Object.freeze({
   weathering: Object.freeze({ min: 0, max: 1.5, step: 0.05, label: 'Weathering' }),
   relief: Object.freeze({ min: 0.4, max: 1.6, step: 0.05, label: 'Relief' }),
-  wear: Object.freeze({ min: 0, max: 1.5, step: 0.05, label: 'Wear' }),
 });
 
 let store = null;
@@ -34,7 +34,7 @@ function clean(input) {
   return out;
 }
 
-/** The look now: { weathering, relief, wear } (the saved one, or the defaults). */
+/** The look now: { weathering, relief } (the saved one, or the defaults; an old saved wear is dropped). */
 export function getCt156Look() {
   look ??= clean(saved().get('look', CT156_LOOK_DEFAULTS));
   return { ...look };
@@ -59,7 +59,7 @@ export function onCt156Look(fn) {
 }
 
 /**
- * The three sliders and a "Reset to defaults" button, for a view's Graphics menu: each slider changes the look as it
+ * The sliders and a "Reset to defaults" button, for a view's Graphics menu: each slider changes the look as it
  * moves and shows its value; they follow changes made elsewhere. Returns the element; `stop()` on it unhooks it.
  */
 let made = 0; // each set of controls its own ids

@@ -50,7 +50,7 @@ export const FW_LAG_ABEAM_TECHNIQUE = Object.freeze({
     const pHorizEst = Math.min(guard?.predFt ?? seen.slant, seen.slant * Math.sin(Math.max(seen.sweepDeg, 5) * DEG));
     const rawDepth = Math.sqrt(Math.max(0, L.clearSlantFt * L.clearSlantFt - pHorizEst * pHorizEst));
     const depthFt = clamp(rawDepth, L.minDepthFt, L.maxDepthFt);
-    const vertSign = seen.heightFt > 0 ? 1 : -1;
+    const vertSign = seen.heightFt > FW_WING.yoyo.highFt ? 1 : -1; // below unless already more than 100 ft above Lead (TS-233)
     const heightTargetFt = vertSign > 0 ? Math.max(depthFt, seen.heightFt + 40) : -Math.max(depthFt, Math.abs(seen.heightFt) + 30);
     return {
       stage: 'lag',

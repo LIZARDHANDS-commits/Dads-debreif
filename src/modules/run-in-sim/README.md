@@ -23,7 +23,7 @@ An orbit, a run-in, a release (or a flypast) and an escape, worked out and flown
 | `plan-view.js` | The small plan view (2D) in the 3D view's corner, north up, with the wind and a scale; a click opens the map. The refuelling run: the anchor, the receiver's track and both flown tracks. |
 | `view2d.js` | The 2D view behind the 3D | 2D switch (RS-13; for the refuelling run both tracks on the plan, and the profile along the refuelling track or behind the tanker): the plan on the satellite map at true scale (pan and zoom, Fit), and the profile along the run-in through the aim point (At the target, Release to impact, Whole run-in), both following the playback. |
 | `map-picker.js` | "Tap the map": the satellite map to tap a place on, with typed latitude and longitude under More. |
-| `setup-panel.js` | The Setup column (the refuelling run's Rendezvous time and its Tanker and anchor, Rendezvous and Join boxes in place of the run-in's): the boxes, their one-line summaries, the greyed "set to hit" numbers and the More switches that set them by hand. |
+| `setup-panel.js` | The Setup column (the refuelling run's Rendezvous time and its Tanker and anchor, Rendezvous and Join boxes in place of the run-in's): the boxes, their one-line summaries, the greyed "set to hit" numbers and the More switches that set them by hand. The Display box's Paint choice (RCAF Harvard, USAF or USN; RS-29, proposed) is here too. |
 | `card.js` | The result card's words; `refuelCardFor` the refuelling run's (the trail at the roll-out against the plan, the join, the flags). |
 | `run-in-sim.css` | The screen's layout and look (tokens from `src/ui-kit/tokens.css`). |
 

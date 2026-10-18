@@ -227,19 +227,19 @@ export function shadeWhenLoaded(wanted, apply, fail = (why) => console.warn(why)
 
 /**
  * The look's live numbers (ct156-look-settings.js), shared by every shaded material as the same uniform objects, so a
- * slider changes them all at once with no new shader: the weathering strength k and the wear; and the relief, the
- * normal pictures' strength, set on each material's normalScale.
+ * slider changes them all at once with no new shader: the weathering strength k; and the relief, the normal pictures'
+ * strength, set on each material's normalScale. The wear (the edges' lightening) stays at the baked strength, 1: its
+ * slider is gone (W27, Patrick 17 Oct 2026).
  */
 export const CT156_LOOK_UNIFORMS = Object.freeze({
   ct156WeatherK: { value: CT156_LOOK_DEFAULTS.weathering },
-  ct156Wear: { value: CT156_LOOK_DEFAULTS.wear },
+  ct156Wear: { value: 1 },
 });
 let relief = CT156_LOOK_DEFAULTS.relief;
 const reliefMaterials = new Set();
 const setRelief = (m) => m.normalScale.set(relief, m.userData.ct156Mirrored ? -relief : relief);
 onCt156Look((look) => {
   CT156_LOOK_UNIFORMS.ct156WeatherK.value = look.weathering;
-  CT156_LOOK_UNIFORMS.ct156Wear.value = look.wear;
   relief = look.relief;
   for (const m of reliefMaterials) setRelief(m);
 });
@@ -318,7 +318,11 @@ uniform float ct156Wear;${sheen ? '\nuniform sampler2D ct156Sheen;' : ''}`)
     shader.fragmentShader = fs;
   };
   m.customProgramCacheKey = () => `ct156-ao-direct${paint ? `-paint${sheen ? '-sheen' : ''}` : ''}`;
+  // The shader above replaced the base's, Neutral curve and all, but the copy kept the base's "dressed" mark: drop it so
+  // the look (ct156-look.js) dresses the copy once more, on top of this shader (W27; the delivered parts drew uncurved).
+  delete m.userData.ct156Look;
   if (m.userData.ct156Bands) paintBands(m, m.userData.ct156Bands); // painted bands (the prop's tips) stay
+  if (m.userData.ct156Zones) paintZones(m, m.userData.ct156Zones); // painted zones (the US paints' colour breaks) stay
   return m.userData.ct156Grain ? paintGrain(m, m.userData.ct156Grain) : m; // a painted surface keeps its grain
 }
 
@@ -445,6 +449,36 @@ export function paintBands(material, { axis = 'y', bands = [] } = {}) {
       .replace('#include <color_fragment>', `#include <color_fragment>\n${paint}`);
   };
   material.customProgramCacheKey = () => `${key?.call(material) ?? ''}-ct156-bands-${axis}-${bands.flat(2).map(f).join('-')}`;
+  material.needsUpdate = true;
+  return material;
+}
+
+/**
+ * Paints zones across a part by the shader, from where each point lies on the geometry (its own units) and which way its
+ * surface faces, so a colour break needs no picture or second mesh and keeps a sharp, smooth-edged line (the USAF and USN
+ * paints' white upper and coloured lower surfaces, pinstripe and glare panel: ct156-model.js US_PAINTS). `zones`:
+ * [[weight, [r, g, b]], ...] in painting order, later ones over earlier; `weight` is a GLSL float expression from 0 (not
+ * painted) to 1 (painted) that may use `zp` (the point, vec3), `zn` (the surface's direction, vec3) and
+ * `ct156Aa( d )`, a one-pixel-soft step that is 1 where d is above 0 (multiply two for "both"). The colour is linear
+ * (THREE.Color's r, g, b). Keeps whatever the material's shader already does, and survives aoShaded's copy (the zones are
+ * kept in userData). Returns the material.
+ */
+export function paintZones(material, { zones = [] } = {}) {
+  material.userData.ct156Zones = { zones };
+  const before = material.onBeforeCompile, key = material.customProgramCacheKey;
+  const f = (v) => Number(v).toFixed(6);
+  const paint = zones.map(([weight, [r, g, b]]) => `\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( ${f(r)}, ${f(g)}, ${f(b)} ), clamp( ${weight}, 0.0, 1.0 ) );`).join('\n');
+  material.onBeforeCompile = (shader, renderer) => {
+    before?.call(material, shader, renderer);
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vCt156ZoneP;\nvarying vec3 vCt156ZoneN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvCt156ZoneP = position;\n\tvCt156ZoneN = normal;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vCt156ZoneP;
+varying vec3 vCt156ZoneN;
+float ct156Aa( float d ) { return clamp( d / max( fwidth( d ), 1e-9 ) + 0.5, 0.0, 1.0 ); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>\n\tvec3 zp = vCt156ZoneP;\n\tvec3 zn = vCt156ZoneN;\n${paint}`);
+  };
+  material.customProgramCacheKey = () => `${key?.call(material) ?? ''}-ct156-zones-${zones.map(([w, c]) => `${w}:${c.map(f).join(',')}`).join('-')}`;
   material.needsUpdate = true;
   return material;
 }

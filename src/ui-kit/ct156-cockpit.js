@@ -803,8 +803,9 @@ const liveWindowOf = (s) => LIVE_WINDOWS[s.live] ?? (LIVE_KINDS.includes(s.kind)
 
 // The panel's and consoles' face: a matte sage grey, as the CT-156 photos D03 and D09 show it (D12, Patrick 13 Oct 2026:
 // "sage grey", the shade picked off those photos to sit with G15's walls; was the medium grey '#5a5e63' of 12 Oct 2026,
-// dark charcoal '#2b2e32' after US Navy T-6A photos on 11 Oct, and mid grey '#8e9296' before). Shade an estimate.
-const PANEL_GREY = '#7a8e91';
+// dark charcoal '#2b2e32' after US Navy T-6A photos on 11 Oct, and mid grey '#8e9296' before). Then a step darker, same
+// hue (W27, Patrick 17 Oct 2026, the look audit's Q10: "darker and duller"; D10, E02; was '#7a8e91'). Shade an estimate.
+const PANEL_GREY = '#6a7a7d';
 // The cockpit's walls (the bow band, and the tub's walls in ct156-model.js) and the sill bands with the canopy's lower
 // side frames: lighter and cooler, as daylit CT-156 photos show them (G15, Patrick 13 Oct 2026: D03, D10 and the Moose
 // Jaw frames; both were PANEL_GREY's '#5a5e63').
@@ -826,6 +827,8 @@ function bezel(ctx, cx, cy, r) {
   const pad = Math.max(3, r * 0.12);
   ctx.fillStyle = '#16191d';
   ctx.fillRect(cx - r - pad, cy - r - pad, 2 * (r + pad), 2 * (r + pad));
+  // A screw head in each corner of the square, outside the round face (W27, Patrick 17 Oct 2026: bezels with screws; D10).
+  screws(ctx, cx - r - pad, cy - r - pad, 2 * (r + pad), 2 * (r + pad), pad * 0.6, Math.max(1, pad * 0.3));
   ctx.fillStyle = FACE;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -841,6 +844,24 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+/**
+ * A faint glare on a round dial's glass, drawn last over its face: a soft light crescent from the upper left (W27,
+ * Patrick 17 Oct 2026: "slight glass glare"). About 6 % white at its brightest; an estimate.
+ */
+function glare(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  const g = ctx.createLinearGradient(cx - r, cy - r, cx + r * 0.2, cy + r * 0.2);
+  g.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+  g.addColorStop(0.45, 'rgba(255, 255, 255, 0.025)');
+  g.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - r, cy - r, 2 * r, 2 * r);
+  ctx.restore();
 }
 
 /** Screw heads at a box's corners, in from its edges. */
@@ -916,6 +937,7 @@ function dial(ctx, { cx, cy, r, from, to, sweepDeg, startDeg = 0, major, minor, 
   ctx.beginPath();
   ctx.arc(cx, cy, Math.max(2, r * 0.08), 0, Math.PI * 2);
   ctx.fill();
+  glare(ctx, cx, cy, r);
 }
 
 /** The EHSI: a compass card turning with the heading under a fixed lubber line, the heading in a box on top. */
@@ -1218,6 +1240,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
     case 'stby':
       bezel(ctx, cx, cy, rr);
       drawAttitude(ctx, cx, cy, rr * 0.94, h?.pitchDeg, h?.bankDeg);
+      glare(ctx, cx, cy, rr);
       break;
     case 'clock': { // the M850 chronometer: its LCD over the GMT LT FT ET marks, SELECT and CONTROL under
       ctx.fillStyle = BEZEL; roundRect(ctx, b.x, b.y, b.w, b.h, b.w * 0.06); ctx.fill();
@@ -1294,6 +1317,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       ctx.fillStyle = '#d7dadd'; roundRect(ctx, cx - rr * 0.4, cy + rr * 0.42, rr * 0.8, rr * 0.18, rr * 0.09); ctx.fill(); // the ball's tube
       ctx.fillStyle = BLACK; ctx.beginPath(); ctx.arc(cx, cy + rr * 0.51, rr * 0.08, 0, Math.PI * 2); ctx.fill();
       label(ctx, 'DC', cx, cy + rr * 0.76, rr * 0.13, DIM);
+      glare(ctx, cx, cy, rr);
       break;
     }
     case 'placard': // a placard: a dark plate with lines of light lettering (drawn as bars; no words copied; G16)
@@ -1479,6 +1503,7 @@ function drawFlapGauge(ctx, b, flaps = 'UP') {
   const q = rad(-60 + 120 * at - 90);
   ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, r * 0.07);
   ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(q) * r * 0.8, cy + Math.sin(q) * r * 0.8); ctx.stroke();
+  glare(ctx, cx, cy, r);
 }
 
 /** The Traffic Advisory System panel (front.tas; Patrick 15 Oct 2026, "yes the TAS panel is there"): its name and three keys as photo D10 shows them. */

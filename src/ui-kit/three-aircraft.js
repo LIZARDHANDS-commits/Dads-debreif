@@ -397,7 +397,7 @@ export function blurProp(THREE, mesh) {
 // ---- The light Harvard (SH-, Patrick 12 Oct 2026: only the aircraft being viewed or flown in is the detailed model) ----
 
 /** The Harvard paint's navy (ct156-model.js NAVY). */
-const HARVARD_NAVY = '#151d31';
+const HARVARD_NAVY = '#131a2c';
 
 /**
  * A light Harvard for every aircraft that isn't being looked at closely: the plain T-6 shape (createAircraftMesh, a few draw

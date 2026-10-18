@@ -1,7 +1,7 @@
 // The Model Showcase (docs/modules/model-showcase/README.md; Patrick, 15 Oct 2026): the CT-156 on its own, a window on the home
 // screen for looking at the model. On the ground on its gear with the prop feathered to start, or flying a gentle cycle of
 // turns, climbs and descents (Manoeuvre; Patrick 17 Oct 2026, W25), with its gear (in the air) and flaps on buttons; High or
-// Performance files; the Look sliders (weathering, relief, wear); outside (orbit, more zoom) or from either seat (look round,
+// Performance files; the Look sliders (weathering, relief); outside (orbit, more zoom) or from either seat (look round,
 // as in Formation). mount() builds the controls and the 3D view (world3d.js); everything it starts runs on the shell's
 // scheduler and listeners, so the shell stops it all when the module closes. Nothing here is a flight number: the flying is
 // a picture of the model (flight-cycle.js, MS-7).
@@ -68,7 +68,7 @@ function mount(root, app) {
   const spinRow = h('label', { class: 'ms-check', for: 'ms-spin' }, spinBox, ' Slow turntable (outside)');
   app.listen(spinBox, 'change', () => world?.setSpin(spinBox.checked));
 
-  const look = createPanel({ title: 'Look (3D): wear and grime', collapsed: false });
+  const look = createPanel({ title: 'Look (3D): grime', collapsed: false });
   const sliders = ct156LookControls();
   look.body.append(sliders);
 

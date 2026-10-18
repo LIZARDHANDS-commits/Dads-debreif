@@ -248,10 +248,11 @@ export function createChangeUi({ onChange, fluidUi = null, onCloseWing = null, o
     h('span', { class: 'ts-hint' }, '#2 in close formation'), closeWingButtons);
 
   // #2 in fighting wing: Old (today's live law, fw-live.js, TS-208) or Live (the live wingman's fighting wing technique, B5,
-  // TS-233, spec 7e). Old the default until Patrick has flown Live (spec 7e.11, T28). Read at the next press of one of Lead's
-  // fighting wing moves. 2-ship only.
-  let fwWing = 'law';
-  const FW_WING_HINT = `Live (B5, being built): #2 flies off what he sees of Lead, 0.4 s late; his guard keeps him outside 500 ft slant, making the miss below Lead and reversing onto Lead's circle. Range keeping and the swept place come next (T29). Old: today's fighting wing law. Read at the next press of a fighting wing move.`;
+  // TS-233, spec 7e). Live the default (TS-235, Patrick 17 Oct 2026: "Keep Live, I said yes"), matching LIVE_DEFAULTS.fwWing
+  // in live/formation.js; Old stays to compare until Checkpoint G. Read at the next press of one of Lead's fighting wing
+  // moves. 2-ship only.
+  let fwWing = 'live';
+  const FW_WING_HINT = `Live (the default): #2 flies off what he sees of Lead, 0.4 s late; his guard keeps him outside 500 ft slant, making the miss below Lead (above only if already more than 100 ft above him) and reversing onto Lead's circle. Old: the earlier fighting wing law (fw-live.js), kept to compare. Read at the next press of a fighting wing move.`;
   const fwWingButtons = [
     { value: 'law', label: 'Old' },
     { value: 'live', label: 'Live' },

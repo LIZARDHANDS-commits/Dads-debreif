@@ -142,14 +142,14 @@ export const MODULES = [
     id: 'model-showcase',
     eyebrow: 'The aircraft',
     title: 'Model Showcase',
-    blurb: 'The CT-156 on its own: turn it round, sit in either seat, wear and grime',
+    blurb: 'The CT-156 on its own: turn it round, sit in either seat, weathering and relief sliders',
     details: {
       summary: 'The CT-156 Harvard II 3D model on its own, on its gear or flying, to look at as closely as you like.',
       capabilities: [
         'Orbit and zoom right in on the outside, or look round from the front or rear seat',
         'On the ground with the prop feathered, or flying with the prop turning',
         'High or Performance graphics, the same files the simulators use',
-        'Sliders for weathering, relief and wear on the paint',
+        'Sliders for weathering and relief on the paint',
       ],
     },
     media: { webm: 'media/cards/model-showcase.webm', still: 'media/cards/model-showcase.jpg' }, // a slow 360 of the High model; WebM only

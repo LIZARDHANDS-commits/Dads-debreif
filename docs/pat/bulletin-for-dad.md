@@ -17,7 +17,7 @@
 
 2. **Check out the new Model Showcase (`#/showcase`)!**
    - Open the live site (`https://lizardhands-commits.github.io/Dads-debreif/#/showcase`, or click **Model Showcase** on the Home screen after a hard refresh `Ctrl+Shift+R`) or in your local browser (`http://localhost:5173/#/showcase`).
-   - It lets you inspect the CT-156 Harvard II 3D model on its own—on its gear or flying, in **High** or **Performance** detail, with **wear and grime sliders**, movable stick/rudder/flaps/gear/canopy/speedbrake/lights, and camera views from outside or either cockpit seat.
+   - It lets you inspect the CT-156 Harvard II 3D model on its own—on its gear or flying, in **High** or **Performance** detail, with **weathering and relief sliders**, **Gear** and **Flaps** buttons, a gentle automatic flight cycle (stick, rudder and flaps moving; **Manoeuvre** holds it steady), and camera views from outside or either cockpit seat.
 
 3. **We split the project tracking docs into `docs/dad/` and `docs/pat/` so our PRs never collide:**
    - **Your own tracking folder is now [`docs/dad/`](../dad/README.md):**

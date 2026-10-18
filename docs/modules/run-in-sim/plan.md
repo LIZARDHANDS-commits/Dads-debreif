@@ -88,6 +88,13 @@ Dad, 17 Oct 2026: "can you include fireworks at the stadium at the end of the so
 - [x] Written down first: spec "Change: the stadium's crowd, field and fireworks", RS-28 (proposed, built ahead of Patrick's yes) (17 Oct 2026).
 - [x] The Stadium bowl only: stepped stands with the seated crowd in rows (one instanced mesh), the football field with its lines, end zones and goal posts (Canadian for O Canada and when no anthem, US for the Star-Spangled Banner), and fireworks over the stadium from the anthem's last note, driven only by playback time; a Display switch "Stadium crowd, field and fireworks" (default on) (`stadium-scene.js`). Nothing about the flying, the time line, the card or the other targets changes. No new test (the rule book: no new 3D tests in a module still being built).
 - [ ] Patrick's yes on RS-28 (or his word to take it out); Dad or Patrick sees it in the app.
+## Step 8d. Dad's paint ask (proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026))
+Dad, 17 Oct 2026: "Can we make a paint scheme for USAF and USN".
+- [x] Written down: spec, RS-29, RS-R18 and ALL-45 (17 Oct 2026).
+- [x] The USAF and USN paints in the shared model, and the Paint choice in the Display box (RS-29).
+- [x] Dad's follow-up (17 Oct 2026, "the usaf and usn need the wing tip triangle ref"): the wing-tip triangle on both paints and "USAF" under the left wing; corrected the same day (Dad: "White on top blue on bottom"): the USAF's upper surfaces stay white (ALL-45).
+- [ ] Patrick's yes on ALL-45 and RS-29.
+- [ ] Dad or Patrick looks at both paints in the app (Chase and Side cameras, and in Turn Fight's Paint).
 
 ## Not in this plan
 
