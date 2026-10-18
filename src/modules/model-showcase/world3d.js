@@ -8,8 +8,8 @@
 // from three.js, in place of the code sky) light the paint, glass and spinner; this view only, as ct156-look.js takes the sky
 // from the scene when the scene carries one. At the High level only, and only standing on the ground seen from outside, the
 // aircraft throws a sharp sun shadow on the floor and the floor mirrors it faintly: real-time shadows are off everywhere else
-// (aircraft-shadows.js; this view is the one exception) and there is no glow. Performance, flying and the seats keep the soft
-// disc under the aircraft, with no shadow map and no mirror; the studio's reflections show from outside at both levels.
+// (aircraft-shadows.js; this view is the one exception) and there is no glow. Performance and the seats keep the soft
+// disc under the aircraft, with no shadow map and no mirror (flying, the floor and the disc hide: only the backdrop); the studio's reflections show from outside at both levels.
 //
 // Poses: on the ground (gear down, the inboard doors hanging open as parked, the prop stopped and feathered, the engine
 // off: the start pose) and flying (the gear coming up, the prop turning, the cycle flown, or held wings level with

@@ -1,4 +1,4 @@
-// The two pilots of the CT-156 model: a dark glossy helmet with its visor housing, the clear visor down with its black
+// The two pilots of the CT-156 model: a glossy helmet (light grey-white since W27) with its visor housing, the clear visor down with its black
 // edge line and side pivots, the oxygen mask with its straps and ribbed hose, the life preserver survival vest (LPSV),
 // the harness and the arms (Patrick, 12 Oct 2026: "improve the character model and helmet shape (include the LPSV vest
 // and the proper helmet/visor shape)", with three photos of a pilot in flight: front and rear views of the helmet, the
@@ -11,7 +11,7 @@
 /**
  * The paint of each pilot slot, in the order of the model's `pilot` materials (plain data; `side` front or double,
  * `env` the sky reflection's strength, 0 for none, `opacity` below 1 for see-through). Colours and shininess are
- * estimates off Patrick's photos, 12 Oct 2026: a dark gunmetal helmet with the sky on it, a clear visor with a faint
+ * estimates off Patrick's photos, 12 Oct 2026 (the first set; the later ones are below): a dark gunmetal helmet with the sky on it, a clear visor with a faint
  * smoke tint, black rubber mask with grey-blue valve and cheek windows, a pale grey ribbed hose, a sage vest.
  * Chunk 7's colours (3d-work #72, Patrick's rulings H1, H2, H6, H7, 13 Oct 2026; imported with delivery ct156-2026-10-13-17f0c75): the shell light sage grey #8e978d (was #353a41), the
  * visor dark #101316 and nearly opaque (0.92; was clear #b4bec6 at 0.22), the flight suit brighter olive #7a8535 (was #555c43), the vest pale grey-sage #a9b1a2 (was #7c8467), the

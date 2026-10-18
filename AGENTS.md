@@ -152,4 +152,4 @@ docs/
 archive/             history only, never instructions
 ```
 
-A decision that affects more than one module goes in `docs/DECISIONS.md`; a module's own decisions take its prefix (DB-, SOF-, EP-, RS-, TR-, TF-, TS-, SH-) and the next free number. Skills live in one folder, `.agent/skills/` (Antigravity reads it there); `.claude/skills` is a link to it so Claude Code reads the same files. Never make a second copy.
+A decision that affects more than one module goes in `docs/DECISIONS.md`; a module's own decisions take its prefix (DB-, SOF-, EP-, RS-, TR-, TF-, TS-, SH-, MS-) and the next free number. Skills live in one folder, `.agent/skills/` (Antigravity reads it there); `.claude/skills` is a link to it so Claude Code reads the same files. Never make a second copy.
