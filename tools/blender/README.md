@@ -19,8 +19,8 @@ without it the sheet's result stands. Nothing is copied on a refusal. It writes:
 
 | Path | What it is |
 |---|---|
-| `public/models/ct156/high/` | The files the app loads today: `ct156-exterior.glb` with `-ao`, `-bump` and `-dirt` pictures, `ct156-gear.glb` with `-ao`, `ct156-cockpit.glb` with one `ct156-cockpit-ao-<part>.jpg` per part |
-| `public/models/ct156/performance/` | The same names, fewer triangles once the chunks are rebuilt, smaller pictures, no bump or dirt; not loaded until the Graphics switch picks it (item 8), and left out of the offline copy until then |
+| `public/models/ct156/high/` | The files the app loads today: `ct156-exterior.glb` with `-ao`, `-mask`, `-normal` and `-weather` pictures, `ct156-gear.glb` with `-ao`, `ct156-cockpit.glb` with one `ct156-cockpit-ao-<part>.jpg` per part and `ct156-cockpit-normal-body.png`, and `ct156-pilots.glb` |
+| `public/models/ct156/performance/` | The same names, with fewer triangles and smaller pictures; loaded when the Graphics switch is on Performance |
 | `public/models/ct156/delivery.json` | The delivery's sheet: its name, the master commit, every check, every file's fingerprint. The app loads a file only when each of its parts carries this delivery's name (`ct156-blender.js` `loadDelivered`); this replaced the code's fingerprints, since the file's shape may now differ from the code's on purpose |
 | `public/models/ct156/ct156-points.json` | The named points in feet: eyes, reference points, hinges, the faces the app draws on, and each gear part's place gear down (for 3.5) |
 
