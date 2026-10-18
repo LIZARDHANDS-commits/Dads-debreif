@@ -29,7 +29,7 @@ import { createCanvasSurface } from '../../../ui-kit/canvas-view.js';
 import {
   loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh, webglSupported, worldToScreen,
 } from '../../../ui-kit/three-aircraft.js';
-import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
+import { createCt156Model as createShip, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT, setCt156Crew } from '../../../ui-kit/ct156-model.js';
 import { createT38aModel, createT38aCockpitMount, t38aEyeWorld } from '../../../ui-kit/t38a-model.js';
 import { createC130jModel, C130J_LENGTH_FT } from '../../../ui-kit/c130j-model.js';
 import { ct156CloneMaterial } from '../../../ui-kit/ct156-blender.js';
@@ -50,6 +50,13 @@ import {
   drawStickLabel, drawAltitudeScale, drawMarker, labelShip, drawCompass, drawCaption, drawCockpitCaption, drawTennis3d, TEXT,
 } from './overlay.js';
 import { drawDrop3d } from './drop-overlay.js';
+
+/** A Debrief CT-156: other ships draw the lighter pilots (5A); the one the camera sits in its full ones (setCockpitView). */
+function createCt156Model(THREE, options) {
+  const mesh = createShip(THREE, options);
+  setCt156Crew(mesh, 'lite');
+  return mesh;
+}
 
 /** A ship's flight and its number in it, in an exercise (DB-37; exercise.js flightOf and numberOf). */
 const flightOfSlot = (slot) => Math.ceil(slot / 4);

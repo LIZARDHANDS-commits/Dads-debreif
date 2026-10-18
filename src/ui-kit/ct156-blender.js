@@ -141,8 +141,8 @@ export function warnUnlessReported(file, error, fallback) {
  * 13 Oct 2026): the file is now the shape's one source and differs from the code's shape on purpose once a fix is made.
  * Rejects otherwise, and the code's own parts stay.
  */
-export function loadDelivered(file, options = {}) {
-  return Promise.all([ct156Delivery(), loadParts(ct156Files() + file, options)]).then(([name, list]) => {
+export function loadDelivered(file, { level: at, ...options } = {}) { // at: another level's folder than the one in use (the lighter helmets, 5A)
+  return Promise.all([ct156Delivery(), loadParts(ct156Files(at) + file, options)]).then(([name, list]) => {
     const foreign = list.filter((p) => p.extras.ct156_delivery !== name).map((p) => p.name);
     if (!name || foreign.length) {
       console.warn(`${file}: not from the delivery in models/ct156/delivery.json (${name ?? 'none'}); the code's parts show (npm run models:import)`);
