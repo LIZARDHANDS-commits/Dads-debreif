@@ -294,6 +294,17 @@ From V2.508 a cut is flown this way:
 
 **The card** says, for example, "Cut right at 60° bank at +0:34, onto the run-in 3.2 NM out, run-in 255 KIAS", and a note names a cut that would have crossed nearer the last note but more than 300 ft abeam. The peak G is flagged against the CT-156's limit as before (a reference, never a wall). **The views** show the flown cut, with the run-in line drawn from where it joined (marked as the IP).
 
+### Change: the stadium's crowd, field and fireworks (RS-28; proposed, built ahead of Patrick's yes)
+
+Dad, 17 Oct 2026: **"can you include fireworks at the stadium at the end of the song, just for a better visual confirmation. as well as people in the seats with rows, and a football field marking with the goal posts"**. This is 3D polish built ahead of Patrick's yes: Dad chose "Build it now, flagged" after being told the rule book says no more 3D polish in a module still being built. A picture only; every size is an estimate.
+
+On the **Stadium bowl** only (the other targets look as before), in the 3D view:
+- **The stands** are 10 stepped tiers rising from the open middle to the same outer wall and 100 ft top as the plain bowl, with **people in the seats in rows** (3 rows a tier, 3.5 ft apart along the row, 12% of seats empty, mixed colours), about 14,000 of them as one instanced mesh.
+- **The football field** lies on the bowl's floor at the target's heading: green, end zones (one blue, one red), sidelines and end lines, yard lines every 5 yd with the 10 yd ones thicker, and goal posts (a stem, a crossbar 10 ft up and two uprights 35 ft higher) at both ends. It follows the anthem: **Canadian** (110 yd goal line to goal line, 20 yd end zones, 65 yd wide, posts on the goal line) for O Canada and when no anthem is set (an estimate); **US** (100 yd, 10 yd end zones, 53 1/3 yd wide, posts at the back of the end zone) for the Star-Spangled Banner. Both fit inside the bowl's open middle at true size (450 by 195 ft and 360 by 160 ft in a 544 by 390 ft opening), so neither the field nor the bowl is scaled, and the target sizes in `targets.js`, which the flying uses, do not change.
+- **Fireworks** start at the anthem's last note (the time line's "Last note" mark, which is the pass's time over target) when an anthem is chosen, planned or from a live press, and not otherwise: 8 coloured shells rise and burst 260 to 420 ft above the field over about 3 s, their sparks fall and fade, and the show is over about 6 s after the note. They are drawn from the playback time alone, so scrubbing the time line back and forth shows them correctly and they replay.
+- **Display** has a new switch, "Stadium crowd, field and fireworks", on by default. Off draws the plain bowl and green floor exactly as before.
+
+**When data fails:** nothing here reads outside data; with no WebGL the 3D view is already replaced by its message. **Cost:** about 14 draw calls and 178,000 triangles for the whole stadium (the crowd is one instanced draw); not measured on a slow computer.
 ### Change: the aircraft's paint, RCAF, USAF or USN (RS-29; proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026))
 
 Dad, 17 Oct 2026: **"Can we make a paint scheme for USAF and USN"**, with reference photos and profile drawings of the T-6A and T-6B.

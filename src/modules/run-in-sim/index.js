@@ -180,7 +180,7 @@ function mount(root, app) {
       world?.setTarget(null); // the refuelling run has no target
       return;
     }
-    world?.setTarget({ id: v.target, sizeFt: v.targetSizeFt, headingDegT: s.target.headingDegT, groundFt: ground.groundAt(0, 0) });
+    world?.setTarget({ id: v.target, sizeFt: v.targetSizeFt, headingDegT: s.target.headingDegT, groundFt: ground.groundAt(0, 0), dressed: v.showStadium, anthem: v.run === 'flyover' ? v.anthem : 'none' });
   }
   function syncPlan() {
     const shown = current()?.stale === false ? current().plan : plan;
@@ -453,7 +453,7 @@ function mount(root, app) {
 
   // ---- Settings ----
   let before = values();
-  const ON_SCREEN_ONLY = new Set(['camera', 'playSpeed', 'showLines', 'showCarp', 'showTrails', 'showFlags', 'paint', 'viewMode', 'profileZoom']);
+  const ON_SCREEN_ONLY = new Set(['camera', 'playSpeed', 'showLines', 'showCarp', 'showTrails', 'showStadium', 'showFlags', 'paint', 'viewMode', 'profileZoom']);
   settings.subscribe((v) => {
     const was = before;
     before = v;
@@ -506,6 +506,7 @@ function mount(root, app) {
     }
     if (v.paint !== was.paint) world?.setPaint(v.paint); // the Display box's Paint (RS-29, proposed)
     if (v.viewMode !== was.viewMode || v.profileZoom !== was.profileZoom) syncView();
+    if (v.showStadium !== was.showStadium) syncTarget();
     if (changed.some((k) => k.startsWith('show'))) {
       syncPlan();
       syncPass();

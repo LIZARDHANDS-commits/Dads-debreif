@@ -160,6 +160,7 @@ export const DEFAULTS = Object.freeze({
   showLines: true,
   showCarp: true,
   showTrails: true,
+  showStadium: true, // the Stadium bowl's crowd, field and fireworks (RS-28; a look only)
   showFlags: true,
   // The 3D aircraft's paint (RS-29, proposed, built ahead of Patrick's yes: Dad, 17 Oct 2026): the RCAF Harvard, or the USAF or USN
   // Texan II markings (ui-kit ct156-model.js paints 'harvard', 'usaf', 'usn'; ALL-45). Set from the Display box; the RCAF by default.

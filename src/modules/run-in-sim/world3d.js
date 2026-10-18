@@ -24,6 +24,7 @@ import { orbitOutline } from './pass.js';
 import { refuelOutline, turnRangeLine, DROGUE } from './refuel.js';
 import { buildAirports } from '../../ui-kit/airfield3d.js';
 import { createKc130j } from './kc130j.js';
+import { buildStadium } from './stadium-scene.js';
 
 /** The haze: the ground fades to the horizon colour from 15 NM out to 40 NM (estimates for the look). */
 const HAZE_NM = Object.freeze({ from: 15, to: 40 });
@@ -120,7 +121,10 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
     m.renderOrder = 2;
     return m;
   };
+  let stadium = null; // the bowl's crowd, field and fireworks (stadium-scene.js; RS-28), while the Display switch is on
   function buildTarget(t) {
+    stadium?.dispose();
+    stadium = null;
     clearGroup(targetGroup);
     if (!t) return; // the refuelling run has no target
     const { id, sizeFt, headingDegT, groundFt } = t;
@@ -133,9 +137,15 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
       const hole = new THREE.Path();
       hole.absellipse(0, 0, s.sizeFt * 0.34, s.widthFt * 0.3, 0, Math.PI * 2, true, 0);
       shape.holes.push(hole);
-      const bowl = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: s.topFt, bevelEnabled: false, curveSegments: 48 }), mat(COLOURS.concrete));
-      bowl.position.z = -5; // stands a little into the ground, so a slope doesn't show a gap
-      targetGroup.add(bowl);
+      if (t.dressed) {
+        // RS-28: stepped stands with the seated crowd in rows, the football field and goal posts, the fireworks.
+        stadium = buildStadium(THREE, { sizeFt: s.sizeFt, widthFt: s.widthFt, topFt: s.topFt, anthem: t.anthem, doc });
+        targetGroup.add(stadium.group);
+      } else {
+        const bowl = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: s.topFt, bevelEnabled: false, curveSegments: 48 }), mat(COLOURS.concrete));
+        bowl.position.z = -5; // stands a little into the ground, so a slope doesn't show a gap
+        targetGroup.add(bowl);
+      }
       const field = new THREE.Mesh(new THREE.CircleGeometry(1, 48), flatMat(COLOURS.field));
       field.scale.set(s.sizeFt * 0.34, s.widthFt * 0.3, 1);
       field.position.z = 2;
@@ -520,7 +530,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
       groundDirty = true;
       reliefRevision = -1;
     },
-    /** The target shape on the ground: { id, sizeFt, headingDegT, groundFt }, or null (the refuelling run has none). */
+    /** The target shape on the ground: { id, sizeFt, headingDegT, groundFt, dressed, anthem }, or null (the refuelling run has none). */
     setTarget(t) {
       buildTarget(t);
       if (t) view = { ...view, groundFt: t.groundFt, topFt: targetSizes(t.id, t.sizeFt).topFt };
@@ -578,8 +588,12 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
           tanker.group.rotation.set((tb * Math.PI) / 180, (-AAR_CAMERA.noseUpDeg * Math.PI) / 180, tk.headingRad, 'ZYX');
         }
         showTrails(t, tl);
+        // RS-28: the fireworks start at the anthem's last note (the same moment as the time line's mark) and only with an anthem.
+        const note = pass.anthem ? (pass.result.arrivalSec ?? pass.flight.events.release) : null;
+        stadium?.setFireworks(Number.isFinite(note) ? t - note : null);
       } else {
         view.pose = null;
+        stadium?.setFireworks(null);
       }
       draw();
     },
@@ -613,6 +627,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
       cockpit.dispose();
       tanker.dispose();
       airports?.dispose();
+      stadium?.dispose();
       clearGroup(targetGroup);
       clearGroup(planGroup);
       clearGroup(trailGroup);

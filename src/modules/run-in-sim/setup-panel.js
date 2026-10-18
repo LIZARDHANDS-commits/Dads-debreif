@@ -205,6 +205,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     controls.checkbox('showLines', { label: 'The orbit and run-in lines' }),
     controls.checkbox('showCarp', { label: 'The release point (CARP)' }),
     controls.checkbox('showTrails', { label: 'The trails (aircraft and load)' }),
+    controls.checkbox('showStadium', { label: 'Stadium crowd, field and fireworks' }),
     controls.checkbox('showFlags', { label: 'The flags on the card' }),
     controls.select('paint', { label: 'Paint', options: PAINTS }));
 
@@ -305,7 +306,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const w = (d, k) => (k < 0.5 ? 'calm' : `${deg3(d)}/${k} kt`);
     wind.sum.textContent = `${w(v.windTopDegM, v.windTopKt)} at release${v.planWindOn ? ' · planning wind' : ''}`;
     for (const el of planBoxes) show(el, v.planWindOn);
-    display.sum.textContent = [v.showLines && 'lines', v.showCarp && 'CARP', v.showTrails && 'trails', v.showFlags && 'flags', v.paint !== 'harvard' && (PAINTS.find(([id]) => id === v.paint)?.[1] ?? v.paint)].filter(Boolean).join(' · ') || 'nothing';
+    display.sum.textContent = [v.showLines && 'lines', v.showCarp && 'CARP', v.showTrails && 'trails', v.showStadium && 'stadium', v.showFlags && 'flags', v.paint !== 'harvard' && (PAINTS.find(([id]) => id === v.paint)?.[1] ?? v.paint)].filter(Boolean).join(' · ') || 'nothing';
   }
 
   /** The refuelling run's lines: the boxes' summaries and the numbers worked out to hit (RS-16). */
