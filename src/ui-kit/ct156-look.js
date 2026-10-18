@@ -8,6 +8,10 @@
 // drawn first and draws nothing; three.js calls its onBeforeRender with the renderer and the scene, and that is where the sky is
 // made (once per renderer, through PMREMGenerator) and where the model's materials are dressed. three.js comes from the caller
 // (THREE); nothing here loads it.
+//
+// A view that wants a different sky for its own model (the Model Showcase's studio room) sets scene.userData.ct156Sky to a texture
+// whose userData.ct156Env is true, and may set scene.userData.ct156SkyIntensity (default 1) to scale how strongly it lights the
+// paint. Every other view has neither, and keeps the code sky above.
 
 /** The look's numbers. */
 export const LOOK = Object.freeze({
@@ -136,9 +140,11 @@ function dress(material, sky, o) {
   if (!standard && !material.isMeshBasicMaterial && !material.isMeshLambertMaterial) return;
   if (standard) {
     const own = material.envMap;
-    if ((own?.userData?.ct156Env && own !== sky) || (!own && o.skyForAll)) {
+    // Swapped when it holds another ct156 sky, or this sky at another strength (a model kept from a view with its own sky).
+    if ((own?.userData?.ct156Env && (own !== sky || material.userData.ct156EnvK !== o.envMapIntensity)) || (!own && o.skyForAll)) {
       material.envMap = sky;
       if (material.userData.ct156EnvIntensity === undefined) material.userData.ct156EnvIntensity = material.envMapIntensity;
+      material.userData.ct156EnvK = o.envMapIntensity;
       material.envMapIntensity = material.userData.ct156EnvIntensity * o.envMapIntensity;
       material.needsUpdate = true;
     }
@@ -146,10 +152,11 @@ function dress(material, sky, o) {
   if (material.toneMapped !== false && material.userData.ct156Look === undefined) toneMapMaterial(material, o.exposure);
 }
 
-/** What a probe does on every draw: finds this renderer's sky, then dresses any material in `group` not dressed yet. */
+/** What a probe does on every draw: finds this scene's own sky or else this renderer's, then dresses any material in `group` not dressed yet. */
 function update(THREE, renderer, scene, group, probe) {
-  const o = LOOK;
-  const sky = skyFor(THREE, renderer, scene);
+  const k = scene.userData?.ct156SkyIntensity ?? 1;
+  const o = k === 1 ? LOOK : { ...LOOK, envMapIntensity: LOOK.envMapIntensity * k };
+  const sky = scene.userData?.ct156Sky ?? skyFor(THREE, renderer, scene);
   group.traverse((mesh) => {
     if (!mesh.isMesh || mesh === probe) return;
     if (Array.isArray(mesh.material)) for (const m of mesh.material) dress(m, sky, o);

@@ -11,6 +11,9 @@
  *
  * The sun keeps its direction (its position less its target's when this is made). The sun's target must be in the
  * scene. Map size and softness are estimates by eye; a smaller map (1024) is lighter on phones.
+ *
+ * One view may be let through the switch below: createAircraftShadows(THREE, renderer, sun, { allowed: true }) works for that
+ * caller only (the Model Showcase's High level, Patrick, 17 Oct 2026); every other caller stays off.
  */
 /**
  * Real-time shadows are off in every module for now (Patrick, 12 Oct 2026: "turn off real time shadows in all modules for now").
@@ -18,8 +21,9 @@
  */
 export const AIRCRAFT_SHADOWS_ALLOWED = false;
 
-export function createAircraftShadows(THREE, renderer, sun, { mapSize = 2048, enabled = true } = {}) {
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+export function createAircraftShadows(THREE, renderer, sun, { mapSize = 2048, enabled = true, allowed = false } = {}) {
+  // three.js 0.186 removed PCFSoftShadowMap (it warns and falls back); PCFShadowMap is its filtered soft-edged one.
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   sun.shadow.mapSize.set(mapSize, mapSize);
   const toSun = sun.position.clone().sub(sun.target.position);
   if (toSun.lengthSq() === 0) toSun.set(0, 0, 1);
@@ -32,7 +36,7 @@ export function createAircraftShadows(THREE, renderer, sun, { mapSize = 2048, en
     enabled: false,
     /** Switches the shadows on or off (the renderer recompiles its materials once). */
     setEnabled(on) {
-      on = Boolean(on) && AIRCRAFT_SHADOWS_ALLOWED;
+      on = Boolean(on) && (AIRCRAFT_SHADOWS_ALLOWED || allowed);
       if (on === shadows.enabled) return;
       shadows.enabled = on;
       renderer.shadowMap.enabled = on;

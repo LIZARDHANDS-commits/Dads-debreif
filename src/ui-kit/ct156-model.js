@@ -50,7 +50,8 @@ export const CT156_LENGTH_FT = 33 + 4 / 12;
  */
 export const CT156_DATUM_DEG = 2.5;
 
-const NAVY = '#151d31';
+// A touch darker than the first navy #151d31 (W27, Patrick 17 Oct 2026: "slightly darker", photo A24). An estimate.
+const NAVY = '#131a2c';
 /** The prop's blades, root to tip: dark charcoal (G2, 13 Oct 2026; about #1c1f24 on A18). */
 const PROP_DARK = '#1c1f24';
 const rad = (d) => (d * Math.PI) / 180;
@@ -2849,7 +2850,7 @@ function buildKit(THREE) {
     return [(a / 12) * GFT, (b / 12) * GFT, [col.r, col.g, col.b]];
   }) });
   // Satin paint: a light, soft clear coat over the colour (G19, Patrick 13 Oct 2026, A18 and A16: satin, not the strong
-  // gloss of clear coat 1 and roughness 0.12 it had), read under the app's sky look (ct156-look.js, ALL-41).
+  // gloss of clear coat 1 and roughness 0.12 it had), read under the app's sky look (ct156-look.js, the 13 Oct 2026 model look).
   const gloss = (params) => keep(new THREE.MeshPhysicalMaterial({ fog: false, side: two, clearcoat: 0.4, clearcoatRoughness: 0.3, envMap: env, ...params }));
   const decalMat = (map) => keep(new THREE.MeshStandardMaterial({
     map, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: 0.6, fog: false,
@@ -2857,10 +2858,15 @@ function buildKit(THREE) {
   }));
   const mats = {
     env,
-    navy: gloss({ color: NAVY, roughness: 0.42, metalness: 0.15, envMapIntensity: 0.8 }),
+    // A little darker and crisper (W27, Patrick 17 Oct 2026: "slightly darker with crisp faint reflections like A24, not a
+    // mirror"): less metal (it greyed the colour), a clearer, finer clear coat; still short of G19's old strong gloss.
+    // Was roughness 0.42, metalness 0.15, clear coat 0.4 / 0.3. Estimates, judged on screen against A24.
+    navy: gloss({ color: NAVY, roughness: 0.34, metalness: 0.05, clearcoat: 0.55, clearcoatRoughness: 0.18, envMapIntensity: 0.8 }),
     cheat: mat({ color: '#f1f4f8', roughness: 0.45, emissive: '#ffffff', emissiveIntensity: 0.3, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    // Self-lit 0.1 (was 0.2): with the old dirt haze gone the white clipped to pure white over 1 % of a close view (4.4 check).
-    wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.1, envMapIntensity: 0.5 }),
+    // The wings' leading-edge band: a satin light grey, near the fin's own (finLe), as A27, F06 and G02 show it, duller
+    // than the cheat line's white, and not self-lit (W27, Patrick 17 Oct 2026; was white #f1f4f8, self-lit 0.1, which
+    // read blown out). Shade an estimate.
+    wingLe: gloss({ color: '#c9ced2', roughness: 0.5, clearcoat: 0.1, envMapIntensity: 0.5 }),
     finLe: mat({ color: '#c3c9cf', roughness: 0.5, side: two }),
     vent: mat({ color: '#07090b', roughness: 0.9, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     // The floors of the speed brake's slots (the file's speedBrake|1, layout 2): a vent's dark, without its offset, as
@@ -2881,11 +2887,17 @@ function buildKit(THREE) {
     chrome: mat({ color: '#f2f5f8', roughness: 0.1, metalness: 1, envMap: env, envMapIntensity: 1.2 }),
     // Bare, heat-stained steel, as on Patrick's photo of 156102 (was a dark grey that read as paint).
     // Lighter and shinier, so the stacks read as metal pipes and not painted tanks (156102 and 156115 photos; by eye).
-    exhaust: mat({ color: '#a8988a', roughness: 0.32, metalness: 0.85, envMap: env, envMapIntensity: 0.9 }),
+    // Then a darker gunmetal brown, still bare metal (W27, Patrick 17 Oct 2026: "darker heat-tinted steel"; photo F09; was
+    // #a8988a, roughness 0.32). The heat tint is the colour only: the delivered stacks' shader is aoShaded's.
+    exhaust: mat({ color: '#7a6f64', roughness: 0.36, metalness: 0.9, envMap: env, envMapIntensity: 0.9 }),
     // The stacks' sooty insides: a dull brown-black, grained and blotchy, not a smooth shiny black (Patrick, 12 Oct 2026,
     // pinned on a stack's open end: "give the whole interior a texture, its not quite right"; was the blades' black).
-    soot: paintGrain(mat({ color: '#2b251d', roughness: 0.95 }), { unit: 1 / FT, grain: 0.02, bump: 0.0015, speckle: 0.15, mottle: 0.2, mottleSize: 0.12, wear: 0, shine: 0.05 }),
-    glass: canopyGlass(mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two })),
+    // Darker, so the open end reads as a dark bore (W27, Patrick 17 Oct 2026: "a dark opening"; was #2b251d).
+    soot: paintGrain(mat({ color: '#16130f', roughness: 0.95 }), { unit: 1 / FT, grain: 0.02, bump: 0.0015, speckle: 0.15, mottle: 0.2, mottleSize: 0.12, wear: 0, shine: 0.05 }),
+    // The canopy from outside: a lighter tint and less metal, so the cockpit reads through it, with a stronger, sharper
+    // reflection of the sky or the Showcase's studio (W27, Patrick 17 Oct 2026: "tune today, see-through future"; A18,
+    // F08, A24; was #1d2a36, opacity 0.4, metalness 0.6, roughness 0.04, reflection 1.4). Estimates.
+    glass: canopyGlass(mat({ color: '#2b3a44', transparent: true, opacity: 0.3, roughness: 0.03, metalness: 0.25, envMap: env, envMapIntensity: 1.8, depthWrite: false, side: two })),
     // The canopy seen from inside (setCockpitView): a faint clear tint, no reflections, so the sky shows through it.
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),

@@ -227,19 +227,19 @@ export function shadeWhenLoaded(wanted, apply, fail = (why) => console.warn(why)
 
 /**
  * The look's live numbers (ct156-look-settings.js), shared by every shaded material as the same uniform objects, so a
- * slider changes them all at once with no new shader: the weathering strength k and the wear; and the relief, the
- * normal pictures' strength, set on each material's normalScale.
+ * slider changes them all at once with no new shader: the weathering strength k; and the relief, the normal pictures'
+ * strength, set on each material's normalScale. The wear (the edges' lightening) stays at the baked strength, 1: its
+ * slider is gone (W27, Patrick 17 Oct 2026).
  */
 export const CT156_LOOK_UNIFORMS = Object.freeze({
   ct156WeatherK: { value: CT156_LOOK_DEFAULTS.weathering },
-  ct156Wear: { value: CT156_LOOK_DEFAULTS.wear },
+  ct156Wear: { value: 1 },
 });
 let relief = CT156_LOOK_DEFAULTS.relief;
 const reliefMaterials = new Set();
 const setRelief = (m) => m.normalScale.set(relief, m.userData.ct156Mirrored ? -relief : relief);
 onCt156Look((look) => {
   CT156_LOOK_UNIFORMS.ct156WeatherK.value = look.weathering;
-  CT156_LOOK_UNIFORMS.ct156Wear.value = look.wear;
   relief = look.relief;
   for (const m of reliefMaterials) setRelief(m);
 });
@@ -318,6 +318,9 @@ uniform float ct156Wear;${sheen ? '\nuniform sampler2D ct156Sheen;' : ''}`)
     shader.fragmentShader = fs;
   };
   m.customProgramCacheKey = () => `ct156-ao-direct${paint ? `-paint${sheen ? '-sheen' : ''}` : ''}`;
+  // The shader above replaced the base's, Neutral curve and all, but the copy kept the base's "dressed" mark: drop it so
+  // the look (ct156-look.js) dresses the copy once more, on top of this shader (W27; the delivered parts drew uncurved).
+  delete m.userData.ct156Look;
   if (m.userData.ct156Bands) paintBands(m, m.userData.ct156Bands); // painted bands (the prop's tips) stay
   return m.userData.ct156Grain ? paintGrain(m, m.userData.ct156Grain) : m; // a painted surface keeps its grain
 }
