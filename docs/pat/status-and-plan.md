@@ -35,6 +35,18 @@
   3. Line astern (~10 ft nose to tail) vs 11-248 close trail (1–2 lengths).
 
 ### 3. Pat's Formation Simulator (`turn-sim`)
+- [ ] **Formation B5, fighting wing on the live wingman (`V2.515`; PR `#1078`, 17 Oct 2026):**
+  - The `CR` code review is done; notes in `Pat's claude work/formation-review-12oct/b5-code-review-17oct.md`. Fixed or ruled:
+    - Live is the default (`TS-235`, "Keep Live, I said yes"), and the screen switch now shows it.
+    - #2 escapes above Lead only when already more than 100 ft above him (`TS-233`).
+    - TS-202's old fighting wing test retired at your word.
+    - Bubble kisses on hard turns into #2 accepted as physics (`TS-236`).
+  - Next, recommended: the should-fixes that change how #2 flies:
+    - F8: the aim steps when he switches technique.
+    - F7: S-turns capped at about 1°/s.
+    - F6: the rig doesn't test the law that flies.
+  - Then the bookkeeping fixes (F9–F18), the Lead replay (`T31`), and **Checkpoint G: you fly fighting wing on Live** and rule on its estimates (G cap Lead + 1.5 G, roll 60°/s, floor margin 100 ft, opening check turn T5). Then B4 (`TRJ`/`SARJ` from fighting wing), starting with spec 7d for your approval.
+  - Two gauge cases aren't covered by `TS-236` yet: a hard turn into #2 from in position (436 ft) and a 4 G turn into #2 (374 ft, ending outside the cone). They're your call.
 - [ ] **Formation Phase B (`V2.485`, merged in `#1031`; [modules/turn-sim/](../modules/turn-sim/)):**
   - Fly Live close formation, route, line astern, Corner (17 ft below Lead), and fighting wing (`TS-232` to `TS-234`).
   - Confirm whether route's quicker throttle hand is right (spec 7c.9) and formation climb torque (SMM 16.31 ~85% vs 80%, `TS-203`).

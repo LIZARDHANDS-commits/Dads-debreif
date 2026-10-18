@@ -447,7 +447,7 @@ export const FW_WING = Object.freeze({
     exitArcFt: 150, // exit arc error threshold: 150 ft (estimate)
     onCircleFt: 150, // on-circle offset threshold: 150 ft (estimate)
     downEndFt: 50, // return-to-stack threshold: 50 ft (estimate)
-    highFt: 100, // "already high": more than 100 ft above Lead, guard/miss escapes above instead of below (Patrick 14 Oct 2026, TS-233)
+    highFt: 100, // "already high": more than 100 ft above Lead, the guard, the miss and lag-abeam escape above instead of below (Patrick 14 Oct 2026, TS-233)
     cueClosureFtps: 15, // closure trigger threshold: 15 ft/s (Fable D6; estimate)
     cueDwellSec: 2, // closure dwell time before firing: 2 s (Fable D6; estimate)
     topClosureFtps: 5, // closure threshold to top out and descend: 5 ft/s (Fable D6; estimate)
