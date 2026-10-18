@@ -332,6 +332,8 @@ const SURFACES = Object.freeze({
   elevator: Object.freeze({ hinge: 0.58, horn: 0.37, hornSpan: 0.18, s0: 0.06, tab: 0.9, tabS: Object.freeze([0.11, 0.48]), upDeg: 18, downDeg: 16 }),
   rudder: Object.freeze({ hinge: 0.55, z0: 0, tab: 0.88, tabTop: 0.13, deg: 24 }),
 });
+/** The flaps' angle for each selection, degrees of the trailing edge down (SURFACES; estimates), for a module easing them through setControls. */
+export const CT156_FLAP_DEG = Object.freeze({ UP: 0, TO: SURFACES.flap.toDeg, LDG: SURFACES.flap.ldgDeg });
 // The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the side view's
 // (Patrick, 11 Oct 2026, circled it; scaled as the fin, card "Tail and wing"): its leading edge leaving the belly 25.5 ft
 // behind the spinner's tip, its foot 3.3 ft under the axis and 2.8 ft long from 26.0 ft, rising 0.38 ft to the back
@@ -1067,20 +1069,56 @@ function attachGear(kit) {
   }, (e) => warnUnlessReported(GEAR_FILE, e, "the code's gear shows"));
 }
 
-/** The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture (NO_PICTURE). */
+/** The pilots' file's parts by name, or null (logged) when a helmet is missing or has no normals or picture corners. */
+function pilotPartsOf(list) {
+  const byName = new Map(list.map((p) => [p.name, p]));
+  const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
+  const missing = PILOT_PARTS.filter((name) => !usable(byName.get(name)));
+  if (!missing.length) return byName;
+  console.warn(`${PILOTS_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code's pilots show`);
+  return null;
+}
+
+/**
+ * The pilots' Blender file (layout 2): both helmets' shapes in place of the code's, or neither; no shadow picture
+ * (NO_PICTURE). At Performance the same file also fills the lighter pair other ships draw (setCt156Crew); at High that
+ * pair comes from the Performance file, loaded only once a ship asks for it (attachLitePilots).
+ */
 function attachPilots(kit) {
   const gen = ct156Generation();
+  const performance = ct156Level() === 'performance';
   loadDelivered(PILOTS_FILE).then((list) => {
     if (kit.disposed || gen !== ct156Generation()) return;
-    const byName = new Map(list.map((p) => [p.name, p]));
-    const usable = (p) => p?.meshes.length && p.meshes.every(({ geometry: g }) => g.attributes.normal && g.attributes.uv);
-    const missing = PILOT_PARTS.filter((name) => !usable(byName.get(name)));
-    if (missing.length) {
-      console.warn(`${PILOTS_FILE}: ${missing.join(', ')} missing or without normals and picture corners; the code's pilots show`);
+    const byName = pilotPartsOf(list);
+    if (!byName) return;
+    for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
+    if (performance && !kit.liteLoaded) {
+      for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[`${name}Lite`], byName.get(name).meshes);
+      kit.liteLoaded = true;
+    }
+  }, (e) => warnUnlessReported(PILOTS_FILE, e, "the code's pilots show"));
+  if (!performance) attachLitePilots(kit);
+}
+
+/** The lighter helmets (5A): the Performance pilots' file into the Lite pair, once, and only when a ship has asked for it. */
+function attachLitePilots(kit) {
+  if (!kit.liteWanted || kit.liteLoaded || kit.liteLoading || kit.liteFailed || typeof window === 'undefined') return;
+  kit.liteLoading = true;
+  loadDelivered(PILOTS_FILE, { level: 'performance' }).then((list) => {
+    kit.liteLoading = false;
+    if (kit.disposed || kit.liteLoaded) return;
+    const byName = pilotPartsOf(list);
+    if (!byName) {
+      kit.liteFailed = true;
       return;
     }
-    for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
-  }, (e) => warnUnlessReported(PILOTS_FILE, e, "the code's pilots show"));
+    for (const name of PILOT_PARTS) takeShape(kit.THREE, kit.geo[`${name}Lite`], byName.get(name).meshes);
+    kit.liteLoaded = true;
+  }, (e) => {
+    kit.liteLoading = false;
+    kit.liteFailed = true; // once a page: every later ship keeps the code's pilots without asking again
+    warnUnlessReported(PILOTS_FILE, e, "the code's pilots show on other ships");
+  });
 }
 
 /**
@@ -2603,6 +2641,8 @@ function buildKit(THREE) {
   // The two pilots apart, so the Cockpit view can leave out the one the camera sits in (setCockpitView), and the
   // ejection seats' headboxes behind them (the rear one lower, under the canopy's falling top).
   [geo.helmetFront, geo.helmetRear] = CT156_HELMET_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
+  // Other ships' lighter pair (5A, setCt156Crew): the code's own until the Performance pilots' file fills it in.
+  [geo.helmetFrontLite, geo.helmetRearLite] = CT156_HELMET_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
   geo.seats = joinGeometries(THREE, CT156_SEAT_X.map((x, i) => ({ geometry: headboxGeometry(THREE, i), materials: [0] })));
   // The exhaust stacks either side of the nose (photo), each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17:
   // a fore-and-aft reference from #2; TS-156).
@@ -2748,8 +2788,12 @@ function buildKit(THREE) {
   }, 4));
 
   const both = (make) => ({ 1: make(1), '-1': make(-1) });
+  // The side roundel sits over the cheat line, which runs across it (W11, Patrick 17 Oct 2026: "Paint stripe clipping
+  // over flag pic"): both lay on fuseSurf and the opaque stripe won the depth tie over most of the roundel, so the roundel
+  // stands 0.0003 units (about 0.08 in) proud, as the vent's slats do (geo.vent's `proud`).
+  const overCheat = (x, z) => fuseSurf(x, z) + 0.0003;
   const decalGeo = {
-    roundelSide: both((side) => patch(THREE, 0.66 - SIDE_MARKS.roundel.bt / SIDE_FT, SIDE_MARKS.roundel.z / SIDE_FT, SIDE_MARKS.roundel.size, SIDE_MARKS.roundel.size, side, fuseSurf)),
+    roundelSide: both((side) => patch(THREE, 0.66 - SIDE_MARKS.roundel.bt / SIDE_FT, SIDE_MARKS.roundel.z / SIDE_FT, SIDE_MARKS.roundel.size, SIDE_MARKS.roundel.size, side, overCheat)),
     // "Canada" and the rescue triangles just under the canopy's rail, as on Patrick's photo of 156102 (were 0.4 ft lower).
     // "Canada" about 1.75 ft long (G9, A18; the patch was 0.085 by 0.024 units, the text about 1.3 ft).
     // Then moved and sized off A24 (SIDE_MARKS.canada).
@@ -2941,6 +2985,10 @@ function buildKit(THREE) {
   kit.lampMeshes = new Set();
   kit.lampShips = new Set();
   kit.lampDelivered = false;
+  kit.liteWanted = false; // some ship draws the lighter helmets (setCt156Crew)
+  kit.liteLoaded = false;
+  kit.liteLoading = false;
+  kit.liteFailed = false;
   if (typeof window !== 'undefined') {
     attachFiles(kit);
     // A level switch under ships already made: back to plain paint, the old level's copies and pictures freed, the new level's loaded.
@@ -3027,10 +3075,23 @@ function turnProp(root) {
   }
   if (d.propStopped) {
     if (d.prop) d.prop.rotation.x = rad(PROP_REST_DEG);
+    turnSpinner(d);
     return;
   }
   if (d.prop) d.prop.rotation.x = rad(PROP_REST_DEG) + d.propTurn;
   if (d.disc) d.disc.rotation.x = d.propTurn;
+  turnSpinner(d);
+}
+
+/**
+ * The spinner turns with the prop (W13, Patrick 17 Oct 2026: "the black holes on the prop spinner need to line up with
+ * the prop blades and the spinner SPINS so the holes should spin"). The master's blade cut-outs are baked at 0, 90, 180
+ * and 270 degrees, one straight up, on the master's blade axes, and the prop group's arms sit at the same quarter turns,
+ * so the spinner takes the prop group's own angle (PROP_REST_DEG and the turn): the cut-outs stay on the blades stopped
+ * and turning. The spinner stays in the model's group, not the prop's, so it is drawn far off and from the seats.
+ */
+function turnSpinner(d) {
+  if (d.spinner && d.prop) d.spinner.rotation.x = d.prop.rotation.x;
 }
 
 /** Shows or hides a ship's fine detail by its size on screen, with a gap between the two numbers so it doesn't flicker. */
@@ -3038,8 +3099,24 @@ function setDetail(THREE, root, camera, renderer) {
   const d = root.userData.ct156;
   if (!d?.detail) return;
   const px = onScreenPx(THREE, root, camera, renderer);
+  const was = d.detail.visible;
   if (px >= CT156_DETAIL_PX.show) d.detail.visible = true;
   else if (px < CT156_DETAIL_PX.hide) d.detail.visible = false;
+  if (d.detail.visible !== was) showCockpitShell(d);
+}
+
+/**
+ * The fuselage over the cockpit (W12, Patrick 17 Oct 2026: "can we make it so the seats area ctually seats fro mthe
+ * outside? doesnt have to be great detail but not a black layer liek that"): open onto the tub and the seats under the
+ * glass whenever the ship is near enough to show its detail, or the camera is in one of its seats (TS-155); closed, as
+ * the closed outside skin, when it is far off and the detail is hidden, so no hole shows at range and the far ship costs
+ * nothing more. The flat black floor disc it used to show under the glass is no longer drawn. 'ship' paint (its canopy
+ * solid dark glass) keeps the closed skin outside.
+ */
+function showCockpitShell(d) {
+  const inside = d.seat === 'front' || d.seat === 'rear';
+  const open = inside || (Boolean(d.tub) && d.detail.visible);
+  d.fuselage.geometry = open ? d.kit.geo.fuselageCut : d.kit.geo.fuselage;
 }
 
 /**
@@ -3196,7 +3273,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return { sides, elevator: pivot('elevator', geo.elevator, paintMat), rudder: pivot('rudder', geo.rudder, rudderMat) };
   };
 
-  let fuselage, canopy, navLights, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
+  let fuselage, canopy, spinner = null, tub = null, navLights, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, propPitch = null, bowFront = null, disc = null, speedBrake = null, gear = null, surfaces = null, coamings = null, strobes = null, gearLights = null;
   // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
   // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
   const addSpeedBrake = (paintMat) => {
@@ -3258,7 +3335,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.fin, [mats.navy, mats.finLe]);
     surfaces = addSurfaces(mats.navy, mats.navy);
     add(geo.cheat, mats.cheat);
-    add(geo.spinner, mats.chrome);
+    spinner = add(geo.spinner, mats.chrome);
     add(geo.spinnerRing, mats.blade);
     disc = add(geo.disc, mats.disc);
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
@@ -3293,6 +3370,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     gearLights = add(geo.gearLights, mats.lamp, detail);
     gearLights.visible = false; // lit only with all three legs down (setGear)
     floor = add(geo.floor, mats.floor, detail);
+    floor.visible = false; // the open cockpit's tub instead (showCockpitShell)
+    tub = add(geo.tub, [mats.tubFloor, mats.tubWall], detail);
     coamings = add(geo.coamings, mats.coaming, detail);
     add(geo.frames, mats.frame, detail);
     bowFront = add(geo.bowFront, mats.frame, detail);
@@ -3303,6 +3382,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     // about the blade's own outward axis through the hub (PROP_PITCH; 3d-work hinge.blade1 to blade4).
     prop = new THREE.Group();
     prop.rotation.x = rad(PROP_REST_DEG);
+    spinner.rotation.x = prop.rotation.x;
     propPitch = [0, 1, 2, 3].map((k) => {
       const arm = new THREE.Group();
       arm.rotation.x = (k * Math.PI) / 2;
@@ -3333,7 +3413,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const lamps = { kit, glow: gearLights, meshes: gear.lampMeshes, lit: false };
   kit.lampShips.add(lamps);
   showLamps(lamps);
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, number, detail, g, fuselage, canopy, spinner, tub, seat: null, crew: 'full', helmetFront, helmetRear, seats, floor, coamings, prop, propPitch, disc, bowFront, speedBrake, gear, surfaces, strobes, gearLights, lamps, strobePhase: (root.id * 0.37) % CT156_STROBE.periodS, propStopped: false, pitchDeg: PROP_PITCH.runningDeg, propMats: { running: [mats.propBlade, mats.propTip], still: [mats.propBladeStill, mats.propTipStill] }, bladesShownRunning: null, inside: null, propTurn: 0, propAt: null };
+  showCockpitShell(root.userData.ct156);
   return root;
 }
 
@@ -3377,6 +3458,7 @@ export function setPropStopped(root, stopped) {
     o.visible = on ? true : (d.bladesShownRunning?.[i] ?? true);
   });
   if (on) d.prop.rotation.x = rad(PROP_REST_DEG); // at once: turnProp runs after three.js has updated the matrices, so it would show a picture late
+  turnSpinner(d);
   if (d.disc) d.disc.visible = !on;
 }
 
@@ -3449,8 +3531,8 @@ export function setGear(root, t, parked = false) {
  * The ship seen from one of its own seats (the Formation Sim's Cockpit and Padlock views, with ct156-cockpit.js) or from
  * outside again. seat 'front' or 'rear': the pilot in that seat goes (the camera is in it) and the other seat's shows,
  * the still prop blades go (a turning prop is a blur from the seat; the faint disc stays), the canopy turns to clear
- * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155) in place of the floor disc and the outside
- * coamings, and the frames
+ * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155; a near ship's is open from outside too,
+ * showCockpitShell) in place of the outside coamings, and the frames
  * (the centre and rear canopy bows; the forward one goes, as ct156-cockpit.js draws it from the seat, TS-156), sill
  * rails show (both paints draw them up close from V2.208; 'ship' paint's pilots are added from the shared kit); the
  * outside headboxes go, as ct156-cockpit.js draws the seats. seat null: the ship as built. Only the ship the camera sits in is ever changed, so every
@@ -3466,15 +3548,15 @@ export function setCockpitView(root, { seat = null } = {}) {
   const inside = seat === 'front' || seat === 'rear';
   d.canopy.userData.outsideMaterial ??= d.canopy.material;
   d.canopy.material = inside ? mats.glassInside : d.canopy.userData.outsideMaterial;
-  d.fuselage.geometry = inside ? geo.fuselageCut : geo.fuselage;
-  if (d.floor) d.floor.visible = !inside;
+  d.seat = inside ? seat : null;
+  showCockpitShell(d);
   if (d.coamings) d.coamings.visible = !inside; // from the seat, ct156-cockpit.js draws the coamings
   if (d.prop) d.prop.visible = !inside;
   if (d.bowFront) d.bowFront.visible = !inside; // from the seat, ct156-cockpit.js's band is the forward bow (TS-156)
   if (d.seats) d.seats.visible = !inside; // from the seat, ct156-cockpit.js draws both seats (TS-157)
   if (inside && !d.inside) {
     d.inside = new THREE.Group();
-    d.inside.add(new THREE.Mesh(geo.tub, [mats.tubFloor, mats.tubWall]));
+    if (!d.tub) d.inside.add(new THREE.Mesh(geo.tub, [mats.tubFloor, mats.tubWall])); // 'ship' paint: Harvard ships carry their own (showCockpitShell)
     if (d.paint === 'ship') {
       d.helmetFront = new THREE.Mesh(geo.helmetFront, mats.pilot);
       d.helmetRear = new THREE.Mesh(geo.helmetRear, mats.pilot);
@@ -3486,6 +3568,33 @@ export function setCockpitView(root, { seat = null } = {}) {
   if (d.inside) d.inside.visible = inside;
   if (d.helmetFront) d.helmetFront.visible = seat !== 'front';
   if (d.helmetRear) d.helmetRear.visible = seat !== 'rear';
+  showCrew(d);
+}
+
+/**
+ * Which pilots a ship draws (5A; Patrick 15 Oct 2026, increment 5's "other ships' Performance helmets"): 'full' (the
+ * default) the Graphics level's own, 'lite' the Performance file's (about 7,000 triangles a ship in place of High's
+ * 47,000). A module marks the ships the viewer is not flying 'lite'; while the camera sits in one of a ship's seats
+ * (setCockpitView) that ship draws its full pilots whatever it is marked. Lighter helmets are loaded only once a ship asks.
+ * @param {any} root a ship from createCt156Model
+ * @param {'full' | 'lite'} crew
+ */
+export function setCt156Crew(root, crew) {
+  const d = root?.userData?.ct156;
+  if (!d) return;
+  d.crew = crew === 'lite' ? 'lite' : 'full';
+  if (d.crew === 'lite') {
+    d.kit.liteWanted = true;
+    if (ct156Level() !== 'performance') attachLitePilots(d.kit);
+  }
+  showCrew(d);
+}
+
+function showCrew(d) {
+  const { geo } = d.kit;
+  const lite = d.crew === 'lite' && !d.seat;
+  if (d.helmetFront) d.helmetFront.geometry = lite ? geo.helmetFrontLite : geo.helmetFront;
+  if (d.helmetRear) d.helmetRear.geometry = lite ? geo.helmetRearLite : geo.helmetRear;
 }
 
 /** Frees this ship's own materials and textures; the shared kit goes with the last ship. */

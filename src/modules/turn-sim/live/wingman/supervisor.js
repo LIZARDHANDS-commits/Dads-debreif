@@ -431,9 +431,10 @@ export function stepFwPicker(picker, ctx, dt = STEP_SEC, techniques = FW_TECHNIQ
   }
 
   const targetW = activeId ? 1 : 0;
+  const fastHeightEntry = activeId === 'pass-clear' || activeId === 'lag-abeam' || activeId === 'behind-39';
   const weight = stepFwBlendWeight(p0.weight, targetW, dt, {
     pathSec: activeId ? P.entryPathSec : P.pathBlendSec,
-    heightSec: P.heightBlendSec,
+    heightSec: fastHeightEntry ? P.entryPathSec : P.heightBlendSec,
     returnHeightSec: FJ.stackReturnSec,
   });
 

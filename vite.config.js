@@ -5,7 +5,7 @@ import { TRAFFIC_VERSION } from './src/modules/traffic/version.js';
 
 // Computes the effective V2.xxx display version so feature branches never need
 // to edit src/modules/traffic/version.js or index.html (preventing PR conflicts).
-// Uses the higher of the fallback in version.js and (first-parent commit count - 659).
+// Uses the higher of the fallback in version.js and (first-parent commit count - 658), so the screen matches the merge titles.
 function effectiveDisplayVersion() {
   const match = /^V2\.(\d+)$/.exec(TRAFFIC_VERSION);
   const fallbackNum = match ? Number(match[1]) : 512;
@@ -15,8 +15,8 @@ function effectiveDisplayVersion() {
         .toString()
         .trim(),
     );
-    if (Number.isFinite(count) && count > 659) {
-      const gitNum = count - 659;
+    if (Number.isFinite(count) && count > 658) {
+      const gitNum = count - 658;
       return `V2.${Math.max(fallbackNum, gitNum)}`;
     }
   } catch {

@@ -5,7 +5,39 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (15 Oct 2026, late night): increment 4 and 3.2 merged (V2.465), polish V2.466
+## Latest (17 Oct 2026, late evening): the look audit and Patrick's rulings (3d-work #118)
+- **The audit:** Fable (high) judged the look from `3d-work` `scratch/increment-5/look-audit/` (photos, existing renders,
+  Patrick's screenshots; no new renders, no manual text). Report and the orchestrator's check against the code:
+  `ct156/briefs/5-look-audit-fable-report-17oct.md`. Wrong in it: the helmets (already coloured parts), the rescue
+  markings (dropped by Patrick, G7), the shadow and anisotropy (partly there); overstated: "near-black mirror" paint.
+- **Rulings:** `3d-work` `ct156/fix-list.md` W26 (Wear removed; dirt level waits on a preview), W27 (Step 5.1b, app-side
+  look; the spinner stays chrome), W28 (Step 5.2 additions and order).
+- **Next:** plan Step 5.1b with Patrick; check why CI did not run on #1077; after 5.1b, the soot-and-grime preview
+  picture; then the Step 5.2 plan.
+
+## Earlier (17 Oct 2026, evening): Phase 5 Step 5.1 merged (`V2.517`, #1077); 3d-work #117 merged
+- **Built and live:** app #1077, `V2.517`, tag `v2.517-ct156-showcase-flight` (what changed, checked and unseen: the PR
+  body; decisions ALL-46 and MS-7 to MS-9). 3d-work #117 merged the Phase 5 plan with the rows marked built, W26
+  proposed and Patrick's evening pictures 11 (W19) and 12 (W21).
+- **Brief-vs-code gaps:** the 5.1 brief named a missing file and unsourced numbers (`+0.35 ft Z`, `156114`); scouts and
+  an audit found 16 gaps before building (the approved plan's table). Check a brief's numbers in their cited files.
+- **Waiting on Patrick:** `docs/pat/status-and-plan.md` (the Phase 5 entry): the look audit before 5.2, W26, the wing
+  lights, CI not running, the flaps question.
+- **Next:** with Patrick's yes, the look audit on fixed-camera render sheets of `V2.517`, then the Step 5.2 plan (plan
+  first: Patrick, 17 Oct 2026: "we need to plan first so dont get ahead of yourself"), with `3d-work`
+  `ct156/increments.md`'s 5.2 notes (a PCL lever node, a gear-handle node, Meshopt's quantized attributes vs the app's
+  plain-float reads).
+
+## Earlier (17 Oct 2026): Model Showcase inspected (`V2.511`), `W11`–`W25` logged, Phase 5 two-step plan ratified (`3d-work` #117)
+- **Model Showcase inspection & 10 defect screenshots (`W11` to `W25`):** Patrick inspected `#/showcase` on deployed `main` (`V2.511`) and logged 15 items (`W11` to `W25`), with 10 screenshots filed in `3d-work` `refs/review/2026-10-17-showcase-defects/` (and backed up to OneDrive `Documents\CT-156 backups\2026-10-17-showcase-defects\`).
+- **Ratified two-step Phase 5 execution order (`/grill-me`, `3d-work` PR #117, `ct156/briefs/5-polish-and-signoff.md`):**
+  1. **Step 5.1 (`5-App` — Pure-JS Fixes, Live Instruments & Model Showcase Choreography, zero Blender bake wait):**
+     - `W11` (white cheat-line stripe clipping over roundel decal in `ct156-model.js`), `W12` (Performance outside view switched off the flat black `floor` lid onto `fuselageCut` + `tub` + lightweight `seats`), `W13` (prop spinner blade cutouts aligned with the 4 blades and spinning with `prop`), `W19` (standby compass ball seated in its `D15` bracket in `ct156-cockpit.js`), `W20` (real-time ZULU `HH:MM` UTC on the M850 clock + live `TRQ` gauge needle & `%` readout driven from performance model torque, plus realistic companion readings on `NP`, `ITT`, `N1`, `FF`, `OIL`, `HYDR`, `FUEL QTY`, `VOLTS`/`AMPS`), `W23` (placard above engine displays shows tail number `156114` instead of `ENGINE`), `W24` (fix opposite bank sign on EADI & standby attitude in Model Showcase), `W25` (Model Showcase automatic gentle flight cycle when `Flying` + `Manoeuvre` checkbox + `Gear` `Up`/`Down` and `Flaps` `UP`/`TO`/`LDG` pill buttons + smooth gear transit + moving control surfaces, flaps, cockpit `FLAPS` gauge needle, `stick`, and `pcl`), and `5A` (other ships draw Performance helmets).
+  2. **Step 5.2 (`5-Master` — One Consolidated Blender Master + Bake + Meshopt Delivery + App Import):**
+     - Scrub `(reference)` on `gearLampLeft`/`gearLampRight` in `prop_lamps.py` / `round_3.py` / `ct156.blend` so `npm run check:utf8` (`ALL-R24`) passes on import; `W12` (High full outside seat buckets in `exterior/seats`), `W13` (spinner hole phase verify), `W14` (physically recessed forward-hood NACA air intakes sloping into a dark `vent` throat), `W15` (unlit pitch-black `vent` chin intake cavity around the vertical splitter rod), `W16` (`detCordFront`/`detCordRear` delivered in `exterior/frames`), `W17` (landing gear handle detail & `EMER LDG GR PULL` plaque separation), `W18` (delete right-sill `pubClip`), `W19` (close canopy/sill/bow gaps), `W21` (fix pedal footwell triangles), `W22` (reshape & seat `canopyHandle` without clipping or stray floating bolt blocks), earlier waiting rows `W1`–`W3`, `W5`, `W7`, `W8` (`W9`/`W10` remain deferred), and `5A` (`@gltf-transform/cli` Meshopt compression in `deliver.mjs`), delivered and imported in one pass.
+  3. **Step 5.3 (`5D` — Sign-Off):** Patrick reviews Model Showcase and the 3D modules at High and Performance.
+
+## Earlier (15 Oct 2026, late night): increment 4 and 3.2 merged (V2.465), polish V2.466
 - **Merged to main** (Patrick: "After that, merge and finish the phase and any of phase 5 that is critical"): #1049
   (V2.460), #1051 (V2.464), #1053 (V2.465), tags `v2.460-ct156-increment2-details`, `v2.464-ct156-pictures-glass-cockpit`,
   `v2.465-ct156-graphics-level-switch`; 3d-work #111 to #115 (delivery `ct156-2026-10-15-6b02eca`).

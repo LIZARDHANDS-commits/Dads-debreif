@@ -29,13 +29,13 @@ export const FW_BEHIND39_TECHNIQUE = Object.freeze({
     return { cue, dwell };
   },
 
-  /** Sizes pass depth below Lead (S26). */
+  /** Sizes pass depth below/above Lead (S26). */
   plan(ctx) {
     const B = FW_WING.behind39;
     const p = Math.max(0, ctx.guard?.predFt ?? ctx.seen.slant);
     const depthFt = clamp(Math.sqrt(Math.max(0, B.clearSlantFt ** 2 - p ** 2)), B.minDepthFt, B.maxDepthFt);
-    const vertSign = ctx.seen.heightFt > FW_WING.yoyo.highFt ? 1 : -1;
-    const heightTargetFt = vertSign * depthFt;
+    const vertSign = ctx.seen.heightFt > 0 ? 1 : -1;
+    const heightTargetFt = vertSign > 0 ? Math.max(depthFt, ctx.seen.heightFt + 40) : -Math.max(depthFt, Math.abs(ctx.seen.heightFt) + 30);
     const turnDir = ctx.phase?.dir || Math.sign(ctx.seen.leadBankDeg) || ctx.seen.levelSide || -1;
     return {
       plannedPassFt: p,
@@ -57,7 +57,8 @@ export const FW_BEHIND39_TECHNIQUE = Object.freeze({
     const chiWantedDeg = normalRef.chiWantedDeg - turnDir * B.inCourseDeg;
 
     const hErr = state.heightTargetFt - ctx.seen.heightFt;
-    const rateMag = Math.min(B.maxRateFtps, Math.sqrt(2 * 32.174 * 0.75 * Math.abs(hErr)) * 0.65);
+    const maxVRate = state.vertSign < 0 ? 25 : B.maxRateFtps;
+    const rateMag = Math.min(maxVRate, Math.sqrt(2 * 32.174 * 0.45 * Math.abs(hErr)) * 0.55);
     const heightRateTargetFtps = Math.abs(hErr) > 5 ? Math.sign(hErr) * rateMag : 0;
 
     const isClear = ctx.seen.sweepDeg >= B.doneSweepDeg && ctx.seen.slant >= 500;

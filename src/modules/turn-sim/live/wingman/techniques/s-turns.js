@@ -20,9 +20,10 @@ export const FW_STURN_TECHNIQUE = Object.freeze({
   assess(ctx, mem = {}) {
     const S = FW_WING.sTurn;
     const minSlantFt = ctx.phase?.phase === 'level' ? (FW_WING.movingOut?.cueSlantFt ?? 450) : 0;
-    const inCone = ctx.seen.sweepDeg <= 65 && ctx.seen.closure > -5;
-    const inPhase = (ctx.phase?.phase === 'level' || ctx.phase?.phase === 'exit') && ctx.seen.slant >= minSlantFt && inCone;
-    const tooTightOrClosing = ctx.seen.slant < S.cueSlantFt ||
+    const levelFlight = Math.abs(ctx.seen.lead?.v?.z ?? 0) < 8;
+    const inCone = ctx.seen.sweepDeg <= 65 && ctx.seen.closure > 0;
+    const inPhase = levelFlight && (ctx.phase?.phase === 'level' || ctx.phase?.phase === 'exit') && ctx.seen.slant >= minSlantFt && inCone;
+    const tooTightOrClosing = (ctx.seen.slant < 510 && ctx.seen.closure > 5) ||
       (ctx.seen.closure > S.cueClosureFtps && ctx.seen.slant < FW_WING.arcTargetFt);
     const inWindow = inPhase && tooTightOrClosing;
     const dwell = inWindow ? (mem.dwell ?? 0) + 1 : 0;
