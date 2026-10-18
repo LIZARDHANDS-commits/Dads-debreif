@@ -5,7 +5,16 @@ worktree beside it (`wise-mendeleev/Dads-debreif-3d`, made fresh from main; the 
 gone). Read `AGENTS.md`, then `docs/modules/shared/plan.md` Step 3b, then `docs/modules/shared/graphics-handover/README.md`
 (the model's history) and `tools/blender/README.md` (how to build it).
 
-## Latest (17 Oct 2026, late evening): the look audit and Patrick's rulings (3d-work #118)
+## Latest (17 Oct 2026, night): Step 5.1b merged (`V2.518`, #1080); the 5.2 rulings (3d-work #120)
+- **Built and live:** #1080 (`V2.518`): the delivered parts' Neutral curve restored, the darker crisper navy and the rest of
+  W27; in the Showcase the studio from outside and, at High on the ground, a sun shadow (the map on only then: kept on
+  through the seats it whitened the cockpit) and a 3 % floor reflection. Untested: CI is off.
+- **Rulings:** 3d-work fix-list W29 (second round, all yes) and W30 (the outside's detail from modelled openings, not
+  fake rivets).
+- **Running:** the soot-and-grime preview (a builder paints stronger weather pictures into a throwaway worktree,
+  `wise-mendeleev/Dads-debreif-soot`, never committed). **Next:** the Step 5.2 plan (plan mode, scout and audit first).
+
+## Earlier (17 Oct 2026, late evening): the look audit and Patrick's rulings (3d-work #118)
 - **The audit:** Fable (high) judged the look from `3d-work` `scratch/increment-5/look-audit/` (photos, existing renders,
   Patrick's screenshots; no new renders, no manual text). Report and the orchestrator's check against the code:
   `ct156/briefs/5-look-audit-fable-report-17oct.md`. Wrong in it: the helmets (already coloured parts), the rescue
