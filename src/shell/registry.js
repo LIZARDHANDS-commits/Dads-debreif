@@ -142,7 +142,7 @@ export const MODULES = [
     id: 'model-showcase',
     eyebrow: 'The aircraft',
     title: 'Model Showcase',
-    blurb: 'The CT-156 on its own: turn it round, sit in either seat, weathering and grime',
+    blurb: 'The CT-156 on its own: turn it round, sit in either seat, weathering and relief sliders',
     details: {
       summary: 'The CT-156 Harvard II 3D model on its own, on its gear or flying, to look at as closely as you like.',
       capabilities: [

@@ -2850,7 +2850,7 @@ function buildKit(THREE) {
     return [(a / 12) * GFT, (b / 12) * GFT, [col.r, col.g, col.b]];
   }) });
   // Satin paint: a light, soft clear coat over the colour (G19, Patrick 13 Oct 2026, A18 and A16: satin, not the strong
-  // gloss of clear coat 1 and roughness 0.12 it had), read under the app's sky look (ct156-look.js, ALL-41).
+  // gloss of clear coat 1 and roughness 0.12 it had), read under the app's sky look (ct156-look.js, the 13 Oct 2026 model look).
   const gloss = (params) => keep(new THREE.MeshPhysicalMaterial({ fog: false, side: two, clearcoat: 0.4, clearcoatRoughness: 0.3, envMap: env, ...params }));
   const decalMat = (map) => keep(new THREE.MeshStandardMaterial({
     map, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: 0.6, fog: false,

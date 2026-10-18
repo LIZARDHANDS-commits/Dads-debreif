@@ -8,8 +8,8 @@
 // from three.js, in place of the code sky) light the paint, glass and spinner; this view only, as ct156-look.js takes the sky
 // from the scene when the scene carries one. At the High level only, and only standing on the ground seen from outside, the
 // aircraft throws a sharp sun shadow on the floor and the floor mirrors it faintly: real-time shadows are off everywhere else
-// (aircraft-shadows.js; this view is the one exception) and there is no glow. Performance keeps today's plain look: the soft
-// disc under the aircraft, no shadow map, no mirror.
+// (aircraft-shadows.js; this view is the one exception) and there is no glow. Performance, flying and the seats keep the soft
+// disc under the aircraft, with no shadow map and no mirror; the studio's reflections show from outside at both levels.
 //
 // Poses: on the ground (gear down, the inboard doors hanging open as parked, the prop stopped and feathered, the engine
 // off: the start pose) and flying (the gear coming up, the prop turning, the cycle flown, or held wings level with
@@ -238,6 +238,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     const onGround = pose === 'ground';
     const rich = onGround && view === 'outside' && level === 'high';
     floor.visible = disc.visible = onGround;
+    disc.material.opacity = rich ? DISC_OPACITY_HIGH : 1; // lighter only under the real shadow, so the two do not double up
     shadowPlane.visible = rich;
     if (reflector) reflector.visible = rich;
     // The shadow map is on only while its shadow shows (High, on the ground, outside): kept on through the seats, the
@@ -257,10 +258,9 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     scene.userData.ct156SkyIntensity = on ? STUDIO_SKY_INTENSITY : undefined;
   }
 
-  /** Puts the level's extras in place: the shadow map and the lighter disc at High; at Performance neither, nor a mirror. */
+  /** Puts the level's extras in place: the mirror at High (shown by applyGround), none at Performance. */
   function applyLevel() {
     const high = level === 'high';
-    disc.material.opacity = high ? DISC_OPACITY_HIGH : 1;
     if (high && ReflectorClass && !reflector) makeMirror();
     if (!high && reflector) dropMirror();
     applyGround();
@@ -274,7 +274,7 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     const vertexShader = ReflectorClass.ReflectorShader.vertexShader
       .replace('varying vec4 vUv;', 'varying vec4 vUv;\n\t\tvarying vec2 vLocal;')
       .replace('vUv = textureMatrix * vec4( position, 1.0 );', 'vUv = textureMatrix * vec4( position, 1.0 );\n\t\t\tvLocal = position.xy;');
-    if (!vertexShader.includes('vLocal = position.xy;')) {
+    if (!vertexShader.includes('varying vec2 vLocal;') || !vertexShader.includes('vLocal = position.xy;')) {
       console.warn("The floor mirror's vertex shader has changed in this three.js; the mirror is left out.");
       return;
     }
@@ -417,9 +417,8 @@ export async function createShowcaseWorld({ host, doc = globalThis.document, onC
     }
     lastDraw = now();
     dirty = false;
-    // Every picture while the shadow map is on: parts that arrive later (the cockpit's files load after a seat opens, and set
-    // their own receiveShadow) take no shadow either; drawn with a stale map from a seat they came out near white. A flag
-    // flip is a uniform, not a new shader.
+    // Every picture while the shadow map is on: parts that arrive later (files swapped in by a level change, and set their own
+    // receiveShadow) take no shadow of their own either. A flag flip is a uniform, not a new shader.
     if (renderer.shadowMap.enabled) noSelfShadow();
     renderer.info.reset(); // one picture's draw calls and triangles, the mirror's included
     if (view !== 'outside') cockpit.update(hud());
