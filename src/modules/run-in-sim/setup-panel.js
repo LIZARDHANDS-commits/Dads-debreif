@@ -90,11 +90,14 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   const lastHit = hit('Last outbound leg');
   const lastLabel = lastHit.el.querySelector('span');
   const exitBox = num('exitSec', 'Leave at, seconds after the start', 's');
+  // The figure 8's way round (RS-30): crossing the IP heading away from the target (the default) or toward it (the old way).
+  const flowBox = controls.select('eightFlow', { label: 'Figure 8 flow', options: [['outbound', 'Crosses the IP outbound'], ['inbound', 'Crosses the IP inbound']] });
   const exitLabel = exitBox.querySelector('label');
   orbit.panel.body.append(
     controls.select('orbitPattern', { label: 'Pattern', options: [['hold', 'Holding pattern'], ['eight', 'Figure 8'], ['circle', 'Circle']] }),
     num('orbitHeightFt', 'Height above the target\'s ground', 'ft AGL'),
     modeBox, radiusBox, legBox, bankBox,
+    flowBox,
     controls.choice('orbitDir', { label: 'Direction', options: [['left', 'Left'], ['right', 'Right']] }),
     num('orbitKias', 'Orbit speed', 'KIAS'),
     backBox,
@@ -249,8 +252,9 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const hold = v.orbitPattern === 'hold';
     orbit.sum.textContent = circle
       ? `Circle · ${ft10(v.orbitHeightFt)} AGL · ${v.orbitMode === 'radius' ? `${v.orbitRadiusNm.toFixed(1)} NM` : `${v.orbitBankDeg}° bank`} · ${v.orbitDir}`
-      : `${hold ? 'Holding' : 'Figure 8'} · ${ft10(v.orbitHeightFt)} AGL · ${v.orbitDir}${hold ? ` · ${clock(v.holdLegSec)} legs` : ''}`;
+      : `${hold ? 'Holding' : `Figure 8 ${v.eightFlow === 'inbound' ? 'inbound' : 'outbound'}`} · ${ft10(v.orbitHeightFt)} AGL · ${v.orbitDir}${hold ? ` · ${clock(v.holdLegSec)} legs` : ''}`;
     for (const el of [modeBox, backBox]) show(el, circle);
+    show(flowBox, v.orbitPattern === 'eight');
     show(radiusBox, circle && v.orbitMode === 'radius');
     show(bankBox, !circle || v.orbitMode === 'bank');
     bankLabel.textContent = circle ? 'Bank (a steady bank, drifting with the wind)' : 'Bank in the turns (still air; the wind steepens the downwind side)';
