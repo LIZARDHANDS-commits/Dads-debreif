@@ -1,8 +1,8 @@
 // The Traffic Sim's 3D view (specs/SPEC-traffic.md: 3D view; SPEC-ui-kit "3D aircraft (three.js, D138)" and
 // "2D/3D switch (D141)"): the same run as the 2D map, drawn with three.js through the ui-kit's shared pieces
 // (three-aircraft.js, ct156-model.js). It reads the engine's state (where each aircraft is, its heading, height
-// and speed) and draws it: the routes as lines at their heights, the shared T-6 for the CT-156 and CT-157 and a
-// stand-in shape for the other types, banking with their turns, and a caution ring round each aircraft. It works
+// and speed) and draws it: the routes as lines at their heights, the shared T-6 for the CT-156, the Blender models of the
+// CT-102B and CT-157 and a stand-in shape for the other types, banking with their turns, and a caution ring round each aircraft. It works
 // out no flight math of its own: it draws the sim's bank and pitch, and reads them off how the state changes only when the state has none.
 //
 // three.js is loaded (a dynamic import, the ui-kit's loadThree) only when 3D is switched on, and everything it
@@ -20,6 +20,7 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView, setCt156Crew } from '../../ui-kit/ct156-model.js';
 import { createCt102bModel } from '../../ui-kit/ct102b-model.js';
+import { createCt157Model } from '../../ui-kit/ct157-model.js';
 import { setCt156Level } from '../../ui-kit/ct156-blender.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
@@ -267,11 +268,13 @@ export function planeLengthFt(zoom, scale = 1) {
 }
 
 /**
- * The CT-156 and CT-157 are the shared T-6; the CT-102B Astra II has its Blender model (plan Step 5c Phase 5, ui-kit
- * ct102b-model.js, the stand-in until its file is in); every other type (CT-102, CT-114, CT-155, CF-188) is a stand-in shape
- * until it has its own model.
+ * The CT-156 is the shared T-6; the CT-102B Astra II has its Blender model (plan Step 5c Phase 5, ui-kit ct102b-model.js),
+ * and so does the CT-157 Siskin II (plan Step 5d, TR-168, proposed; ui-kit ct157-model.js; it was drawn as the T-6 before),
+ * each the stand-in until its file is in; every other type (CT-102, CT-114, CT-155, CF-188) is a stand-in shape until it
+ * has its own model.
  */
-export const modelKindFor = (type) => (type === 'CT-156' || type === 'CT-157' ? 'ct156' : type === 'CT-102B' ? 'ct102b' : 'standin');
+export const MODEL_KINDS = Object.freeze({ 'CT-156': 'ct156', 'CT-102B': 'ct102b', 'CT-157': 'ct157' });
+export const modelKindFor = (type) => MODEL_KINDS[type] ?? 'standin';
 
 /**
  * Stand-in mesh kind for aircraft types without dedicated custom 3D models.
@@ -938,7 +941,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   }
 
   // `kind` is which builder made the mesh: 'ct156' (the full Harvard model), 't6plain' (the ui-kit's plain T-6),
-  // 'ct102b' or 'ct102bLite' (the Astra II's Blender model, full or light) or 'standin'.
+  // 'ct102b' or 'ct102bLite' (the Astra II's Blender model, full or light), 'ct157' or 'ct157Lite' (the CT-157's) or 'standin'.
   function planeFor(ac, kind, paint) {
     const have = planes.get(ac.id);
     if (have && have.kind === kind && (kind !== 'ct156' && kind !== 't6plain' || have.paint === paint)) return have.mesh; // only the T-6 has paint schemes
@@ -1010,9 +1013,10 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     for (const ac of flying) {
       present.add(ac.id);
       const full = options.fullModels === true || ac.id === fullId;
-      // The Astra II likewise: the full file for the one followed, the light file for the rest (plan Step 5c Phase 5).
+      // The Astra II and the CT-157 likewise: the full file for the one followed, the light file for the rest (plan Step 5c
+      // Phase 5; Step 5d).
       const own = modelKindFor(ac.type);
-      const kind = own === 'ct156' ? (full ? 'ct156' : 't6plain') : own === 'ct102b' ? (full ? 'ct102b' : 'ct102bLite') : 'standin';
+      const kind = own === 'ct156' ? (full ? 'ct156' : 't6plain') : own === 'standin' ? 'standin' : (full ? own : `${own}Lite`);
       const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
       const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
@@ -1355,7 +1359,7 @@ export function threeStats(kit) {
   return { geometries: geometries.size, materials: materials.size };
 }
 
-// The models the view uses: the shared T-6 (the Harvard scheme by default), the Astra II and the stand-in.
+// The models the view uses: the shared T-6 (the Harvard scheme by default), the Astra II, the CT-157 and the stand-in.
 function defaultModels() {
   const astraStandIn = (THREE, color, type) => () => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) });
   return {
@@ -1367,6 +1371,8 @@ function defaultModels() {
     t6plain: (THREE, { color, paint }) => createLightHarvard(THREE, { color, paint }), // the shared light Harvard (TR-152)
     ct102b: (THREE, { color, type }) => createCt102bModel(THREE, { detail: 'high', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),
     ct102bLite: (THREE, { color, type }) => createCt102bModel(THREE, { detail: 'lite', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),
+    ct157: (THREE, { color, type }) => createCt157Model(THREE, { detail: 'high', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),
+    ct157Lite: (THREE, { color, type }) => createCt157Model(THREE, { detail: 'lite', unitLength: CT156_UNIT_LENGTH, fallback: astraStandIn(THREE, color, type) }),
     standin: (THREE, { color, type }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) }),
   };
 }

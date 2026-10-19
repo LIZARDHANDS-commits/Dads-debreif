@@ -129,7 +129,7 @@ The Astra's process applied to the PC-21: [pc21-plan.md](pc21-plan.md). Dad's th
 - [ ] 3. Renders and a fix list (Patrick and Dad). **Renders made** (18 Oct 2026; kept out of the repo); the fix list is still to come.
 - [ ] 4. Refine.
 - [x] 5. Paint: the RCAF scheme of 201, read off Dad's renders by eye (rows D in `sources.md`). **First pass, proposed, not yet seen.**
-- [x] 6. First delivery: `public/models/ct157-exterior.glb` and `ct157-exterior-lite.glb` by `tools/blender/pc21/export_pc21.py`, loaded by `src/ui-kit/ct157-model.js`, drawn in Traffic (TR-168). **First pass, proposed, not yet seen by Patrick or Dad in the app** (a headless screenshot only).
+- [x] 6. First delivery: `public/models/ct157-exterior.glb` and `ct157-exterior-lite.glb` by `tools/blender/pc21/export_pc21.py`, loaded by `src/ui-kit/ct157-model.js`, drawn in Traffic (TR-168): High 1.03 MB, 36,628 triangles; light 0.51 MB, 16,426 triangles (the Astra's 1.11 and 0.47 MB). **First pass, proposed, not yet seen by Patrick or Dad in the app** (headless screenshots only).
 - [ ] 7. Cockpit, once the outside is signed off.
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
