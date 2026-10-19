@@ -20,6 +20,7 @@ Patrick's project-only working docs from the Claude project, copied into the rep
 | Fight Sim (turn-fight) | [turn-fight-review/README.md](turn-fight-review/README.md) | its reading order |
 | Aircraft performance, roll and G | [manuals/performance-audit-5oct.md](manuals/performance-audit-5oct.md) | `src/core/t6-performance.js` |
 | Dad's sessions (SOF, Debrief) | [dad-setup/handover-for-dads-claude.md](dad-setup/handover-for-dads-claude.md) | |
+| How the project was run: lessons learned (19 Oct) | [lessons-learned-oct18/report.md](lessons-learned-oct18/report.md) | the `agentic-project-playbook` skill Patrick approved from it |
 
 **Fable's renamed terms:** the Formation review ran on a renamed copy of the engine, so `report.md` and `BRIEF.md` say cone position (fighting wing), lead point / nose on / lag point (lead / pure / lag pursuit), pointing (pursuit), follow (chase), spread (tactical), wandering (hunting), alpha (angle of attack) and two-ship module (Turn Fight).
 
@@ -55,6 +56,10 @@ Patrick (6 Oct 22:31Z): use only the manuals in the project files; manual text a
 - [optimiser-plan-route2.md](formation-review-package/report/optimiser-plan-route2.md): **Optimiser route 2**: collocation with a solver, phase A as a Python yardstick on the PC. Kept alongside route 1 (Patrick "keep both").
 - [optimiser-plan.md](formation-review-package/report/optimiser-plan.md): **Optimiser route 1** (the one for the app): shooting on the existing step, Nelder-Mead on a score, modes by the book / chosen restrictions / unrestricted. Patrick: build after the polish.
 - [report.md](formation-review-package/report/report.md): **Fable's Formation engine review (6 Oct).** Sections 1-7: faults, refactor steps, follow-up answers. Uses the renamed terms; read with turn-sim-review/fable-findings-mapped.md.
+
+### lessons-learned-oct18/
+
+- [report.md](lessons-learned-oct18/report.md): lessons about running the project with agents, from every thread and process doc (19 Oct): 14 top lessons, 7 foundation questions, 34 proposals and 20 faults in the rule files. The register, flags and notes stay in the project files.
 
 ### manuals/
 
