@@ -97,11 +97,12 @@ Dad, 17 Oct 2026: "Can we make a paint scheme for USAF and USN".
 - [ ] Dad or Patrick looks at both paints in the app (Chase and Side cameras, and in Turn Fight's Paint).
 
 ## Step 8e. Dad's figure 8 asks of 19 Oct 2026 (a correction to Step 8c's shape, built within Patrick's yes; pending Patrick's look)
-Dad, 19 Oct 2026: "The figure 8 logic is wrong, the inbound should be reversed does that make sense?" (his pick: "same place, flown backwards"); "we should have button to change the figure 8 flow".
-- [x] Written down first: RS-11 amended, RS-30, the spec (19 Oct 2026).
+Dad, 19 Oct 2026: "The figure 8 logic is wrong, the inbound should be reversed does that make sense?" (his pick: "same place, flown backwards"); "we should have button to change the figure 8 flow"; "the science isnt working on this...can the aircraft G it up more as necessary to make the window".
+- [x] Written down first: RS-11 amended, RS-30, RS-31, the spec (19 Oct 2026).
 - [x] The figure 8 flown crossing the IP outbound, left by a teardrop turn inbound onto the run-in line behind the IP; its time over target by the last loop as before (RS-11).
 - [x] "Figure 8 flow" in the Orbit box: Crosses the IP outbound (default) or Crosses the IP inbound (the old way, flying exactly as before) (RS-30).
-- [ ] Dad or Patrick looks at both flows in the app (2D plan, corner plan, 3D), including a live anthem press.
+- [x] The figure 8's loops all at one bank, as many as bring it nearest the set bank, up to the steepest level turn the T-6A set holds at the orbit's speed (never past the stall line), the card flagging 45° and 7 G as references (RS-31).
+- [ ] Dad or Patrick looks at both flows in the app (2D plan, corner plan, 3D), including a live anthem press and a short time over target.
 
 ## Not in this plan
 

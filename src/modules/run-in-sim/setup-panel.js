@@ -267,8 +267,9 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const pat = fresh && exit.pattern && !exit.pattern.none ? exit.pattern : null;
     show(lastHit.el, Boolean(pat) && !circle);
     if (pat) {
-      lastLabel.firstChild.textContent = pat.legSec !== undefined ? 'Last outbound leg' : 'Last loop';
-      lastHit.value.textContent = pat.legSec !== undefined ? `${clock(pat.legSec)}${pat.k ? ` after ${pat.k} lap${pat.k > 1 ? 's' : ''}` : ''}` : `${Math.round(pat.bankDeg)}° bank${pat.k ? ` after ${pat.k} loop${pat.k > 1 ? 's' : ''}` : ''}`;
+      // The figure 8's loops are all flown at one bank, worked out to hit (RS-31).
+      lastLabel.firstChild.textContent = pat.legSec !== undefined ? 'Last outbound leg' : 'Loops';
+      lastHit.value.textContent = pat.legSec !== undefined ? `${clock(pat.legSec)}${pat.k ? ` after ${pat.k} lap${pat.k > 1 ? 's' : ''}` : ''}` : `${pat.loops} at ${Math.round(pat.bankDeg)}° bank`;
     }
 
     runIn.sum.textContent = `${deg3(v.runInDegM)} · IP ${v.ipNm.toFixed(1)} NM · ${v.kias} KIAS`;
