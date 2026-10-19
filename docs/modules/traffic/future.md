@@ -120,6 +120,18 @@ The physics (shared turn formula, radius = true speed squared / (g x tan bank); 
 
 All three are physics, not manual numbers; the leg lengths are estimates. The question for Patrick is which one (or his idea). **Dad picked 45° at 180 KIAS** (13 Oct 2026) and Patrick approved it (relayed by Dad, 13 Oct 2026): spec 4.19 item 11, TR-164.
 
+### Left out of the first CT-157 Siskin II build (plan Step 5d, 18 Oct 2026; proposed)
+
+Each waits for Patrick's yes or for PC-21 numbers (spec 4.20 item 9).
+
+- **Pattern 1 flown with the CT-157's own thrust and drag.** Pattern 1's track is built once for the route with the CT-156's numbers and shared by every aircraft on it; a per-type track (or a CT-157 route of its own) would let its stronger climb and its own deceleration shape it.
+- **Its own pattern numbers** (speeds, heights, bank) from a PC-21 manual or Patrick, if they differ from 15 Wing's CT-156 numbers.
+- **Its own PFL and High Key** on PC-21 glide data (glide ratio by configuration); today it flies the T-6A's.
+- **Its moves off the pattern** (closed pattern, breakout, go-around zoom, flinch, climb ahead) with its own performance set.
+- **Its cockpit and instruments**, the propeller's blur disc, moving surfaces and gear.
+- **Its own hitbox** (the CT-156's 35 ft is used; the CT-157 is 36.8 ft long and 29.9 ft across).
+- **A Mixed scenario** with CT-157s in the Busy circuit.
+
 ## Rough spots left for later (found by the V2.350 refactor)
 
 - **Two gear-and-flap rules.** The tag's rule (`behaviour.js` `configOf`) reads the pattern stage and the field elevation; the drag's rule (`path-follower.js` `resolveAircraftConfig`) reads the phase and the threshold's height (both 1,892 ft since TR-149). They share their speeds and the 50 ft since refactor step 2, but can disagree for a moment at a phase change, so the tag can show a different configuration from the one being flown. Making them one changes the tag, so it waits for Patrick.

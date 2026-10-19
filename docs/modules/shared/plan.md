@@ -119,6 +119,19 @@ The T-38A's process applied to the C-130J: [c130j-plan.md](c130j-plan.md). Dad's
 - [x] 5. Paint. **First pass, not yet seen by Patrick or Dad** (15 Oct 2026): USAF grey, black "RS", a stand-in flag, "U.S. AIR FORCE", the low-visibility star-and-bar on the aft fuselage and wings, "USAF" under the left wing and over the right, black on the fin's and tailplane's leading edges and beside each nacelle, dark props (rows D1 to D12 in `sources.md`). Simple stand-ins for the insignia and Blender's built-in face; nothing copied.
 - [x] 6. First delivery: High and light files, `src/ui-kit/c130j-model.js`, and "C-130J Hercules" in the Debrief's Aircraft select (a DB- decision first). **First pass, not yet seen by Patrick or Dad (15 Oct 2026, V2.499):** exported by `tools/blender/c130j/export_c130j.py` into `public/models/c130j-exterior.glb` (High, about 1.35 MB, 57,600 triangles) and `c130j-exterior-lite.glb` (about 0.57 MB, 21,400 triangles, not used yet); the Debrief's Aircraft choice "C-130J Hercules" (DB-35) draws every ship as the C-130J in the overview and Chase, the Cockpit camera riding the CT-156.
 
+## Step 3f. CT-157 Siskin II (Pilatus PC-21) model in Blender (Dad's ask, 17 to 18 Oct 2026; proposed, built ahead of Patrick's yes)
+
+The Astra's process applied to the PC-21: [pc21-plan.md](pc21-plan.md). Dad's thread builds it in its own files (`tools/blender/pc21/`), never editing a CT-156, Astra or other model's file. Dad: "Lets build a PC-21", then "3d Model for the pattern sim like the grob". First used in Traffic (Traffic plan Step 5d, spec 4.20), in the RCAF paint of 201. **Waiting on Patrick's yes** (`docs/dad/waiting-on-patrick.md`).
+
+- [ ] 0. Patrick's yes, and the answers to the plan's questions.
+- [x] 1. Sources table: the public numbers and the outline measured off Dad's three-view, each view at its own printed size. **First pass, proposed, not yet seen by Patrick or Dad** (18 Oct 2026, [`tools/blender/pc21/sources.md`](../../../tools/blender/pc21/sources.md)).
+- [x] 2. First outside in Blender, by script in real feet, with named points, hinges and size checks. **First pass, proposed, not yet seen** (18 Oct 2026, [`tools/blender/pc21/build_pc21.py`](../../../tools/blender/pc21/build_pc21.py), Blender 5.2 as the `bpy` module).
+- [ ] 3. Renders and a fix list (Patrick and Dad). **Renders made** (18 Oct 2026; kept out of the repo); the fix list is still to come.
+- [ ] 4. Refine.
+- [x] 5. Paint: the RCAF scheme of 201, read off Dad's renders by eye (rows D in `sources.md`). **First pass, proposed, not yet seen.**
+- [x] 6. First delivery: `public/models/ct157-exterior.glb` and `ct157-exterior-lite.glb` by `tools/blender/pc21/export_pc21.py`, loaded by `src/ui-kit/ct157-model.js`, drawn in Traffic (TR-168). **First pass, proposed, not yet seen by Patrick or Dad in the app** (a headless screenshot only).
+- [ ] 7. Cockpit, once the outside is signed off.
+
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 
 - [ ] Sign-off: anyone runs the checklist in `testing.md` for the shared parts and sends Patrick the result; the next step starts only after his yes (TQ-2) (`pf/reset/4-decisions/answers.md:13`).

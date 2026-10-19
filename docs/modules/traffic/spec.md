@@ -559,6 +559,45 @@ Phases 2a and 2b are built (V2.487, 13 Oct 2026; not yet seen): `astra-circuit.j
      - **On screen.** The route's line shows the lap with the 90 and the 45 as a spur off the outside downwind out to where it joins initial. The spawner's Astra spots add Upwind, Crosswind, Outside downwind, 90 to initial and 45 to initial (a start at 45 to initial flies the 45 from the start of its turn). The tag reads `[ASTRA · est.]` on the outside downwind too. Spawn a conflict's planner flies the lap with the 90.
      - **Not built:** removing an aircraft whose outer leg cannot be built (the line above) is not built, as for the inner pattern; instead the lap was built in twelve wind directions at 15 and 25 kt with every way round settling on initial (in part 1's turn law the 45 never turned onto initial in 15 kt from 279° and 309°T, and both ways failed in 25 kt from 309°T: fixed, TR-165).
 
+### 4.20 CT-157 Siskin II (Pilatus PC-21) in Pattern 1 (Dad's ask, 17 to 18 Oct 2026; proposed, built ahead of Patrick's yes)
+
+**Status: proposed** (TR-167, TR-168; plan Step 5d; shared plan Step 3f, `../shared/pc21-plan.md`). Built 18 Oct 2026, not yet seen on screen by Patrick or Dad. Numbers are marked **public** (a public fact sheet or type certificate sheet, read through web-search summaries only, unchecked), **three-view** (printed on the Pilatus three-view Dad sent), **estimate** (with the working beside it), or **CT-156** (the CT-156's own number, kept). No PC-21 manual is in the project files, so nothing here is a manual number.
+
+1. **Which pattern.** The CT-157 flies **Pattern 1**, the CT-156's overhead break, exactly as 4.1 describes: 3,500 ft MSL, 220 KIAS initial and break, the 60° level break slowing to about 140, the downwind to 120 at the perch, the final turn up to 45°, 100 KIAS at the threshold, the same aim point and flare. Its type profile (`types.js`) has always named Pattern 1 at the CT-156's speeds; those are 15 Wing's pattern numbers (SMM, 3.1), not PC-21 numbers, and are kept until Patrick says otherwise (TR-167). It is a CT-156-class aircraft at 15 Wing, so the CT-156's routes, entries, spacing and deconfliction rows apply to it as they stand: to them it is one more aircraft in Pattern 1.
+2. **Its performance set** (`src/core/ct157-performance.js`, through `makePerformance`; the same formulas as the T-6A and the Astra, a third set of numbers):
+
+| Number | Value | Source status |
+|---|---|---|
+| Wing area, span, length | 163.85 ft², 29.92 ft (29 ft 11 in), 36.83 ft (36 ft 10 in) | three-view |
+| Engine | PT6A-68B: 1,600 shp at high airspeed, 1,080 shp at low airspeed (take-off and maximum continuous); 1,425 shp maximum cruise at high airspeed | public (FOCA type certificate sheet F56-35 issue 9); unchecked |
+| Empty weight | 2,280 kg (5,027 lb) | public (Pilatus factsheet); unchecked |
+| Pattern weight | 6,400 lb (about 2,900 kg) | estimate: empty 2,280 kg, two crew with kit about 200 kg, about 420 kg of fuel; under the 3,100 kg aerobatic take-off weight (public) |
+| Rate of climb, full power | 4,091 ft/min at sea level; drives the thrust fit | public (Pilatus factsheet); unchecked |
+| Climb speed for that figure | 160 KIAS | estimate (no source gives it); the fit's best rate comes out near 172 KIAS |
+| Cruise | 323 KTAS at sea level at maximum cruise power; sets the zero-lift drag | public (Pilatus factsheet; the power is the FOCA sheet's 1,425 shp, an estimate that the cruise figure is at it) |
+| Zero-lift drag CD0 | about 0.019 | estimate, worked from the cruise point above |
+| Oswald efficiency e; propeller efficiency | 0.8; 0.8 at high speed | estimates (standard values, as the Astra's) |
+| Stall speed, clean and landing | 92 and 81 KIAS | public (Pilatus factsheet: 92 and 81 KCAS, flaps and gear up and down; weight not given; KCAS taken as KIAS, an estimate) |
+| G limits | +8 / −4 | public (aerobatic category, factsheet and FOCA sheet); unchecked |
+| Rolling G | +5.4 / −1 | estimate: the T-6A's rolling limits in proportion (4.7 of 7) |
+| Manoeuvring speed | 260 KIAS | estimate: stall × √8 |
+| Maximum operating speed | 370 KIAS | public (370 KEAS, factsheet and FOCA sheet; KEAS taken as KIAS, an estimate). No Mach limit is set (none found; the 0.77 is the design dive Mach) |
+| Roll rate and G onset | the T-6A's (ALL-39: 0.58°/s per knot of true airspeed, at most 200°/s; ALL-40) | estimates; the 200°/s cap matches the PC-21's public 200°/s at 10,000 ft |
+| Drawn pitch | the T-6A's shape, its angle of attack scaled by the stall speeds squared ((92 ÷ 86)²) | estimate, drawing only |
+| Hitbox for collisions | the CT-156's 35 ft | kept (TR-116) |
+
+   **How the power management is modelled (an estimate).** The shared thrust form is one curve, thrust ÷ weight = K ÷ (true airspeed + V0). It is set through two public points: at 323 KTAS the full 1,600 shp at a propeller efficiency of 0.8, and at 160 KIAS at sea level the thrust the public 4,091 ft/min climb needs. The curve that comes out implies about 1,030 shp at 100 KIAS, 1,280 at 160 and 1,430 at 220, rising to 1,600 at 323 KTAS (each worked back at an efficiency of 0.8): the type certificate's 1,080 shp at low airspeed rising to 1,600 at high airspeed, without a second formula. What it gets wrong: the same curve gives about 5,200 lb of static thrust (T ÷ W 0.82), more than 1,080 shp could give standing still, so a take-off roll would be too short; and the speed where the real power changes is not known. The checks (worked again in scratch, not pinned by a test): top level speed about 337 KTAS at sea level, best rate about 4,080 ft/min near 172 KIAS, best lift-to-drag about 13.4, 220 KIAS level at about 0.37 of full thrust; the 92 KIAS stall at 6,400 lb is a clean maximum lift coefficient of about 1.37.
+3. **What its set flies today.** The path follower reads it for every CT-157 (`types.js` perfFor): its roll rate and roll acceleration, its G onset, its stall line (never steeper than the bank its own 92 KIAS stall allows at the speed) and its drawn pitch. The Pattern 1 track itself, the positions, heights and speeds along it, is built once for the route by the simulated pilot with the CT-156's numbers (`circuit.js` `buildCircuit`), and every aircraft on Pattern 1 shares it; the moves flown from where an aircraft is (closed pattern, breakout, High Key, the PFL, the go-around's zoom, the flinch, the climb ahead) are flown with the CT-156's numbers too, the PFL on the T-6A's glide data. So the CT-157's own thrust and drag do not yet shape its track (TR-167; a Pattern 1 built per type is on `future.md`). The stall line holds everywhere Pattern 1 flies: the final turn at 120 KIAS has up to 1.70 G before the stall (54°) against the 1.41 G of 45°; the break at 60° and 2 G ends near 140 KIAS, where it has 2.32 G.
+4. **Estimates are shown.** While any number in its set is an estimate: its card tooltip and behaviour tag end with " · est." (the same code as the Astra's, 4.19 item 5), and one line under Aircraft in Traffic settings reads "CT-157 numbers are estimates: see docs/modules/traffic/spec.md 4.20."
+5. **Spawns.** The spawner's Type list offers CT-156, CT-102B and CT-157. A CT-157 is offered every CT-156 route and spot (Pattern 1, the entries, the straight-in, PFL from area), as a CT-156 is; Spawn a conflict works with it as with a CT-156. The scenarios stay all CT-156; Randomize treats it as a CT-156.
+6. **Its model** (TR-168): drawn from `public/models/ct157-exterior.glb` when it is the aircraft followed and `ct157-exterior-lite.glb` otherwise (the CT-156's rule, TR-152), loaded by `src/ui-kit/ct157-model.js`, at its own length (36.83 ft against the T-6's 33.4) in the RCAF paint of 201. No cockpit: a seat view from a CT-157 is the T-6 camera point scaled to its length, an estimate. The propeller is drawn still, no blur disc.
+7. **When data fails** (safety item):
+   - **A failed CT-157 model load** (missing, damaged or slow file): the plain stand-in is drawn at the CT-157's length in its colour, logged to the console, and the 3D view never stops (ALL-38 (4)).
+   - **Missing numbers are never invented.** Its set has no glide data and no stick-shaker margin: those functions refuse. The PFL and High Key it is offered fly the T-6A's glide on the CT-156's builders, which is a working answer flagged " · est.", asked of Patrick (TR-167).
+   - **A missing Pattern 1** is handled as for a CT-156 (it falls back to the first pattern not tied to another type).
+8. **What the CT-156 and the Astra keep.** Nothing in their flying changes: the CT-156's set, Pattern 1's track and every builder are untouched; only the CT-157's profile, the spawner's Type list, the settings note and the 3D model choice are new. Checked by flying the Busy circuit and an Astra lap before and after (18 Oct 2026): identical.
+9. **Left out** (on `future.md`): Pattern 1 flown with the CT-157's own thrust and drag (a per-type track), its own pattern numbers, its own PFL glide data, a cockpit and instruments, the prop's blur disc and moving surfaces, its own hitbox, a Mixed scenario.
+
 ---
 
 ## 5. Spawn UI
