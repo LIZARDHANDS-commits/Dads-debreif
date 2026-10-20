@@ -236,6 +236,13 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
     planGroup.add(line(o.anchor, lineMat(COLOURS.plan, true)));
     planGroup.add(line(o.inbound, lineMat(COLOURS.tanker, true)));
     planGroup.add(line(o.track, lineMat(COLOURS.runIn)));
+    // RS-19 amended (Dad, 20 Oct 2026): the planned direct track from the runway to the IP, the ARCP and the hold's fix.
+    if (o.direct) planGroup.add(line(o.direct, lineMat(COLOURS.runIn, true)));
+    if (o.arcp) {
+      planGroup.add(dot(o.arcp, COLOURS.plan, 40));
+      planGroup.add(dot(o.fix, COLOURS.tanker, 40));
+      marks.push({ words: 'ARCP', p: o.arcp }, { words: 'Tanker holds until IP inbound', p: o.fix });
+    }
     planGroup.add(dot(o.turnStart, COLOURS.ip, 40));
     planGroup.add(dot(o.rollOut, COLOURS.rollOut, 40));
     planGroup.add(dot(o.start, COLOURS.runIn, 40));
@@ -248,7 +255,7 @@ export async function createRunInWorld({ host, timers, terrain, area, fallbackFt
       // RS-19: CYMJ's runways, drawn by the shared airfield builder (ui-kit airfield3d.js, as the EP Tabletop draws them) at
       // the runway's height the flying uses, and the IP.
       showAirports(o.runway.a.z);
-      marks.push({ words: `CYMJ ${o.runway.name}`, p: o.runway.a }, { words: 'IP', p: o.ip });
+      marks.push({ words: `CYMJ ${o.runway.name}`, p: o.runway.a }, { words: o.arcp ? 'IP (inbound: the tanker leaves its orbit)' : 'IP', p: o.ip });
       planGroup.add(dot(o.ip, COLOURS.ip, 40));
     } else {
       marks.push({ words: 'Receiver starts', p: o.start });

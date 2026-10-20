@@ -29,7 +29,7 @@ export const runOf = (id) => RUNS.find((r) => r.id === id) ?? RUNS[0];
  */
 export const DEFAULT_PLACE = Object.freeze({ lat: 50.2950, lon: -105.5000, words: 'Moose Jaw area' });
 /**
- * The air refuelling run's default place, the tanker's roll-out point (RS-19): 32 NM from CYMJ along the default
+ * The air refuelling run's default place, the ARCP (RS-19 amended; the tanker's roll-out point with the anchor, RS-19): 32 NM from CYMJ along the default
  * refuelling track (320°M, 329°T), so the take-off, the climb-out and the transit to the IP point the way the receiver
  * flies (an estimate; open prairie north-west of Moose Jaw). Worked from CYMJ's origin (src/airfields/cymj-runways.js)
  * with core geo.js.
@@ -64,8 +64,8 @@ export const AAR_DEFAULTS = Object.freeze({
   aarHeightFt: 10000, // the tanker's height, MSL: inside the stand-in's speeds (the T-6A set holds 200 to about 250 KIAS level there)
   aarTankerKias: 200,
   aarBankDeg: 25, // the tanker's bank in its turns
-  aarLegNm: 20, // the anchor's legs
-  aarDir: 'left', // the anchor's turns
+  aarLegNm: 20, // the anchor's legs (and, RS-19 amended, the hold's at the ARCP)
+  aarDir: 'left', // the anchor's turns (and the hold's)
   aarRvSec: 180, // the rendezvous time: the tanker's roll-out, s after the start (short to watch)
   aarSplitFt: 1000, // the receiver below the tanker for the rendezvous
   aarTrailNm: 1, // the trail at the roll-out (air-refuelling-plan.md)
@@ -75,6 +75,13 @@ export const AAR_DEFAULTS = Object.freeze({
   // the airborne start of the first version under More.
   aarAirborne: false,
   aarIpNm: 15,
+  // RS-19 amended (Dad, 20 Oct 2026: "For the point parallel the t-6 taking off should really just turn direct the IP
+  // after takeoff. and the tanker shoould really stay in orbit at the ARCP until the reciever hits "IP inbound""): the
+  // receiver turns direct to the IP after take-off ('runway': the runway heading to 2,500 ft MSL and past the departure
+  // end, as before), and the tanker holds at the ARCP until IP inbound ('anchor': turns inbound from its anchor, timed
+  // on the receiver, as before). From the take-off only; the airborne start keeps the anchor.
+  aarAfterTakeoff: 'direct',
+  aarTankerPlan: 'arcp',
   // RS-20: the offset, two turn radii unless set by hand
   aarOffsetByHand: false,
   aarOffsetNm: 3.4, // the hand box starts near the worked-out two turn radii (3.4 NM at the defaults)
@@ -201,6 +208,8 @@ export const ALLOWED = Object.freeze({
   releaseMode: ['carp', 'distance'],
   escapeDir: ['left', 'right', 'straight'],
   aarDir: ['left', 'right'],
+  aarAfterTakeoff: ['direct', 'runway'],
+  aarTankerPlan: ['arcp', 'anchor'],
   anthem: ['canada', 'us', 'none'],
   camera: CAMERAS.map((c) => c.id),
   playSpeed: [...PLAY_SPEEDS],
@@ -315,7 +324,7 @@ export function setupFrom(v) {
       trackDegT: t(v.aarTrackDegM), heightFt: v.aarHeightFt, tankerKias: v.aarTankerKias, bankDeg: v.aarBankDeg,
       legNm: v.aarLegNm, dir: v.aarDir === 'left' ? -1 : 1, rvSec: v.aarRvSec, splitFt: v.aarSplitFt,
       trailNm: v.aarTrailNm, overtakeKt: v.aarOvertakeKt, preContactFt: v.aarPreContactFt,
-      start: v.aarAirborne ? 'airborne' : 'takeoff', ipNm: v.aarIpNm, placeLat: v.placeLat, placeLon: v.placeLon, magVarDegE: v.magVarDegE,
+      start: v.aarAirborne ? 'airborne' : 'takeoff', ipNm: v.aarIpNm, afterTakeoff: v.aarAfterTakeoff, tankerPlan: v.aarTankerPlan, placeLat: v.placeLat, placeLon: v.placeLon, magVarDegE: v.magVarDegE,
       byHand: {
         turnRangeNm: v.aarTurnRangeByHand ? v.aarTurnRangeNm : null, rcvKias: v.aarRcvKiasByHand ? v.aarRcvKias : null,
         offsetNm: v.aarOffsetByHand ? v.aarOffsetNm : null,
