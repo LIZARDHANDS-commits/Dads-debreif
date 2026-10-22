@@ -18,6 +18,7 @@ The small functions behind every number the tool shows: units, angles and headin
 | `aircraft-performance.js` | One aircraft's performance set from its numbers (`makePerformance`): the formulas behind the stall line, G available, roll and G onset limits, top speed, thrust and drag, pitch attitude, glide and stick-shaker pull; and IAS to TAS and back, and KIAS from Mach |
 | `t6-performance.js` | The one T-6A performance model: its numbers (V-n limits and stall line, roll and G onset, thrust and drag, pitch attitude, glide) built into its set with `makePerformance`, every function under its old name; energy height, the engine-out zoom and the split S, checked against reference data |
 | `ct102b-performance.js` | The CT-102B Astra II's set (Traffic spec 4.19): the same formulas with the Astra's numbers, each with its source status; most are estimates |
+| `ct157-performance.js` | The CT-157 Siskin II's set (Pilatus PC-21; Traffic spec 4.20, proposed): the same formulas with public PC-21 figures (unchecked) and estimates, each with its source status; its thrust fit is how the engine's power management is modelled |
 | `closest-approach.js` | Closest approach of two aircraft, the danger test that holds until the range opens, which side to dodge, and when two aircraft first get inside a cylinder of each other (ALL-27); every limit passed in |
 | `point-mass.js` | One step of an aircraft flown by G and bank as a point, through loops and straight up or down |
 | `t6a-turn-data.js` | The sustained turn points, read by eye, and the thrust and drag fitted to them |

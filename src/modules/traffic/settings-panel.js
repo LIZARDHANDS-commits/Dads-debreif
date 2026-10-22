@@ -108,6 +108,8 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
     }), 'Realistic is true size. Slide right to draw them bigger.'),
     // The estimate flag's line (spec 4.19 item 5; review 3.2), shown while any CT-102B number is an estimate.
     ...(numbersAreEstimates('CT-102B') ? [h('p', { class: 'settings-note' }, 'CT-102B numbers are estimates: see docs/modules/traffic/spec.md 4.19.')] : []),
+    // The same for the CT-157 Siskin II (spec 4.20 item 4; TR-167, proposed).
+    ...(numbersAreEstimates('CT-157') ? [h('p', { class: 'settings-note' }, 'CT-157 numbers are estimates: see docs/modules/traffic/spec.md 4.20.')] : []),
   );
 
   if (available.photo) {
