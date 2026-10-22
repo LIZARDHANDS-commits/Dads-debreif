@@ -13,6 +13,17 @@ Patrick's ask (22 Oct 2026): "consolidate all of the worktrees and get main up t
   - #1089, Dependabot (the automatic dependency updater): minor version bumps of two test tools (`@playwright/test` 1.64.0 → 1.64.1, `@axe-core/playwright` 4.13.0 → 4.14.0). Merges cleanly; doesn't change the site.
 - **Worktrees and branches:** this cloud session has one checkout and can't see the worktrees on Patrick's computer. GitHub has about 60 branches not merged into main. Most are leftovers whose work reached main by squash merge; some may hold work that never landed. `claude/project-thread-7hg4qo` is the pre-squash copy of #1085 (already on main). The protected `wip/open-source-performance-redesign` worktree stays untouched (rule book).
 
+## Status (22 Oct 2026, evening)
+
+- [x] Task 1: CodeQL fixed (V2.528, #1090); the hand run passes.
+- [x] Task 2: the publish works again. The cause was the private repo's monthly Actions storage allowance, used up by 120–190 publishes a day on 4–6 and 11 Oct (about 60 MB each). Patrick made the repo public again (22 Oct), which lifts the limit.
+- [x] Task 3: #1087 and #1088 deconflicted (two README files, both sides kept).
+- [x] Task 4: all merged: #1089 (V2.529), #1087 (V2.531), #1088 (V2.532), #1086 (V2.533). Also the i-have-adhd skill (V2.530, #1091). Checked on a copy of main with all four PRs: the build passes and they add no unit-test failures. Main already fails 32 Formation unit tests (Turn at normal reference, fix tools, 4-ship tours, line-abreast turns); that's separate work, not from these PRs.
+- [x] Task 5: branch report in [branches.md](branches.md). Nothing deleted; waiting on Patrick.
+- [ ] Task 6: Patrick runs the worktree commands in [branches.md](branches.md) on his computer.
+- [ ] Task 7: a budgeted publishing setup before going private again (below).
+- Not done: version tags v2.528 to v2.533. This cloud session's proxy refused the tag push (403); add them from Patrick's computer or a later session.
+
 ## Tasks
 
 ### Task 1: Fix CodeQL's permission (XS)
@@ -53,6 +64,15 @@ For each of the ~60 unmerged branches on GitHub, check whether its changes are a
 Hand Patrick a short set of commands for his own computer: list his worktrees, and for each one, show whether it has work that isn't committed or isn't on GitHub. The protected `Dads-debreif-open-source-perf` worktree is left alone.
 - Acceptance: Patrick knows which local worktrees can go.
 - Dependencies: Task 5.
+
+### Task 7: Budgeted publishing, then private again (M)
+Patrick (22 Oct 2026): "once we consolidate a workflow for sensical budgeted updates we will go private again". Proposal, for his yes:
+1. Publish on purpose, not on every merge: the site publishes from a hand run (Actions > Deploy to GitHub Pages > Run workflow) or a version tag, not every push to main. The `PAGES_ON` variable already switches push-publishing off.
+2. Publish from a `gh-pages` branch instead of an uploaded artifact, so publishing uses no Actions storage at all (Settings > Pages > Source: "Deploy from a branch").
+3. Keep CI's failure report short-lived (3 days, done in V2.528) and leave CI off unless asked.
+4. Check what a private repo's CodeQL needs (GitHub's code-scanning add-on), or keep CodeQL only while public.
+- Acceptance: a month's normal work stays inside the private allowance; the site still publishes on demand.
+- Dependencies: Patrick's yes on 1 and 2.
 
 ## Risks
 
