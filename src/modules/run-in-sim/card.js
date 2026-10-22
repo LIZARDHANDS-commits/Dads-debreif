@@ -171,20 +171,25 @@ export function refuelCardFor(pass, n, { selected, onSelect, showFlags = true })
   const late = r.lateSec === null ? '' : Math.abs(r.lateSec) < 0.5 ? ', on time' : ` (${lateWords(r.lateSec)})`;
   // RS-20 (Dad, 17 Oct 2026: "Giving turn range and offset would help too"): the turn range and the offset lead.
   const to = r.takeoff;
+  const ho = r.hold; // RS-19 amended: the tanker's hold at the ARCP until IP inbound
   const offsetWords = `${nm1(r.offsetFt)}, the tanker's inbound track ${r.offsetSide} of the receiver's · ${r.offsetByHand ? `set by hand (to hit: ${nm1(w.offsetFt)})` : 'set to hit'}`;
   const rv = h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'The rendezvous (worked out to hit)'),
     row('Turn range', `${Number.isFinite(w.turnRangeNm) ? `${w.turnRangeNm.toFixed(1)} NM` : '--'}, the tanker turns at +${clock(w.tTurn)} · ${set(w.turnByHand)}`),
     row('Offset', offsetWords),
     row('Worked out', `${workedForWords(w.wind)}; the turn inbound flown at ${plan.aar.bankDeg}° in the air, drifting with the wind`),
     to ? row('Receiver takes off', to.liftOffSec === null ? 'never left the runway' : `CYMJ ${to.runway}, lifted off at +${clock(to.liftOffSec)}`) : null,
-    to ? row('Receiver at the IP', to.ipSec === null ? 'never passed it' : `+${clock(to.ipSec)}${to.ipPlanSec !== null ? ` (plan +${clock(to.ipPlanSec)})` : ''}`) : null,
-    r.orbitLaps !== null ? row('Tanker in its orbit before turning', `${r.orbitLaps.toFixed(1)} laps`) : null,
+    // RS-19 amended (Dad, 20 Oct 2026): direct to the IP after take-off, or (the setting) runway heading to 2,500 ft first.
+    to && to.directSec !== null ? row(to.direct ? 'Receiver turns direct to the IP' : 'Receiver turns for the IP', `+${clock(to.directSec)}, ${to.direct ? '400 ft above the runway (an estimate)' : 'at 2,500 ft MSL past the departure end'}`) : null,
+    to ? row(ho ? 'IP inbound' : 'Receiver at the IP', to.ipSec === null ? 'never passed it' : `+${clock(to.ipSec)}${!ho && to.ipPlanSec !== null ? ` (plan +${clock(to.ipPlanSec)})` : ''}${ho ? `; the tanker at its hold's fix abeam the ARCP, ${nm1(ho.rangeFt)} from the receiver` : ''}`) : null,
+    ho ? row('Tanker in its orbit at the ARCP', `${clock(ho.orbitSec)} (${ho.laps.toFixed(1)} laps), until IP inbound`) : null,
+    ho ? row('Tanker leaves its orbit', `at IP inbound, +${clock(ho.leaveSec)}; ${nm1(ho.recipFt)} down the reciprocal track to its turn${w.turnByHand ? ' (the turn range set by hand)' : ' (worked out to hit the trail)'}`) : null,
+    !ho && r.orbitLaps !== null ? row('Tanker in its orbit before turning', `${r.orbitLaps.toFixed(1)} laps`) : null,
     row('Receiver', `${Math.round(w.rcvKiasFlown)} KIAS · ${set(w.rcvByHand)}`),
     to ? null : row('Receiver starts', `${w.startNm.toFixed(1)} NM back from the roll-out point`),
     row('Tanker rolls out', `+${clock(w.tRollOut)}${late}`));
   const ro = r.rollOut;
   const atRo = ro ? h('div', { class: 'rs-block' }, h('div', { class: 'rs-block-title' }, 'At the roll-out'),
-    row('Trail', `${ro.trailFt >= 0 ? nm1(ro.trailFt) : `${ft10(-ro.trailFt)} ahead of the tanker`} (plan ${nm1(r.plannedTrailFt)})`),
+    row('Trail', `${ro.trailFt >= 0 ? nm1(ro.trailFt) : `${ft10(-ro.trailFt)} ahead of the tanker`} (plan ${nm1(r.plannedTrailFt)})`, tag(flags.trail.over, 'as planned', 'off the plan')),
     row('Across the track', sideWords(ro.acrossFt)),
     row('Below the tanker', ft10(ro.belowFt)),
     row('Overtake', kts(ro.overtakeKt))) : null;

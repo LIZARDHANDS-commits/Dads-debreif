@@ -12,9 +12,10 @@ An orbit, a run-in, a release (or a flypast) and an escape, flown in 3D over the
 
 1. Dad or Patrick looks at Step 4b in the app (the holding pattern and the figure 8, the bridge from 90° and 30°, the 2D view).
 2. **Dad's figure 8 asks of 19 Oct 2026 (plan Step 8e; a correction to the V2.508 shape, pending Patrick's look):** the figure 8 flown crossing the IP outbound and left by a teardrop onto the run-in line behind the IP (RS-11), with a "Figure 8 flow" setting keeping the old inbound way (RS-30), and its loops all at one bank, pulling up to the steepest level turn the CT-156 holds when the time needs it (RS-31). Dad or Patrick looks at it in the app.
-3. Step 6: run the sign-off checklist in `testing.md` in the app and send Patrick the result.
-4. **Proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026: "Can we make a paint scheme for USAF and USN"): a Paint choice in the Display box (RCAF Harvard, USAF, USN; RS-29, ALL-45), colours and markings all estimates.** Patrick's yes, then Dad or Patrick looks at both paints in the app.
-5. The open questions below, one at a time; each has a working answer the spec uses. RS-Q1's C-130J numbers table goes to Patrick before the C-130J flies.
+3. **Dad's correction to the refuelling run (20 Oct 2026, plan Step 7d; RS-19 amended):** the receiver turns direct to the IP after take-off, and the tanker holds at the ARCP until the receiver is IP inbound; the old ways stay as settings. Built within Patrick's yes on the refuelling run; Patrick's look and Dad's in the app next.
+4. Step 6: run the sign-off checklist in `testing.md` in the app and send Patrick the result.
+5. **Proposed, built ahead of Patrick's yes (Dad, 17 Oct 2026: "Can we make a paint scheme for USAF and USN"): a Paint choice in the Display box (RCAF Harvard, USAF, USN; RS-29, ALL-45), colours and markings all estimates.** Patrick's yes, then Dad or Patrick looks at both paints in the app.
+6. The open questions below, one at a time; each has a working answer the spec uses. RS-Q1's C-130J numbers table goes to Patrick before the C-130J flies.
 
 ## The files
 

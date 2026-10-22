@@ -95,6 +95,8 @@ export function createPlanView(canvas, { timers, onOpen }) {
   const drawRefuel = (aar, pass, { path, spot }) => {
     path(aar.inbound, COLOURS.tanker, [4, 3]);
     path(aar.track, COLOURS.runIn);
+    if (aar.direct) path(aar.direct, COLOURS.runIn, [2, 3]); // RS-19 amended: the planned direct track to the IP
+    if (aar.arcp) spot(aar.arcp, COLOURS.plan, 2.5); // RS-19 amended: the ARCP
     path([aar.offset.a, aar.offset.b], COLOURS.ip); // RS-20: the offset
     spot(aar.turnStart, COLOURS.ip);
     spot(aar.rollOut, COLOURS.target);

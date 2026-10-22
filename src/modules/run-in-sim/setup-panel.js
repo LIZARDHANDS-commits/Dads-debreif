@@ -5,7 +5,7 @@
 // (RS-9); the numbers the computer works out show greyed with "set to hit", and More sets one by hand. Every setting
 // starts at a default, and each box says its defaults are estimates. The main button is "Fly the pass".
 // The air refuelling run (spec "Air refuelling"; RS-18; approved: Patrick's yes, relayed by Dad, 17 Oct 2026) shows
-// its own: the Rendezvous time, and the Tanker and anchor, Rendezvous and Join boxes; the run-in's Target, Time over
+// its own: the Rendezvous time, and the Tanker and its orbit, Rendezvous and Join boxes; the run-in's Target, Time over
 // target, Orbit, Run-in, Release and Escape hide. The worked-out numbers show greyed "set to hit" (RS-16).
 import { h } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
@@ -165,18 +165,24 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     note());
 
   // ---- The refuelling run's boxes (RS-15 to RS-17) ----
+  // RS-19 amended (Dad, 20 Oct 2026): the tanker holds at the ARCP until IP inbound; the old way kept as a setting.
+  const tankerPlanEl = controls.choice('aarTankerPlan', { label: 'The tanker (from the take-off)', options: [['arcp', 'Holds at the ARCP until the receiver is IP inbound'], ['anchor', 'Turns inbound from its anchor, timed on the receiver (before 20 Oct)']] });
   const aarNoteLine = () => h('p', { class: 'rs-estimate', title: AAR_ESTIMATE }, 'ⓘ Every number here is an estimate (ATP-56 not read)');
-  const tankerBox = box('Tanker and anchor');
+  const tankerBox = box('Tanker and its orbit');
   tankerBox.panel.body.append(
     num('aarTrackDegM', 'Refuelling track (the receiver\'s)', '°M'),
     num('aarHeightFt', 'Tanker\'s height', 'ft MSL'),
     num('aarTankerKias', 'Tanker\'s speed', 'KIAS'),
-    more(num('aarBankDeg', 'Tanker\'s bank in its turns', '°'), num('aarLegNm', 'Anchor legs', 'NM'),
-      controls.choice('aarDir', { label: 'Anchor turns', options: [['left', 'Left'], ['right', 'Right']] })),
+    more(num('aarBankDeg', 'Tanker\'s bank in its turns', '°'), num('aarLegNm', 'Orbit legs (the hold at the ARCP, or the anchor)', 'NM'),
+      controls.choice('aarDir', { label: 'Orbit turns', options: [['left', 'Left'], ['right', 'Right']] }), tankerPlanEl),
     aarNoteLine());
   const rvBoxPanel = box('Rendezvous');
-  const ipBox = num('aarIpNm', 'IP: on the track, this far back from the roll-out point', 'NM');
-  const ipHit = hit('Receiver at the IP');
+  const ipBox = num('aarIpNm', 'IP: on the track, this far back from the ARCP', 'NM');
+  const ipLabel = ipBox.querySelector('label');
+  const ipHit = hit('Receiver IP inbound');
+  const leaveHit = hit('Tanker leaves its orbit');
+  // RS-19 amended (Dad, 20 Oct 2026: "turn direct the IP after takeoff"); the old way kept as a setting.
+  const afterTakeoffBox = controls.choice('aarAfterTakeoff', { label: 'After take-off, the receiver', options: [['direct', 'Turns direct to the IP (from 400 ft above the runway)'], ['runway', 'Holds runway heading to 2,500 ft MSL and past the departure end (before 20 Oct)']] });
   const offsetHand = controls.checkbox('aarOffsetByHand', { label: 'Set the offset by hand (the turn range is still worked out)' });
   const offsetBox = num('aarOffsetNm', 'Offset: the tanker\'s inbound track from the receiver\'s', 'NM');
   const airborneBox = controls.checkbox('aarAirborne', { label: 'Start the receiver airborne on the track (the first version; the rendezvous time is set)' });
@@ -191,8 +197,8 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
   rvBoxPanel.panel.body.append(
     ipBox,
     num('aarTrailNm', 'Trail at the roll-out', 'NM'),
-    turnHit.el, offsetHit.el, ipHit.el, rcvHit.el, startHit.el,
-    more(num('aarSplitFt', 'Receiver below the tanker', 'ft'), offsetHand, offsetBox, turnHand, turnRangeBox, rcvHand, rcvKiasBox, airborneBox),
+    turnHit.el, offsetHit.el, ipHit.el, leaveHit.el, rcvHit.el, startHit.el,
+    more(num('aarSplitFt', 'Receiver below the tanker', 'ft'), offsetHand, offsetBox, turnHand, turnRangeBox, rcvHand, rcvKiasBox, afterTakeoffBox, airborneBox),
     aarNoteLine());
   const joinBox = box('Join');
   joinBox.panel.body.append(
@@ -233,7 +239,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
       ? 'ⓘ Default Canada (an estimate) and 1:10 (an estimate). O Canada\'s tune beyond its first line is written from memory and not yet checked: tell us any wrong note. It plays at ×1 only.'
       : v.anthem === 'us' ? 'ⓘ 1:30 (an estimate). The tune is from a public-domain transcription. It plays at ×1 only.' : '';
     for (const el of [aarNote, takeoffLine, rvBox, ...aarPanels]) show(el, aar);
-    placeLabel.textContent = aar ? 'Place (the roll-out point)' : 'Place';
+    placeLabel.textContent = aar ? (!v.aarAirborne && v.aarTankerPlan !== 'anchor' ? 'Place (the ARCP)' : 'Place (the roll-out point)') : 'Place';
     const where = aar ? 'refuelling' : 'release';
     windTopLabels[0].textContent = `At the ${where} height, from`;
     windTopLabels[1].textContent = `At the ${where} height, speed`;
@@ -320,16 +326,22 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     placeWords.textContent = v.placeIsDefault ? AAR_PLACE.words : `${v.placeLat.toFixed(3)}, ${v.placeLon.toFixed(3)}`;
     rvWords.textContent = `+${clock(v.aarRvSec)}`;
     const takeoff = !v.aarAirborne;
+    const holds = takeoff && v.aarTankerPlan !== 'anchor';
     show(rvBox, !takeoff);
     show(takeoffLine, takeoff);
     show(ipBox, takeoff);
     show(ipHit.el, takeoff);
+    show(leaveHit.el, holds);
+    show(afterTakeoffBox, takeoff);
+    show(tankerPlanEl, takeoff);
     show(startHit.el, !takeoff);
     show(offsetBox, v.aarOffsetByHand);
-    takeoffWords.textContent = plan?.runway ? `CYMJ ${plan.runway.name} (into the wind; 29L when calm)` : 'CYMJ (the runway into the wind)';
+    if (ipLabel) ipLabel.textContent = `IP: on the track, this far back from the ${holds ? 'ARCP' : 'roll-out point'}`;
+    const then = v.aarAfterTakeoff === 'runway' ? 'runway heading to 2,500 ft, then to the IP' : 'then direct to the IP';
+    takeoffWords.textContent = plan?.runway ? `CYMJ ${plan.runway.name} (into the wind; 29L when calm), ${then}` : `CYMJ (the runway into the wind), ${then}`;
     show(targetHeadingBox, false);
     tankerBox.sum.textContent = `${deg3(v.aarTrackDegM)} · ${ft10(v.aarHeightFt)} MSL · ${v.aarTankerKias} KIAS`;
-    rvBoxPanel.sum.textContent = takeoff ? `IP ${v.aarIpNm.toFixed(1)} NM · ${v.aarTrailNm.toFixed(1)} NM trail` : `airborne · ${v.aarTrailNm.toFixed(1)} NM trail`;
+    rvBoxPanel.sum.textContent = takeoff ? `IP ${v.aarIpNm.toFixed(1)} NM${holds ? ' from the ARCP' : ''} · ${v.aarTrailNm.toFixed(1)} NM trail` : `airborne · ${v.aarTrailNm.toFixed(1)} NM trail`;
     joinBox.sum.textContent = `${v.aarOvertakeKt} kt overtake · ${v.aarPreContactFt} ft behind the basket`;
     show(turnRangeBox, v.aarTurnRangeByHand);
     show(rcvKiasBox, v.aarRcvKiasByHand);
@@ -338,6 +350,7 @@ export function createSetup({ settings, controls, onFly, onOpenMap }) {
     const side = v.aarDir === 'left' ? 'left' : 'right';
     offsetHit.value.textContent = v.aarOffsetByHand ? `${v.aarOffsetNm.toFixed(1)} NM ${side} (set by hand)` : w ? `${nm1(w.offsetFt)} ${side}, ${workedForWords(w.wind)}` : '—';
     ipHit.value.textContent = exit?.ipSec !== undefined && exit.ipSec !== null ? `+${clock(exit.ipSec)}` : 'when the run is flown';
+    leaveHit.value.textContent = Number.isFinite(exit?.leaveSec) ? `at IP inbound, +${clock(exit.leaveSec)}` : 'at IP inbound, when the run is flown';
     startHit.value.textContent = exit?.startNm !== undefined ? `${exit.startNm.toFixed(1)} NM back from the roll-out point` : 'when the run is flown';
     turnHit.value.textContent = exit?.turnRangeNm !== undefined
       ? `+${clock(exit.sec)} at ${exit.turnRangeNm.toFixed(1)} NM${exit.byHand ? ' (range set by hand)' : ''}`

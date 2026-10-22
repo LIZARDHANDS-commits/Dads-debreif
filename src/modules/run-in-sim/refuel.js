@@ -22,12 +22,26 @@
 //    worked out from the receiver's flight flown ahead (its IP time plus its run down the track to the trail point).
 //    RS-20: the offset can be set by hand (the anchor that wide, the turn inbound still at the set bank). The airborne
 //    start of the first version stays (setup.aar.start 'airborne').
+// RS-19 amended (Dad, 20 Oct 2026: "For the point parallel the t-6 taking off should really just turn direct the IP after
+//    takeoff. and the tanker shoould really stay in orbit at the ARCP until the reciever hits "IP inbound""; within
+//    Patrick's yes on the refuelling run, his look still to come): by default (setup.aar.afterTakeoff 'direct') the
+//    receiver turns direct to the IP once TAKEOFF.directAglFt above the runway, climbing on the same profile; and
+//    (setup.aar.tankerPlan 'arcp') the Place is the ARCP (the air refuelling control point, on the refuelling track), the
+//    IP (the ARIP) this far back from it, and the tanker holds in a racetrack whose fix is abeam the ARCP on the offset
+//    side, its inbound leg on the reciprocal track heading for the IP (holdLap, the anchor's shape). It leaves only at
+//    IP inbound (the receiver crossing the IP on the track inbound, events.ip): straight on past the fix down the
+//    reciprocal track, the run to its turn worked out on the receiver's flight so it rolls out at the set trail, then
+//    the turn inbound in the air mass (RS-21) as before. Its place in its orbit is timed so it is at the fix at IP inbound
+//    (as RS-19's orbit was). The receiver's flight before the roll-out doesn't depend on the tanker, so it is flown ahead
+//    at the stored step and IP inbound is the same moment in the stored flight. The old ways stay as settings ('runway',
+//    'anchor'); the airborne start keeps the anchor.
 // 4. The result: the trail at the roll-out against the plan, the overtake and closure (core closureKt: the rate the range
 //    shrinks, ground against ground), the time to pre-contact, and flags (RS-6: references, never walls).
 //
-// Axes as pass.js: feet, x east, y north, z MSL, the roll-out point at x = y = 0. Headings compass degrees TRUE. Speeds
-// name their kind: KIAS set, true airspeed flown, ground speed over the ground. Every number here is an ESTIMATE: no
-// manual page gives any of them yet (ATP-56, the NATO air-to-air refuelling publication, would be the reference; not read).
+// Axes as pass.js: feet, x east, y north, z MSL, the Place at x = y = 0 (the ARCP with the hold, the roll-out point with
+// the anchor). Headings compass degrees TRUE. Speeds name their kind: KIAS set, true airspeed flown, ground speed over the
+// ground. Every number here is an ESTIMATE: no manual page gives any of them yet (ATP-56, the NATO air-to-air refuelling
+// publication, would be the reference; not read).
 import { windTriangle } from '../../core/wind.js';
 import { densityRatio } from '../../core/atmosphere.js';
 import { iasToTasKt, tasToIasKt } from '../../core/t6-performance.js';
@@ -78,7 +92,14 @@ export const AAR_REFERENCES = Object.freeze({ closureKt: 30, nearClosureKt: 10, 
  * climb rate = excess × TAS, the set's own), straight ahead on the runway track until turnAfterMsl and past the departure
  * end (Patrick, 6 Oct, Traffic spec item 22).
  */
-export const TAKEOFF = Object.freeze({ startKias: 85, liftG: 1.3, climbShare: 0.9, turnAfterMsl: 2500 });
+export const TAKEOFF = Object.freeze({ startKias: 85, liftG: 1.3, climbShare: 0.9, turnAfterMsl: 2500, directAglFt: 400 });
+// directAglFt (RS-19 amended, Dad 20 Oct 2026, "turn direct the IP after takeoff"): the receiver's centre this high over
+// the runway before it turns direct to the IP. An ESTIMATE: the common instrument-departure rule of no turn below 400 ft
+// above the runway (FAA TERPS, from memory; no manual in the project files read for it). A height rather than "gear up"
+// because the gear is a picture here (up 3 s after lift-off, RS-22) and a height is what the pilot flies. Below Patrick's
+// Moose Jaw rule (2,500 ft MSL past the departure end, 6 Oct), which stays as the 'runway' setting.
+/** The trail at the roll-out more than this off the plan is flagged on the card (RS-6: a reference, never a wall), ft: 0.2 NM, an ESTIMATE. */
+const TRAIL_REF_FT = 0.2 * FT_PER_NM;
 /** The lowest receiver speed the working-out picks, KIAS (an estimate, as the run-in's lowest roll-in speed). */
 const MIN_RCV_KIAS = 140;
 /** The working-out flights step at this, s; the stored flight is at PASS_STEP_SEC. */
@@ -154,13 +175,31 @@ export function buildRefuelPlan(setup, world) {
   // shorter by the drift along the track), and a hand-set offset rolls it out to the side by the difference.
   const offsetFt = a.byHand.offsetNm !== null ? a.byHand.offsetNm * FT_PER_NM : offsetHitFt;
   const legFt = a.legNm * FT_PER_NM;
-  const farEnd = { x: u.x * legFt, y: u.y * legFt };
-  const lapSegs = holdLap({ ip: farEnd, u, dir: a.dir, r: offsetFt / 2, legFt });
-  const lap = makePath(lapSegs);
-  const turnStart = { x: side.x * offsetFt - u.x * alongShiftFt, y: side.y * offsetFt - u.y * alongShiftFt };
-  const rollOutPt = { x: turnStart.x + D.dx, y: turnStart.y + D.dy };
-  const preSegs = [lapSegs[0], { kind: 'line', a: { ...lapSegs[1].a }, b: { ...turnStart } }]; // the last lap up to the turn inbound
   const gsAt = (dir) => Math.max(1, speedAlong({ x: dir.x, y: dir.y, z: 0 }, wT, Vt));
+  // RS-19 amended (Dad, 20 Oct 2026): from the take-off the tanker holds at the ARCP (the origin) unless set to the anchor.
+  const hold = a.start === 'takeoff' && a.tankerPlan !== 'anchor';
+  const back = { x: -u.x, y: -u.y };
+  let farEnd = null;
+  let fix = null;
+  let lapSegs;
+  let preSegs = null;
+  let turnStart;
+  if (hold) {
+    // The hold at the ARCP: its fix abeam the ARCP on the offset side, its inbound leg on the reciprocal track heading for
+    // the IP, its turns the anchor's way and as wide as the offset (so its far leg lies over the refuelling track, above
+    // the receiver's height), its legs the anchor's. The turn point is worked out in flyRefuel (setTurnPoint); until then
+    // it sits where the planned speeds put it (a preview for the drawn lines only).
+    fix = { x: side.x * offsetFt, y: side.y * offsetFt };
+    lapSegs = holdLap({ ip: fix, u: back, dir: a.dir, r: offsetFt / 2, legFt });
+    turnStart = { ...fix };
+  } else {
+    farEnd = { x: u.x * legFt, y: u.y * legFt };
+    lapSegs = holdLap({ ip: farEnd, u, dir: a.dir, r: offsetFt / 2, legFt });
+    turnStart = { x: side.x * offsetFt - u.x * alongShiftFt, y: side.y * offsetFt - u.y * alongShiftFt };
+    preSegs = [lapSegs[0], { kind: 'line', a: { ...lapSegs[1].a }, b: { ...turnStart } }]; // the last lap up to the turn inbound
+  }
+  const lap = makePath(lapSegs);
+  const rollOutPt = { x: turnStart.x + D.dx, y: turnStart.y + D.dy };
 
   // The receiver's speed (RS-16): the tanker's ground speed along the track plus the overtake, then through the receiver's
   // own wind to true airspeed, then to KIAS at its height (like with like).
@@ -201,15 +240,36 @@ export function buildRefuelPlan(setup, world) {
   }
   const ipFt = a.ipNm * FT_PER_NM;
 
-  return {
+  const plan = {
     kind: 'aar', setup, run: setup.run, ac, u, r, groundFt, groundAt, known: world.known ?? (() => false),
     sigmaAt, tasFt, windAt, windMsl: H, notes, worked,
     aar: a, H, Hr, Vt, R, legFt, farEnd, lap, lapSegs, preSegs, turnStart, rollOutPt, airTurn, turnSec, psiB, turnSign,
     offsetFt, gsAt, tankerGs, rcvKias, trailFt: a.trailNm * FT_PER_NM,
     takeoff: a.start === 'takeoff', runway, ipFt, ip: { x: -u.x * ipFt, y: -u.y * ipFt },
+    // RS-19 amended: the receiver direct to the IP after take-off; the tanker's hold at the ARCP (the origin), its fix,
+    // its ground speed down the reciprocal track, and (filled by flyRefuel) its run from the fix to the turn and when it leaves.
+    direct: a.start === 'takeoff' && a.afterTakeoff !== 'runway',
+    hold, fix, arcp: hold ? { x: 0, y: 0 } : null, gsRecip: gsAt(back), recipFt: null, tLeave: null,
     // Filled by flyRefuel: the receiver's start, the tanker's turn and roll-out times and its schedule.
     startAlong: null, tTurn: null, tRollOut: null, schedule: null, tIpPlan: null,
   };
+  if (hold) {
+    // The preview's turn point (the drawn lines before the run is flown): the reciprocal run the planned ground speeds
+    // give, the two closing along the track from IP inbound (the receiver at the IP, the tanker at the fix) until the
+    // tanker's turn rolls it out the trail ahead. flyRefuel works it out on the receiver's flown flight instead.
+    const gsR = gsWant;
+    const tau = (ipFt + alongShiftFt - gsR * turnSec - plan.trailFt) / (plan.gsRecip + gsR);
+    setTurnPoint(plan, Math.max(0, plan.gsRecip * tau));
+  }
+  return plan;
+}
+
+/** The hold's turn point (RS-19 amended): recipFt down the reciprocal track from the fix, and the roll-out point it gives. */
+function setTurnPoint(plan, recipFt) {
+  const D = plan.airTurn(plan.turnSec);
+  plan.recipFt = recipFt;
+  plan.turnStart = { x: plan.fix.x - plan.u.x * recipFt, y: plan.fix.y - plan.u.y * recipFt };
+  plan.rollOutPt = { x: plan.turnStart.x + D.dx, y: plan.turnStart.y + D.dy };
 }
 
 /** Time (s) along a path at ground speed gsAt(dir), tabled every TABLE_STEP_FT: { s: [], t: [] }. */
@@ -263,6 +323,24 @@ function tankerSchedule(plan, tRollOut) {
   const table = timeTable(path, plan.gsAt);
   const end = table.t[table.t.length - 1]; // the turn inbound starts here (path time)
   return { path, table, laps, lapSec, end, t0: Math.max(0, end + plan.turnSec - tRollOut) };
+}
+
+/**
+ * The tanker's schedule in its hold at the ARCP (RS-19 amended): whole laps of the hold, each from the fix round to the
+ * fix, timed so it crosses the fix at tLeave (IP inbound), then straight on down the reciprocal track to its turn point.
+ * Where it is in the hold at the start follows (t0), as RS-19's orbit did.
+ */
+function holdSchedule(plan, tLeave) {
+  const table1 = timeTable(plan.lap, plan.gsAt);
+  const lapSec = table1.t[table1.t.length - 1];
+  const laps = Math.max(1, Math.ceil(tLeave / lapSec - 1e-9));
+  const segs = [];
+  for (let k = 0; k < laps; k++) segs.push(...plan.lapSegs);
+  if (plan.recipFt > 1) segs.push({ kind: 'line', a: { ...plan.fix }, b: { ...plan.turnStart } });
+  const path = makePath(segs);
+  const table = timeTable(path, plan.gsAt);
+  const atFix = timeAt(table, laps * plan.lap.total); // path time at the last fix crossing, the moment it leaves
+  return { path, table, laps, lapSec, end: table.t[table.t.length - 1], t0: Math.max(0, atFix - tLeave), tLeave };
 }
 
 /** Where the tanker is at time t: { x, y, z, dir (its ground track, unit), gs (ft/s), ax, ay (its air velocity), headingRad (its nose) }. */
@@ -413,13 +491,14 @@ function control(plan, p, phase, t, kias, mem = {}) {
 /**
  * Flies the receiver from `pilot` at t = 0, from the runway (plan.takeoff) or on the rendezvous track. tRollOut: when the
  * join starts (Infinity: never); until: stop then (s); stopAt 'trail': stop once on the track at the trail point (the
- * working-out); every: keep a point this often (s); record: keep the whole flight and the tanker's beside it.
+ * working-out); stopAt 'past': stop once on the track past IP inbound at stopAlongFt along it (the hold's working-out);
+ * every: keep a point this often (s); record: keep the whole flight and the tanker's beside it.
  * Returns { p (the last), pts ([{ t, x, y, z }] every `every`), timeline, tanker, events, ground }.
  * @param {any} plan
  * @param {any} pilot
- * @param {{ kias: number, tRollOut?: number, until?: number, dt?: number, every?: number | null, record?: boolean, stopAt?: string | null }} options
+ * @param {{ kias: number, tRollOut?: number, until?: number, dt?: number, every?: number | null, record?: boolean, stopAt?: string | null, stopAlongFt?: number }} options
  */
-function fly(plan, pilot, { kias, tRollOut = Infinity, until = Infinity, dt = PASS_STEP_SEC, every = null, record = false, stopAt = null }) {
+function fly(plan, pilot, { kias, tRollOut = Infinity, until = Infinity, dt = PASS_STEP_SEC, every = null, record = false, stopAt = null, stopAlongFt = 0 }) {
   const env = { aircraft: plan.ac, sigmaAt: plan.sigmaAt, windAt: plan.windAt };
   const tl = record ? { t: [], x: [], y: [], z: [], vx: [], vy: [], vz: [], bank: [], g: [], kias: [], phase: [] } : null;
   const tt = record ? { x: [], y: [], z: [], vx: [], vy: [], bank: [] } : null;
@@ -450,16 +529,22 @@ function fly(plan, pilot, { kias, tRollOut = Infinity, until = Infinity, dt = PA
   };
   push(airData(p.s, plan.sigmaAt).kias);
   while (t < end - 1e-9) {
-    // The take-off's legs (RS-19): off the runway once the stall line gives TAKEOFF.liftG; turning for the IP once at
-    // TAKEOFF.turnAfterMsl and past the departure end; onto the track near the IP (the turn led as the run-in's is).
+    // The take-off's legs (RS-19): off the runway once the stall line gives TAKEOFF.liftG; turning direct to the IP once
+    // TAKEOFF.directAglFt above the runway (RS-19 amended, Dad 20 Oct 2026), or with the 'runway' setting once at
+    // TAKEOFF.turnAfterMsl and past the departure end (before); onto the track near the IP (the turn led as the run-in's is).
     if (ph === AAR_PHASE.GROUND && plan.ac.stallG(airData(p.s, plan.sigmaAt).kias) >= TAKEOFF.liftG) {
       ph = AAR_PHASE.DEPART;
       events.takeoff = t;
     }
     if (ph === AAR_PHASE.DEPART) {
       const rw = plan.runway;
-      const past = (p.s.x - rw.th.x) * rw.dir.x + (p.s.y - rw.th.y) * rw.dir.y >= rw.lenFt;
-      if (past && p.s.z >= TAKEOFF.turnAfterMsl) ph = AAR_PHASE.TO_IP;
+      if (plan.direct) {
+        if (p.s.z - rw.z >= TAKEOFF.directAglFt) ph = AAR_PHASE.TO_IP;
+      } else {
+        const past = (p.s.x - rw.th.x) * rw.dir.x + (p.s.y - rw.th.y) * rw.dir.y >= rw.lenFt;
+        if (past && p.s.z >= TAKEOFF.turnAfterMsl) ph = AAR_PHASE.TO_IP;
+      }
+      if (ph === AAR_PHASE.TO_IP) events.direct = t;
     }
     if (ph === AAR_PHASE.TO_IP) {
       const w = plan.windAt(p.s.z);
@@ -471,6 +556,7 @@ function fly(plan, pilot, { kias, tRollOut = Infinity, until = Infinity, dt = PA
       events.trail = t;
       break;
     }
+    if (stopAt === 'past' && ph === AAR_PHASE.RV && events.ip !== undefined && alongOf(p.s) >= stopAlongFt) break;
     if ((ph === AAR_PHASE.RV || ph === AAR_PHASE.TO_IP || ph === AAR_PHASE.DEPART) && t >= tRollOut - 1e-9) {
       ph = AAR_PHASE.JOIN;
       events.rollOut = t;
@@ -526,64 +612,156 @@ export function flyRefuel(setup, world) {
   // The timing (RS-16, RS-19). From the take-off: the receiver's flight flown ahead at the worked-out speed, from the runway
   // to the trail point on the track (its IP time plus its run down the track); the tanker rolls out then. Airborne: the
   // rendezvous track flown for the rendezvous time from the roll-out point; the start is that far back, plus the trail
-  // (the flight is the same wherever along the track it starts).
-  let rvSec = a.rvSec;
+  // (the flight is the same wherever along the track it starts). The hold at the ARCP (RS-19 amended): solveHold.
   const startPilot = () => (plan.takeoff ? receiverOnRunway(plan) : receiverStart(plan, plan.startAlong, plan.rcvKias));
-  if (plan.takeoff) {
-    const trial = fly(plan, receiverOnRunway(plan), { kias: worked.rcvKias, dt: SOLVE_STEP_SEC, stopAt: 'trail' });
-    if (trial.events.trail === undefined) {
-      notes.push(trial.ground ? 'The receiver hit the ground on its climb-out: the take-off can\'t be flown over this ground.' : 'The receiver never reached the trail point on the track: no rendezvous to work out.');
-    }
-    rvSec = trial.events.trail ?? a.rvSec;
-    plan.tIpPlan = trial.events.ip ?? null;
-    worked.takeoffSec = trial.events.takeoff ?? null;
-    const madeKias = airData(trial.p.s, plan.sigmaAt).kias;
-    if (trial.events.trail !== undefined && worked.rcvKias - madeKias > 5) {
-      notes.push(`The receiver can't make ${Math.round(worked.rcvKias)} KIAS at ${ftWords(plan.Hr)} on the T-6A set at full power: it flies at about ${Math.round(madeKias)} KIAS, so it rolls out with less overtake than the set ${a.overtakeKt} kt. A lower overtake or a slower tanker would work.`);
-    }
-  } else {
-    const trial = fly(plan, receiverStart(plan, 0, worked.rcvKias), { kias: worked.rcvKias, until: a.rvSec, dt: SOLVE_STEP_SEC });
-    const along = trial.p.s.x * plan.u.x + trial.p.s.y * plan.u.y;
-    plan.startAlong = -plan.trailFt - along;
-    worked.startNm = nm(-plan.startAlong);
-    const madeKias = airData(trial.p.s, plan.sigmaAt).kias;
-    if (a.rvSec > 20 && worked.rcvKias - madeKias > 5) {
-      notes.push(`The receiver can't make ${Math.round(worked.rcvKias)} KIAS at ${ftWords(plan.Hr)} on the T-6A set at full power: it flies at about ${Math.round(madeKias)} KIAS, so it rolls out with less overtake than the set ${a.overtakeKt} kt. A lower overtake or a slower tanker would work.`);
-    }
-  }
-  worked.rvSec = rvSec;
-
-  // The tanker's turn (RS-16): at the rendezvous time less its turn's time, or when the receiver comes within a hand-set range.
-  plan.tTurn = rvSec - worked.turnSec;
-  if (a.byHand.turnRangeNm !== null) {
-    const pre = fly(plan, startPilot(), { kias: plan.rcvKias, until: rvSec + 900, dt: SOLVE_STEP_SEC, every: 0.5 });
-    const want = a.byHand.turnRangeNm * FT_PER_NM;
-    const rangeOf = (q) => Math.hypot(q.x - plan.turnStart.x, q.y - plan.turnStart.y);
-    const hit = pre.pts.find((q, i) => i > 0 && rangeOf(q) <= want && rangeOf(q) < rangeOf(pre.pts[i - 1]));
-    if (rangeOf(pre.pts[0]) <= want) {
-      plan.tTurn = 0;
-      notes.push(`The receiver starts inside the hand-set turn range (${a.byHand.turnRangeNm.toFixed(1)} NM): the tanker turns at once.`);
-    } else if (hit) {
-      plan.tTurn = hit.t;
+  if (plan.hold) solveHold(plan);
+  else {
+    let rvSec = a.rvSec;
+    if (plan.takeoff) {
+      const trial = fly(plan, receiverOnRunway(plan), { kias: worked.rcvKias, dt: SOLVE_STEP_SEC, stopAt: 'trail' });
+      if (trial.events.trail === undefined) {
+        notes.push(trial.ground ? 'The receiver hit the ground on its climb-out: the take-off can\'t be flown over this ground.' : 'The receiver never reached the trail point on the track: no rendezvous to work out.');
+      }
+      rvSec = trial.events.trail ?? a.rvSec;
+      plan.tIpPlan = trial.events.ip ?? null;
+      worked.takeoffSec = trial.events.takeoff ?? null;
+      const madeKias = airData(trial.p.s, plan.sigmaAt).kias;
+      if (trial.events.trail !== undefined && worked.rcvKias - madeKias > 5) {
+        notes.push(`The receiver can't make ${Math.round(worked.rcvKias)} KIAS at ${ftWords(plan.Hr)} on the T-6A set at full power: it flies at about ${Math.round(madeKias)} KIAS, so it rolls out with less overtake than the set ${a.overtakeKt} kt. A lower overtake or a slower tanker would work.`);
+      }
     } else {
-      notes.push(`The receiver never came within the hand-set turn range (${a.byHand.turnRangeNm.toFixed(1)} NM): the tanker turned at the worked-out moment.`);
+      const trial = fly(plan, receiverStart(plan, 0, worked.rcvKias), { kias: worked.rcvKias, until: a.rvSec, dt: SOLVE_STEP_SEC });
+      const along = trial.p.s.x * plan.u.x + trial.p.s.y * plan.u.y;
+      plan.startAlong = -plan.trailFt - along;
+      worked.startNm = nm(-plan.startAlong);
+      const madeKias = airData(trial.p.s, plan.sigmaAt).kias;
+      if (a.rvSec > 20 && worked.rcvKias - madeKias > 5) {
+        notes.push(`The receiver can't make ${Math.round(worked.rcvKias)} KIAS at ${ftWords(plan.Hr)} on the T-6A set at full power: it flies at about ${Math.round(madeKias)} KIAS, so it rolls out with less overtake than the set ${a.overtakeKt} kt. A lower overtake or a slower tanker would work.`);
+      }
     }
+    worked.rvSec = rvSec;
+
+    // The tanker's turn (RS-16): at the rendezvous time less its turn's time, or when the receiver comes within a hand-set range.
+    plan.tTurn = rvSec - worked.turnSec;
+    if (a.byHand.turnRangeNm !== null) {
+      const pre = fly(plan, startPilot(), { kias: plan.rcvKias, until: rvSec + 900, dt: SOLVE_STEP_SEC, every: 0.5 });
+      const want = a.byHand.turnRangeNm * FT_PER_NM;
+      const rangeOf = (q) => Math.hypot(q.x - plan.turnStart.x, q.y - plan.turnStart.y);
+      const hit = pre.pts.find((q, i) => i > 0 && rangeOf(q) <= want && rangeOf(q) < rangeOf(pre.pts[i - 1]));
+      if (rangeOf(pre.pts[0]) <= want) {
+        plan.tTurn = 0;
+        notes.push(`The receiver starts inside the hand-set turn range (${a.byHand.turnRangeNm.toFixed(1)} NM): the tanker turns at once.`);
+      } else if (hit) {
+        plan.tTurn = hit.t;
+      } else {
+        notes.push(`The receiver never came within the hand-set turn range (${a.byHand.turnRangeNm.toFixed(1)} NM): the tanker turned at the worked-out moment.`);
+      }
+    }
+    plan.tRollOut = plan.tTurn + worked.turnSec;
+    plan.schedule = tankerSchedule(plan, plan.tRollOut);
   }
-  plan.tRollOut = plan.tTurn + worked.turnSec;
-  plan.schedule = tankerSchedule(plan, plan.tRollOut);
 
   const flight = fly(plan, startPilot(), { kias: plan.rcvKias, tRollOut: plan.tRollOut, record: true });
   flight.events.turn = plan.tTurn;
+  if (plan.hold) flight.events.leave = plan.tLeave;
   // The worked-out turn range is the range over the ground when the tanker turns, as the plan flew it.
   const iTurn = Math.round(Math.max(0, plan.tTurn) / PASS_STEP_SEC);
   const tl = flight.timeline;
   if (iTurn < tl.t.length) worked.turnRangeNm = nm(Math.hypot(tl.x[iTurn] - plan.turnStart.x, tl.y[iTurn] - plan.turnStart.y));
   const result = resultOf(plan, flight);
-  const exit = { sec: plan.tTurn, byHand: a.byHand.turnRangeNm !== null, startNm: worked.startNm, turnRangeNm: worked.turnRangeNm };
+  const exit = { sec: plan.tTurn, byHand: a.byHand.turnRangeNm !== null, startNm: worked.startNm, turnRangeNm: worked.turnRangeNm, leaveSec: plan.tLeave };
   return { plan, flight, tanker: flight.tanker, exit, result, fall: null, computeMs: (globalThis.performance?.now?.() ?? Date.now()) - started };
 }
 
 const ftWords = (n) => `${(Math.round(n / 100) * 100).toLocaleString('en-CA')} ft`;
+
+/**
+ * The hold at the ARCP worked out to hit (RS-19 amended, as RS-9): the receiver's flight flown ahead from the runway past
+ * IP inbound (the stored step, so IP inbound is the same moment in the stored flight: before the roll-out the receiver
+ * flies without looking at the tanker), then the tanker's run from the fix down the reciprocal track to its turn found
+ * so its roll-out (the turn inbound in the air mass, RS-21) puts it the set trail ahead of the receiver on that flight.
+ * The run is found on the worked-out receiver speed; the tanker leaves when the flown receiver is IP inbound (with a
+ * hand-set speed, its own IP inbound), or turns when the receiver comes within a hand-set turn range of it.
+ */
+function solveHold(plan) {
+  const { worked, notes, u, fix } = plan;
+  const a = plan.aar;
+  const gs = plan.gsRecip;
+  const stopAlongFt = Math.abs(worked.alongShiftFt) + FT_PER_NM;
+  const ahead = (kias) => fly(plan, receiverOnRunway(plan), { kias, stopAt: 'past', stopAlongFt, every: PASS_STEP_SEC });
+  const planned = ahead(worked.rcvKias);
+  const actual = plan.rcvKias === worked.rcvKias ? planned : ahead(plan.rcvKias);
+  worked.takeoffSec = planned.events.takeoff ?? null;
+  plan.tIpPlan = planned.events.ip ?? null;
+  const lastT = (f) => (f.pts.length ? f.pts[f.pts.length - 1].t : 0);
+  if (planned.events.ip === undefined) {
+    notes.push(planned.ground ? 'The receiver hit the ground on its climb-out: the take-off can\'t be flown over this ground.' : 'The receiver never passed the IP inbound: the tanker left its hold where the working-out ended.');
+  }
+  const madeKias = airData(planned.p.s, plan.sigmaAt).kias;
+  if (planned.events.ip !== undefined && worked.rcvKias - madeKias > 5) {
+    notes.push(`The receiver can't make ${Math.round(worked.rcvKias)} KIAS at ${ftWords(plan.Hr)} on the T-6A set at full power: it flies at about ${Math.round(madeKias)} KIAS, so it rolls out with less overtake than the set ${a.overtakeKt} kt. A lower overtake or a slower tanker would work.`);
+  }
+
+  // The receiver's distance along the track at time t on the flight flown ahead (straight on past its end).
+  const along = (q) => q.x * u.x + q.y * u.y;
+  const pts = planned.pts;
+  const alongAt = (t) => {
+    if (pts.length < 2) return pts.length ? along(pts[0]) : -plan.ipFt;
+    const dt = pts[1].t - pts[0].t;
+    const i = clamp(Math.floor((t - pts[0].t) / dt), 0, pts.length - 2);
+    const f = (t - pts[i].t) / (pts[i + 1].t - pts[i].t);
+    return along(pts[i]) + f * (along(pts[i + 1]) - along(pts[i]));
+  };
+  // The trail at the roll-out, less the set trail, for a run of L ft from the fix: the tanker leaves the fix (abeam the
+  // ARCP, the origin) at IP inbound, runs L at its ground speed down the reciprocal track, and its turn carries it
+  // alongShiftFt along the track (the drift's share); the receiver is where its flight puts it then.
+  const tIp = planned.events.ip ?? lastT(planned);
+  const miss = (L) => -L + worked.alongShiftFt - alongAt(tIp + L / gs + plan.turnSec) - plan.trailFt;
+  let L = 0;
+  const short = miss(0);
+  if (short <= 0) {
+    if (-short > 0.05 * FT_PER_NM && planned.events.ip !== undefined) {
+      notes.push(`The IP is too close to the ARCP for the set ${a.trailNm.toFixed(1)} NM trail from a hold until IP inbound: the tanker turned at once at IP inbound and rolled out short. An IP about ${(a.ipNm + -short / FT_PER_NM).toFixed(1)} NM back from the ARCP would work.`);
+    }
+    worked.ipShortFt = -short;
+  } else {
+    let lo = 0;
+    let hi = FT_PER_NM;
+    while (miss(hi) > 0 && hi < 400 * FT_PER_NM) hi *= 2;
+    for (let k = 0; k < 60; k++) {
+      const m = (lo + hi) / 2;
+      if (miss(m) > 0) lo = m;
+      else hi = m;
+    }
+    L = (lo + hi) / 2;
+  }
+  worked.recipFt = L;
+  worked.rvSec = tIp + L / gs + plan.turnSec; // the planned roll-out
+
+  // The tanker leaves at the flown receiver's IP inbound; a hand-set turn range: it turns when the receiver comes within
+  // that range of it (over the ground) on its way down the reciprocal track.
+  const tLeave = actual.events.ip ?? lastT(actual);
+  if (a.byHand.turnRangeNm !== null) {
+    const want = a.byHand.turnRangeNm * FT_PER_NM;
+    const seen = actual.pts.filter((q) => q.t >= tLeave - 1e-9);
+    const rangeOf = (q) => Math.hypot(q.x - (fix.x - u.x * gs * (q.t - tLeave)), q.y - (fix.y - u.y * gs * (q.t - tLeave)));
+    const hit = seen.find((q, i) => i > 0 && rangeOf(q) <= want && rangeOf(q) < rangeOf(seen[i - 1]));
+    if (seen.length && rangeOf(seen[0]) <= want) {
+      L = 0;
+      notes.push(`The receiver is inside the hand-set turn range (${a.byHand.turnRangeNm.toFixed(1)} NM) at IP inbound: the tanker turns at once.`);
+    } else if (hit) {
+      L = gs * (hit.t - tLeave);
+    } else {
+      notes.push(`The receiver never came within the hand-set turn range (${a.byHand.turnRangeNm.toFixed(1)} NM): the tanker turned at the worked-out moment.`);
+    }
+  }
+  setTurnPoint(plan, L);
+  plan.tLeave = tLeave;
+  plan.tTurn = tLeave + L / gs;
+  plan.tRollOut = plan.tTurn + plan.turnSec;
+  worked.leaveSec = tLeave;
+  plan.schedule = holdSchedule(plan, tLeave);
+}
 
 /** The result card's numbers, flags and words (spec "The result card"; RS-6). */
 function resultOf(plan, flight) {
@@ -660,6 +838,8 @@ function resultOf(plan, flight) {
   // The turn inbound is flown at the set bank in the air mass (RS-21); the orbit keeps its ground shape, so this reads its turns.
   flag('tankerBank', `The tanker's steepest bank (its orbit keeps its ground shape) against its set ${plan.aar.bankDeg}°`, Math.round(tankerBank) > plan.aar.bankDeg);
   flag('wingLine', 'The receiver ahead of the tanker\'s wing line after the roll-out', wingLine > 0);
+  // The trail at the roll-out against the plan (RS-19 amended: a hold until IP inbound may not give it), an estimate.
+  flag('trail', `The trail at the roll-out more than ${nm(TRAIL_REF_FT).toFixed(1)} NM off the plan (an estimate)`, rollOut !== null && Math.abs(rollOut.trailFt - plan.trailFt) > TRAIL_REF_FT);
   flag('peakG', `The receiver's peak G against the ${ac.gLimit} G limit`, peakG > ac.gLimit);
   flag('vmo', 'The receiver\'s fastest against VMO', overVmo > 0);
   flag('slow', `The receiver's lowest airspeed against the stick shaker (${Math.round(ac.shakerKias)} KIAS)`, lowestKias < ac.shakerKias);
@@ -669,10 +849,21 @@ function resultOf(plan, flight) {
   if (ev.stable === undefined && !flight.ground) {
     notes.push(`The receiver did not stabilise in pre-contact within ${Math.round(JOIN.maxSec / 60)} minutes of the roll-out: it ended ${ftWords(Math.abs(endFromPre.behindFt))} ${endFromPre.behindFt >= 0 ? 'behind' : 'past'} the point.`);
   }
-  if (plan.tRollOut !== null && tl.t[last] > plan.tRollOut + timeLegB(plan)) notes.push('The join ran past the end of the anchor\'s refuelling leg: in this picture the tanker flies on straight. A longer leg would keep it on the anchor.');
+  if (!plan.hold && plan.tRollOut !== null && tl.t[last] > plan.tRollOut + timeLegB(plan)) notes.push('The join ran past the end of the anchor\'s refuelling leg: in this picture the tanker flies on straight. A longer leg would keep it on the anchor.');
   const lateSec = ev.rollOut !== undefined ? ev.rollOut - plan.worked.rvSec : null;
   // RS-19: the tanker's laps in its orbit before its turn inbound; RS-20: the offset as flown and its side.
-  const orbitLaps = plan.schedule ? Math.max(0, plan.tTurn) / plan.schedule.lapSec : null;
+  const orbitLaps = plan.schedule ? Math.max(0, plan.hold ? plan.tLeave : plan.tTurn) / plan.schedule.lapSec : null;
+  // RS-19 amended: the hold at the ARCP until IP inbound, where the tanker was then (at its fix abeam the ARCP; its range
+  // from the receiver over the ground) and its run down the reciprocal track to its turn.
+  let hold = null;
+  if (plan.hold) {
+    const i = Math.min(n - 1, Math.round(plan.tLeave / PASS_STEP_SEC));
+    hold = {
+      leaveSec: plan.tLeave, ipInboundSec: ev.ip ?? null, orbitSec: plan.tLeave, laps: orbitLaps,
+      fromFixFt: Math.hypot(tt.x[i] - plan.fix.x, tt.y[i] - plan.fix.y), rangeFt: Math.hypot(tt.x[i] - tl.x[i], tt.y[i] - tl.y[i]),
+      recipFt: plan.recipFt, ipShortFt: plan.worked.ipShortFt ?? 0,
+    };
+  }
   if (plan.takeoff && ev.takeoff === undefined) notes.push('The receiver never left the runway.');
   if (plan.takeoff && ev.ip === undefined && !flight.ground) notes.push('The receiver never passed the IP.');
   return {
@@ -683,7 +874,8 @@ function resultOf(plan, flight) {
     toPreContactSec: ev.preContact !== undefined && ev.rollOut !== undefined ? ev.preContact - ev.rollOut : null,
     stableSec: ev.stable !== undefined && ev.rollOut !== undefined ? ev.stable - ev.rollOut : null,
     endFromPre, tankerBankDeg: tankerBank, tankerLowestFt: tankerLowest,
-    takeoff: plan.takeoff ? { runway: plan.runway.name, liftOffSec: ev.takeoff ?? null, ipSec: ev.ip ?? null, ipPlanSec: plan.tIpPlan } : null,
+    takeoff: plan.takeoff ? { runway: plan.runway.name, liftOffSec: ev.takeoff ?? null, directSec: ev.direct ?? null, direct: plan.direct, ipSec: ev.ip ?? null, ipPlanSec: plan.tIpPlan } : null,
+    hold,
     orbitLaps, offsetFt: plan.offsetFt, offsetSide: plan.aar.dir < 0 ? 'left' : 'right', offsetByHand: plan.aar.byHand.offsetNm !== null,
     peakG, lowestKias, overVmo, flags, notes,
     worked: { ...plan.worked, rcvKiasFlown: plan.rcvKias, rcvByHand: plan.aar.byHand.rcvKias !== null, turnByHand: plan.aar.byHand.turnRangeNm !== null, tTurn: plan.tTurn, tRollOut: plan.tRollOut },
@@ -697,12 +889,15 @@ const timeLegB = (plan) => plan.legFt / plan.tankerGs;
  * What to draw (plan lines over the ground, { x, y, z }): the anchor's racetrack and the turn inbound at the tanker's
  * height, the receiver's track from the IP (or its airborne start) to the roll-out point at its height, the tanker's turn
  * point and its roll-out point, the offset (RS-20: square to the track from the tanker's inbound track to the receiver's,
- * at the turn point), and with the take-off (RS-19) CYMJ's runway and the IP.
+ * at the turn point), and with the take-off (RS-19) CYMJ's runway and the IP. With the hold at the ARCP (RS-19
+ * amended): the anchor is the hold, the inbound line starts at its fix (the run down the reciprocal track to the turn),
+ * the receiver's track runs from the IP to the ARCP, and arcp, fix and direct (the planned line from the runway's
+ * departure end direct to the IP, when it turns direct) are given; null otherwise.
  */
 export function refuelOutline(plan) {
   if (!plan || plan.kind !== 'aar') return null;
   const anchor = samplePath(plan.lap, 300).map((q) => ({ ...q, z: plan.H }));
-  const inbound = [];
+  const inbound = plan.hold ? [{ ...plan.fix, z: plan.H }] : [];
   for (let k = 0; k <= 48; k++) {
     const q = plan.airTurn((plan.turnSec * k) / 48); // the turn inbound over the ground, drift and all (RS-21)
     inbound.push({ x: plan.turnStart.x + q.dx, y: plan.turnStart.y + q.dy, z: plan.H });
@@ -717,6 +912,9 @@ export function refuelOutline(plan) {
     offset: { a: { ...ts, z: plan.H }, b: { ...foot, z: plan.H }, ft: plan.offsetFt, side: plan.aar.dir < 0 ? 'left' : 'right' },
     runway: plan.runway ? { a: { ...plan.runway.th, z: plan.runway.z }, b: { ...plan.runway.end, z: plan.runway.z }, name: plan.runway.name } : null,
     ip: plan.takeoff ? { ...plan.ip, z: plan.Hr } : null,
+    arcp: plan.hold ? { ...plan.arcp, z: plan.Hr } : null,
+    fix: plan.hold ? { ...plan.fix, z: plan.H } : null,
+    direct: plan.direct && plan.runway ? [{ ...plan.runway.end, z: plan.runway.z }, { ...plan.ip, z: plan.Hr }] : null,
   };
 }
 

@@ -288,6 +288,24 @@ export function createView2d({ timers, getProjection, onZoom }) {
     line(o.anchor, COLOURS.plan, 1.5, [6, 4]);
     line(o.inbound, COLOURS.tanker, 1.5, [6, 4]);
     line(o.track, COLOURS.runIn, 2.5);
+    // RS-19 amended (Dad, 20 Oct 2026): the planned direct track from the runway to the IP, the ARCP and the hold's fix.
+    if (o.direct) {
+      line(o.direct, COLOURS.runIn, 1.5, [3, 4]);
+      const [dx, dy] = S({ x: (o.direct[0].x + o.direct[1].x) / 2, y: (o.direct[0].y + o.direct[1].y) / 2 });
+      label(ctx, 'Direct to the IP', dx + 9, dy - 6, COLOURS.runIn);
+    }
+    if (o.arcp) {
+      // The ARCP's label below it and the hold's on the fix's own side, clear of the turn and roll-out labels above.
+      spot(o.arcp, COLOURS.plan, 5);
+      spot(o.fix, COLOURS.tanker, 4);
+      const [ax, ay] = S(o.arcp);
+      const [fx, fy] = S(o.fix);
+      label(ctx, 'ARCP', ax + 9, ay + 20, COLOURS.plan);
+      const words = 'Tanker holds until IP inbound';
+      ctx.font = FONT;
+      const w = ctx.measureText(words).width;
+      label(ctx, words, fx < ax ? fx - w - 12 : fx + 12, fy + 20, COLOURS.tanker);
+    }
     spot(o.turnStart, COLOURS.ip);
     mark(o.turnStart, 'Tanker turns', COLOURS.ip);
     spot(o.rollOut, COLOURS.target);
@@ -301,7 +319,7 @@ export function createView2d({ timers, getProjection, onZoom }) {
       line([o.runway.a, o.runway.b], COLOURS.target, 4);
       mark(o.runway.a, `CYMJ ${o.runway.name}`, COLOURS.target);
       spot(o.ip, COLOURS.ip, 4.5);
-      mark(o.ip, `IP ${(plan.ipFt / FT_PER_NM).toFixed(1)} NM`, COLOURS.ip);
+      mark(o.ip, `IP ${(plan.ipFt / FT_PER_NM).toFixed(1)} NM${o.arcp ? ' before the ARCP' : ''}`, COLOURS.ip);
     } else {
       spot(o.start, COLOURS.runIn, 4);
       mark(o.start, 'Receiver starts', COLOURS.runIn);
@@ -749,7 +767,7 @@ export function createView2d({ timers, getProjection, onZoom }) {
       ctx.fillText(words, X(sv) - ctx.measureText(words).width / 2, height - B + 15);
     }
     ctx.fillStyle = COLOURS.axis;
-    ctx.fillText(behind ? 'Ahead (+) or behind (−) the tanker\'s wing line, ft' : `Along the refuelling track from the roll-out point, ${nmAxis ? 'NM' : 'ft'} (flying left to right)`, L, height - 6);
+    ctx.fillText(behind ? 'Ahead (+) or behind (−) the tanker\'s wing line, ft' : `Along the refuelling track from the ${plan.hold ? 'ARCP' : 'roll-out point'}, ${nmAxis ? 'NM' : 'ft'} (flying left to right)`, L, height - 6);
     ctx.save();
     ctx.translate(13, T + (height - T - B) / 2);
     ctx.rotate(-Math.PI / 2);

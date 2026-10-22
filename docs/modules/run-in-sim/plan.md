@@ -64,6 +64,15 @@ Dad, 17 Oct 2026: "Is turn range/offset scalable based on altitude airspeed wind
 - [x] The one test kept: its ground now at CYMJ's 1,892 ft (V2.505).
 - [x] Patrick's yes on RS-21 to RS-23 (relayed by Dad, 17 Oct 2026: 'pat says build').
 
+## Step 7d. Direct to the IP after take-off; the tanker holds at the ARCP until IP inbound (Dad's correction, within Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'); Patrick's look still to come)
+Dad, 20 Oct 2026: "For the point parallel the t-6 taking off should really just turn direct the IP after takeoff. and the tanker shoould really stay in orbit at the ARCP until the reciever hits "IP inbound"".
+- [x] Written down first: the spec's "Change: direct to the IP after take-off; the tanker holds at the ARCP until IP inbound", RS-19 amended with RS-16 and RS-21, RS-R19, `testing.md` (20 Oct 2026).
+- [x] The receiver turns direct to the IP from 400 ft above the runway (an estimate); "After take-off" keeps the runway heading to 2,500 ft as a setting (20 Oct 2026).
+- [x] The Place is the ARCP; the tanker holds there (its fix abeam the ARCP on the offset side), its orbit timed to be at the fix at IP inbound, then runs down the reciprocal track to the turn worked out to hit the trail; "The tanker" keeps the anchor as a setting; the airborne start unchanged (20 Oct 2026).
+- [x] The card (IP inbound, where the tanker was, its time in orbit, the trail flagged off the plan), the time line, and the ARCP, the hold and the direct track in 2D and 3D (20 Oct 2026).
+- [x] The one test kept and extended: the tanker never leaves its hold at the ARCP before IP inbound (20 Oct 2026).
+- [ ] Patrick's look, and his ruling on the turn after take-off (his 6 Oct rule against Dad's direct turn); Dad or Patrick sees it in the app.
+
 ## Step 8. The anthem flyover (approved: Patrick's yes (relayed by Dad, 17 Oct 2026: 'pat says build'))
 Dad, 17 Oct 2026: "on the stadium flyover it would be nice for the user to hit national anthem starts playing...and the the aircraft gets its self over the target by national anthem completion (us or Canada as options)".
 - [x] Written down first: spec "The anthem flyover", RS-24 and RS-25, RS-R16 (17 Oct 2026).
