@@ -21,6 +21,9 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      # A private repo's scan must read its own workflow run to send results
+      # back (the 19 Oct 2026 run failed without it).
+      actions: read
     strategy:
       fail-fast: false
       matrix:

@@ -109,6 +109,10 @@ export const DEFAULTS = Object.freeze({
   // legs are 1 minute (the standard holding leg below 14,000 ft, a reference; an estimate here) and its turns, like the
   // figure 8's, at 30° bank (an estimate). orbitBankDeg is also the circle's steady bank when flown as Bank.
   orbitPattern: 'hold',
+  // The figure 8's way round (RS-30; Dad, 19 Oct 2026: "we should have button to change the figure 8 flow"): crossing the
+  // IP heading away from the target and leaving by a turn inbound onto the run-in (the default, his pick), or crossing it
+  // heading toward the target and leaving at the IP, as it was flown before (the old value, kept).
+  eightFlow: 'outbound',
   holdLegSec: 60,
   orbitHeightFt: 3000,
   orbitMode: 'radius',
@@ -205,6 +209,7 @@ export const ALLOWED = Object.freeze({
   orbitPattern: ['hold', 'eight', 'circle'],
   orbitMode: ['radius', 'bank'],
   orbitDir: ['left', 'right'],
+  eightFlow: ['outbound', 'inbound'],
   releaseMode: ['carp', 'distance'],
   escapeDir: ['left', 'right', 'straight'],
   aarDir: ['left', 'right'],
@@ -296,7 +301,7 @@ export function setupFrom(v) {
     trackDegT: t(v.runInDegM),
     totSec: v.totSec,
     orbit: {
-      pattern: v.orbitPattern, legSec: v.holdLegSec,
+      pattern: v.orbitPattern, legSec: v.holdLegSec, flow: v.eightFlow,
       heightFt: v.orbitHeightFt, mode: v.orbitMode, radiusNm: v.orbitRadiusNm, bankDeg: v.orbitBankDeg,
       dir: v.orbitDir === 'left' ? -1 : 1, kias: v.orbitKias, backNm: v.orbitBackNm,
     },
