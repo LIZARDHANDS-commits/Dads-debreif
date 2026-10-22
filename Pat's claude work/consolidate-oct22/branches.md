@@ -34,13 +34,19 @@ This cloud session can't see them. In PowerShell, in your main `Dads-debreif` fo
 ```powershell
 git fetch origin --prune
 git worktree list
+git log --oneline --branches --not --remotes
 ```
 
-Then for each worktree path it lists (skip `Dads-debreif-open-source-perf`, which is protected):
+The last line lists commits on your computer that aren't on GitHub, on any branch. Then for each worktree path (skip `Dads-debreif-open-source-perf`, which is protected):
 
 ```powershell
-git -C "<path>" status --short          # anything not committed?
-git -C "<path>" log --oneline "@{u}..HEAD"  # anything committed but not on GitHub?
+git -C "<path>" status --short --ignored
 ```
 
-If both print nothing, the worktree's work is on GitHub and it can go: `git worktree remove "<path>"`. Paste me anything that does print, and I'll say where it belongs.
+Lines starting `!!` are ignored files (a local `.env`, Blender outputs). `git worktree remove` deletes them without asking, so copy any you need first. If nothing prints that matters, the worktree can go: `git worktree remove "<path>"`. Paste me anything that does print.
+
+(Corrected 22 Oct 2026: the first version used `@{u}..HEAD`, which fails on a branch never pushed, and didn't show ignored files.)
+
+## 5. Branches with no pull request keeping their commits
+
+Deleting one of these loses it for good, so each is tagged `archive/<name>` before any deletion: `claude/fw-rejoin-settle-mid-cone`, `claude/project-thread-swv8zh`, `claude/sof-mouse-airspace`, `claude/combined-preview`, `claude/c130j-model-plan`, `claude/debrief-16-ship-plan`, `claude/debrief-drop-plan`, `claude/ep-tabletop-phone`, `claude/run-in-sim-build`, `claude/t38a-model-plan`. The other 56 match a pull request's last commit and can be restored from GitHub.
