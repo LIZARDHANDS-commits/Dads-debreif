@@ -11,8 +11,11 @@
 // 2. The orbit exit: the moment to leave the orbit so the time over target is made (RS-8). On the circle (solveExit), found
 //    by flying the rest of the pass from candidate exits; when no exit can make it, the soonest, and the card says how late.
 //    On the holding pattern and the figure 8 (RS-11; solvePattern, flyPattern), the pilot always leaves at the IP heading
-//    inbound, and the time is made by the last lap: the holding pattern's last outbound leg stretched or shortened, or the
-//    figure 8's last loop flown wider or tighter (PATTERN's limits, estimates). The pattern is a path of legs and arcs over
+//    inbound, and the time is made by the last lap: the holding pattern's last outbound leg stretched or shortened, or (RS-31)
+//    the figure 8's loops not yet begun all flown at one bank, wider or tighter (PATTERN's limits, estimates, and the
+//    steepest level turn the aircraft's set holds). The figure 8 is flown crossing the IP
+//    heading away from the target and left by its exit, a teardrop turn inbound onto the run-in line behind the IP (Dad's
+//    ask of 19 Oct 2026, RS-11). The pattern is a path of legs and arcs over
 //    the ground (ground-path.js) held by the same L1 follower as the run-in line and the circle.
 // 3. The flight (fly): the pilot (pilot.js) on core's point mass, stepped at PASS_STEP_SEC through every leg, each step
 //    stored. The aircraft meets the actual wind; the load falls through it (core flyDrop) from the aircraft's state at
@@ -35,7 +38,7 @@ import { FT_PER_NM, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { dropWind } from '../debrief/drop.js';
 import { AIRCRAFT } from './aircraft.js';
 import { targetSizes, deckOf, deckHit, deckMiss, TARGETS } from './targets.js';
-import { makePath, pointOnPath, nearestOnPath, samplePath, holdLap, eightLoop } from './ground-path.js';
+import { makePath, pointOnPath, nearestOnPath, samplePath, holdLap, eightLoop, eightExit, eightExitSizes } from './ground-path.js';
 import { PILOT, pilotAt, pilotStep, wantedLift, airData } from './pilot.js';
 
 /** The flight's step, s: the shared point mass's (core drop.js uses the same 0.05 s). */
@@ -63,11 +66,39 @@ const MIN_ROLL_IN_KIAS = 140;
 export const REFERENCES = Object.freeze({ lowestAglFt: 500, overTopFt: 1000, overTopInsideFt: 2000, orbitBankDeg: 45 });
 /**
  * The holding pattern and the figure 8 (RS-11), ESTIMATES: the last outbound leg is shortened to no less than
- * holdMinLegSec (so the pilot is wings level inbound before the IP), and the figure 8's last loop is flown between
- * eightBankDeg's banks (15° to 45°, the spec's estimates), its radius worked out at the orbit's true airspeed. The figure
- * 8's legs cross at the IP at eightCrossDeg (V2.508, an infinity sign; an estimate).
+ * holdMinLegSec (so the pilot is wings level inbound before the IP). The figure 8's legs cross at the IP at eightCrossDeg
+ * (V2.508, an infinity sign; an estimate), heading away from the target by default (Dad's ask of 19 Oct 2026, RS-30).
+ * Since RS-31 (Dad, 19 Oct 2026: "can the aircraft G it up more as necessary to make the window") its loops not yet begun
+ * are all flown at one bank, worked out to make the time over target, from eightMinBankDeg (15°, the spec's estimate) up
+ * to the steepest level turn the aircraft's set holds at full power at the orbit's speed and height (never past the stall
+ * line: steepestLevelBankDeg), as many loops as bring that bank nearest the set bank (up to eightMaxLoops); the outbound
+ * exit at the same radius, but never tighter than that steepest turn at the run-in speed it speeds up to. The pilot may
+ * bank eightBankMarginDeg past the steepest bank planned, to hold the path on the downwind side.
  */
-export const PATTERN = Object.freeze({ holdMinLegSec: 15, eightBankDeg: Object.freeze([15, 45]), eightCrossDeg: 60 });
+export const PATTERN = Object.freeze({ holdMinLegSec: 15, eightMinBankDeg: 15, eightCrossDeg: 60, eightMaxLoops: 40, eightBankMarginDeg: 10 });
+
+/**
+ * The steepest bank, degrees, of a level turn the aircraft's set holds at full power at kias and height msl (RS-31): where
+ * its full-power excess (core's excessFn, the T-6A set's own numbers) falls to zero, never past the stall line (its
+ * stallG). Null when it can't hold even 1 G level there at full power.
+ */
+export function steepestLevelBankDeg(plan, kias, msl) {
+  const ac = plan.ac;
+  const ktas = plan.tasFt(kias, msl) / KT_TO_FTPS;
+  const excess = (g) => ac.excessFn(1)(ktas, msl, g);
+  if (excess(1) < 0) return null;
+  let a = 1;
+  let b = Math.max(1, ac.stallG(kias));
+  if (excess(b) < 0) {
+    for (let k = 0; k < 30; k++) {
+      const m = (a + b) / 2;
+      if (excess(m) >= 0) a = m;
+      else b = m;
+    }
+    b = a;
+  }
+  return radToDeg(Math.acos(1 / b));
+}
 /** The patterns flown as a path over the ground (the circle keeps the first version's way). */
 const PATH_PATTERNS = Object.freeze(['hold', 'eight']);
 const TAU = Math.PI * 2;
@@ -195,7 +226,12 @@ export function buildPlan(setup, world) {
     const legFt = tasFtps * o.legSec;
     const lap = o.pattern === 'hold'
       ? holdLap({ ip: plan.ip, u, dir: o.dir, r: radiusFt, legFt })
-      : [...eightLoop({ ip: plan.ip, u, dir: o.dir, r: radiusFt, crossDeg: PATTERN.eightCrossDeg }), ...eightLoop({ ip: plan.ip, u, dir: -o.dir, r: radiusFt, crossDeg: PATTERN.eightCrossDeg })];
+      : [
+        ...eightLoop({ ip: plan.ip, u, dir: o.dir, r: radiusFt, crossDeg: PATTERN.eightCrossDeg, outbound: o.flow !== 'inbound' }),
+        ...eightLoop({ ip: plan.ip, u, dir: -o.dir, r: radiusFt, crossDeg: PATTERN.eightCrossDeg, outbound: o.flow !== 'inbound' }),
+        // The outbound figure 8 is drawn with its exit (RS-30).
+        ...(o.flow !== 'inbound' ? eightExit({ ip: plan.ip, u, dir: -o.dir, r: radiusFt, crossDeg: PATTERN.eightCrossDeg }) : []),
+      ];
     plan.orbit = { ...o, msl, ccw: o.dir < 0, tasFtps, radiusFt, legFt, centre: { ...plan.ip }, lap: makePath(lap), path: null, prepFrom: 0 };
     return plan;
   }
@@ -387,7 +423,8 @@ function patternStart(plan) {
   const V = o.tasFtps;
   const w = windWords(plan.windAt(o.msl));
   const first = o.path?.segs[0];
-  // The figure 8 starts on its first leg (V2.508: half the crossing angle off inbound); the holding pattern on inbound.
+  // The figure 8 starts on its first leg (half the crossing angle off outbound, Dad's ask of 19 Oct 2026, or off inbound
+  // when flown the old way, RS-30); the holding pattern on inbound.
   const trackDeg = first?.kind === 'line' ? compassDegFromVector(first.dir.x, first.dir.y) : plan.setup.trackDegT;
   const tri = windTriangle(trackDeg, V / KT_TO_FTPS, w.fromDeg, w.kt);
   const s = pointMassState({ x: plan.ip.x, y: plan.ip.y, altFt: o.msl, ktas: V / KT_TO_FTPS, headingRad: compassDegToHeadingRad(tri.headingDeg) });
@@ -419,11 +456,15 @@ function control(plan, p, phase, esc) {
       const o = plan.orbit;
       if (o.path) {
         // The holding pattern or the figure 8 (RS-11): the point `look` ahead on the path, as the run-in line and the circle.
-        // From the last lap's start (prepFrom) he goes to the run-in's height and speed, so he is established at the IP.
+        // From the last lap's start (prepFrom: the holding pattern's last outbound leg, the figure 8's exit) he goes to the
+        // run-in's height and speed, so he is established at the IP.
         const prep = esc.pathS >= o.prepFrom;
         const climbCmdRad = climbToward(s, wind, prep ? plan.runInMsl : o.msl, PILOT.maxClimbDeg);
         const aim = pointOnPath(o.path, esc.pathS + look);
-        return { lift: wantedLift(p, { ...env, climbCmdRad, aim, maxBankDeg: PILOT.patternBankDeg }), kias: prep ? plan.runInKias : o.kias, gMax: PILOT.manoeuvreG };
+        // The figure 8's loops may be planned steeper than his usual most (RS-31): he may bank a margin past them.
+        const most = o.pathBankDeg ? Math.max(PILOT.patternBankDeg, o.pathBankDeg + PATTERN.eightBankMarginDeg) : PILOT.patternBankDeg;
+        const gMax = o.pathBankDeg ? Math.max(PILOT.manoeuvreG, 1 / Math.cos(degToRad(most))) : PILOT.manoeuvreG;
+        return { lift: wantedLift(p, { ...env, climbCmdRad, aim, maxBankDeg: most }), kias: prep ? plan.runInKias : o.kias, gMax };
       }
       const climbCmdRad = climbToward(s, wind, o.msl, PILOT.maxClimbDeg);
       if (o.mode === 'bank') return { lift: wantedLift(p, { ...env, climbCmdRad, bankDeg: o.dir * o.bankDeg, maxBankDeg: 89 }), kias: o.kias, gMax: PILOT.manoeuvreG };
@@ -527,7 +568,8 @@ export function fly(plan, { pilot, t0 = 0, phase = PHASE.ORBIT, exitSec = Infini
     // Leg changes at the start of the step.
     if (ph === PHASE.ORBIT && path) {
       // The pattern (RS-11): where he is along it, looked for just round where he was (the figure 8 crosses itself at the
-      // IP); at its end, at the IP heading inbound, he leaves it straight onto the run-in.
+      // IP); at its end, at the IP heading inbound (the figure 8's exit already on the run-in line), he carries on along
+      // the run-in.
       const w = plan.windAt(s.z);
       const look = Math.max(500, Math.hypot(s.vx + w.x, s.vy + w.y) * PILOT.lookaheadSec);
       if (path.total > 0) esc.pathS = nearestOnPath(path, s, esc.pathS - 300, esc.pathS + 3 * look + 300);
@@ -743,9 +785,12 @@ export function solveExit(plan) {
  * The pattern's times over the ground (RS-11) at the orbit's true airspeed in the wind at its height: K, the seconds per
  * foot of radius of a full turn (∫ dθ ÷ ground speed, the same either way round, and the same for a holding pattern's
  * two half turns together), and perLegFt, the seconds per foot of the holding legs (one out, one in). The figure 8's
- * loop (an infinity sign since V2.508) scales with its radius too: its turn misses the tracks within half the crossing
- * angle of inbound, and its two legs, each tan(half) of the radius, are flown at half the crossing angle either side of
- * inbound, so its K is the turn's part plus the legs'.
+ * loop (an infinity sign since V2.508, flown crossing the IP outbound by default since Dad's ask of 19 Oct 2026, or
+ * inbound, RS-30) scales with its radius too: its turn misses the tracks within half the crossing angle of the way its
+ * legs head, and its two legs, each tan(half) of the radius, are flown at half the crossing angle either side of that,
+ * so its K is the turn's part plus the legs'. exitK(dir): the outbound figure 8's exit's seconds per foot of its radius
+ * after a last loop turning dir (ground-path.js eightExitSizes: the straight on along the last crossing leg, the turn
+ * inbound the same way, the straight in to the IP).
  */
 function patternTimes(plan) {
   const o = plan.orbit;
@@ -755,22 +800,36 @@ function patternTimes(plan) {
   const eight = o.pattern === 'eight';
   const half = degToRad(PATTERN.eightCrossDeg / 2);
   const inbound = Math.atan2(plan.u.y, plan.u.x);
+  const outbound = inbound + Math.PI;
+  const legs = o.flow === 'inbound' ? inbound : outbound; // the way the figure 8's legs head (RS-30)
   let K = 0;
   for (let i = 0; i < N; i++) {
     const th = ((i + 0.5) / N) * TAU;
-    if (eight && Math.abs(wrapPi(th - inbound)) < half) continue;
+    if (eight && Math.abs(wrapPi(th - legs)) < half) continue;
     K += TAU / N / gs(Math.cos(th), Math.sin(th));
   }
-  if (eight) for (const k of [1, -1]) K += Math.tan(half) / gs(Math.cos(inbound + k * half), Math.sin(inbound + k * half));
-  return { K, perLegFt: 1 / gs(-plan.u.x, -plan.u.y) + 1 / gs(plan.u.x, plan.u.y) };
+  if (eight) for (const k of [1, -1]) K += Math.tan(half) / gs(Math.cos(legs + k * half), Math.sin(legs + k * half));
+  const exitK = (dir) => {
+    // After a left-turning last loop (dir −1) the last crossing leg is half the crossing angle clockwise of outbound,
+    // and the turn inbound goes on anticlockwise (the track's angle rising); a right one, the mirror.
+    const { outFt, sweepRad, inFt } = eightExitSizes(1, PATTERN.eightCrossDeg);
+    const h = outbound + dir * half;
+    let t = outFt / gs(Math.cos(h), Math.sin(h)) + inFt / gs(plan.u.x, plan.u.y);
+    for (let i = 0; i < N; i++) {
+      const th = h - dir * ((i + 0.5) / N) * sweepRad;
+      t += sweepRad / N / gs(Math.cos(th), Math.sin(th));
+    }
+    return t;
+  };
+  return { K, perLegFt: 1 / gs(-plan.u.x, -plan.u.y) + 1 / gs(plan.u.x, plan.u.y), exitK };
 }
 
 /** The radius of a turn at bankDeg at the orbit's true airspeed, ft. */
 const radiusAtBank = (plan, bankDeg) => turnRadiusFromBankFt(plan.orbit.tasFtps, bankDeg);
 
 /**
- * How the pattern makes the time over target (RS-8, RS-9, RS-11): k standard laps (holding pattern) or loops (figure 8),
- * then a last one whose outbound leg (feet) or radius (feet) is `param`. The time from the IP on is the run-in flown from
+ * How the pattern makes the time over target (RS-8, RS-9, RS-11): k standard laps, then a last one whose outbound leg
+ * (feet) is `param` (the figure 8 since RS-31: solveEight). The time from the IP on is the run-in flown from
  * the IP, established at its height and speed, to the release (and the load's fall). When even the shortest last lap is
  * too long, the nearer of leaving at once (param null: no pattern, the run-in starts at the IP) and the shortest lap.
  * Returns { k, param, range, slope (s per foot of param), byHand }.
@@ -779,11 +838,11 @@ export function solvePattern(plan) {
   const o = plan.orbit;
   const setup = plan.setup;
   const hold = o.pattern === 'hold';
-  const { K, perLegFt } = patternTimes(plan);
-  const timeOf = (param) => (hold ? o.radiusFt * K + param * perLegFt : param * K);
+  const { K, perLegFt, exitK } = patternTimes(plan);
+  const timeOf = (param) => o.radiusFt * K + param * perLegFt; // the holding pattern's lap (the figure 8: solveEight)
   const nominal = hold ? o.legFt : o.radiusFt;
-  const lapSec = timeOf(nominal);
-  const range = hold ? [o.tasFtps * PATTERN.holdMinLegSec, Infinity] : [radiusAtBank(plan, PATTERN.eightBankDeg[1]), radiusAtBank(plan, PATTERN.eightBankDeg[0])];
+  const lapSec = hold ? timeOf(nominal) : nominal * K; // one standard lap or loop
+  const range = hold ? [o.tasFtps * PATTERN.holdMinLegSec, Infinity] : eightRange(plan);
   const slope = hold ? perLegFt : K;
   if (setup.byHand.exitSec !== null) {
     // Left by hand: standard laps, leaving at the IP at the first pass at or after the time set.
@@ -791,9 +850,10 @@ export function solvePattern(plan) {
   }
   const start = runInStart(plan, plan.runInMsl, plan.runInKias, -plan.ipFt);
   const f = fly(plan, { pilot: start, phase: PHASE.RUN_IN, dt: SOLVE_STEP_SEC, stopAt: 'release' });
-  if (!f.release) return { k: 0, param: nominal, range, slope };
+  if (!f.release) return hold ? { k: 0, param: nominal, range, slope } : { k: 1, kept: plan.keptLoops ?? [], m: 1, param: nominal, range, slope };
   const fromIp = f.release.t + (plan.run === 'flyover' ? 0 : plan.fallSec);
   const need = setup.totSec - fromIp; // the time to be at the IP
+  if (!hold) return solveEight(plan, { K, exitK, need, range });
   const tMin = timeOf(range[0]);
   // A live anthem press (RS-24): at least plan.minLaps standard laps (those already begun stay as flown); too little time
   // for them, the shortest last lap after them (it arrives as soon as it can, and the card says how late).
@@ -808,29 +868,119 @@ export function solvePattern(plan) {
   if (k < minK) return { k: minK, param: lo(minK), range: [lo(minK), range[1]], slope };
   const rest = need - k * lapSec;
   const r = [lo(k), range[1]];
-  return { k, param: clamp(hold ? (rest - o.radiusFt * K) / perLegFt : rest / K, r[0], r[1]), range: r, slope };
+  return { k, param: clamp((rest - o.radiusFt * K) / perLegFt, r[0], r[1]), range: r, slope };
+}
+
+/**
+ * The figure 8's loop radii, ft (RS-31): [tightest, widest] at the orbit's true airspeed, from the steepest level turn
+ * the set holds there (steepestLevelBankDeg; the set bank when it can't hold one) to PATTERN.eightMinBankDeg; and
+ * exitMinFt, the tightest the outbound exit is flown, the steepest level turn at the run-in speed it speeds up to.
+ */
+function eightRange(plan) {
+  const o = plan.orbit;
+  const steep = Math.max(o.bankDeg, steepestLevelBankDeg(plan, o.kias, o.msl) ?? o.bankDeg);
+  const fast = Math.max(o.kias, plan.runInKias);
+  const exitSteep = Math.max(o.bankDeg, steepestLevelBankDeg(plan, fast, o.msl) ?? o.bankDeg);
+  const range = [radiusAtBank(plan, steep), radiusAtBank(plan, PATTERN.eightMinBankDeg)];
+  range.exitMinFt = turnRadiusFromBankFt(plan.tasFt(fast, o.msl), exitSteep);
+  return range;
+}
+
+/**
+ * How the figure 8 makes the time over target (RS-31; Dad, 19 Oct 2026: "the science isnt working on this...can the
+ * aircraft G it up more as necessary to make the window"): the loops already begun (a live press's plan.keptLoops, their
+ * radii as flown) stay; the m loops after them are all flown at one radius R, and the outbound exit at R too (never
+ * tighter than range.exitMinFt), so the time from the start to the IP is the kept loops' plus m × K × R plus the exit's.
+ * For each m (at least one loop; none needed after kept loops when the outbound exit can still change) R is worked out
+ * to fit, and the m whose R comes nearest the set radius (the set bank) is taken, inside range. When even the tightest
+ * single loop is too long, the nearer of leaving at once (not on a live press) and the tightest. Returns
+ * { k (all loops), kept, m, param (R), range, slope (s per foot of R) }.
+ */
+function solveEight(plan, { K, exitK, need, range }) {
+  const o = plan.orbit;
+  const outbound = o.flow !== 'inbound';
+  const kept = plan.keptLoops ?? [];
+  const keptSec = kept.reduce((sum, r) => sum + r * K, 0);
+  const dirOf = (i) => (i % 2 === 0 ? o.dir : -o.dir);
+  const exitSec = (m, R) => (outbound ? Math.max(R, range.exitMinFt) * exitK(dirOf(kept.length + m - 1)) : 0);
+  const timeOf = (m, R) => keptSec + m * K * R + exitSec(m, R);
+  const radiusFor = (m) => {
+    // timeOf rises with R: the R that fits, by halving inside range (null when it can't).
+    if (need < timeOf(m, range[0]) || need > timeOf(m, range[1])) return null;
+    let a = range[0], b = range[1];
+    for (let k = 0; k < 40; k++) {
+      const c = (a + b) / 2;
+      if (timeOf(m, c) < need) a = c;
+      else b = c;
+    }
+    return (a + b) / 2;
+  };
+  const mMin = outbound && kept.length > 0 ? 0 : 1;
+  const slopeOf = (m, R) => m * K + (outbound && R >= range.exitMinFt ? exitK(dirOf(kept.length + m - 1)) : 0);
+  let best = null;
+  for (let m = mMin; m <= PATTERN.eightMaxLoops; m++) {
+    const R = radiusFor(m);
+    if (R === null) {
+      if (need < timeOf(m, range[0])) break; // more loops only take longer
+      continue;
+    }
+    const off = Math.abs(Math.log(R / o.radiusFt));
+    if (!best || off < best.off) best = { m, R, off };
+  }
+  const out = (m, R) => ({ k: kept.length + m, kept, m, param: R, range, slope: Math.max(slopeOf(m, R), K / 4) });
+  if (best) return out(best.m, best.R);
+  const tMin = timeOf(mMin, range[0]);
+  if (need < tMin) {
+    if (!plan.live && mMin > 0 && need < tMin - need) return { k: 0, kept, m: 0, param: null, range, slope: K };
+    return out(mMin, range[0]); // late even at the tightest: the card says how late
+  }
+  return out(PATTERN.eightMaxLoops, range[1]); // a very long wait: the widest loops, early (the card says so)
 }
 
 /**
  * The pattern's whole path (RS-11): k standard laps, then the last one (param: its outbound leg or radius, ft; null with
- * `standard` false: no pattern at all). prepFrom: how far along it the last lap's run-in preparation starts (the last
- * outbound leg, or the last loop).
+ * `standard` false: no pattern at all), and for the figure 8 its exit at the set radius (Dad's ask of 19 Oct 2026).
+ * prepFrom: how far along it the run-in preparation starts (the last outbound leg, or the figure 8's exit).
  */
-function patternPath(plan, k, param, standard = false) {
+function patternPath(plan, k, param, standard = false, sol = null) {
   const o = plan.orbit;
   const base = { ip: plan.ip, u: plan.u };
-  if (param === null && !standard) return { path: makePath([]), prepFrom: 0 };
+  if (param === null && !standard) return { path: makePath([]), prepFrom: 0, loopRadii: [] };
+  if (o.pattern === 'eight') return eightPath(plan, standard ? new Array(k).fill(o.radiusFt) : [...sol.kept, ...new Array(sol.m).fill(param)], standard ? o.radiusFt : param, sol?.range?.exitMinFt ?? 0);
   const segs = [];
-  const lapOf = (i, size) => (o.pattern === 'hold'
-    ? holdLap({ ...base, dir: o.dir, r: o.radiusFt, legFt: size })
-    : eightLoop({ ...base, dir: i % 2 === 0 ? o.dir : -o.dir, r: size, crossDeg: PATTERN.eightCrossDeg }));
-  const nominal = o.pattern === 'hold' ? o.legFt : o.radiusFt;
+  const lapOf = (i, size) => holdLap({ ...base, dir: o.dir, r: o.radiusFt, legFt: size });
+  const nominal = o.legFt;
   const n = standard ? k - 1 : k;
   for (let i = 0; i < n; i++) segs.push(...lapOf(i, nominal));
   const before = makePath(segs).total;
   if (n >= 0) segs.push(...lapOf(Math.max(n, 0), standard ? nominal : param));
-  const path = makePath(segs);
-  return { path, prepFrom: o.pattern === 'hold' ? before + Math.PI * o.radiusFt : before };
+  return { path: makePath(segs), prepFrom: before + Math.PI * o.radiusFt };
+}
+
+/**
+ * The figure 8's whole path from its loops' radii (RS-11, RS-30, RS-31): the loops in turn, the first turning o.dir; then,
+ * flown outbound, its exit turning the way the last loop did at exitFt (never tighter than exitMinFt). prepFrom: where the
+ * run-in preparation starts (the exit; flown inbound, the last loop). Empty radii: no pattern at all.
+ */
+function eightPath(plan, radii, exitFt, exitMinFt) {
+  const o = plan.orbit;
+  const base = { ip: plan.ip, u: plan.u, crossDeg: PATTERN.eightCrossDeg };
+  const outbound = o.flow !== 'inbound';
+  const segs = [];
+  let lastStart = 0;
+  radii.forEach((r, i) => {
+    lastStart = makePath(segs).total;
+    segs.push(...eightLoop({ ...base, dir: i % 2 === 0 ? o.dir : -o.dir, r, outbound }));
+  });
+  const loopsFt = makePath(segs).total;
+  if (radii.length && outbound) segs.push(...eightExit({ ...base, dir: (radii.length - 1) % 2 === 0 ? o.dir : -o.dir, r: Math.max(exitFt, exitMinFt) }));
+  // The steepest bank planned (the loops at the orbit's speed, the exit at the faster of it and the run-in's), for the
+  // pilot's most bank holding it (RS-31).
+  const bankAt = (v, r) => radToDeg(Math.atan((v * v) / (G_FTPS2 * r)));
+  const vFast = plan.tasFt(Math.max(o.kias, plan.runInKias), o.msl);
+  const exitR = radii.length && outbound ? Math.max(exitFt, exitMinFt) : null;
+  const pathBankDeg = Math.max(0, ...radii.map((r) => bankAt(o.tasFtps, r)), exitR ? bankAt(vFast, exitR) : 0);
+  return { path: makePath(segs), prepFrom: outbound ? loopsFt : lastStart, loopRadii: radii, exitFt: exitR, pathBankDeg };
 }
 
 /**
@@ -846,12 +996,12 @@ function flyPattern(plan) {
   let best = null;
   let last = null;
   for (let n = 0; n < 5; n++) {
-    Object.assign(o, patternPath(plan, sol.k, param, sol.standard));
+    Object.assign(o, patternPath(plan, sol.k, param, sol.standard, sol));
     const flight = fly(plan, { pilot: patternStart(plan), record: true });
     const fall = flight.release && plan.load ? dropFrom(plan, flight.release) : null;
     const arrival = arrivalOf(plan, flight, fall);
     const err = arrival === null ? Infinity : tot - arrival; // + early: more time wanted
-    if (!best || Math.abs(err) < Math.abs(best.err)) best = { flight, fall, param, err, path: o.path, prepFrom: o.prepFrom };
+    if (!best || Math.abs(err) < Math.abs(best.err)) best = { flight, fall, param, err, path: o.path, prepFrom: o.prepFrom, loopRadii: o.loopRadii, exitFt: o.exitFt, pathBankDeg: o.pathBankDeg };
     if (sol.byHand || param === null || !Number.isFinite(err) || Math.abs(err) < 0.5) break;
     let slope = sol.slope;
     if (last && Math.abs(param - last.param) > 1) slope = clamp((last.err - err) / (param - last.param), sol.slope / 3, sol.slope * 3);
@@ -862,13 +1012,20 @@ function flyPattern(plan) {
   }
   o.path = best.path;
   o.prepFrom = best.prepFrom;
+  o.loopRadii = best.loopRadii;
+  o.exitFt = best.exitFt;
+  o.pathBankDeg = best.pathBankDeg;
   const ev = best.flight.events;
   const exit = { sec: ev.exit ?? 0, byHand: Boolean(sol.byHand), pattern: { k: sol.k, none: o.path.total <= 0 } };
   const size = best.param ?? (o.pattern === 'hold' ? o.legFt : o.radiusFt);
   if (o.pattern === 'hold') exit.pattern.legSec = size / o.tasFtps;
-  else exit.pattern.bankDeg = radToDeg(Math.atan((o.tasFtps * o.tasFtps) / (G_FTPS2 * size)));
+  else {
+    // The figure 8 (RS-31): its loops' bank (those worked out, at the orbit's speed) and how many loops in all.
+    exit.pattern.bankDeg = radToDeg(Math.atan((o.tasFtps * o.tasFtps) / (G_FTPS2 * size)));
+    exit.pattern.loops = o.loopRadii?.length ?? 0;
+  }
   if (!sol.byHand && Number.isFinite(best.err) && Math.abs(best.err) >= 2) {
-    const words = o.pattern === 'hold' ? 'the shortest last outbound leg' : 'the tightest last loop';
+    const words = o.pattern === 'hold' ? 'the shortest last outbound leg' : 'the tightest loops the aircraft can hold level';
     exit.note = best.err < 0
       ? `The time over target can't be made from the ${o.pattern === 'hold' ? 'holding pattern' : 'figure 8'}: ${exit.pattern.none ? 'leaving at once' : words} arrives ${Math.round(-best.err)} s late. A later time over target would work.`
       : `The time over target can't be made from the ${o.pattern === 'hold' ? 'holding pattern' : 'figure 8'}: ${exit.pattern.none ? `leaving at once arrives ${Math.round(best.err)} s early, and even ${words} takes longer than that` : `it arrives ${Math.round(best.err)} s early`}. A later time over target would work.`;
@@ -886,13 +1043,14 @@ function arrivalOf(plan, flight, fall) {
  * The whole pass: the plan, the orbit exit, the flight (stored at PASS_STEP_SEC), the load's fall and the result.
  * Returns { plan, exit, flight, fall, result, computeMs }.
  */
-export function flyPass(setup, world, { minLaps = 0, maxLaps = null, minParamFt = null, minExitSec = null, live = false } = {}) {
+export function flyPass(setup, world, { minLaps = 0, maxLaps = null, minParamFt = null, minExitSec = null, live = false, keptLoops = null } = {}) {
   const started = globalThis.performance?.now?.() ?? Date.now();
   const plan = buildPlan(setup, world);
   if (minLaps > 0) plan.minLaps = minLaps; // RS-24: a live anthem press keeps the laps already begun
   if (maxLaps !== null) plan.maxLaps = maxLaps;
   if (minParamFt !== null) plan.minParamFt = minParamFt;
   if (live) plan.live = true;
+  if (keptLoops) plan.keptLoops = keptLoops; // RS-31: a live press keeps the figure 8's loops already begun, as flown
   if (minExitSec !== null) plan.minExitSec = minExitSec;
   if (plan.orbit.lap) {
     const { exit, flight, fall } = flyPattern(plan);
@@ -959,14 +1117,14 @@ export function flyPassFrom(prev, setup, world, pressSec) {
   if (tl.phase[i] !== PHASE.ORBIT) return committed('Already on its way in when the anthem started: nothing left in the orbit to change.');
   let options;
   if (o.lap) {
-    const stdFt = o.pattern === 'hold' ? makePath(holdLap({ ip: prev.plan.ip, u: prev.plan.u, dir: o.dir, r: o.radiusFt, legFt: o.legFt })).total : makePath(eightLoop({ ip: prev.plan.ip, u: prev.plan.u, dir: o.dir, r: o.radiusFt, crossDeg: PATTERN.eightCrossDeg })).total;
     const s = tl.pathS[i] ?? 0;
     const w = prev.plan.windAt(tl.z[i]);
     const look = Math.max(500, Math.hypot(tl.vx[i] + w.x, tl.vy[i] + w.y) * PILOT.lookaheadSec);
     const margin = 3 * look + 300; // his look ahead and its search window
-    const kOld = prev.exit.pattern?.k ?? 0;
-    let j = Math.min(Math.floor(s / stdFt), kOld); // the lap it is in (lap kOld is the last, adjusted one)
     if (o.pattern === 'hold') {
+      const stdFt = makePath(holdLap({ ip: prev.plan.ip, u: prev.plan.u, dir: o.dir, r: o.radiusFt, legFt: o.legFt })).total;
+      const kOld = prev.exit.pattern?.k ?? 0;
+      const j = Math.min(Math.floor(s / stdFt), kOld); // the lap it is in (lap kOld is the last, adjusted one)
       // The lap it is in can still be the adjusted last one while its outbound leg ends ahead of where he is looking: the
       // turn before that leg is the same whatever its length. Becoming a standard lap instead keeps the past only if the
       // standard leg still reaches past that point too.
@@ -980,9 +1138,22 @@ export function flyPassFrom(prev, setup, world, pressSec) {
         return committed('Already past the end of its last outbound leg when the anthem started: nothing left in the pattern to change.');
       }
     } else {
-      if ((j + 1) * stdFt - s < margin) j += 1; // the look ahead already reaches the next loop
-      if (j >= kOld) return committed('Already in its last loop when the anthem started: nothing left in the pattern to change.');
-      options = { minLaps: j + 1 };
+      // The figure 8 (RS-31): the loops begun by the press (and the next, when his look ahead already sees it) stay as
+      // flown; the rest, and the outbound exit, are worked out again.
+      const radii = o.loopRadii ?? [];
+      const ends = [];
+      let at = 0;
+      for (const [n, r] of radii.entries()) {
+        at += makePath(eightLoop({ ip: prev.plan.ip, u: prev.plan.u, dir: n % 2 === 0 ? o.dir : -o.dir, r, crossDeg: PATTERN.eightCrossDeg, outbound: o.flow !== 'inbound' })).total;
+        ends.push(at);
+      }
+      let j = ends.findIndex((e) => e > s); // the loop it is in
+      if (j < 0) return committed('Already in its turn inbound when the anthem started: nothing left in the pattern to change.');
+      if (ends[j] - s < margin) j += 1;
+      const keep = j + 1;
+      const room = o.flow !== 'inbound' ? radii.length : radii.length - 1; // the outbound exit can still change
+      if (keep > room || (keep === radii.length && at - s < margin)) return committed('Already in its last loop or its turn inbound when the anthem started: nothing left in the pattern to change.');
+      options = { keptLoops: radii.slice(0, keep) };
     }
   } else {
     options = { minExitSec: pressSec + dt };
