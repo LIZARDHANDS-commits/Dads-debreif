@@ -22,7 +22,8 @@ Patrick's ask (22 Oct 2026): "consolidate all of the worktrees and get main up t
 - [x] Task 5: branch report in [branches.md](branches.md). Nothing deleted; waiting on Patrick.
 - [ ] Task 6: Patrick runs the worktree commands in [branches.md](branches.md) on his computer.
 - [ ] Task 7: a budgeted publishing setup before going private again (below).
-- Not done: version tags v2.528 to v2.533. This cloud session's proxy refused the tag push (403); add them from Patrick's computer or a later session.
+- [x] Six Formation unit test files parked until the redesign (V2.535, #1093, TS-237).
+- [ ] Version tags: 13 versions have none on GitHub (V2.515, 516, 522, 523, 524, 528–535). This cloud session's proxy refuses tag pushes (403); Patrick pushes them (commands below).
 
 ## Tasks
 
@@ -64,6 +65,16 @@ For each of the ~60 unmerged branches on GitHub, check whether its changes are a
 Hand Patrick a short set of commands for his own computer: list his worktrees, and for each one, show whether it has work that isn't committed or isn't on GitHub. The protected `Dads-debreif-open-source-perf` worktree is left alone.
 - Acceptance: Patrick knows which local worktrees can go.
 - Dependencies: Task 5.
+
+## Order and risks (checked 22 Oct 2026, after Task 5)
+
+Order matters; each step protects the next.
+
+1. **Version tags first** (Patrick, about 5 min). Low risk. Before Task 7: if publishing ever runs on tags, tags made after that would each publish. Commits: V2.515 `ee33c10f`, V2.516 `a40a7f56`, V2.522 `7f074106`, V2.523 `d9e5b473`, V2.524 `ed2b3a1b`, V2.528 `26d82b2c`, V2.529 `02e704f2`, V2.530 `da71fa08`, V2.531 `b0609039`, V2.532 `085b01b9`, V2.533 `5dd82c7a`, V2.534 `f46ace11`, V2.535 `b03636b3`. Then `git push origin --tags`.
+2. **Worktree check** (Patrick, about 5 min), before any deletion: a worktree may sit on a branch marked for deletion with commits never pushed. Use the corrected commands in `branches.md` section 4: the first version's `@{u}` check fails on a branch never pushed, and `git worktree remove` deletes ignored files (local `.env`, Blender outputs) without asking.
+3. **Back up, then delete branches** (after Patrick's yes). 56 of the 66 leftover branches match a pull request's last commit, which GitHub keeps, so they can be restored. 10 don't, and deleting one loses it for good: `fw-rejoin-settle-mid-cone`, `project-thread-swv8zh`, `sof-mouse-airspace`, `combined-preview`, plus `c130j-model-plan`, `debrief-16-ship-plan`, `debrief-drop-plan`, `ep-tabletop-phone`, `run-in-sim-build` and `t38a-model-plan` (those six already on main). Tag those 10 `archive/<name>` first. Then the 20 on main, then the 8 with unlanded work one at a time (Nav Planner first), then the 38 probably replaced after Patrick skims them. Tell Dad in the bulletin, since his sessions may still have some checked out.
+4. **Budgeted publishing (Task 7).** Design around: write access (keep the job that installs npm packages unable to write to the repo); repo bloat (the `gh-pages` branch keeps only the latest build, replaced each time; about 60 MB a build, repo already 280 MB); Actions minutes when private (Pro includes 3,000 a month; CI on hand runs only); CodeQL needs a paid add-on when private (weekly run off then); the site lags main by design (the bulletin's "live on main" wording changes).
+5. **Private again** only after one successful publish the new way. Keep the public window short: anyone can download a copy while public. At 22 Oct: no forks, no keys or passwords found in the code.
 
 ### Task 7: Budgeted publishing, then private again (M)
 Patrick (22 Oct 2026): "once we consolidate a workflow for sensical budgeted updates we will go private again". Proposal, for his yes:

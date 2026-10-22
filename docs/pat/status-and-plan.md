@@ -2,9 +2,19 @@
 
 > **Single-Writer Rule:** Only Patrick's Claude and Antigravity sessions edit this file and [bulletin-for-dad.md](bulletin-for-dad.md). To see Dad's latest status and questions waiting on Patrick, read **[../dad/status-and-plan.md](../dad/status-and-plan.md)** and **[../dad/waiting-on-patrick.md](../dad/waiting-on-patrick.md)**.
 
+## Consolidation, 22 Oct 2026 (V2.528 to V2.535; plan and branch report in `Pat's claude work/consolidate-oct22/`)
+
+- **Done:** CodeQL fixed (V2.528). Publishing restored: the private repo's monthly Actions storage ran out (about 60 MB a publish, 120–190 publishes a day on 4–6 and 11 Oct), and you made the repo public again. Dad's #1087, #1088 and #1086 merged (V2.531–V2.533, the two run-in PRs deconflicted in their READMEs), Dependabot's #1089 (V2.529), the i-have-adhd skill (V2.530), and six failing Formation test files parked (V2.535, TS-237). Live: V2.535.
+- **Next, in this order** (risks in `plan.md`, "Order and risks"):
+  1. You push the 13 missing version tags (V2.515, 516, 522–524, 528–535) from your computer; this cloud session's proxy refuses tag pushes.
+  2. You run the corrected worktree check (`branches.md` section 4) and paste the output.
+  3. Your yes to back up, then delete leftover branches: 10 have no pull request keeping their commits, so they're tagged `archive/<name>` before anything is deleted.
+  4. Your call on budgeted publishing (hand run only, recommended; or version tags too), then going private again once it has published once.
+- **Untested or unseen:** the three merged Dad PRs not flown in the app; a full `npm test` run after the parking not run.
+
 ## Active Workspace & Worktree State (`wise-mendeleev`, 17 Oct 2026)
 
-- **`Dads-debreif` (`main`):** Unified and live at `https://lizardhands-commits.github.io/Dads-debreif/` (private repo with GitHub Pro Pages workflow, 3-layer Windows UTF-8/Mojibake + `ALL-R24` barrier, automatic `V2.xxx` version stamping in `vite.config.js`, and 0 open PRs).
+- **`Dads-debreif` (`main`):** Unified and live at `https://lizardhands-commits.github.io/Dads-debreif/` (public again since 22 Oct 2026, to be private again after budgeted publishing; GitHub Pro Pages workflow, 3-layer Windows UTF-8/Mojibake + `ALL-R24` barrier, automatic `V2.xxx` version stamping in `vite.config.js`, and 0 open PRs).
 - **`Dads-debreif-open-source-perf` (`wip/open-source-performance-redesign`, `769aede9`):** Protected local worktree holding Patrick's open-source aircraft performance redesign (`DO_NOT_DELETE_OR_MERGE.md`). Never delete, reset, push, or merge until specifically authorized by Patrick.
 
 ---
