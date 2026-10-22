@@ -389,6 +389,21 @@ The simulator models 2-ship and 4-ship tactical formation turns baselined on sta
 
 All lines ticked means Milestone 3 (Turn Sim Formation Simulation) is complete and signed off for Gate 3.
 
+## Parked until the Formation redesign (Patrick, 22 Oct 2026)
+
+Patrick, 22 Oct 2026: "can we disable them until we finish redesigning formation?" Six unit test files are on the sign-off-only list in `tools/unit-tests.mjs`. Everyday runs (`npm test`) skip them; `npm run test:signoff` (`--all`) still runs them. Nothing is deleted or changed.
+
+| File | Failing on main, 22 Oct 2026 (V2.534) | What fails |
+|---|---|---|
+| `tests/unit/turn-sim/live.test.js` | 12 | Line abreast after hook, delayed 45/90, in-place 90, shackle and cross turn, both sides |
+| `tests/unit/turn-sim/four-ship.test.js` | 6 | Hook and delayed 45 in line abreast, same gaps, both sides |
+| `tests/unit/turn-sim/errors.test.js` | 6 | Turn at normal reference (position, roll-in, height errors carried), the Fix tools ending in the SMM picture, a second press |
+| `tests/unit/turn-sim/four-ship-changes.test.js` | 4 | 4-ship formation tours, the Side switch, the turn buttons |
+| `tests/unit/turn-sim/g-warm.test.js` | 2 | G-warm ending in line abreast tightened to about 4,000 ft, both sides |
+| `tests/unit/turn-sim/formation-moves.test.js` | 2 | Echelon to fighting wing in the band; the 4-ship rejoin off the stack |
+
+These failures were already on main before the 22 Oct merges, and no Formation code changed that day. The passing tests in these files are parked with them. **Each file comes back to everyday runs when the redesign covers what it checks.** At that point it's checked against the manuals and Patrick's practice, then kept, rewritten or retired under `docs/TESTING.md` with his yes; never by matching the code's own output.
+
 ## Test files and what happens to each
 
 **All Turn Sim test files follow the Turn Sim review** (rebuild, reuse parts or fix). The marks below apply only if the code is kept.

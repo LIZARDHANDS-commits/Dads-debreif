@@ -35,6 +35,7 @@
   3. Line astern (~10 ft nose to tail) vs 11-248 close trail (1–2 lengths).
 
 ### 3. Pat's Formation Simulator (`turn-sim`)
+- [ ] **Six Formation unit test files parked until the redesign (22 Oct 2026; you: "can we disable them until we finish redesigning formation?"):** `live`, `four-ship`, `errors`, `four-ship-changes`, `g-warm` and `formation-moves` hold the 32 unit tests failing on main. They're on the sign-off-only list in `tools/unit-tests.mjs`, so `npm test` skips them and `npm run test:signoff` still runs them. Each comes back when the redesign covers it, with your yes on keep, rewrite or retire. List and reasons: [modules/turn-sim/testing.md](../modules/turn-sim/testing.md), "Parked until the Formation redesign".
 - [ ] **Formation B5, fighting wing on the live wingman (`V2.515`; PR `#1078`, 17 Oct 2026):**
   - The `CR` code review is done; notes in `Pat's claude work/formation-review-12oct/b5-code-review-17oct.md`. Fixed or ruled:
     - Live is the default (`TS-235`, "Keep Live, I said yes"), and the screen switch now shows it.
